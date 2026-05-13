@@ -1,0 +1,23 @@
+<div class="section side nojs--hide">
+  <div class="section__header">
+    <h1 class="section__title" id="countdown_title">
+      {% if payload.title %}
+      {{ payload.title }}
+      {% endif %}
+    </h1>
+  </div>
+  {% if payload.dates %}
+  <div class="section__body typo" id="countdowns">
+    {% for date in payload.dates %}
+    <p>{{ _('Days until') }}{{ date.name }}{{ _('days remaining') }}{{ date.diff }}{{ _('days') }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+<script>
+  function loadCountdown() {
+    console.log('Powered by oi33');
+    window.dispatchEvent(new Event('countdown-finish'));
+  }
+  window.addEventListener('load', loadCountdown, { once: true });
+</script>

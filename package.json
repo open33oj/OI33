@@ -1,0 +1,8 @@
+{
+  "name": "oi33",
+  "version": "1.0.0",
+  "description": "Unified plugin for 33OJ: coins, birthday, badge, realname, checkin, countdown, pastebin, frontend",
+  "main": "index.ts",
+  "author": "33DAI",
+  "license": "AGPL-3.0"
+}

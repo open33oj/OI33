@@ -1,0 +1,58 @@
+{% set page_name = "oi33_coin_bill" %}
+{% extends "layout/basic.html" %}
+{% import "components/paginator.html" as paginator with context %}
+{% import "components/nothing.html" as nothing with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ uid }}{{ _('Record for') }}</h1>
+        {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+        {% endif %}
+      </div>
+      <div class="section__body no-padding">
+        <div data-fragment-id="ranking">
+          {% if not bills.length %}
+          {{ nothing.render(_('No coins yet!')) }}
+          {% else %}
+          <table class="data-table">
+            <colgroup>
+              <col class="col--time">
+              <col class="col--uid">
+              <col class="col--uid">
+              <col class="col--amount">
+              <col class="col--text">
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="col--time">{{ _('Time') }}</th>
+                <th class="col--uid">{{ _('Sender UID') }}</th>
+                <th class="col--uid">{{ _('Receiver UID') }}</th>
+                <th class="col--amount">{{ _('Amount') }}</th>
+                <th class="col--text">{{ _('Reason') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {%- for bill in bills -%}
+              <tr>
+                <td class="col--time">{{ datetimeSpan(bill._id)|safe }}</td>
+                <td class="col--uid">{{ bill.rootId }}</td>
+                <td class="col--uid">{{ bill.userId }}</td>
+                <td class="col--amount">{{ bill.amount }}</td>
+                <td class="col--text">{{ bill.text }}</td>
+              </tr>
+              {%- endfor -%}
+            </tbody>
+          </table>
+          {{ paginator.render(page, upcount) }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

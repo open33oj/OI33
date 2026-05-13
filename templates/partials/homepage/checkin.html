@@ -1,0 +1,28 @@
+<div class="section side">
+  <div class="section__header">
+    <h1 class="section__title">{{ _('Daily Fortune') }}</h1>
+  </div>
+  <div class="section__body typo" style="text-align: center">
+    {% if UserContext._id != 0 %}
+      {% if payload.oi33_checkin and payload.luck_today == payload.oi33_checkin.time %}
+        {% if payload.luck_vip and payload.luck_vip.includes(UserContext._id) %}
+          <h1 style="font-weight: bold; color:{{ payload.luck_type[0].color }};">
+            § 天天大吉 §
+          </h1>
+        {% else %}
+          <h1 style="font-weight: bold; color:{{ payload.luck_type[payload.oi33_checkin.luck].color }};">
+            § {{ payload.luck_type[payload.oi33_checkin.luck].text }} §
+          </h1>
+        {% endif %}
+        <p>{{ _('Consecutive days') }} {{ payload.oi33_checkin.cnt_now }} {{ _('days, total') }} {{ payload.oi33_checkin.cnt_all }} {{ _('days') }}</p>
+      {% else %}
+        <a href="/oi33/checkin" class="expanded button">
+          <span class="icon icon-feeling-lucky"> </span>
+          {{ _('Draw Today Fortune') }}
+        </a>
+      {% endif %}
+    {% else %}
+      <p>{{ _('Login to draw') }}</p>
+    {% endif %}
+  </div>
+</div>

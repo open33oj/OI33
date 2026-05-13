@@ -1,0 +1,81 @@
+{% set page_name = "oi33_admin" %}
+{% extends "layout/basic.html" %}
+{% import "components/nothing.html" as nothing with context %}
+{% block content %}
+
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('OI33 Admin Dashboard') }}</h1>
+      </div>
+
+      <div class="section__body">
+
+        <!-- Quick links -->
+        <div style="margin-bottom:3rem;">
+          <h3 style="margin-bottom:1rem;">{{ _('Quick Links') }}</h3>
+
+          <div style="margin-bottom:1.2rem;">
+            <div style="font-size:0.85rem;color:#888;margin-bottom:0.4rem;">查看</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              <a href="/oi33/users" class="primary rounded button">{{ _('All Users') }}</a>
+              <a href="/oi33/coin/bill/0" class="rounded button">{{ _('All Records') }}</a>
+              <a href="/oi33/paste/all" class="rounded button">{{ _('All Pastes') }}</a>
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.2rem;">
+            <div style="font-size:0.85rem;color:#888;margin-bottom:0.4rem;">设置</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              <a href="/oi33/coin/inc" class="rounded button">{{ _('Grant Coins') }}</a>
+              <a href="/oi33/birthday/set" class="rounded button">{{ _('Set Birthday') }}</a>
+              <a href="/oi33/realname/set" class="rounded button">{{ _('Set Realname') }}</a>
+              <a href="/oi33/badge/create" class="rounded button">{{ _('Add Badge') }}</a>
+              <a href="/oi33/badge/manage" class="rounded button">{{ _('Manage Badges') }}</a>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:0.85rem;color:#888;margin-bottom:0.4rem;">系统</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              <a href="/oi33/migrate" class="rounded button">{{ _('Run Migration') }}</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity Timeline -->
+        <h3 style="margin-bottom:1rem;">{{ _('Recent Activities') }}</h3>
+        {% if activities.length %}
+        <div style="border-left:3px solid #e0e0e0;padding-left:1.5rem;">
+          {% for a in activities %}
+          <div style="padding:0.5rem 0;{% if not loop.last %}border-bottom:1px dashed #f0f0f0;{% endif %}">
+            <span style="color:#888;font-size:0.8rem;margin-right:0.8rem;">
+              {{ datetimeSpan(a._id)|safe }}
+            </span>
+            <span>
+              {% if a.type == 'coin' %}
+                {{ _('activity_coin').replace('{0}', a.sender).replace('{1}', a.amount).replace('{2}', a.receiver) }}
+                {% if a.reason %}<span style="color:#888;"> — {{ a.reason }}</span>{% endif %}
+              {% elif a.type == 'birthday' %}
+                {{ _('activity_birthday').replace('{0}', a.userId).replace('{1}', a.birthdayDate) }}
+              {% elif a.type == 'badge' %}
+                {{ _('activity_badge').replace('{0}', a.userId).replace('{1}', a.badgeText) }}
+              {% elif a.type == 'realname' %}
+                {{ _('activity_realname').replace('{0}', a.userId).replace('{1}', a.realnameName) }}
+              {% elif a.type == 'paste' %}
+                {{ _('activity_paste').replace('{0}', a.owner).replace('{1}', a.title) }}
+              {% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ nothing.render(_('No activities yet.')) }}
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
