@@ -7,7 +7,7 @@
   <div class="medium-12 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">{{ _('All Users') }}</h1>
+        <h1 class="section__title">{{ _('OI33 All Users') }}</h1>
         {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
         <div class="section__tools">
           <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
@@ -37,7 +37,7 @@
               <th class="col--coin">{{ _('Earned') }}</th>
               <th class="col--birthday">{{ _('Birthday') }}</th>
               <th class="col--flag">{{ _('Flag') }}</th>
-              <th class="col--name">{{ _('Name') }}</th>
+              <th class="col--name">{{ _('Realname Name') }}</th>
               <th class="col--actions">{{ _('Actions') }}</th>
             </tr>
           </thead>
@@ -55,7 +55,7 @@
                 {%- else -%}-{%- endif -%}
               </td>
               <td class="col--name">{{ udoc.realname_name or '-' }}</td>
-              <td class="col--actions"><a href="/oi33/coin/bill/{{ udoc._id }}">{{ _('View Details') }}</a></td>
+              <td class="col--actions"><a href="/oi33/coin/bill/{{ udoc._id }}">{{ _('View Coin Bill') }}</a></td>
             </tr>
             {%- endfor -%}
           </tbody>
