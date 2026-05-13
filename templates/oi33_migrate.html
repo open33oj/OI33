@@ -1,0 +1,70 @@
+{% set page_name = "oi33_migrate" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+
+<div class="row">
+  <div class="medium-8 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Migration') }}</h1>
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+
+      <div class="section__body">
+
+        {% if done %}
+          <!-- Migration completed -->
+          <div class="typo" style="background:#e8f5e9;border-radius:8px;padding:1.2rem 1.5rem;margin-bottom:1.5rem;">
+            <h3 style="margin-top:0;">{{ _('Migration Results') }}</h3>
+            <table style="width:100%;max-width:400px;">
+              <tr><td>{{ _('Coin bills to migrate') }}：</td><td><strong>{{ result.bills }}</strong></td></tr>
+              <tr><td>{{ _('Pastes to migrate') }}：</td><td><strong>{{ result.pastes }}</strong></td></tr>
+              <tr><td>{{ _('User records to migrate') }}：</td><td><strong>{{ result.users }}</strong></td></tr>
+            </table>
+            {% if result.errors.length %}
+            <div style="margin-top:1rem;">
+              <strong>{{ _('Errors') }}：</strong>
+              <ul>{% for err in result.errors %}<li style="color:red;">{{ err }}</li>{% endfor %}</ul>
+            </div>
+            {% else %}
+            <p style="margin-top:1rem;color:#4caf50;">{{ _('No errors') }}</p>
+            {% endif %}
+          </div>
+          <a href="/oi33/admin" class="primary rounded button">{{ _('Back to Admin') }}</a>
+
+        {% else %}
+          <!-- Preview -->
+          <p style="margin-bottom:1.5rem;color:#666;">{{ _('Source Data Summary') }}</p>
+          <p style="margin-bottom:0.5rem;color:#888;font-size:0.85rem;">{{ _('Migration is idempotent, safe to run multiple times.') }}</p>
+
+          <table style="width:100%;max-width:400px;margin-bottom:2rem;">
+            <tr>
+              <td style="padding:0.5rem 0;">{{ _('Coin bills to migrate') }}：</td>
+              <td><strong>{{ preview.billCount }}</strong></td>
+            </tr>
+            <tr>
+              <td style="padding:0.5rem 0;">{{ _('Pastes to migrate') }}：</td>
+              <td><strong>{{ preview.pasteCount }}</strong></td>
+            </tr>
+            <tr>
+              <td style="padding:0.5rem 0;">{{ _('Birthday records to migrate') }}：</td>
+              <td><strong>{{ preview.birthdayCount }}</strong></td>
+            </tr>
+            <tr>
+              <td style="padding:0.5rem 0;">{{ _('User records to migrate') }}：</td>
+              <td><strong>{{ preview.userCount }}</strong></td>
+            </tr>
+          </table>
+
+          <form method="post">
+            <button type="submit" class="primary rounded button">{{ _('Confirm Migration') }}</button>
+          </form>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

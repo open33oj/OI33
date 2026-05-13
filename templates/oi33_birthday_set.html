@@ -1,0 +1,40 @@
+{% set page_name = "oi33_birthday_set" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Set Birthday') }}</h1>
+        {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+        {% endif %}
+      </div>
+      <div class="section__body">
+        <form method="post">
+          {{ form.form_text({
+            label: _('Username / UID'),
+            name: 'uidOrName',
+            autofocus: true,
+            required: true
+          }) }}
+          {{ form.form_text({
+            label: _('Birthday (Format: YYYY-MM-DD)'),
+            name: 'date',
+            autofocus: true,
+            required: true,
+            placeholder: '例如: 2026-04-10'
+          }) }}
+          <div class="row">
+            <div class="columns">
+              <button type="submit" class="rounded primary button">{{ _('Save') }}</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

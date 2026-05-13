@@ -1,0 +1,33 @@
+{% set page_name = "oi33_paste_delete" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__body">
+        <form method="post">
+          <div class="row">
+            <div class="medium-12 columns" style="text-align: center;">
+              <h2>{{ _('Delete Paste') }}</h2>
+              <label>
+                <input type="hidden" name="pasteId" value="{{ doc._id }}" class="textbox" readonly>
+              </label>
+              <br>
+              <h4 style="font-size:1rem;">{{ _('Paste ID') }}: {{ doc._id }}</h4>
+            </div>
+          </div>
+          <br>
+          <div class="row" style="margin-left: 5px; text-align: left;">
+            <div style="margin:1.6rem 0 1.6rem;">{{ _('Are you sure you want to delete this paste?') }}</div>
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <button type="submit" class="rounded primary button">{{ _('Delete') }}</button>
+            {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+            <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

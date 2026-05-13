@@ -1,0 +1,47 @@
+{% set page_name = "oi33_realname_set" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title" data-heading>{{ _('Set Realname') }}</h1>
+        {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+        {% endif %}
+      </div>
+      <div class="section__body">
+        <form method="post">
+          {{ form.form_text({
+            label: _('By Username / UID'),
+            name: 'uidOrName',
+            autofocus: true,
+            required: true
+          }) }}
+          {{ form.form_select({
+            label: _('Set Realname'),
+            name: 'flag',
+            options: {
+              '0': _('No Identity'),
+              '1': _('Student'),
+              '2': _('Teacher')
+            },
+            value: '0'
+          }) }}
+          {{ form.form_text({
+            label: _('Name'),
+            name: 'name'
+          }) }}
+          <div class="row">
+            <div class="columns">
+              <button type="submit" class="rounded primary button">{{ _('Save') }}</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

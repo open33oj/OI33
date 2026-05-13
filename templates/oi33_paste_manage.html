@@ -1,0 +1,55 @@
+{% set page_name = "oi33_paste_manage" %}
+{% extends "layout/basic.html" %}
+{% import "components/paginator.html" as paginator with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__body">
+        <div class="row">
+          <div class="medium-12 columns" style="text-align: center;">
+            <h2>{{ _('My Pastes') }}</h2>
+            <div style="margin-top:2em;display:flex;justify-content:center;gap:0.5rem;">
+              <a href="/oi33/paste/create" class="rounded primary button">{{ _('Create') }}</a>
+              {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+              <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="row" style="padding-left:20px;padding-right: 20px;padding-top: 40px;padding-bottom: 20px;user-select:none;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 12rem">{{ _('Actions') }}</th>
+                <th>{{ _('Title') }}</th>
+                {%- if all -%}
+                <th style="width: 8rem">{{ _('Owner') }}</th>
+                {%- endif -%}
+                <th style="width: 8rem">{{ _('Last Update') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {%- for pdoc in doc -%}
+              <tr>
+                <td style="width: 12rem">
+                  <a href="/oi33/paste/show/{{ pdoc._id }}">{{ _('View') }}</a>&nbsp;/&nbsp;
+                  <a href="/oi33/paste/show/{{ pdoc._id }}/edit">{{ _('Edit') }}</a>&nbsp;/&nbsp;
+                  <a href="/oi33/paste/show/{{ pdoc._id }}/delete">{{ _('Delete') }}</a>
+                </td>
+                <td><a href="/oi33/paste/show/{{ pdoc._id }}" style="color:inherit">{{ pdoc.title }}</a></td>
+                {%- if all -%}
+                <td style="width: 8rem">{{ pdoc.owner }}</td>
+                {%- endif -%}
+                <td style="width: 8rem">{{ datetimeSpan(pdoc.updateAt) | safe }}</td>
+              </tr>
+              {%- endfor -%}
+            </tbody>
+          </table>
+          {{ paginator.render(page, upcount) }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

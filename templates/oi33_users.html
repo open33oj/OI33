@@ -1,0 +1,69 @@
+{% set page_name = "oi33_users" %}
+{% import "components/nothing.html" as nothing with context %}
+{% import "components/paginator.html" as paginator with context %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('All Users') }}</h1>
+        {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+        {% endif %}
+      </div>
+      <div class="section__body no-padding">
+        {% if not udocs.length %}
+        {{ nothing.render(_('No data')) }}
+        {% else %}
+        <table class="data-table">
+          <colgroup>
+            <col class="col--uid" style="width:5rem">
+            <col class="col--user">
+            <col class="col--coin" style="width:5rem">
+            <col class="col--coin" style="width:5rem">
+            <col class="col--birthday" style="width:6.5rem">
+            <col class="col--flag" style="width:4rem">
+            <col class="col--name" style="width:6rem">
+            <col class="col--actions" style="width:5rem">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="col--uid">{{ _('User ID') }}</th>
+              <th class="col--user">{{ _('Username') }}</th>
+              <th class="col--coin">{{ _('Balance') }}</th>
+              <th class="col--coin">{{ _('Earned') }}</th>
+              <th class="col--birthday">{{ _('Birthday') }}</th>
+              <th class="col--flag">{{ _('Flag') }}</th>
+              <th class="col--name">{{ _('Name') }}</th>
+              <th class="col--actions">{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {%- for udoc in udocs -%}
+            <tr>
+              <td class="col--uid">{{ udoc._id }}</td>
+              <td class="col--user">{{ user.render_inline(udoc) }}</td>
+              <td class="col--coin">{{ udoc.coin_now or 0 }}</td>
+              <td class="col--coin">{{ udoc.coin_all or 0 }}</td>
+              <td class="col--birthday">{{ udoc.birthday_date or '' }}</td>
+              <td class="col--flag">
+                {%- if udoc.realname_flag == 1 -%}{{ _('Student') }}
+                {%- elif udoc.realname_flag == 2 -%}{{ _('Teacher') }}
+                {%- else -%}-{%- endif -%}
+              </td>
+              <td class="col--name">{{ udoc.realname_name or '-' }}</td>
+              <td class="col--actions"><a href="/oi33/coin/bill/{{ udoc._id }}">{{ _('View Details') }}</a></td>
+            </tr>
+            {%- endfor -%}
+          </tbody>
+        </table>
+        {{ paginator.render(page, upcount) }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
