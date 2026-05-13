@@ -8,7 +8,25 @@ import { migrate, previewMigration } from './migrate';
 
 // --- Monkey-patches (run at import time) ---
 
-// (a) UserModel.getListForRender — merge oi33_user fields into udoc
+// (a) UserModel.getList — merge oi33_user fields into udoc
+// getList returns User instances with hasPriv(), used by pages that render user.html
+const origGetList = UserModel.getList;
+UserModel.getList = async function (domainId: string, uids: number[]) {
+    const udict = await origGetList.call(UserModel, domainId, uids);
+    if (!uids.length) return udict;
+    const oi33Dict = await oi33Model.getUserDataByUids(uids);
+    for (const uid of uids) {
+        const oi33 = oi33Dict[uid];
+        if (!oi33) continue;
+        const u = udict[uid];
+        if (!u) continue;
+        oi33Model.mergeOi33Fields(u, oi33);
+    }
+    return udict;
+};
+
+// (b) UserModel.getListForRender — merge oi33_user fields into udoc
+// getListForRender returns plain objects without hasPriv(); used for lightweight rendering
 const origGetListForRender = UserModel.getListForRender;
 UserModel.getListForRender = async function (domainId: string, uids: number[]) {
     const udict = await origGetListForRender.call(UserModel, domainId, uids);
@@ -24,7 +42,7 @@ UserModel.getListForRender = async function (domainId: string, uids: number[]) {
     return udict;
 };
 
-// (b) HomeHandler.prototype.getCheckin — inject checkin data into homepage
+// (c) HomeHandler.prototype.getCheckin — inject checkin data into homepage
 HomeHandler.prototype.getCheckin = async function (domainId: string, payload: any) {
     const today = moment().format('YYYY-MM-DD');
     payload.luck_today = today;
@@ -42,7 +60,7 @@ HomeHandler.prototype.getCheckin = async function (domainId: string, payload: an
     return payload;
 };
 
-// (c) HomeHandler.prototype.getCountdown — inject countdown data into homepage
+// (d) HomeHandler.prototype.getCountdown — inject countdown data into homepage
 HomeHandler.prototype.getCountdown = async function (domainId: string, payload: any) {
     function formatDate(date: Date) {
         const year = date.getFullYear();
