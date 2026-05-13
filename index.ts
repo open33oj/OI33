@@ -421,19 +421,6 @@ class MigrateHandler extends Handler {
 // --- apply ---
 
 export async function apply(ctx: Context) {
-    ctx.inject(['setting'], (c: any) => {
-        c.setting.AccountSetting(
-            SettingModel.Setting('setting_33oj', 'coin_now', 0, 'number', 'coin_now', null, 3),
-            SettingModel.Setting('setting_33oj', 'coin_all', 0, 'number', 'coin_all', null, 3),
-            SettingModel.Setting('setting_33oj', 'realname_flag', 0, 'number', 'realname_flag', null, 3),
-            SettingModel.Setting('setting_33oj', 'realname_name', '', 'text', 'realname_name', null, 3),
-            SettingModel.Setting('setting_33oj', 'checkin_time', '1997-01-11', 'text', 'checkin_time', null, 3),
-            SettingModel.Setting('setting_33oj', 'checkin_luck', 0, 'number', 'checkin_luck', null, 3),
-            SettingModel.Setting('setting_33oj', 'checkin_cnt_now', 0, 'number', 'checkin_cnt_now', null, 3),
-            SettingModel.Setting('setting_33oj', 'checkin_cnt_all', 0, 'number', 'checkin_cnt_all', null, 3),
-        );
-    });
-
     ctx.Route('oi33_users', '/oi33/users', UsersShowHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_coin_show', '/oi33/coin/show', CoinShowHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_coin_inc', '/oi33/coin/inc', CoinIncHandler, PRIV.PRIV_MOD_BADGE);
