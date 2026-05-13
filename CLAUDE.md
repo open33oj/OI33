@@ -89,9 +89,10 @@ Never use `getListForRender` when the `user.html` component is rendered, because
 | `/oi33/migrate` | MigrateHandler | PRIV_MOD_BADGE |
 
 ## Monkey-patches (in index.ts)
-1. **UserModel.getListForRender** — injects oi33 fields (coin, badge, realname, birthday) into user objects for all Hydro pages
-2. **HomeHandler.getCheckin** — injects `payload.oi33_checkin` for the checkin partial
-3. **HomeHandler.getCountdown** — injects `payload.dates` for the countdown partial
+1. **UserModel.getList** — injects oi33 fields (coin, badge, realname, birthday) into `User` instances with `hasPriv()` (used by pages rendering `user.html`)
+2. **UserModel.getListForRender** — same injection for plain objects without `hasPriv()` (used for lightweight rendering)
+3. **HomeHandler.getCheckin** — injects `payload.oi33_checkin` for the checkin partial
+4. **HomeHandler.getCountdown** — injects `payload.dates` for the countdown partial
 
 ## Template conventions
 - Use `_('key')` for i18n (keys defined in zh.yaml)
