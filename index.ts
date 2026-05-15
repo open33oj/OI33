@@ -1,10 +1,12 @@
 import {
     _, db, UserModel, SettingModel, DomainModel, moment,
-    Handler, PRIV, Types, param, query, NotFoundError,
+    Handler, PRIV, Types, param, query, NotFoundError, Context,
 } from 'hydrooj';
 import { HomeHandler } from 'hydrooj/src/handler/home';
 import { oi33Model } from './model';
 import { migrate, previewMigration } from './migrate';
+import Schema from 'schemastery';
+import { runExport } from './scripts/export-hydro-data';
 
 // --- Monkey-patches (run at import time) ---
 
@@ -461,4 +463,18 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_paste_del', '/oi33/paste/show/:id/delete', PasteDeleteHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_admin', '/oi33/admin', Oi33AdminHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_migrate', '/oi33/migrate', MigrateHandler, PRIV.PRIV_MOD_BADGE);
+
+    // Register Hydro script
+    ctx.addScript(
+        'exportHydroData',
+        'Export problems, contests, records and user snapshots within date range for AI analysis',
+        Schema.object({
+            startDate: Schema.string(),
+            endDate: Schema.string(),
+            outputDir: Schema.string(),
+            includeCode: Schema.boolean(),
+            domainId: Schema.string(),
+        }),
+        runExport,
+    );
 }

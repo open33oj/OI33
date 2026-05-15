@@ -209,3 +209,100 @@ hydrooj addon remove frontend-33oj
 | `title` | 链接分组标题 |
 | `urls` | 链接列表，每条含 `name`（显示名）和 `url`（链接地址） |
 
+## 数据导出脚本
+
+`scripts/export-hydro-data.ts` —— 以 **提交记录（record）** 为核心驱动，导出指定日期区间内的提交记录，并关联提取涉及的用户、题目、比赛及比赛成绩，用于 AI 分析。
+
+### 导出逻辑
+
+1. **查询 record**：以日期区间筛选提交记录（主要驱动）
+2. **提取关联 ID**：从 record 中抽取出 `uid`、`pid`、`contestId`
+3. **查询关联用户**：仅导出存在提交记录的用户（去敏）
+4. **查询关联题目**：仅导出被提交过的题目
+5. **查询关联比赛**：仅导出被提交涉及的比赛
+6. **聚合比赛成绩**：按 `(比赛, 用户)` 分组，聚合每场比赛的得分、AC 数、各题提交详情
+
+### 导出内容
+
+| 数据 | 来源 | 说明 |
+|------|------|------|
+| `records` | `record` | 日期区间内的所有提交记录 |
+| `users` | `user` | 存在提交记录的用户（去敏） |
+| `problems` | `document` (`docType=10`) | 被提交过的题目 |
+| `contests` | `document` (`docType=30`) | 被提交涉及的比赛 |
+| `contestResults` | `record` 聚合 | 每场比赛每个用户的成绩汇总 |
+
+### 使用方法
+
+**Hydro 控制面板 → 脚本管理**
+
+1. 进入 Hydro 控制面板「脚本管理」
+2. 找到 `exportHydroData` 脚本（插件注册后会自动显示在列表中）
+3. 填入参数后运行：
+
+| 参数 | 必填 | 说明 | 示例 |
+|------|------|------|------|
+| `startDate` | 是 | 开始日期 | `2026-01-01` |
+| `endDate` | 是 | 结束日期 | `2026-05-15` |
+| `outputDir` | 否 | 输出目录，默认 `/tmp` | `/tmp` |
+| `includeCode` | 否 | 是否包含提交代码，默认 `true` | `true` |
+| `domainId` | 否 | 限定域，默认全部域 | `system` |
+
+4. 运行后到服务器 `outputDir` 目录下取 `hydro-export-YYYY-MM-DD_to_YYYY-MM-DD.json`
+
+### 参数示例（可直接复制到脚本管理参数框）
+
+```json
+{"startDate":"2026-01-01","endDate":"2026-05-15","outputDir":"/tmp","includeCode":true,"domainId":"system"}
+```
+
+> 输出文件：`/tmp/hydro-export-2026-01-01_to_2026-05-15.json`
+
+### 输出格式
+
+```json
+{
+  "meta": {
+    "version": "1.0",
+    "exportedAt": "2026-05-15T...",
+    "dateRange": { "start": "2026-01-01", "end": "2026-05-15" },
+    "recordCounts": {
+      "records": 1280,
+      "users": 156,
+      "problems": 45,
+      "contests": 3,
+      "contestResults": 89
+    }
+  },
+  "records": [
+    {
+      "_id": "...", "domainId": "system", "uid": 1, "pid": 1,
+      "status": 1, "score": 100, "time": 100, "memory": 65536,
+      "lang": "cc.cc14o2", "contest": "...", "judgeAt": "..."
+    }
+  ],
+  "users": [
+    { "uid": 1, "uname": "...", "mail": "...", "priv": 3 }
+  ],
+  "problems": [
+    { "domainId": "system", "docId": 1, "title": "...", "difficulty": 3 }
+  ],
+  "contests": [
+    { "_id": "...", "title": "...", "beginAt": "...", "endAt": "...", "rule": "oi", "pids": [1, 2] }
+  ],
+  "contestResults": [
+    {
+      "domainId": "system",
+      "contestId": "...",
+      "uid": 1,
+      "totalScore": 300,
+      "acCount": 3,
+      "problemCount": 5,
+      "submissions": [
+        { "pid": 1, "score": 100, "status": 1, "time": 100, "memory": 65536, "lang": "cc.cc14o2" }
+      ]
+    }
+  ]
+}
+```
+
