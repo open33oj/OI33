@@ -4,5 +4,9 @@
   "description": "Unified plugin for 33OJ: coins, birthday, badge, realname, checkin, countdown, pastebin, frontend",
   "main": "index.ts",
   "author": "33DAI",
-  "license": "AGPL-3.0"
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "@hydrooj/ui-default": "^4.58.1",
+    "hydrooj": "^5.0.1"
+  }
 }
