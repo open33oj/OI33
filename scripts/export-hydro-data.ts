@@ -89,7 +89,7 @@ export async function runExport(args: any, report: (data: any) => void) {
         score: 1, time: 1, memory: 1, lang: 1,
         judgeAt: 1, contest: 1, source: 1, rejudged: 1,
     };
-    if (cfg.includeRecordCode) recordProject.code = 1;
+    if (cfg.includeCode) recordProject.code = 1;
 
     const records = await db.collection('record').find({
         ...domainFilter,
@@ -205,7 +205,7 @@ export async function runExport(args: any, report: (data: any) => void) {
             version: '1.0',
             exportedAt: new Date().toISOString(),
             dateRange: { start: cfg.startDate, end: cfg.endDate },
-            includeRecordCode: cfg.includeCode,
+            includeCode: cfg.includeCode,
             domainId: cfg.domainId || null,
             recordCounts: {
                 records: records.length,
