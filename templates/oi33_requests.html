@@ -1,0 +1,104 @@
+{% set page_name = "oi33_requests" %}
+{% import "components/nothing.html" as nothing with context %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Pending Requests') }}</h1>
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+      <div class="section__body">
+        {% if not requests.length %}
+        {{ nothing.render(_('No pending requests.')) }}
+        {% else %}
+        <style>
+          .oi33-req-item {
+            border-bottom: 1px solid rgba(128,128,128,0.15);
+            padding: 0.6rem 0;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+          }
+          .oi33-req-item:last-child { border-bottom: none; }
+          .theme--dark .oi33-req-item { border-bottom-color: #2b2b2b; }
+          .oi33-req-user a {
+            color: inherit;
+            text-decoration: none;
+            font-weight: 600;
+          }
+          .oi33-req-user a:hover { text-decoration: underline; }
+          .oi33-req-diff { flex: 1; min-width: 180px; }
+          .oi33-req-action-link { margin-right: 0.5rem; }
+        </style>
+
+        {%- for r in requests -%}
+        {% set current = (oi33Dict[r.uid] or {}) %}
+        {% set udoc = udict[r.uid] %}
+        <div class="oi33-req-item">
+          <div class="oi33-req-action-link">
+            <form method="post" action="/oi33/requests/{{ r._id }}/approve" style="display:inline;">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
+            </form>
+            <span style="opacity:0.3;">/</span>
+            <form method="post" action="/oi33/requests/{{ r._id }}/reject" style="display:inline;">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
+            </form>
+          </div>
+
+          <div style="opacity:0.3;">|</div>
+
+          <span>{{ _('kind_' + r.kind) }}</span>
+
+          <div style="opacity:0.3;">|</div>
+
+          <div class="oi33-req-user">
+            <a href="{{ url('user_detail', uid=r.uid) }}">
+              {% if udoc and udoc.realname_name %}[{{ udoc.realname_name }}]{% endif %}{{ udoc.uname if udoc else 'UID ' + r.uid }}
+            </a>
+          </div>
+
+          <div style="opacity:0.3;">|</div>
+
+          <div class="oi33-req-diff">
+            {% if r.kind == 'birthday' %}
+              {{ current.birthday_date or _('Not Set') }} → {{ r.birthday_date or _('(clear)') }}
+            {% elif r.kind == 'realname' %}
+              {% set oldFlag = current.realname_flag or 0 %}
+              {% set newFlag = r.realname_flag or 0 %}
+              {% set oldName = current.realname_name or '' %}
+              {% set newName = r.realname_name or '' %}
+              {% if oldFlag == 1 %}{{ _('Student') }}{% elif oldFlag == 2 %}{{ _('Teacher') }}{% else %}{{ _('No Identity') }}{% endif %}
+              {% if oldName %}({{ oldName }}){% endif %}
+              →
+              {% if newFlag == 1 %}{{ _('Student') }}{% elif newFlag == 2 %}{{ _('Teacher') }}{% else %}{{ _('No Identity') }}{% endif %}
+              {% if newName %}({{ newName }}){% endif %}
+            {% elif r.kind == 'badge' %}
+              {% if current.badge_text %}
+                <span class="user-profile-badge" style="background-color:#{{ current.badge_color or '569CD6' }};color:#{{ current.badge_textColor or 'fff' }};">{{ current.badge_text }}</span>
+              {% else %}
+                {{ _('Not Set') }}
+              {% endif %}
+              →
+              {% if r.badge_text %}
+                <span class="user-profile-badge" style="background-color:#{{ r.badge_color }};color:#{{ r.badge_textColor }};">{{ r.badge_text }}</span>
+              {% else %}
+                {{ _('(clear)') }}
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+        {%- endfor -%}
+
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -20,16 +20,17 @@
             </div>
             <div class="media__body profile-header__main">
               <h1>
+                {% set _canSeeRealname = handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or isSelfProfile %}
                 {% if udoc.realname_flag == 2 %}
                 <span class="icon icon-user"></span>
-                {% elif udoc.realname_flag == 1%}
+                {% elif udoc.realname_flag == 1 %}
                 <span class="icon icon-star"></span>
                 {% endif %}
-            
-                {% if handler.user.hasPerm(perm.PERM_VIEW_DISPLAYNAME) and udoc.realname_name %}
+
+                {% if _canSeeRealname and udoc.realname_name %}
                   [{{ udoc.realname_name }}]{{ udoc.uname }}
                 {% elif handler.user.hasPerm(perm.PERM_VIEW_DISPLAYNAME) and udoc.displayName %}
-                  ({{ udoc.displayName }}){{ udoc.uname }} 
+                  ({{ udoc.displayName }}){{ udoc.uname }}
                 {% else %}
                   {{ udoc.uname }}
                 {% endif %}
@@ -126,6 +127,16 @@
                 </span>
                 {% endif %}
               </div>
+              {% if isSelfProfile or handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+              <div style="margin-top: 12px;">
+                <a href="/oi33/profile/edit/{{ udoc._id }}" class="rounded primary button">
+                  <span class="icon icon-wrench"></span> {{ _('Edit OI33 Profile') }}
+                </a>
+                <a href="/oi33/coin/bill/{{ udoc._id }}" class="rounded button">
+                  <span class="icon icon-search"></span> {{ _('View Coin Bill') }}
+                </a>
+              </div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -136,7 +147,29 @@
             <li class="section__tab-item">
               <h1 class="section__tab-title">{{ _('Bio') }}</h1>
               <div class="section__tab-main">
-                {{ nothing.render("This person is lazy and didn't write anything.") }}
+                <div class="typo section__body no-media">
+                  <dl class="large horizontal">
+                    <dt>{{ _('Flag') }}</dt>
+                    <dd>
+                      {% if udoc.realname_flag == 1 %}{{ _('Student') }}
+                      {% elif udoc.realname_flag == 2 %}{{ _('Teacher') }}
+                      {% else %}{{ _('No Identity') }}{% endif %}
+                    </dd>
+                    {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or isSelfProfile %}
+                    <dt>{{ _('Birthday') }}</dt>
+                    <dd>{{ udoc.birthday_date or _('Not Set') }}</dd>
+                    <dt>{{ _('Realname Name') }}</dt>
+                    <dd>{{ udoc.realname_name or _('Not Set') }}</dd>
+                    {% endif %}
+                    <dt>{{ _('Badge') }}</dt>
+                    <dd>
+                      {% if udoc.badge %}
+                        {% set _badge = udoc.badge.split('#') %}
+                        <span class="user-profile-badge v-center" style="background-color:#{{ _badge[1] }}{% if _badge[2] %};color:#{{ _badge[2] }}{% endif %}">{{ _badge[0] }}</span>
+                      {% else %}{{ _('Not Set') }}{% endif %}
+                    </dd>
+                  </dl>
+                </div>
               </div>
             </li>
             {% if pdocs.length %}

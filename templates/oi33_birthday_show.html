@@ -120,7 +120,7 @@
             <div class="star-card">
               <span>✨</span>
               <span class="student-name-source">
-                {%- if udoc.realname_name -%}
+                {%- if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) and udoc.realname_name -%}
                   {{ udoc.realname_name }}
                 {%- else -%}
                   {{ udoc.uname }}

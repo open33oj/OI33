@@ -9,8 +9,9 @@ import { runExport } from '../scripts/export-hydro-data';
 class Oi33AdminHandler extends Handler {
     async get() {
         const activities = await oi33Model.getRecentActivities(40);
+        const pendingCount = await oi33Model.getPendingRequestCount();
         this.response.template = 'oi33_admin.html';
-        this.response.body = { activities };
+        this.response.body = { activities, pendingCount };
     }
 }
 

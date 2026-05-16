@@ -1,10 +1,11 @@
 import { randomBytes } from 'crypto';
-import { _, db } from 'hydrooj';
+import { _, db, ObjectId } from 'hydrooj';
 
 const userColl = db.collection('oi33_user');
 const billColl = db.collection('oi33_coin_bill');
 const pasteColl = db.collection('oi33_paste');
 const logColl = db.collection('oi33_log');
+const requestColl = db.collection('oi33_request');
 
 interface Oi33User {
     _id: number;
@@ -21,6 +22,34 @@ interface Oi33User {
     checkin_luck?: number;
     checkin_cnt_now?: number;
     checkin_cnt_all?: number;
+    atcoder?: string;
+    codeforces?: string;
+}
+
+export type Oi33RequestStatus = 'pending' | 'approved' | 'rejected';
+export type Oi33RequestKind = 'birthday' | 'realname' | 'badge';
+
+export interface Oi33RequestPayload {
+    birthday_date?: string;
+    realname_flag?: number;
+    realname_name?: string;
+    badge_text?: string;
+    badge_color?: string;
+    badge_textColor?: string;
+    atcoder?: string;
+    codeforces?: string;
+}
+
+interface Oi33Request extends Oi33RequestPayload {
+    _id: ObjectId;
+    uid: number;
+    kind: Oi33RequestKind;
+    requester: number;
+    status: Oi33RequestStatus;
+    createdAt: Date;
+    handledAt?: Date;
+    handler?: number;
+    rejectReason?: string;
 }
 
 interface Oi33CoinBill {
@@ -42,7 +71,7 @@ interface Oi33Paste {
 
 interface Oi33Log {
     _id: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'paste';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'paste' | 'request';
     // coin
     sender?: number;
     receiver?: number;
@@ -58,6 +87,10 @@ interface Oi33Log {
     // paste
     owner?: number;
     title?: string;
+    // request
+    requester?: number;
+    reqId?: string;
+    status?: Oi33RequestStatus;
 }
 
 declare module 'hydrooj' {
@@ -69,6 +102,7 @@ declare module 'hydrooj' {
         oi33_coin_bill: Oi33CoinBill;
         oi33_paste: Oi33Paste;
         oi33_log: Oi33Log;
+        oi33_request: Oi33Request;
     }
 }
 
@@ -308,6 +342,114 @@ async function getRecentActivities(limit = 40) {
     return await logColl.find().sort({ _id: -1 }).limit(limit).toArray();
 }
 
+// --- Profile edit requests ---
+
+async function applyRequestPayload(uid: number, payload: Oi33RequestPayload) {
+    const $set: Record<string, any> = {};
+    const $unset: Record<string, ''> = {};
+    if (payload.birthday_date !== undefined) {
+        if (!payload.birthday_date) {
+            $unset.birthday_date = '';
+            $unset.birthday_monthDay = '';
+        } else {
+            const parts = payload.birthday_date.split('-');
+            if (parts.length !== 3) throw new Error('Invalid date format, expected YYYY-MM-DD');
+            $set.birthday_date = payload.birthday_date;
+            $set.birthday_monthDay = `${parts[1]}-${parts[2]}`;
+        }
+    }
+    if (payload.realname_flag !== undefined) $set.realname_flag = payload.realname_flag;
+    if (payload.realname_name !== undefined) $set.realname_name = payload.realname_name;
+    if (payload.badge_text !== undefined) {
+        if (!payload.badge_text) {
+            $unset.badge_text = '';
+            $unset.badge_color = '';
+            $unset.badge_textColor = '';
+        } else {
+            $set.badge_text = payload.badge_text;
+            if (payload.badge_color !== undefined) $set.badge_color = payload.badge_color;
+            if (payload.badge_textColor !== undefined) $set.badge_textColor = payload.badge_textColor;
+        }
+    }
+    if (payload.atcoder !== undefined) $set.atcoder = payload.atcoder;
+    if (payload.codeforces !== undefined) $set.codeforces = payload.codeforces;
+
+    const update: any = {};
+    if (Object.keys($set).length) update.$set = $set;
+    if (Object.keys($unset).length) update.$unset = $unset;
+    if (!Object.keys(update).length) return;
+    await userColl.updateOne({ _id: uid }, update, { upsert: true });
+}
+
+function buildRequestDoc(uid: number, kind: Oi33RequestKind, requester: number, payload: Oi33RequestPayload, status: Oi33RequestStatus): Omit<Oi33Request, '_id'> {
+    const doc: any = { uid, kind, requester, status, createdAt: new Date() };
+    for (const key of ['birthday_date', 'realname_flag', 'realname_name',
+        'badge_text', 'badge_color', 'badge_textColor', 'atcoder', 'codeforces'] as const) {
+        if (payload[key] !== undefined) doc[key] = payload[key];
+    }
+    return doc;
+}
+
+async function submitRequest(uid: number, kind: Oi33RequestKind, requester: number, payload: Oi33RequestPayload) {
+    await requestColl.deleteMany({ uid, kind, status: 'pending' });
+    const doc = buildRequestDoc(uid, kind, requester, payload, 'pending');
+    const { insertedId } = await requestColl.insertOne(doc as Oi33Request);
+    await addLog({ type: 'request', userId: uid, requester, reqId: insertedId.toHexString(), status: 'pending' });
+    return insertedId;
+}
+
+async function directUpdate(uid: number, kind: Oi33RequestKind, admin: number, payload: Oi33RequestPayload) {
+    await applyRequestPayload(uid, payload);
+    const doc: any = buildRequestDoc(uid, kind, admin, payload, 'approved');
+    doc.handler = admin;
+    doc.handledAt = new Date();
+    const { insertedId } = await requestColl.insertOne(doc as Oi33Request);
+    await addLog({ type: 'request', userId: uid, requester: admin, reqId: insertedId.toHexString(), status: 'approved' });
+    return insertedId;
+}
+
+async function approveRequest(reqId: ObjectId, handlerUid: number) {
+    const doc = await requestColl.findOne({ _id: reqId, status: 'pending' });
+    if (!doc) return false;
+    await applyRequestPayload(doc.uid, doc);
+    await requestColl.updateOne(
+        { _id: reqId },
+        { $set: { status: 'approved', handler: handlerUid, handledAt: new Date() } },
+    );
+    await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'approved' });
+    return true;
+}
+
+async function rejectRequest(reqId: ObjectId, handlerUid: number, reason: string) {
+    const doc = await requestColl.findOne({ _id: reqId, status: 'pending' });
+    if (!doc) return false;
+    await requestColl.updateOne(
+        { _id: reqId },
+        { $set: { status: 'rejected', handler: handlerUid, handledAt: new Date(), rejectReason: reason || '' } },
+    );
+    await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'rejected' });
+    return true;
+}
+
+async function getPendingRequests() {
+    return await requestColl.find({ status: 'pending' }).sort({ createdAt: -1 }).toArray();
+}
+
+async function getPendingRequestCount() {
+    return await requestColl.countDocuments({ status: 'pending' });
+}
+
+async function getRequestById(reqId: ObjectId) {
+    return await requestColl.findOne({ _id: reqId });
+}
+
+async function getUserPendingRequests(uid: number): Promise<Partial<Record<Oi33RequestKind, Oi33Request>>> {
+    const docs = await requestColl.find({ uid, status: 'pending' }).toArray();
+    const dict: Partial<Record<Oi33RequestKind, Oi33Request>> = {};
+    for (const doc of docs) dict[doc.kind] = doc;
+    return dict;
+}
+
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields,
     coinInc, coinBillCount, coinGetAll, coinUserBillCount, coinGetUser, coinGetLeaderboard,
@@ -317,7 +459,10 @@ const oi33Model = {
     doCheckin, getCheckinUser,
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
     getAllUsersData, getRecentActivities,
+    submitRequest, directUpdate, approveRequest, rejectRequest,
+    getPendingRequests, getPendingRequestCount, getRequestById, getUserPendingRequests,
+    applyRequestPayload,
 };
 global.Hydro.model.oi33 = oi33Model;
 
-export { userColl, billColl, pasteColl, logColl, oi33Model, Oi33User, Oi33CoinBill, Oi33Paste, Oi33Log };
+export { userColl, billColl, pasteColl, logColl, requestColl, oi33Model, Oi33User, Oi33CoinBill, Oi33Paste, Oi33Log, Oi33Request };

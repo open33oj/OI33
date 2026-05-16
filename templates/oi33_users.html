@@ -55,7 +55,9 @@
                 {%- else -%}-{%- endif -%}
               </td>
               <td class="col--name">{{ udoc.realname_name or '-' }}</td>
-              <td class="col--actions"><a href="/oi33/coin/bill/{{ udoc._id }}">{{ _('View Coin Bill') }}</a></td>
+              <td class="col--actions">
+                <a href="/oi33/profile/edit/{{ udoc._id }}">{{ _('Edit') }}</a>
+              </td>
             </tr>
             {%- endfor -%}
           </tbody>

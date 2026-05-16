@@ -1,0 +1,120 @@
+{% set page_name = "oi33_profile_edit" %}
+{% extends "layout/basic.html" %}
+{% macro submit_button() %}
+  <button type="submit" class="rounded primary button">
+    {% if canDirect %}{{ _('Submit Directly') }}{% else %}{{ _('Submit Request') }}{% endif %}
+  </button>
+{% endmacro %}
+{% macro pending_notice(kind) %}
+  {% if pendingMap[kind] %}
+  <blockquote class="note typo">
+    <p>{{ _('Pending Request Notice') }}</p>
+  </blockquote>
+  {% endif %}
+{% endmacro %}
+{% block content %}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title" data-heading>
+          {{ _('OI33 Profile Settings') }} —
+          {% if udoc.realname_name %}[{{ udoc.realname_name }}]{% endif %}{{ udoc.uname }}
+        </h1>
+        <div class="section__tools">
+          <a href="/user/{{ udoc._id }}" class="rounded button">{{ _('Cancel') }}</a>
+          {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="section__body">
+        <p style="opacity:0.6;">{{ _('You can only edit one kind of information per submission.') }}</p>
+      </div>
+    </div>
+
+    <!-- Birthday -->
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('Birthday') }}</h2>
+      </div>
+      <div class="section__body">
+        {{ pending_notice('birthday') }}
+        <form method="post">
+          <input type="hidden" name="kind" value="birthday">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          {{ form.form_text({
+            label: _('Birthday (Format: YYYY-MM-DD)'),
+            name: 'birthday_date',
+            value: oi33Doc.birthday_date or '',
+            placeholder: 'YYYY-MM-DD'
+          }) }}
+          <div class="row"><div class="columns">{{ submit_button() }}</div></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Realname -->
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('Realname') }}</h2>
+      </div>
+      <div class="section__body">
+        {{ pending_notice('realname') }}
+        <form method="post">
+          <input type="hidden" name="kind" value="realname">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          {{ form.form_select({
+            label: _('Flag'),
+            name: 'realname_flag',
+            options: {
+              '0': _('No Identity'),
+              '1': _('Student'),
+              '2': _('Teacher')
+            },
+            value: (oi33Doc.realname_flag or 0)|string
+          }) }}
+          {{ form.form_text({
+            label: _('Realname Name'),
+            name: 'realname_name',
+            value: oi33Doc.realname_name or ''
+          }) }}
+          <div class="row"><div class="columns">{{ submit_button() }}</div></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Badge -->
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('Badge') }}</h2>
+      </div>
+      <div class="section__body">
+        {{ pending_notice('badge') }}
+        <form method="post">
+          <input type="hidden" name="kind" value="badge">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          {{ form.form_text({
+            label: _('BadgeText'),
+            name: 'badge_text',
+            value: oi33Doc.badge_text or '',
+            help_text: _('Leave blank to clear badge.')
+          }) }}
+          {{ form.form_text({
+            label: _('BadgeColor'),
+            name: 'badge_color',
+            value: oi33Doc.badge_color or '',
+            help_text: _('Badge color need a color code like #569CD6.')
+          }) }}
+          {{ form.form_text({
+            label: _('BadgeTextColor'),
+            name: 'badge_textColor',
+            value: oi33Doc.badge_textColor or ''
+          }) }}
+          <div class="row"><div class="columns">{{ submit_button() }}</div></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

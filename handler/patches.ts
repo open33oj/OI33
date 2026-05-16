@@ -37,6 +37,17 @@ export function applyPatches(_ctx: Context) {
         return udict;
     };
 
+    // (b2) UserModel.getById — merge oi33_user fields so user_detail.html sees them
+    // user_detail handler uses getById, which is NOT covered by getList patch
+    const origGetById = UserModel.getById;
+    UserModel.getById = async function (domainId: string, _id: number, scope?: any) {
+        const udoc = await origGetById.call(UserModel, domainId, _id, scope);
+        if (!udoc) return udoc;
+        const oi33 = (await oi33Model.getUserDataByUids([_id]))[_id];
+        if (oi33) oi33Model.mergeOi33Fields(udoc, oi33);
+        return udoc;
+    };
+
     // (c) HomeHandler.prototype.getCheckin — inject checkin data into homepage
     HomeHandler.prototype.getCheckin = async function (domainId: string, payload: any) {
         const today = moment().format('YYYY-MM-DD');
