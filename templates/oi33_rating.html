@@ -2,6 +2,8 @@
 {% import "components/nothing.html" as nothing with context %}
 {% import "components/paginator.html" as paginator with context %}
 {% extends "layout/basic.html" %}
+{%- macro atcolor(r) -%}{% if r >= 2800 %}#FF0000{% elif r >= 2400 %}#FF8000{% elif r >= 2000 %}#C0C000{% elif r >= 1600 %}#0000FF{% elif r >= 1200 %}#00C0C0{% elif r >= 800 %}#008000{% elif r >= 400 %}#804000{% else %}#808080{% endif %}{%- endmacro -%}
+{%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
 {% block content %}
 <div class="row">
   <div class="medium-12 columns">
@@ -41,7 +43,7 @@
                 {%- if udoc.atcoder -%}
                   <a href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener">{{ udoc.atcoder }}</a>
                   {%- if udoc.atcoder_rating !== undefined and udoc.atcoder_rating !== null %}
-                  <span style="opacity:0.6;">({{ udoc.atcoder_rating }})</span>
+                  <span style="color:{{ atcolor(udoc.atcoder_rating) }};font-weight:600;">({{ udoc.atcoder_rating }})</span>
                   {%- endif -%}
                 {%- else -%}
                   -
@@ -51,7 +53,7 @@
                 {%- if udoc.codeforces -%}
                   <a href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener">{{ udoc.codeforces }}</a>
                   {%- if udoc.codeforces_rating !== undefined and udoc.codeforces_rating !== null %}
-                  <span style="opacity:0.6;">({{ udoc.codeforces_rating }})</span>
+                  <span style="color:{{ cfcolor(udoc.codeforces_rating) }};font-weight:600;">({{ udoc.codeforces_rating }})</span>
                   {%- endif -%}
                 {%- else -%}
                   -
