@@ -246,17 +246,17 @@ hydrooj addon remove frontend-33oj
 | `endDate` | 是 | 结束日期 | `2026-05-15` |
 | `outputDir` | 否 | 输出目录，默认 `/tmp` | `/tmp` |
 | `includeCode` | 否 | 是否包含提交代码，默认 `true` | `true` |
-| `domainId` | 否 | 限定域，默认全部域 | `system` |
+| `domainId` | 否 | 限定域列表，默认全部域；可填多个域 ID | `["system"]` |
 
-4. 运行后到服务器 `outputDir` 目录下取 `hydro-export-YYYY-MM-DD_to_YYYY-MM-DD.json`
+4. 运行后到服务器 `outputDir` 目录下取 `hydro-export-YYYY-MM-DD_to_YYYY-MM-DD_YYYY-MM-DD_HH-mm-ss.json`（末尾为导出时刻 UTC 时间戳，避免覆盖同段内容的多次导出）
 
 ### 参数示例（可直接复制到脚本管理参数框）
 
 ```json
-{"startDate":"2026-01-01","endDate":"2026-05-15","outputDir":"/tmp","includeCode":true,"domainId":"system"}
+{"startDate":"2026-01-01","endDate":"2026-05-15","outputDir":"/tmp","includeCode":true,"domainId":["system"]}
 ```
 
-> 输出文件：`/tmp/hydro-export-2026-01-01_to_2026-05-15.json`
+> 输出文件示例：`/tmp/hydro-export-2026-01-01_to_2026-05-15_2026-05-15_14-41-01.json`
 
 ### 输出格式
 

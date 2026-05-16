@@ -473,7 +473,7 @@ export async function apply(ctx: Context) {
             endDate: Schema.string(),
             outputDir: Schema.string(),
             includeCode: Schema.boolean(),
-            domainId: Schema.string(),
+            domainId: Schema.array(Schema.string()),
         }),
         runExport,
     );
