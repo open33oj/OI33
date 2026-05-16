@@ -1,6 +1,19 @@
 {% set page_name = "oi33_admin" %}
 {% extends "layout/basic.html" %}
 {% import "components/nothing.html" as nothing with context %}
+{% import "components/paginator.html" as paginator with context %}
+
+{% macro userLink(uid) -%}
+  {%- set u = udict[uid] -%}
+  {%- if u -%}
+    <a href="{{ url('user_detail', uid=uid) }}"
+       style="color:inherit;text-decoration:none;font-weight:600;"
+    >{% if u.realname_name %}[{{ u.realname_name }}]{% endif %}{{ u.uname }}</a>
+  {%- else -%}
+    <span style="opacity:0.6;">UID {{ uid }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
 {% block content %}
 <style>
   .oi33-timeline {
@@ -10,10 +23,34 @@
   .oi33-timeline__item {
     padding: 0.5rem 0;
     border-bottom: 1px dashed #f0f0f0;
+    line-height: 1.7;
   }
   .oi33-timeline__item:last-child { border-bottom: none; }
+  .oi33-timeline__time {
+    opacity: 0.6;
+    font-size: 0.8rem;
+    margin-right: 0.8rem;
+  }
+  .oi33-timeline__tag {
+    display: inline-block;
+    padding: 0 0.4rem;
+    margin-right: 0.4rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    background: rgba(128,128,128,0.15);
+  }
+  .oi33-timeline__amount-pos { color: #2e7d32; font-weight: 600; }
+  .oi33-timeline__amount-neg { color: #c62828; font-weight: 600; }
+  .oi33-timeline__note { opacity: 0.6; }
+  .oi33-timeline__status-pending  { color: #f29b3d; }
+  .oi33-timeline__status-approved { color: #2e7d32; }
+  .oi33-timeline__status-rejected { color: #c62828; }
   .theme--dark .oi33-timeline { border-left-color: #323232; }
   .theme--dark .oi33-timeline__item { border-bottom-color: #2b2b2b; }
+  .theme--dark .oi33-timeline__amount-pos { color: #6fcf76; }
+  .theme--dark .oi33-timeline__amount-neg { color: #ef6c6c; }
+  .theme--dark .oi33-timeline__status-approved { color: #6fcf76; }
+  .theme--dark .oi33-timeline__status-rejected { color: #ef6c6c; }
 </style>
 
 <div class="row">
@@ -64,31 +101,99 @@
         <div class="oi33-timeline">
           {% for a in activities %}
           <div class="oi33-timeline__item">
-            <span style="opacity:0.6;font-size:0.8rem;margin-right:0.8rem;">
-              {{ datetimeSpan(a._id)|safe }}
-            </span>
-            <span>
-              {% if a.type == 'coin' %}
-                {{ _('activity_coin').replace('{0}', a.sender).replace('{1}', a.amount).replace('{2}', a.receiver) }}
-                {% if a.reason %}<span style="opacity:0.6;"> — {{ a.reason }}</span>{% endif %}
-              {% elif a.type == 'birthday' %}
-                {{ _('activity_birthday').replace('{0}', a.userId).replace('{1}', a.birthdayDate) }}
-              {% elif a.type == 'badge' %}
-                {{ _('activity_badge').replace('{0}', a.userId).replace('{1}', a.badgeText) }}
-              {% elif a.type == 'realname' %}
-                {{ _('activity_realname').replace('{0}', a.userId).replace('{1}', a.realnameName) }}
-              {% elif a.type == 'paste' %}
-                {{ _('activity_paste').replace('{0}', a.owner).replace('{1}', a.title) }}
-              {% elif a.type == 'request' %}
-                {{ _('activity_request').replace('{0}', a.userId).replace('{1}', _(a.status)) }}
+            <span class="oi33-timeline__time">{{ datetimeSpan(a._id)|safe }}</span>
+
+            {% if a.type == 'coin' %}
+              <span class="oi33-timeline__tag">{{ _('activity_tag_coin') }}</span>
+              {{ userLink(a.sender) }} →
+              {{ userLink(a.receiver) }}
+              {% if a.amount >= 0 %}
+                <span class="oi33-timeline__amount-pos">+{{ a.amount }}</span>
+              {% else %}
+                <span class="oi33-timeline__amount-neg">{{ a.amount }}</span>
               {% endif %}
-            </span>
+              {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
+
+            {% elif a.type == 'birthday' %}
+              <span class="oi33-timeline__tag">{{ _('activity_tag_birthday') }}</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">→</span>
+              {{ a.birthdayDate }}
+
+            {% elif a.type == 'badge' %}
+              <span class="oi33-timeline__tag">{{ _('activity_tag_badge') }}</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">→</span>
+              {% if a.badgeText %}
+                {% if a.badgeColor %}
+                <span class="user-profile-badge" style="background-color:#{{ a.badgeColor }};color:#{{ a.badgeTextColor or 'fff' }};">{{ a.badgeText }}</span>
+                {% else %}
+                「{{ a.badgeText }}」
+                {% endif %}
+              {% else %}
+                <span class="oi33-timeline__note">{{ _('(clear)') }}</span>
+              {% endif %}
+
+            {% elif a.type == 'realname' %}
+              <span class="oi33-timeline__tag">{{ _('activity_tag_realname') }}</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">→</span>
+              {{ a.realnameName or _('(clear)') }}
+
+            {% elif a.type == 'paste' %}
+              <span class="oi33-timeline__tag">{{ _('activity_tag_paste') }}</span>
+              {{ userLink(a.owner) }}
+              <span class="oi33-timeline__note">{{ _('created') }}</span>
+              {% if a.pasteId %}
+                <a href="/oi33/paste/show/{{ a.pasteId }}">「{{ a.title }}」</a>
+              {% else %}
+                「{{ a.title }}」
+              {% endif %}
+
+            {% elif a.type == 'request' %}
+              {% set r = reqDict[a.reqId] %}
+              {% set kind = (r and r.kind) or a.kind %}
+              <span class="oi33-timeline__tag">{{ _('activity_tag_request') }}</span>
+              {{ userLink(a.requester) }}
+              {% if a.requester != a.userId %}
+                <span class="oi33-timeline__note">{{ _('for') }}</span>
+                {{ userLink(a.userId) }}
+              {% endif %}
+              {% if kind %}
+                <span class="oi33-timeline__note">·</span>
+                <span>{{ _('kind_' + kind) }}</span>
+              {% endif %}
+              {% if r %}
+                <span class="oi33-timeline__note">→</span>
+                {% if kind == 'birthday' %}
+                  {{ r.birthday_date or _('(clear)') }}
+                {% elif kind == 'realname' %}
+                  {% if r.realname_flag == 1 %}{{ _('Student') }}{% elif r.realname_flag == 2 %}{{ _('Teacher') }}{% else %}{{ _('No Identity') }}{% endif %}
+                  {% if r.realname_name %}（{{ r.realname_name }}）{% endif %}
+                {% elif kind == 'badge' %}
+                  {% if r.badge_text %}
+                    <span class="user-profile-badge" style="background-color:#{{ r.badge_color }};color:#{{ r.badge_textColor }};">{{ r.badge_text }}</span>
+                  {% else %}
+                    {{ _('(clear)') }}
+                  {% endif %}
+                {% elif kind == 'atcoder' %}
+                  {{ r.atcoder or _('(clear)') }}
+                {% elif kind == 'codeforces' %}
+                  {{ r.codeforces or _('(clear)') }}
+                {% endif %}
+              {% endif %}
+              {% if a.status %}
+                <span class="oi33-timeline__note">·</span>
+                <span class="oi33-timeline__status-{{ a.status }}">{{ _(a.status) }}</span>
+              {% endif %}
+            {% endif %}
           </div>
           {% endfor %}
         </div>
         {% else %}
         {{ nothing.render(_('No activities yet.')) }}
         {% endif %}
+        {{ paginator.render(page, tpcount) }}
 
       </div>
     </div>

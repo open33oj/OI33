@@ -126,7 +126,7 @@ class RequestApproveHandler extends Handler {
 class RequestRejectHandler extends Handler {
     @param('id', Types.ObjectId)
     async post(domainId: string, id: ObjectId) {
-        await oi33Model.rejectRequest(id, this.user._id, '');
+        await oi33Model.rejectRequest(id, this.user._id);
         this.response.redirect = this.url('oi33_requests');
     }
 }

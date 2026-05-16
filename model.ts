@@ -53,7 +53,6 @@ interface Oi33Request extends Oi33RequestPayload {
     createdAt: Date;
     handledAt?: Date;
     handler?: number;
-    rejectReason?: string;
 }
 
 interface Oi33CoinBill {
@@ -86,15 +85,19 @@ interface Oi33Log {
     birthdayDate?: string;
     // badge
     badgeText?: string;
+    badgeColor?: string;
+    badgeTextColor?: string;
     // realname
     realnameName?: string;
     // paste
     owner?: number;
     title?: string;
+    pasteId?: string;
     // request
     requester?: number;
     reqId?: string;
     status?: Oi33RequestStatus;
+    kind?: Oi33RequestKind;
 }
 
 declare module 'hydrooj' {
@@ -231,7 +234,7 @@ async function setBadge(userId: number, text: string, color: string, textColor: 
         { $set: { badge_text: text, badge_color: color, badge_textColor: textColor } },
         { upsert: true },
     );
-    await addLog({ type: 'badge', userId, badgeText: text });
+    await addLog({ type: 'badge', userId, badgeText: text, badgeColor: color, badgeTextColor: textColor });
 }
 
 async function getBadgedUsers() {
@@ -304,7 +307,7 @@ async function pasteAdd(owner: number, title: string, content: string, isprivate
         content,
         isprivate,
     });
-    await addLog({ type: 'paste', owner, title });
+    await addLog({ type: 'paste', owner, title, pasteId });
     return pasteId;
 }
 
@@ -376,6 +379,30 @@ async function getRecentActivities(limit = 40) {
     return await logColl.find().sort({ _id: -1 }).limit(limit).toArray();
 }
 
+async function getRecentActivitiesPaginated(page: number, pageSize = 30) {
+    const total = await logColl.countDocuments();
+    const tpcount = Math.ceil(total / pageSize);
+    const activities = await logColl.find()
+        .sort({ _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).toArray();
+    return { activities, tpcount };
+}
+
+// Drop pending request logs whose reqId already has an approved/rejected log.
+// Idempotent: subsequent runs match nothing once compacted.
+async function compactRequestLogs() {
+    const terminalReqIds = await logColl.distinct('reqId', {
+        type: 'request',
+        status: { $in: ['approved', 'rejected'] },
+    });
+    if (!terminalReqIds.length) return 0;
+    const result = await logColl.deleteMany({
+        type: 'request',
+        status: 'pending',
+        reqId: { $in: terminalReqIds },
+    });
+    return result.deletedCount;
+}
+
 // --- Profile edit requests ---
 
 async function applyRequestPayload(uid: number, payload: Oi33RequestPayload) {
@@ -428,7 +455,7 @@ async function submitRequest(uid: number, kind: Oi33RequestKind, requester: numb
     await requestColl.deleteMany({ uid, kind, status: 'pending' });
     const doc = buildRequestDoc(uid, kind, requester, payload, 'pending');
     const { insertedId } = await requestColl.insertOne(doc as Oi33Request);
-    await addLog({ type: 'request', userId: uid, requester, reqId: insertedId.toHexString(), status: 'pending' });
+    await addLog({ type: 'request', userId: uid, requester, reqId: insertedId.toHexString(), status: 'pending', kind });
     return insertedId;
 }
 
@@ -438,7 +465,7 @@ async function directUpdate(uid: number, kind: Oi33RequestKind, admin: number, p
     doc.handler = admin;
     doc.handledAt = new Date();
     const { insertedId } = await requestColl.insertOne(doc as Oi33Request);
-    await addLog({ type: 'request', userId: uid, requester: admin, reqId: insertedId.toHexString(), status: 'approved' });
+    await addLog({ type: 'request', userId: uid, requester: admin, reqId: insertedId.toHexString(), status: 'approved', kind });
     return insertedId;
 }
 
@@ -450,18 +477,18 @@ async function approveRequest(reqId: ObjectId, handlerUid: number) {
         { _id: reqId },
         { $set: { status: 'approved', handler: handlerUid, handledAt: new Date() } },
     );
-    await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'approved' });
+    await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'approved', kind: doc.kind });
     return true;
 }
 
-async function rejectRequest(reqId: ObjectId, handlerUid: number, reason: string) {
+async function rejectRequest(reqId: ObjectId, handlerUid: number) {
     const doc = await requestColl.findOne({ _id: reqId, status: 'pending' });
     if (!doc) return false;
     await requestColl.updateOne(
         { _id: reqId },
-        { $set: { status: 'rejected', handler: handlerUid, handledAt: new Date(), rejectReason: reason || '' } },
+        { $set: { status: 'rejected', handler: handlerUid, handledAt: new Date() } },
     );
-    await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'rejected' });
+    await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'rejected', kind: doc.kind });
     return true;
 }
 
@@ -475,6 +502,19 @@ async function getPendingRequestCount() {
 
 async function getRequestById(reqId: ObjectId) {
     return await requestColl.findOne({ _id: reqId });
+}
+
+async function getRequestsByIds(reqIdHex: string[]): Promise<Record<string, Oi33Request>> {
+    if (!reqIdHex.length) return {};
+    const objIds: ObjectId[] = [];
+    for (const s of reqIdHex) {
+        try { objIds.push(new ObjectId(s)); } catch { /* ignore invalid */ }
+    }
+    if (!objIds.length) return {};
+    const docs = await requestColl.find({ _id: { $in: objIds } }).toArray();
+    const dict: Record<string, Oi33Request> = {};
+    for (const d of docs) dict[d._id.toHexString()] = d;
+    return dict;
 }
 
 async function getUserPendingRequests(uid: number): Promise<Partial<Record<Oi33RequestKind, Oi33Request>>> {
@@ -492,9 +532,9 @@ const oi33Model = {
     setRealname, getRealnamedUsers,
     doCheckin, getCheckinUser,
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
-    getAllUsersData, getRatedUsers, getRecentActivities,
+    getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
     submitRequest, directUpdate, approveRequest, rejectRequest,
-    getPendingRequests, getPendingRequestCount, getRequestById, getUserPendingRequests,
+    getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,
 };
 global.Hydro.model.oi33 = oi33Model;

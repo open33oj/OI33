@@ -1,4 +1,4 @@
-import { Handler, PRIV, Context } from 'hydrooj';
+import { Handler, PRIV, Types, query, Context, UserModel } from 'hydrooj';
 import Schema from 'schemastery';
 import { oi33Model } from '../model';
 import { migrate, previewMigration } from '../migrate';
@@ -8,11 +8,26 @@ import { runUpdateRatings } from '../scripts/update-ratings';
 // --- Admin dashboard ---
 
 class Oi33AdminHandler extends Handler {
-    async get() {
-        const activities = await oi33Model.getRecentActivities(40);
+    @query('page', Types.PositiveInt, true)
+    async get(domainId: string, page = 1) {
+        await oi33Model.compactRequestLogs();
+        const { activities, tpcount } = await oi33Model.getRecentActivitiesPaginated(page);
         const pendingCount = await oi33Model.getPendingRequestCount();
+        const uidSet = new Set<number>();
+        const reqIdSet = new Set<string>();
+        for (const a of activities) {
+            for (const k of ['sender', 'receiver', 'userId', 'owner', 'requester'] as const) {
+                const v = a[k];
+                if (typeof v === 'number') uidSet.add(v);
+            }
+            if (a.type === 'request' && a.reqId) reqIdSet.add(a.reqId);
+        }
+        const [udict, reqDict] = await Promise.all([
+            uidSet.size ? UserModel.getList(domainId, Array.from(uidSet)) : {},
+            oi33Model.getRequestsByIds(Array.from(reqIdSet)),
+        ]);
         this.response.template = 'oi33_admin.html';
-        this.response.body = { activities, pendingCount };
+        this.response.body = { activities, pendingCount, page, tpcount, udict, reqDict };
     }
 }
 
