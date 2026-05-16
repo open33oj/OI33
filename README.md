@@ -18,6 +18,9 @@
 | 前端覆盖 | Logo、favicon、模板覆盖 | 静态资源 |
 | 管理仪表盘 | 统一查看所有数据 | `/oi33/admin` |
 | 数据迁移 | 从老插件迁移数据到新集合 | `/oi33/migrate` |
+| AT/CF 用户名 | 设置 AtCoder / Codeforces 用户名（走审批流程），预留 rating 字段供脚本更新 | `/oi33/profile/edit/:uid` |
+| AT/CF Rating 排名 | 公开展示已绑定 AT/CF 用户的信息及 rating，支持按任意 rating 排序 | `/oi33/at-cf-rating` |
+| 统一资料审批 | 生日、实名、徽章、AT/CF 用户名 均走提交→审批流 | `/oi33/requests` |
 
 ## 数据库
 
@@ -25,7 +28,7 @@
 
 | 集合 | 用途 |
 |------|------|
-| `oi33_user` | 用户属性：硬币余额、生日、徽章、实名、签到数据 |
+| `oi33_user` | 用户属性：硬币余额、生日、徽章、实名、签到数据、AT/CF 用户名及 rating |
 | `oi33_coin_bill` | 硬币交易流水 |
 | `oi33_paste` | 剪贴板文档 |
 | `oi33_log` | 操作日志（硬币、生日、徽章、实名、剪贴板） |
@@ -56,6 +59,11 @@
 | `/oi33/admin` | `PRIV_MOD_BADGE` | 管理仪表盘 |
 | `/oi33/migrate` | `PRIV_MOD_BADGE` | 执行数据迁移 |
 | `/oi33/users` | `PRIV_MOD_BADGE` | 查看全部用户数据 |
+| `/oi33/at-cf-rating` | 公开 | AT/CF Rating 排名 |
+| `/oi33/rating` | 公开 | Rating （旧路由，已弃用） |
+| `/oi33/profile/edit/:uid` | `PRIV_USER_PROFILE`（自己）/ `PRIV_MOD_BADGE`（他人） | 统一资料编辑（生日、实名、徽章、AT/CF） |
+| `/oi33/requests` | `PRIV_MOD_BADGE` | 审批列表 |
+| `/record` | 导航默认跳转 `?uidOrName=自己`（登录用户） | 评测记录页（覆盖模板） |
 
 ## 安装与迁移
 

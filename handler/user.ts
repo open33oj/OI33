@@ -155,6 +155,28 @@ class CheckinHandler extends Handler {
     }
 }
 
+// --- Rating page ---
+
+class RatingShowHandler extends Handler {
+    @query('page', Types.PositiveInt, true)
+    @query('sort', Types.String, true)
+    async get(domainId: string, page = 1, sort = 'atcoder') {
+        if (!['atcoder', 'codeforces'].includes(sort)) sort = 'atcoder';
+        const { docs, upcount } = await oi33Model.getRatedUsers(sort, page, 50);
+        const uids = docs.map((d: any) => d._id);
+        const udict = await UserModel.getList(domainId, uids);
+        const oi33Dict = await oi33Model.getUserDataByUids(uids);
+        const udocs = uids.map((id: number) => {
+            const u = udict[id];
+            if (!u) return null;
+            oi33Model.mergeOi33Fields(u, oi33Dict[id]);
+            return u;
+        }).filter((u: any) => u);
+        this.response.template = 'oi33_rating.html';
+        this.response.body = { udocs, page, upcount, sort };
+    }
+}
+
 export async function apply(ctx: Context) {
     ctx.Route('oi33_users', '/oi33/users', UsersShowHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_coin_show', '/oi33/coin/show', CoinShowHandler, PRIV.PRIV_USER_PROFILE);
@@ -166,4 +188,5 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_badge_manage', '/oi33/badge/manage', BadgeManageHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_badge_del', '/oi33/badge/manage/:uid/del', BadgeDelHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_checkin', '/oi33/checkin', CheckinHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_at_cf_rating', '/oi33/at-cf-rating', RatingShowHandler);
 }

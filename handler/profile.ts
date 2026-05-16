@@ -5,12 +5,13 @@ import {
 import { oi33Model, Oi33RequestPayload, Oi33RequestKind } from '../model';
 
 const COLOR_RE = /(^#?[0-9A-Fa-f]{6}$)|(^#?[0-9A-Fa-f]{3}$)/;
-const KINDS: Oi33RequestKind[] = ['birthday', 'realname', 'badge'];
+const KINDS: Oi33RequestKind[] = ['birthday', 'realname', 'badge', 'atcoder', 'codeforces'];
 
 function buildPayload(
     kind: Oi33RequestKind,
     birthday_date: string, realname_flag: number, realname_name: string,
     badge_text: string, badge_color: string, badge_textColor: string,
+    atcoder?: string, codeforces?: string,
 ): Oi33RequestPayload {
     if (kind === 'birthday') {
         if (birthday_date && !/^\d{4}-\d{2}-\d{2}$/.test(birthday_date)) {
@@ -23,6 +24,12 @@ function buildPayload(
             throw new ValidationError('realname_flag');
         }
         return { realname_flag, realname_name };
+    }
+    if (kind === 'atcoder') {
+        return { atcoder: atcoder || '' };
+    }
+    if (kind === 'codeforces') {
+        return { codeforces: codeforces || '' };
     }
     // badge
     const cleanText = badge_text.replace(/'/g, '').replace(/"/g, '');
@@ -63,10 +70,13 @@ class ProfileEditHandler extends Handler {
     @param('badge_text', Types.String, true)
     @param('badge_color', Types.String, true)
     @param('badge_textColor', Types.String, true)
+    @param('atcoder', Types.String, true)
+    @param('codeforces', Types.String, true)
     async post(
         domainId: string, uid: number, kind: string,
         birthday_date = '', realname_flag = 0, realname_name = '',
         badge_text = '', badge_color = '', badge_textColor = '',
+        atcoder = '', codeforces = '',
     ) {
         if (uid !== this.user._id) this.checkPriv(PRIV.PRIV_MOD_BADGE);
         if (!KINDS.includes(kind as Oi33RequestKind)) throw new ValidationError('kind');
@@ -77,6 +87,7 @@ class ProfileEditHandler extends Handler {
             kind as Oi33RequestKind,
             birthday_date, realname_flag, realname_name,
             badge_text, badge_color, badge_textColor,
+            atcoder, codeforces,
         );
 
         if (this.user.hasPriv(PRIV.PRIV_MOD_BADGE)) {

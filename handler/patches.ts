@@ -100,4 +100,5 @@ export function applyPatches(_ctx: Context) {
         payload.dates = content;
         return payload;
     };
+
 }

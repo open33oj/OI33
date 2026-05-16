@@ -1,0 +1,70 @@
+{% set page_name = "oi33_at_cf_rating" %}
+{% import "components/nothing.html" as nothing with context %}
+{% import "components/paginator.html" as paginator with context %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">AT / CF Rating 排名</h1>
+        <div class="section__tools">
+          <a href="{{ url('ranking') }}" class="rounded button">{{ _('OJ Ranking') }}</a>
+          <a href="{{ url('oi33_at_cf_rating') }}" class="rounded primary button">AT / CF Rating 排名</a>
+        </div>
+      </div>
+      <div class="section__body no-padding">
+        {% if not udocs.length %}
+        {{ nothing.render(_('No data')) }}
+        {% else %}
+        <table class="data-table">
+          <colgroup>
+            <col class="col--uid" style="width:5rem">
+            <col class="col--user">
+            <col class="col--atcoder" style="width:16rem">
+            <col class="col--codeforces" style="width:16rem">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="col--uid">{{ _('User ID') }}</th>
+              <th class="col--user">{{ _('Username') }}</th>
+              <th class="col--atcoder"><a href="?sort=atcoder"{% if sort == 'atcoder' %} style="font-weight:700"{% endif %}>AtCoder {{ _('(sort)') }}</a></th>
+              <th class="col--codeforces"><a href="?sort=codeforces"{% if sort == 'codeforces' %} style="font-weight:700"{% endif %}>Codeforces {{ _('(sort)') }}</a></th>
+            </tr>
+          </thead>
+          <tbody>
+            {%- for udoc in udocs -%}
+            <tr>
+              <td class="col--uid">{{ udoc._id }}</td>
+              <td class="col--user">{{ user.render_inline(udoc) }}</td>
+              <td class="col--atcoder">
+                {%- if udoc.atcoder -%}
+                  <a href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener">{{ udoc.atcoder }}</a>
+                  {%- if udoc.atcoder_rating !== undefined and udoc.atcoder_rating !== null %}
+                  <span style="opacity:0.6;">({{ udoc.atcoder_rating }})</span>
+                  {%- endif -%}
+                {%- else -%}
+                  -
+                {%- endif -%}
+              </td>
+              <td class="col--codeforces">
+                {%- if udoc.codeforces -%}
+                  <a href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener">{{ udoc.codeforces }}</a>
+                  {%- if udoc.codeforces_rating !== undefined and udoc.codeforces_rating !== null %}
+                  <span style="opacity:0.6;">({{ udoc.codeforces_rating }})</span>
+                  {%- endif -%}
+                {%- else -%}
+                  -
+                {%- endif -%}
+              </td>
+            </tr>
+            {%- endfor -%}
+          </tbody>
+        </table>
+        {{ paginator.render(page, upcount) }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

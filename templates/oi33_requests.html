@@ -91,6 +91,10 @@
               {% else %}
                 {{ _('(clear)') }}
               {% endif %}
+            {% elif r.kind == 'atcoder' %}
+              {{ current.atcoder or _('Not Set') }} → {{ r.atcoder or _('(clear)') }}
+            {% elif r.kind == 'codeforces' %}
+              {{ current.codeforces or _('Not Set') }} → {{ r.codeforces or _('(clear)') }}
             {% endif %}
           </div>
         </div>

@@ -5,6 +5,13 @@
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('ranking') }}</h1>
+        <div class="section__tools">
+          <a href="{{ url('ranking') }}" class="rounded primary button">{{ _('OJ Ranking') }}</a>
+          <a href="{{ url('oi33_at_cf_rating') }}" class="rounded button">AT / CF Rating 排名</a>
+        </div>
+      </div>
       <div class="section__body no-padding">
         <div data-fragment-id="ranking">
           {% if not udocs.length %}
