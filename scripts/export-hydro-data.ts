@@ -70,17 +70,18 @@ export async function runExport(args: any, report: (data: any) => void) {
         endDate: args.endDate,
         outputDir: args.outputDir || '/tmp',
         includeCode: args.includeCode !== false,
-        domainId: args.domainId || '',
+        domainIds: (Array.isArray(args.domainId) ? args.domainId : [args.domainId])
+            .filter((d: any) => typeof d === 'string' && d.length > 0),
     };
 
     await report({ message: `日期范围: ${cfg.startDate} ~ ${cfg.endDate}` });
     await report({ message: `输出目录: ${cfg.outputDir}` });
     await report({ message: `包含代码: ${cfg.includeCode}` });
-    if (cfg.domainId) await report({ message: `限定域: ${cfg.domainId}` });
+    if (cfg.domainIds.length) await report({ message: `限定域: ${cfg.domainIds.join(', ')}` });
 
     const minOid = dateToMinObjectId(start);
     const maxOid = dateToMaxObjectId(end);
-    const domainFilter = cfg.domainId ? { domainId: cfg.domainId } : {};
+    const domainFilter = cfg.domainIds.length ? { domainId: { $in: cfg.domainIds } } : {};
 
     // === 1. 查询 record（主要驱动）===
     await report({ message: '正在查询提交记录...' });
@@ -206,7 +207,7 @@ export async function runExport(args: any, report: (data: any) => void) {
             exportedAt: new Date().toISOString(),
             dateRange: { start: cfg.startDate, end: cfg.endDate },
             includeCode: cfg.includeCode,
-            domainId: cfg.domainId || null,
+            domainIds: cfg.domainIds.length ? cfg.domainIds : null,
             recordCounts: {
                 records: records.length,
                 users: userDocs.length,
@@ -276,7 +277,8 @@ export async function runExport(args: any, report: (data: any) => void) {
     };
 
     // === 8. 写入文件 ===
-    const filename = `hydro-export-${cfg.startDate}_to_${cfg.endDate}.json`;
+    const ts = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
+    const filename = `hydro-export-${cfg.startDate}_to_${cfg.endDate}_${ts}.json`;
     const filepath = path.resolve(cfg.outputDir, filename);
     fs.mkdirSync(cfg.outputDir, { recursive: true });
     fs.writeFileSync(filepath, JSON.stringify(result, null, 2));
