@@ -3,6 +3,7 @@ import Schema from 'schemastery';
 import { oi33Model } from '../model';
 import { migrate, previewMigration } from '../migrate';
 import { runExport } from '../scripts/export-hydro-data';
+import { runUpdateRatings } from '../scripts/update-ratings';
 
 // --- Admin dashboard ---
 
@@ -46,5 +47,12 @@ export async function apply(ctx: Context) {
             domainId: Schema.array(Schema.string()),
         }),
         runExport,
+    );
+
+    ctx.addScript(
+        'updateRatings',
+        'Update AtCoder / Codeforces ratings for all users with approved accounts',
+        Schema.object({}),
+        runUpdateRatings,
     );
 }
