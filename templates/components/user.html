@@ -7,13 +7,14 @@
   {% endif %}
 
   <a class="user-profile-name uname--lv{{ udoc.level|default(0) }}" href="{{ url('user_detail', uid=udoc._id) }}">
+    {% set _canSeeRealname = handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or (handler.user._id and handler.user._id == udoc._id) %}
     {% if udoc.realname_flag == 2 %}
     <span class="icon icon-user"></span>
     {% elif udoc.realname_flag == 1 %}
     <span class="icon icon-star"></span>
     {% endif %}
 
-    {% if handler.user.hasPerm(perm.PERM_VIEW_DISPLAYNAME) and udoc.realname_name %}
+    {% if _canSeeRealname and udoc.realname_name %}
       [{{ udoc.realname_name }}]{{ udoc.uname }}
     {% elif handler.user.hasPerm(perm.PERM_VIEW_DISPLAYNAME) and udoc.displayName %}
       ({{ udoc.displayName }}){{ udoc.uname }}

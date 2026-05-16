@@ -54,26 +54,6 @@ class CoinBillHandler extends Handler {
 
 // --- Birthday handlers ---
 
-class BirthdaySetHandler extends Handler {
-    async get() {
-        this.response.template = 'oi33_birthday_set.html';
-    }
-
-    @param('uidOrName', Types.UidOrName)
-    @param('date', Types.String)
-    async post(domainId: string, uidOrName: string, date: string) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-            throw new Error('日期格式错误，请使用 YYYY-MM-DD 格式');
-        }
-        let udoc = await UserModel.getById(domainId, +uidOrName)
-            || await UserModel.getByUname(domainId, uidOrName)
-            || await UserModel.getByEmail(domainId, uidOrName);
-        if (!udoc) throw new NotFoundError(uidOrName);
-        await oi33Model.setBirthday(udoc._id, date);
-        this.response.redirect = this.url('oi33_birthday_show');
-    }
-}
-
 class BirthdayShowHandler extends Handler {
     async get() {
         const records = await oi33Model.getTodayBirthdays();
@@ -116,30 +96,6 @@ class BadgeShowHandler extends Handler {
     }
 }
 
-class BadgeCreateHandler extends Handler {
-    async get() {
-        this.response.template = 'oi33_badge_create.html';
-    }
-
-    @param('uidOrName', Types.UidOrName)
-    @param('text', Types.String)
-    @param('color', Types.String)
-    @param('textColor', Types.String)
-    async post(domainId: string, uidOrName: string, text: string, color: string, textColor: string) {
-        let udoc = await UserModel.getById(domainId, +uidOrName)
-            || await UserModel.getByUname(domainId, uidOrName)
-            || await UserModel.getByEmail(domainId, uidOrName);
-        if (!udoc) throw new NotFoundError(uidOrName);
-        text = text.replace(/'/g, '').replace(/"/g, '');
-        if (!text) throw new Error('Badge text is required');
-        if (!/(^#[0-9A-F]{6}$)|(^#[0-9A-F]{3}$)/i.test(color)
-            || !/(^#[0-9A-F]{6}$)|(^#[0-9A-F]{3}$)/i.test(textColor))
-            throw new Error('Invalid color code, expected hex format like #569CD6');
-        await oi33Model.setBadge(udoc._id, text, color.replace('#', ''), textColor.replace('#', ''));
-        this.response.redirect = '/oi33/badge';
-    }
-}
-
 class BadgeManageHandler extends Handler {
     async get() {
         const oi33Docs = await oi33Model.getBadgedUsers();
@@ -162,33 +118,6 @@ class BadgeDelHandler extends Handler {
     async get(domainId: string, uid: number) {
         await oi33Model.removeBadge(uid);
         this.response.redirect = '/oi33/badge/manage';
-    }
-}
-
-// --- Realname handlers ---
-
-class RealnameSetHandler extends Handler {
-    async get() {
-        this.response.template = 'oi33_realname_set.html';
-    }
-
-    @param('uidOrName', Types.UidOrName)
-    @param('flag', Types.Int)
-    @param('name', Types.String)
-    async post(domainId: string, uidOrName: string, flag: number, name: string) {
-        flag = parseInt(String(flag));
-        let udoc = await UserModel.getById(domainId, +uidOrName)
-            || await UserModel.getByUname(domainId, uidOrName)
-            || await UserModel.getByEmail(domainId, uidOrName);
-        if (!udoc) throw new NotFoundError(uidOrName);
-        await oi33Model.setRealname(udoc._id, flag, name);
-        this.response.redirect = '/oi33/users';
-    }
-}
-
-class RealnameShowHandler extends Handler {
-    async get() {
-        this.response.redirect = '/oi33/users';
     }
 }
 
@@ -231,14 +160,10 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_coin_show', '/oi33/coin/show', CoinShowHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_coin_inc', '/oi33/coin/inc', CoinIncHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_coin_bill', '/oi33/coin/bill/:uid', CoinBillHandler, PRIV.PRIV_USER_PROFILE);
-    ctx.Route('oi33_birthday_set', '/oi33/birthday/set', BirthdaySetHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_birthday_show', '/oi33/birthday', BirthdayShowHandler);
     ctx.Route('oi33_birthday_all', '/oi33/birthday/all', BirthdayAllHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_badge_show', '/oi33/badge', BadgeShowHandler, PRIV.PRIV_USER_PROFILE);
-    ctx.Route('oi33_badge_create', '/oi33/badge/create', BadgeCreateHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_badge_manage', '/oi33/badge/manage', BadgeManageHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_badge_del', '/oi33/badge/manage/:uid/del', BadgeDelHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_realname_set', '/oi33/realname/set', RealnameSetHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_realname_show', '/oi33/realname/show', RealnameShowHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_checkin', '/oi33/checkin', CheckinHandler, PRIV.PRIV_USER_PROFILE);
 }
