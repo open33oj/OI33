@@ -41,7 +41,7 @@ oi33/
 
 | Collection | Key fields |
 |------------|-----------|
-| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag`, `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `atcoder`, `codeforces` |
+| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag`, `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `atcoder`, `codeforces`, `atcoder_rating` (Number), `codeforces_rating` (Number), `atcoder_updated_at`, `codeforces_updated_at` |
 | `oi33_coin_bill` | `_id` (ObjectId), `userId`, `rootId`, `amount`, `text` |
 | `oi33_paste` | `_id` (random string), `updateAt`, `title`, `owner`, `content`, `isprivate` |
 | `oi33_request` | `_id` (ObjectId), `uid`, `requester`, `status` (`pending`/`approved`/`rejected`), `createdAt`, `handledAt?`, `handler?`, `rejectReason?`, + same patch fields as `oi33_user` (`birthday_date`, `realname_flag`, `realname_name`, `badge_*`, `atcoder`, `codeforces`) |
@@ -72,7 +72,9 @@ Never use `getListForRender` when the `user.html` component is rendered, because
 
 ### Profile edit + approval flow
 
-User-facing edit lives at `/oi33/profile/edit/:uid` (`handler/profile.ts`). The editable fields are: `birthday_date`, `realname_flag`/`realname_name`, `badge_text`/`badge_color`/`badge_textColor` (placeholders for `atcoder`/`codeforces` exist in the model but UI isn't wired yet).
+User-facing edit lives at `/oi33/profile/edit/:uid` (`handler/profile.ts`). The editable fields are: `birthday_date`, `realname_flag`/`realname_name`, `badge_text`/`badge_color`/`badge_textColor`, `atcoder` (username), `codeforces` (username).
+
+AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字段（`atcoder_rating`, `codeforces_rating`）及最后更新时间（`atcoder_updated_at`, `codeforces_updated_at`）由后台更新脚本自动维护，不可手动设置，但在个人页面上会显示。
 
 - **Regular user** editing self → `oi33Model.submitRequest()` creates a `pending` doc in `oi33_request`; `oi33_user` is unchanged until approval. Existing pending for same `uid` is overwritten.
 - **`PRIV_MOD_BADGE` user** → `oi33Model.directUpdate()` writes the new values to `oi33_user` AND records a status=`approved` audit entry in `oi33_request`.
@@ -97,6 +99,7 @@ User-facing edit lives at `/oi33/profile/edit/:uid` (`handler/profile.ts`). The 
 | `/oi33/requests` | RequestListHandler | PRIV_MOD_BADGE |
 | `/oi33/requests/:id/approve` | RequestApproveHandler (POST) | PRIV_MOD_BADGE |
 | `/oi33/requests/:id/reject` | RequestRejectHandler (POST) | PRIV_MOD_BADGE |
+| `/oi33/at-cf-rating` | RatingShowHandler | public |
 | `/oi33/paste/create` | PasteCreateHandler | PRIV_USER_PROFILE |
 | `/oi33/paste/manage` | PasteManageHandler | PRIV_USER_PROFILE |
 | `/oi33/paste/all` | PasteAllHandler | PRIV_MOD_BADGE |
@@ -110,7 +113,7 @@ User-facing edit lives at `/oi33/profile/edit/:uid` (`handler/profile.ts`). The 
 - `/oi33/birthday/set`, `/oi33/realname/set`, `/oi33/realname/show`, `/oi33/badge/create` — use `/oi33/profile/edit/:uid` instead.
 
 ## Monkey-patches ([handler/patches.ts](handler/patches.ts))
-1. **UserModel.getList** — injects oi33 fields (coin, badge, realname, birthday) into `User` instances with `hasPriv()` (used by pages rendering `user.html`)
+1. **UserModel.getList** — injects oi33 fields (coin, badge, realname, birthday, atcoder, codeforces, rating fields) into `User` instances with `hasPriv()` (used by pages rendering `user.html`)
 2. **UserModel.getListForRender** — same injection for plain objects without `hasPriv()` (used for lightweight rendering)
 3. **HomeHandler.getCheckin** — injects `payload.oi33_checkin` for the checkin partial
 4. **HomeHandler.getCountdown** — injects `payload.dates` for the countdown partial

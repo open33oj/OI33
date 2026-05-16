@@ -168,6 +168,24 @@
                         <span class="user-profile-badge v-center" style="background-color:#{{ _badge[1] }}{% if _badge[2] %};color:#{{ _badge[2] }}{% endif %}">{{ _badge[0] }}</span>
                       {% else %}{{ _('Not Set') }}{% endif %}
                     </dd>
+                    <dt>AtCoder</dt>
+                    <dd>
+                      {% if udoc.atcoder %}
+                        <a href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener">{{ udoc.atcoder }}</a>
+                        {% if udoc.atcoder_rating !== undefined and udoc.atcoder_rating !== null %}
+                          <span style="opacity:0.6;">({{ udoc.atcoder_rating }})</span>
+                        {% endif %}
+                      {% else %}{{ _('Not Set') }}{% endif %}
+                    </dd>
+                    <dt>Codeforces</dt>
+                    <dd>
+                      {% if udoc.codeforces %}
+                        <a href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener">{{ udoc.codeforces }}</a>
+                        {% if udoc.codeforces_rating !== undefined and udoc.codeforces_rating !== null %}
+                          <span style="opacity:0.6;">({{ udoc.codeforces_rating }})</span>
+                        {% endif %}
+                      {% else %}{{ _('Not Set') }}{% endif %}
+                    </dd>
                   </dl>
                 </div>
               </div>

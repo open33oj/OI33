@@ -115,6 +115,46 @@
         </form>
       </div>
     </div>
+
+    <!-- AtCoder -->
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('AtCoder') }}</h2>
+      </div>
+      <div class="section__body">
+        {{ pending_notice('atcoder') }}
+        <form method="post">
+          <input type="hidden" name="kind" value="atcoder">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          {{ form.form_text({
+            label: _('AtCoder Username'),
+            name: 'atcoder',
+            value: oi33Doc.atcoder or ''
+          }) }}
+          <div class="row"><div class="columns">{{ submit_button() }}</div></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Codeforces -->
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('Codeforces') }}</h2>
+      </div>
+      <div class="section__body">
+        {{ pending_notice('codeforces') }}
+        <form method="post">
+          <input type="hidden" name="kind" value="codeforces">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          {{ form.form_text({
+            label: _('Codeforces Username'),
+            name: 'codeforces',
+            value: oi33Doc.codeforces or ''
+          }) }}
+          <div class="row"><div class="columns">{{ submit_button() }}</div></div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

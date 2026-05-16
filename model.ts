@@ -24,10 +24,14 @@ interface Oi33User {
     checkin_cnt_all?: number;
     atcoder?: string;
     codeforces?: string;
+    atcoder_rating?: number;
+    codeforces_rating?: number;
+    atcoder_updated_at?: string;
+    codeforces_updated_at?: string;
 }
 
 export type Oi33RequestStatus = 'pending' | 'approved' | 'rejected';
-export type Oi33RequestKind = 'birthday' | 'realname' | 'badge';
+export type Oi33RequestKind = 'birthday' | 'realname' | 'badge' | 'atcoder' | 'codeforces';
 
 export interface Oi33RequestPayload {
     birthday_date?: string;
@@ -133,6 +137,16 @@ function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: string[
         if (oi33.badge_text) {
             udoc.badge = oi33.badge_text + '#' + oi33.badge_color + '#' + oi33.badge_textColor;
         }
+    }
+    if (mergeAll || fields!.includes('atcoder')) {
+        udoc.atcoder = oi33.atcoder || '';
+        udoc.atcoder_rating = oi33.atcoder_rating;
+        udoc.atcoder_updated_at = oi33.atcoder_updated_at;
+    }
+    if (mergeAll || fields!.includes('codeforces')) {
+        udoc.codeforces = oi33.codeforces || '';
+        udoc.codeforces_rating = oi33.codeforces_rating;
+        udoc.codeforces_updated_at = oi33.codeforces_updated_at;
     }
 }
 
@@ -336,6 +350,26 @@ async function getAllUsersData(page: number, pageSize: number) {
     return { docs, total, upcount };
 }
 
+// --- Rating page ---
+
+async function getRatedUsers(sortBy: string, page: number, pageSize: number) {
+    const filter = {
+        $or: [
+            { atcoder: { $exists: true, $ne: '' } },
+            { codeforces: { $exists: true, $ne: '' } },
+        ],
+    };
+    const total = await userColl.countDocuments(filter);
+    const upcount = Math.ceil(total / pageSize);
+    const sortField = sortBy === 'codeforces' ? 'codeforces_rating' : 'atcoder_rating';
+    const docs = await userColl.find(filter)
+        .sort({ [sortField]: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .toArray();
+    return { docs, total, upcount };
+}
+
 // --- Recent activities timeline ---
 
 async function getRecentActivities(limit = 40) {
@@ -458,7 +492,7 @@ const oi33Model = {
     setRealname, getRealnamedUsers,
     doCheckin, getCheckinUser,
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
-    getAllUsersData, getRecentActivities,
+    getAllUsersData, getRatedUsers, getRecentActivities,
     submitRequest, directUpdate, approveRequest, rejectRequest,
     getPendingRequests, getPendingRequestCount, getRequestById, getUserPendingRequests,
     applyRequestPayload,
