@@ -30,7 +30,7 @@ interface Oi33User {
     codeforces_updated_at?: string;
 }
 
-export type Oi33RequestStatus = 'pending' | 'approved' | 'rejected';
+export type Oi33RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type Oi33RequestKind = 'birthday' | 'realname' | 'badge' | 'atcoder' | 'codeforces';
 
 export interface Oi33RequestPayload {
@@ -452,7 +452,19 @@ function buildRequestDoc(uid: number, kind: Oi33RequestKind, requester: number, 
 }
 
 async function submitRequest(uid: number, kind: Oi33RequestKind, requester: number, payload: Oi33RequestPayload) {
-    await requestColl.deleteMany({ uid, kind, status: 'pending' });
+    const stale = await requestColl.find({ uid, kind, status: 'pending' }).project({ _id: 1 }).toArray();
+    if (stale.length) {
+        const staleIds = stale.map((d) => d._id);
+        const staleHex = staleIds.map((id) => id.toHexString());
+        await requestColl.updateMany(
+            { _id: { $in: staleIds } },
+            { $set: { status: 'cancelled', handledAt: new Date() } },
+        );
+        await logColl.updateMany(
+            { type: 'request', status: 'pending', reqId: { $in: staleHex } },
+            { $set: { status: 'cancelled' } },
+        );
+    }
     const doc = buildRequestDoc(uid, kind, requester, payload, 'pending');
     const { insertedId } = await requestColl.insertOne(doc as Oi33Request);
     await addLog({ type: 'request', userId: uid, requester, reqId: insertedId.toHexString(), status: 'pending', kind });
