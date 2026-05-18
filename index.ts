@@ -4,6 +4,7 @@ import { apply as applyUser } from './handler/user';
 import { apply as applyContent } from './handler/content';
 import { apply as applyAdmin } from './handler/admin';
 import { apply as applyProfile } from './handler/profile';
+import { apply as applyJudgeMonitor } from './handler/judge-monitor';
 
 export async function apply(ctx: Context) {
     applyPatches(ctx);
@@ -11,4 +12,5 @@ export async function apply(ctx: Context) {
     await applyContent(ctx);
     await applyAdmin(ctx);
     await applyProfile(ctx);
+    await applyJudgeMonitor(ctx);
 }

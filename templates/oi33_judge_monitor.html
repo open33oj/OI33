@@ -1,0 +1,239 @@
+{% set page_name = "oi33_judge_monitor" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Judge Monitor') }}</h1>
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+
+      <div class="section__body">
+
+        {% if sendResult %}
+          {% if sendResult.ok %}
+          <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid #2e7d32;">
+            <strong style="color:#2e7d32;">✓ {{ _('Webhook send succeeded.') }}</strong>
+          </blockquote>
+          {% else %}
+          <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid #c62828;">
+            <strong style="color:#c62828;">✗ {{ _('Webhook send failed:') }}</strong>
+            <code>{{ sendResult.error }}</code>
+          </blockquote>
+          {% endif %}
+        {% endif %}
+
+        {% if checkResult %}
+        <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid #1976d2;">
+          <strong style="color:#1976d2;">✓ {{ _('Manual check completed.') }}</strong>
+          {% if checkResult.pushedKind %}
+            {{ _('Notification pushed:') }}
+            {% if checkResult.pushedKind == 'offline' %}
+              <span style="color:#c62828;">{{ _('All judges offline') }}</span>
+            {% else %}
+              <span style="color:#2e7d32;">{{ _('At least one judge online') }}</span>
+            {% endif %}
+          {% else %}
+            <span style="opacity:0.7;">{{ _('No state transition, no notification sent.') }}</span>
+          {% endif %}
+        </blockquote>
+        {% endif %}
+
+        {% if not enabled %}
+        <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid #f29b3d;">
+          <strong style="color:#f29b3d;">⚠ {{ _('Judge monitor is disabled.') }}</strong>
+          {{ _('Enable it in the configuration below to receive scheduled webhooks.') }}
+        </blockquote>
+        {% endif %}
+
+        <!-- Live status -->
+        <h3 style="margin-bottom:0.8rem;">{{ _('Live Status') }}</h3>
+        <div style="padding:1rem 1.2rem;margin-bottom:2rem;border-radius:6px;
+          {% if liveState == 'offline' %}background:rgba(198,40,40,0.08);border-left:3px solid #c62828;
+          {% elif liveState == 'online' %}background:rgba(46,125,50,0.08);border-left:3px solid #2e7d32;
+          {% else %}background:rgba(128,128,128,0.08);border-left:3px solid #888;{% endif %}">
+          <div style="font-size:1.1rem;font-weight:600;margin-bottom:0.3rem;">
+            {% if liveState == 'offline' %}
+              <span style="color:#c62828;">● {{ _('All judges offline') }}</span>
+            {% elif liveState == 'online' %}
+              <span style="color:#2e7d32;">● {{ _('At least one judge online') }}</span>
+            {% else %}
+              <span style="opacity:0.7;">○ {{ _('No judge machines have reported status.') }}</span>
+            {% endif %}
+          </div>
+          <div style="opacity:0.75;font-size:0.9rem;">
+            {{ _('Online') }}：<strong>{{ onlineCount }}</strong> / {{ statuses.length }}
+            <span style="opacity:0.5;margin:0 0.4rem;">·</span>
+            {{ _('Offline threshold') }}：judge {{ judgeThresholdMinutes }} / server {{ serverThresholdMinutes }} {{ _('minutes') }}
+            <span style="opacity:0.5;margin:0 0.4rem;">·</span>
+            {% if includeServer %}
+              <span style="color:#1976d2;">{{ _('Server included') }}</span>
+            {% else %}
+              <span style="opacity:0.7;">{{ _('Server excluded') }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Configuration -->
+        <h3 style="margin-bottom:0.8rem;">{{ _('Configuration') }}</h3>
+        <p style="opacity:0.7;margin-bottom:0.8rem;font-size:0.9rem;">
+          {{ _('Webhook help text') }}
+        </p>
+        <form method="post" style="margin-bottom:2.5rem;">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <input type="hidden" name="action" value="save">
+
+          <div style="margin-bottom:0.8rem;">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+              <input type="checkbox" name="enabled" value="on"{% if enabled %} checked{% endif %}>
+              <span><strong>{{ _('Enable judge monitor') }}</strong> — {{ _('Run periodic checks and send webhooks on state transition.') }}</span>
+            </label>
+          </div>
+
+          <div style="margin-bottom:1rem;">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+              <input type="checkbox" name="include_server" value="on"{% if includeServer %} checked{% endif %}>
+              <span><strong>{{ _('Include server') }}</strong> — {{ _('Include server heartbeat. Turn on if built-in judge is enabled.') }}</span>
+            </label>
+          </div>
+
+          <div style="margin-bottom:1rem;">
+            <label style="display:block;margin-bottom:0.3rem;opacity:0.8;">{{ _('Webhook URL') }}</label>
+            <input type="text" name="webhook" value="{{ webhookUrl }}"
+              placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+              style="width:100%;padding:0.4rem 0.6rem;">
+          </div>
+
+          <button type="submit" class="primary rounded button">{{ _('Save') }}</button>
+        </form>
+
+        <!-- Manual actions -->
+        <h3 style="margin-bottom:0.8rem;">{{ _('Manual Actions') }}</h3>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:2.5rem;">
+          <form method="post" style="display:inline;">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <input type="hidden" name="action" value="run_check">
+            <button type="submit" class="primary rounded button">{{ _('Run check now') }}</button>
+          </form>
+          <form method="post" style="display:inline;">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <input type="hidden" name="action" value="send_status">
+            <button type="submit" class="rounded button">{{ _('Send current judge status') }}</button>
+          </form>
+          <form method="post" style="display:inline;">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <input type="hidden" name="action" value="test">
+            <button type="submit" class="rounded button">{{ _('Send test message') }}</button>
+          </form>
+        </div>
+
+        <!-- Last scheduled check -->
+        <h3 style="margin-bottom:0.8rem;">{{ _('Last Scheduled Check') }}</h3>
+        <table style="margin-bottom:1.5rem;">
+          <tr>
+            <td style="padding:0.3rem 1rem 0.3rem 0;opacity:0.7;">{{ _('Last check at') }}</td>
+            <td>
+              {% if lastCheckAt %}
+                {{ datetimeSpan(lastCheckAt)|safe }}
+              {% else %}
+                <span style="opacity:0.6;">{{ _('Not checked yet') }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0.3rem 1rem 0.3rem 0;opacity:0.7;">{{ _('Last check result') }}</td>
+            <td>
+              {% if lastCheckAt %}
+                <strong>{{ lastCheckOnline }}</strong> / {{ lastCheckTotal }} {{ _('online') }}
+              {% else %}
+                <span style="opacity:0.6;">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0.3rem 1rem 0.3rem 0;opacity:0.7;">{{ _('Notify state') }}</td>
+            <td>
+              {% if lastState == 'offline' %}
+                <span style="color:#c62828;font-weight:600;">{{ _('All judges offline') }}</span>
+              {% elif lastState == 'online' %}
+                <span style="color:#2e7d32;font-weight:600;">{{ _('At least one judge online') }}</span>
+              {% else %}
+                <span style="opacity:0.6;">{{ _('Not checked yet') }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0.3rem 1rem 0.3rem 0;opacity:0.7;">{{ _('Last notification') }}</td>
+            <td>
+              {% if lastNotifyAt %}
+                {% if lastNotifyKind == 'offline' %}
+                  <span style="color:#c62828;">{{ _('Offline alert') }}</span>
+                {% elif lastNotifyKind == 'recovery' %}
+                  <span style="color:#2e7d32;">{{ _('Recovery notice') }}</span>
+                {% endif %}
+                — {{ datetimeSpan(lastNotifyAt)|safe }}
+              {% else %}
+                <span style="opacity:0.6;">{{ _('No notification sent yet.') }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0.3rem 1rem 0.3rem 0;opacity:0.7;">{{ _('Check interval') }}</td>
+            <td>{{ checkIntervalMinutes }} {{ _('minutes') }}</td>
+          </tr>
+        </table>
+
+        <!-- Status table -->
+        <h3 style="margin-bottom:0.8rem;">{{ _('Judge Machines') }}</h3>
+        {% if statuses.length %}
+        <table class="data-table">
+          <colgroup>
+            <col><col><col><col><col>
+          </colgroup>
+          <thead>
+            <tr>
+              <th>{{ _('Machine ID') }}</th>
+              <th>{{ _('Type') }}</th>
+              <th>{{ _('Status') }}</th>
+              <th>{{ _('Last Heartbeat') }}</th>
+              <th>{{ _('Elapsed') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in statuses %}
+            <tr>
+              <td>{{ s.name or s.mid }}</td>
+              <td><code>{{ s.type }}</code></td>
+              <td>
+                {% if s.online %}
+                <span style="color:#2e7d32;font-weight:600;">● {{ _('Online') }}</span>
+                {% else %}
+                <span style="color:#c62828;font-weight:600;">● {{ _('Offline') }}</span>
+                {% endif %}
+              </td>
+              <td>{{ datetimeSpan(s.updateAt)|safe }}</td>
+              <td>
+                {% if s.minutesSince < 60 %}
+                  {{ s.minutesSince }} {{ _('minutes ago') }}
+                {% elif s.minutesSince < 1440 %}
+                  {{ (s.minutesSince / 60)|round(0, 'floor') }} {{ _('hours ago') }}
+                {% else %}
+                  {{ (s.minutesSince / 1440)|round(0, 'floor') }} {{ _('days ago') }}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="opacity:0.6;">{{ _('No judge machines have reported status.') }}</p>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
