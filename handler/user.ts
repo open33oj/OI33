@@ -144,7 +144,7 @@ class UsersShowHandler extends Handler {
 // --- Checkin handler ---
 
 class CheckinHandler extends Handler {
-    async get() {
+    async post() {
         const uid = this.user._id;
         const now = moment().format('YYYY-MM-DD');
         const oi33User = await oi33Model.getCheckinUser(uid);

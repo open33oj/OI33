@@ -21,6 +21,7 @@
 | AT/CF 用户名 | 设置 AtCoder / Codeforces 用户名（走审批流程），预留 rating 字段供脚本更新 | `/oi33/profile/edit/:uid` |
 | AT/CF Rating 排名 | 公开展示已绑定 AT/CF 用户的信息及 rating，支持按任意 rating 排序 | `/oi33/at-cf-rating` |
 | 统一资料审批 | 生日、实名、徽章、AT/CF 用户名 均走提交→审批流 | `/oi33/requests` |
+| MCP / Agent API 令牌 | 供外部 MCP 工具或 AI Agent 调用的只读 Bearer Token，可限定域和过期时间 | `/oi33/tokens` |
 
 ## 数据库
 
@@ -31,6 +32,7 @@
 | `oi33_user` | 用户属性：硬币余额、生日、徽章、实名、签到数据、AT/CF 用户名及 rating |
 | `oi33_coin_bill` | 硬币交易流水 |
 | `oi33_paste` | 剪贴板文档 |
+| `oi33_token` | MCP / Agent API 令牌（哈希存储，只读） |
 | `oi33_log` | 操作日志（硬币、生日、徽章、实名、剪贴板） |
 
 ## 权限配置
@@ -63,6 +65,9 @@
 | `/oi33/rating` | 公开 | Rating （旧路由，已弃用） |
 | `/oi33/profile/edit/:uid` | `PRIV_USER_PROFILE`（自己）/ `PRIV_MOD_BADGE`（他人） | 统一资料编辑（生日、实名、徽章、AT/CF） |
 | `/oi33/requests` | `PRIV_MOD_BADGE` | 审批列表 |
+| `/oi33/tokens` | `PRIV_USER_PROFILE` | 查看自己的令牌（管理员可查看全部） |
+| `/oi33/tokens/create` | `PRIV_ALL` | 创建 MCP / Agent API 令牌 |
+| `/oi33/tokens/:id/delete` | `PRIV_ALL` | 删除令牌 |
 | `/record` | 导航默认跳转 `?uidOrName=自己`（登录用户） | 评测记录页（覆盖模板） |
 
 ## 安装与迁移
@@ -141,7 +146,7 @@ hydrooj addon remove frontend-33oj
       - text: "大凶"
         color: "#161823"
     luck_vip:
-      - 18, 1422
+      - 1, 2
   countdown:
     title: 倒计时
     max_dates: 5
@@ -164,13 +169,13 @@ hydrooj addon remove frontend-33oj
         - name: 软件下载
           url: /p/SOFTWARE
         - name: "三三百科"
-          url: https://33dai.wiki
+          url: https://wiki.example.com
         - name: 初学者常用内容
-          url: https://www.33dai.wiki/w/%E5%88%9D%E5%AD%A6%E8%80%85%E5%B8%B8%E7%94%A8%E5%86%85%E5%AE%B9
+          url: https://wiki.example.com/w/beginner
         - name: 题目分享
-          url: https://pan.baidu.com/s/5XGUMx5EV1MhTN7S7oIxUeA
+          url: https://pan.baidu.com/s/xxxxxxxx
         - name: 打字练习
-          url: https://type.33dai.cn
+          url: https://type.example.com
     - title: 33OJ
       urls:
         - name: 生日快乐
@@ -315,4 +320,85 @@ hydrooj addon remove frontend-33oj
   ]
 }
 ```
+
+## MCP / Agent API 令牌
+
+为外部 MCP 工具、AI Agent 或自动化脚本提供 **只读** 的 Bearer Token 认证机制，使其能够绕过登录直接访问 33OJ 的公开数据。
+
+### 核心设计
+
+| 特性 | 说明 |
+|------|------|
+| **Token 格式** | `33tok_<base64url>`（约 50 字符），创建时仅显示一次 |
+| **存储方式** | 数据库存 SHA-256 hash，不存原始值，泄漏后可立即吊销 |
+| **权限模型** | 只读 — 双重拦截：HTTP 方法限制 + 路由白名单 |
+| **方法限制** | 仅允许 `GET` / `HEAD` / `OPTIONS`，其余方法直接拒绝 |
+| **路由白名单** | 仅允许访问明确列入白名单的路由（见下方列表） |
+| **域限制** | 可限定允许访问的域（`"*"` 表示所有域），未授权的域返回 403 |
+| **过期机制** | 支持设置过期时间，过期后自动失效 |
+| **创建权限** | 仅 `PRIV_ALL`（超级管理员）可创建和删除令牌 |
+
+### 使用方法
+
+在 HTTP 请求 Header 中携带：
+
+```
+Authorization: Bearer 33tok_xxxxxxxx...
+```
+
+令牌认证通过 `handler/before` 事件钩子拦截，在 Hydro v5 的 handler 生命周期中（`prepare()` 之后、`get()`/`post()` 之前）执行。认证成功后，请求将以令牌所属用户的身份执行，但写操作会被强制拦截。
+
+### 管理入口
+
+管理员访问 `/oi33/tokens` 创建令牌，可指定：
+
+- **名称**：便于识别的备注（如 `"MCP-Data-Exporter"`）
+- **所属用户 UID**：令牌代表谁的身份（留空为自己）
+- **允许域**：逗号分隔的域 ID（如 `"system,contest"`，`*` 为全部）
+- **过期时间**：可选的到期时间
+
+创建成功后页面会**一次性显示原始令牌**，务必立即复制保存，之后无法再次查看。
+
+### 白名单路由
+
+Token 仅允许访问以下路由（精确匹配或前缀匹配）：
+
+**Hydro 核心**
+- `/record/*` — 提交记录、代码下载
+- `/problem/*`, `/p/*` — 题目
+- `/contest/*`, `/homework/*` — 比赛、作业
+- `/user/*`, `/ranking` — 用户、排名
+- `/discuss/*`, `/training/*` — 讨论、训练
+
+**OI33 插件**
+- `/oi33/users` — 全部用户数据
+- `/oi33/birthday` — 今日生日
+- `/oi33/badge` — 徽章展示
+- `/oi33/badge/manage` — 徽章管理
+- `/oi33/at-cf-rating` — Rating 排名
+- `/oi33/paste/show/*` — 剪贴板内容
+- `/oi33/paste/manage` — 我的剪贴板
+- `/oi33/paste/all` — 全部剪贴板
+- `/oi33/coin/bill/*` — 硬币账单
+- `/oi33/admin` — 管理仪表盘
+- `/oi33/requests` — 审批列表
+- `/oi33/tokens` — Token 管理
+
+**明确禁止**（即使 GET 也会触发写入）：
+- `/oi33/checkin` — GET 内部会写入签到记录
+- `/oi33/badge/manage/*/del` — GET 内部会删除徽章
+- 所有未列出的路径
+
+### 只读保证
+
+1. **HTTP 方法拦截**：`POST` / `PUT` / `DELETE` / `PATCH` 在 `handler/before` 阶段直接抛出 `Read-only token cannot perform write operations`
+2. **路由白名单拦截**：不在白名单中的路径抛出 `This route is not available via token`
+3. 双重拦截均在 handler 方法体执行之前，不会触及任何数据库写操作
+
+### 典型场景
+
+- **AI Agent 数据接入**：让 AI Agent 通过 Token 拉取题目、提交记录、排行榜等数据进行分析
+- **MCP 工具集成**：为 MCP Server 提供安全的只读凭证，避免暴露账号密码
+- **自动化报表脚本**：定时脚本通过 Token 读取 OJ 数据生成统计报表
+- **第三方数据同步**：与其他系统对接时仅暴露只读权限
 

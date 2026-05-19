@@ -16,10 +16,13 @@
         {% endif %}
         <p>{{ _('Consecutive days') }} {{ payload.oi33_checkin.cnt_now }} {{ _('days, total') }} {{ payload.oi33_checkin.cnt_all }} {{ _('days') }}</p>
       {% else %}
-        <a href="/oi33/checkin" class="expanded button">
-          <span class="icon icon-feeling-lucky"> </span>
-          {{ _('Draw Today Fortune') }}
-        </a>
+        <form method="post" action="/oi33/checkin">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <button type="submit" class="expanded button">
+            <span class="icon icon-feeling-lucky"> </span>
+            {{ _('Draw Today Fortune') }}
+          </button>
+        </form>
       {% endif %}
     {% else %}
       <p>{{ _('Login to draw') }}</p>

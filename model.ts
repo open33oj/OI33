@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import { _, db, ObjectId } from 'hydrooj';
 
 const userColl = db.collection('oi33_user');
@@ -6,6 +6,7 @@ const billColl = db.collection('oi33_coin_bill');
 const pasteColl = db.collection('oi33_paste');
 const logColl = db.collection('oi33_log');
 const requestColl = db.collection('oi33_request');
+const tokenColl = db.collection('oi33_token');
 
 interface Oi33User {
     _id: number;
@@ -72,6 +73,19 @@ interface Oi33Paste {
     isprivate: boolean;
 }
 
+interface Oi33Token {
+    _id: string;
+    tokenHash: string;
+    tokenPrefix: string;
+    uid: number;
+    name: string;
+    domains: string[];
+    createdAt: Date;
+    lastUsedAt: Date;
+    expiresAt?: Date;
+    isActive: boolean;
+}
+
 interface Oi33Log {
     _id: Date;
     type: 'coin' | 'birthday' | 'badge' | 'realname' | 'paste' | 'request';
@@ -108,6 +122,7 @@ declare module 'hydrooj' {
         oi33_user: Oi33User;
         oi33_coin_bill: Oi33CoinBill;
         oi33_paste: Oi33Paste;
+        oi33_token: Oi33Token;
         oi33_log: Oi33Log;
         oi33_request: Oi33Request;
     }
@@ -536,6 +551,58 @@ async function getUserPendingRequests(uid: number): Promise<Partial<Record<Oi33R
     return dict;
 }
 
+// --- API Tokens ---
+
+function generateRawToken(): string {
+    return '33tok_' + randomBytes(32).toString('base64url');
+}
+
+function hashToken(raw: string): string {
+    return createHash('sha256').update(raw).digest('hex');
+}
+
+async function createToken(uid: number, name: string, domains: string[], expiresAt?: Date): Promise<{ _id: string; rawToken: string }> {
+    const rawToken = generateRawToken();
+    const _id = randomBytes(8).toString('hex') + Date.now().toString(36);
+    await tokenColl.insertOne({
+        _id,
+        tokenHash: hashToken(rawToken),
+        tokenPrefix: rawToken.slice(0, 20),
+        uid,
+        name,
+        domains,
+        createdAt: new Date(),
+        lastUsedAt: new Date(),
+        expiresAt,
+        isActive: true,
+    });
+    return { _id, rawToken };
+}
+
+async function getTokensByUid(uid: number): Promise<Oi33Token[]> {
+    return await tokenColl.find({ uid, isActive: true }).sort({ createdAt: -1 }).toArray();
+}
+
+async function getAllActiveTokens(): Promise<Oi33Token[]> {
+    return await tokenColl.find({ isActive: true }).sort({ createdAt: -1 }).toArray();
+}
+
+async function getTokenByHash(hash: string): Promise<Oi33Token | null> {
+    return await tokenColl.findOne({ tokenHash: hash, isActive: true });
+}
+
+async function deleteToken(_id: string): Promise<boolean> {
+    const result = await tokenColl.updateOne(
+        { _id },
+        { $set: { isActive: false } },
+    );
+    return result.modifiedCount > 0;
+}
+
+async function touchToken(_id: string) {
+    await tokenColl.updateOne({ _id }, { $set: { lastUsedAt: new Date() } });
+}
+
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields,
     coinInc, coinBillCount, coinGetAll, coinUserBillCount, coinGetUser, coinGetLeaderboard,
@@ -548,7 +615,8 @@ const oi33Model = {
     submitRequest, directUpdate, approveRequest, rejectRequest,
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,
+    createToken, getTokensByUid, getAllActiveTokens, getTokenByHash, deleteToken, touchToken,
 };
 global.Hydro.model.oi33 = oi33Model;
 
-export { userColl, billColl, pasteColl, logColl, requestColl, oi33Model, Oi33User, Oi33CoinBill, Oi33Paste, Oi33Log, Oi33Request };
+export { userColl, billColl, pasteColl, logColl, requestColl, tokenColl, oi33Model, Oi33User, Oi33CoinBill, Oi33Paste, Oi33Token, Oi33Log, Oi33Request };
