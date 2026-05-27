@@ -148,7 +148,7 @@ function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: string[
         udoc.birthday_date = oi33.birthday_date || '';
     }
     if (mergeAll || fields!.includes('realname')) {
-        udoc.realname_flag = oi33.realname_flag ?? 0;
+        udoc.realname_flag = oi33.realname_flag;
         udoc.realname_name = oi33.realname_name || '';
     }
     if (mergeAll || fields!.includes('badge')) {

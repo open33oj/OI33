@@ -172,7 +172,7 @@
                 {% if kind == 'birthday' %}
                   {{ r.birthday_date or _('(clear)') }}
                 {% elif kind == 'realname' %}
-                  {% if r.realname_flag == 1 %}{{ _('Student') }}{% elif r.realname_flag == 2 %}{{ _('Teacher') }}{% else %}{{ _('No Identity') }}{% endif %}
+                  {% if r.realname_flag == 1 %}{{ _('Student') }}{% elif r.realname_flag == 2 %}{{ _('Teacher') }}{% elif r.realname_flag == 3 %}{{ _('Admin') }}{% elif r.realname_flag == 0 %}{{ _('Verified') }}{% else %}-{% endif %}
                   {% if r.realname_name %}（{{ r.realname_name }}）{% endif %}
                 {% elif kind == 'badge' %}
                   {% if r.badge_text %}

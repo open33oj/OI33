@@ -8,10 +8,14 @@
 
   <a class="user-profile-name uname--lv{{ udoc.level|default(0) }}" href="{{ url('user_detail', uid=udoc._id) }}">
     {% set _canSeeRealname = handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or (handler.user._id and handler.user._id == udoc._id) %}
-    {% if udoc.realname_flag == 2 %}
+    {% if udoc.realname_flag == 3 %}
+    <span class="icon icon-crown"></span>
+    {% elif udoc.realname_flag == 2 %}
     <span class="icon icon-user"></span>
     {% elif udoc.realname_flag == 1 %}
     <span class="icon icon-star"></span>
+    {% elif udoc.realname_flag == 0 %}
+    <span class="icon icon-check"></span>
     {% endif %}
 
     {% if _canSeeRealname and udoc.realname_name %}

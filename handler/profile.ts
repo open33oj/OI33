@@ -20,7 +20,7 @@ function buildPayload(
         return { birthday_date };
     }
     if (kind === 'realname') {
-        if (![0, 1, 2].includes(realname_flag)) {
+        if (![0, 1, 2, 3].includes(realname_flag)) {
             throw new ValidationError('realname_flag');
         }
         return { realname_flag, realname_name };

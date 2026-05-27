@@ -77,6 +77,10 @@
 ## 安装与迁移
 
 ```bash
+# 0. 进入插件目录安装依赖
+cd /path/to/oi33
+yarn
+
 # 1. 安装插件
 hydrooj addon add /path/to/oi33
 pm2 restart hydrooj
