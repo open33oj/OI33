@@ -5,10 +5,18 @@
 {% block content %}
 <div class="row">
   <div class="medium-9 columns">
+    {% if not category %}
+    <div class="section">
+      <div class="section__body">
+        <div class="typo richmedia">{{ bulletin.content|markdown|safe }}</div>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="section">
       <div class="section__header">
         <h1 class="section__title">
-          {% if category %}{% for c in categories %}{% if c._id == category %}{{ c.name }}{% endif %}{% endfor %}{% else %}{{ _('All Pages') }}{% endif %}
+          {% if category %}{% for c in categories %}{% if c._id == category %}{{ c.name }}{% endif %}{% endfor %}{% else %}{{ _('Recent Updates') }}{% endif %}
         </h1>
       </div>
       <div class="section__body no-padding">
@@ -17,25 +25,25 @@
         {% else %}
         <table class="data-table">
           <colgroup>
+            <col class="col--category" style="width:6rem">
             <col class="col--title">
-            <col class="col--category" style="width:8rem">
-            <col class="col--updated" style="width:14rem">
+            <col class="col--updated" style="width:10rem">
           </colgroup>
           <thead>
             <tr>
-              <th class="col--title">{{ _('Title') }}</th>
               <th class="col--category">{{ _('Category') }}</th>
+              <th class="col--title">{{ _('Title') }}</th>
               <th class="col--updated">{{ _('Updated At') }}</th>
             </tr>
           </thead>
           <tbody>
             {% for doc in docs %}
             <tr>
-              <td class="col--title">
-                <a href="/oi33/wiki/{{ doc._id }}">{{ doc.title }}</a>
-              </td>
               <td class="col--category">
                 {% for c in categories %}{% if c._id == doc.category %}{{ c.name }}{% endif %}{% endfor %}
+              </td>
+              <td class="col--title">
+                <a href="/oi33/wiki/{{ doc._id }}">{{ doc.title }}</a>
               </td>
               <td class="col--updated">
                 {{ datetimeSpan(doc.updatedAt)|safe }}
@@ -53,12 +61,12 @@
   <div class="medium-3 columns">
     <div class="section side">
       <div class="section__header">
-        <h1 class="section__title">{{ _('Categories') }}</h1>
+        <h1 class="section__title">{{ _('Wiki') }}</h1>
       </div>
       <div class="section__body">
         <ol class="menu">
           <li class="menu__item">
-            <a href="/oi33/wiki" class="menu__link{% if category is undefined %} active{% endif %}">{{ _('All') }}</a>
+            <a href="/oi33/wiki" class="menu__link{% if category is undefined %} active{% endif %}">{{ _('Home') }}</a>
           </li>
           {% for c in categories %}
           <li class="menu__item">
@@ -79,7 +87,6 @@
           <li class="menu__item"><a href="/oi33/wiki/create" class="menu__link">{{ _('New Page') }}</a></li>
           {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
           <li class="menu__item"><a href="/oi33/wiki/import" class="menu__link">{{ _('Import') }}</a></li>
-          <li class="menu__item"><a href="/oi33/wiki/export" class="menu__link">{{ _('Export All') }}</a></li>
           {% endif %}
         </ol>
       </div>
