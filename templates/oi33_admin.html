@@ -79,6 +79,17 @@
           </div>
 
           <div style="margin-bottom:1.2rem;">
+            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">百科</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              <a href="/oi33/wiki" class="primary rounded button">{{ _('Wiki Home') }}</a>
+              <a href="/oi33/wiki/create" class="rounded button">{{ _('New Page') }}</a>
+              <a href="/oi33/wiki/categories" class="rounded button">{{ _('Categories') }}</a>
+              <a href="/oi33/wiki/import" class="rounded button">{{ _('Import') }}</a>
+              <a href="/oi33/wiki/export" class="rounded button">{{ _('Export All') }}</a>
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.2rem;">
             <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">设置</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
               <a href="/oi33/coin/inc" class="rounded button">{{ _('Grant Coins') }}</a>
@@ -95,6 +106,7 @@
               <a href="/oi33/migrate" class="rounded button">{{ _('Run Migration') }}</a>
               <a href="/oi33/judge-monitor" class="rounded button">{{ _('Judge Monitor') }}</a>
               <a href="/oi33/tokens" class="rounded button">{{ _('API Tokens') }}</a>
+              <a href="/oi33/permissions" class="rounded button">{{ _('Permissions') }}</a>
             </div>
           </div>
         </div>
@@ -155,41 +167,61 @@
               {% endif %}
 
             {% elif a.type == 'request' %}
-              {% set r = reqDict[a.reqId] %}
-              {% set kind = (r and r.kind) or a.kind %}
               <span class="oi33-timeline__tag">{{ _('activity_tag_request') }}</span>
               {{ userLink(a.requester) }}
-              {% if a.requester != a.userId %}
-                <span class="oi33-timeline__note">{{ _('for') }}</span>
-                {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">{{ _('submitted') }}</span>
+              {{ _('kind_' + (a.kind or '')) }}
+              <span class="oi33-timeline__note">{{ _('for') }}</span>
+              {{ userLink(a.userId) }}
+              {% if a.status == 'approved' %}
+                <span class="oi33-timeline__status-approved">{{ _('Approved') }}</span>
+              {% elif a.status == 'rejected' %}
+                <span class="oi33-timeline__status-rejected">{{ _('Rejected') }}</span>
+              {% elif a.status == 'cancelled' %}
+                <span class="oi33-timeline__status-cancelled">{{ _('Cancelled') }}</span>
+              {% else %}
+                <span class="oi33-timeline__status-pending">{{ _('Pending') }}</span>
               {% endif %}
-              {% if kind %}
-                <span class="oi33-timeline__note">·</span>
-                <span>{{ _('kind_' + kind) }}</span>
-              {% endif %}
-              {% if r %}
-                <span class="oi33-timeline__note">→</span>
-                {% if kind == 'birthday' %}
-                  {{ r.birthday_date or _('(clear)') }}
-                {% elif kind == 'realname' %}
-                  {% if r.realname_flag == 1 %}{{ _('Student') }}{% elif r.realname_flag == 2 %}{{ _('Teacher') }}{% elif r.realname_flag == 3 %}{{ _('Admin') }}{% elif r.realname_flag == 0 %}{{ _('Verified') }}{% else %}-{% endif %}
-                  {% if r.realname_name %}（{{ r.realname_name }}）{% endif %}
-                {% elif kind == 'badge' %}
-                  {% if r.badge_text %}
-                    <span class="user-profile-badge" style="background-color:#{{ r.badge_color }};color:#{{ r.badge_textColor }};">{{ r.badge_text }}</span>
-                  {% else %}
-                    {{ _('(clear)') }}
+              {% if a.reqId %}
+                {% set r = reqDict[a.reqId] %}
+                {% if r %}
+                  {% set kind = r.kind %}
+                  <span class="oi33-timeline__note">·</span>
+                  {% if kind == 'birthday' %}
+                    {{ r.birthday_date or _('(clear)') }}
+                  {% elif kind == 'realname' %}
+                    {% if r.realname_flag == 1 %}{{ _('Student') }}{% elif r.realname_flag == 2 %}{{ _('Teacher') }}{% elif r.realname_flag == 3 %}{{ _('Admin') }}{% elif r.realname_flag == 0 %}{{ _('Verified') }}{% else %}-{% endif %}
+                    {% if r.realname_name %}（{{ r.realname_name }}）{% endif %}
+                  {% elif kind == 'badge' %}
+                    {% if r.badge_text %}
+                      <span class="user-profile-badge" style="background-color:#{{ r.badge_color }};color:#{{ r.badge_textColor }};">{{ r.badge_text }}</span>
+                    {% else %}
+                      {{ _('(clear)') }}
+                    {% endif %}
+                  {% elif kind == 'atcoder' %}
+                    {{ r.atcoder or _('(clear)') }}
+                  {% elif kind == 'codeforces' %}
+                    {{ r.codeforces or _('(clear)') }}
                   {% endif %}
-                {% elif kind == 'atcoder' %}
-                  {{ r.atcoder or _('(clear)') }}
-                {% elif kind == 'codeforces' %}
-                  {{ r.codeforces or _('(clear)') }}
                 {% endif %}
               {% endif %}
-              {% if a.status %}
-                <span class="oi33-timeline__note">·</span>
-                <span class="oi33-timeline__status-{{ a.status }}">{{ _(a.status) }}</span>
+
+            {% elif a.type == 'wiki' %}
+              <span class="oi33-timeline__tag">{{ _('activity_tag_wiki') }}</span>
+              {{ userLink(a.uid) }}
+              {% if a.action == 'create' %}
+                <span class="oi33-timeline__note">{{ _('created') }}</span>
+              {% elif a.action == 'edit' %}
+                <span class="oi33-timeline__note">{{ _('edited') }}</span>
+              {% elif a.action == 'delete' %}
+                <span class="oi33-timeline__note">{{ _('deleted') }}</span>
               {% endif %}
+              {% if a.wikiId %}
+                <a href="/oi33/wiki/{{ a.wikiId }}">「{{ a.title }}」</a>
+              {% else %}
+                「{{ a.title }}」
+              {% endif %}
+
             {% endif %}
           </div>
           {% endfor %}

@@ -1,0 +1,55 @@
+{% set page_name = "oi33_wiki_import" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Import Wiki Pages') }}</h1>
+        <div class="section__tools">
+          <a href="/oi33/wiki" class="rounded button">{{ _('Back to Wiki') }}</a>
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p>{{ _('Paste JSON array of wiki pages below. Each page should have: title, content, category (optional).') }}</p>
+        <form method="post" action="/oi33/wiki/import/submit">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <div class="row">
+            <div class="medium-12 columns">
+              {{ form.form_textarea({
+                columns: 12,
+                label: _('JSON Data'),
+                name: '__raw_body',
+                value: '',
+                required: true,
+                extra_style: 'height: 400px; font-family: monospace;',
+                extra_textarea_class: ''
+              }) }}
+            </div>
+          </div>
+          <div class="row" style="margin-left: 5px; text-align: left;">
+            <button type="submit" class="rounded primary button">{{ _('Import') }}</button>
+          </div>
+        </form>
+        <hr>
+        <details>
+          <summary>{{ _('Format Example') }}</summary>
+          <pre style="background:#f5f5f5;padding:1rem;overflow-x:auto;font-size:0.85rem;">[
+  {
+    "title": "Quick Sort",
+    "content": "# Quick Sort\n\n快速排序...",
+    "category": "algorithm"
+  },
+  {
+    "title": "Getting Started",
+    "content": "# Getting Started\n\n安装...",
+    "category": "tools"
+  }
+]</pre>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

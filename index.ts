@@ -6,6 +6,8 @@ import { apply as applyAdmin } from './handler/admin';
 import { apply as applyProfile } from './handler/profile';
 import { apply as applyJudgeMonitor } from './handler/judge-monitor';
 import { apply as applyToken } from './handler/token';
+import { apply as applyWiki } from './handler/wiki';
+import { apply as applyPermissions } from './handler/permissions';
 
 export async function apply(ctx: Context) {
     applyPatches(ctx);
@@ -15,4 +17,6 @@ export async function apply(ctx: Context) {
     await applyProfile(ctx);
     await applyJudgeMonitor(ctx);
     await applyToken(ctx);
+    await applyWiki(ctx);
+    await applyPermissions(ctx);
 }

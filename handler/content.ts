@@ -3,22 +3,14 @@ import {
     Handler, PRIV, Types, param, query, NotFoundError, ForbiddenError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
-
-async function checkUserFlag(uid: number): Promise<number> {
-    const oi33 = (await oi33Model.getUserDataByUids([uid]))[uid];
-    return oi33 ? (oi33.realname_flag ?? -1) : -1;
-}
-
-function canPublish(flag: number): boolean {
-    return flag === 2 || flag === 3;
-}
+import { checkUserFlag, canPublish } from './utils';
 
 // --- Pastebin handlers ---
 
 class PasteCreateHandler extends Handler {
     async get() {
         const flag = await checkUserFlag(this.user._id);
-        this.response.body = { canPublic: canPublish(flag) };
+        this.response.body = { canPublic: canPublish(flag), canCreateWiki: flag === 3 };
         this.response.template = 'oi33_paste_create.html';
     }
 
@@ -68,9 +60,17 @@ class PasteShowHandler extends Handler {
     async get(domainId: string, id: string) {
         const doc = await oi33Model.pasteGet(id);
         if (!doc) throw new NotFoundError(id);
-        if (doc.isprivate && this.user._id !== doc.owner) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        if (this.user._id !== doc.owner) {
+            if (doc.isprivate) {
+                this.checkPriv(PRIV.PRIV_MOD_BADGE);
+            } else {
+                const flag = await checkUserFlag(doc.owner);
+                if (!canPublish(flag)) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+            }
+        }
         const udoc = await UserModel.getById(domainId, doc.owner);
-        this.response.body = { doc, udoc };
+        const legacy = this.request.path.startsWith('/paste/');
+        this.response.body = { doc, udoc, legacy };
         this.response.template = 'oi33_paste_show.html';
     }
 }
@@ -124,4 +124,6 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_paste_show', '/oi33/paste/show/:id', PasteShowHandler);
     ctx.Route('oi33_paste_edit', '/oi33/paste/show/:id/edit', PasteEditHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_paste_del', '/oi33/paste/show/:id/delete', PasteDeleteHandler, PRIV.PRIV_USER_PROFILE);
+
+    ctx.Route('paste_show_legacy', '/paste/show/:id', PasteShowHandler, PRIV.PRIV_USER_PROFILE);
 }
