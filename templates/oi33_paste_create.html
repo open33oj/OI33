@@ -38,7 +38,7 @@
                   <input type="checkbox" name="isprivate" value="on" class="checkbox"> {{ _('Private') }}
                 </label>
                 {% else %}
-                <span class="text-orange">{{ _('Only teachers and admins can create public pastes.') }}</span>
+                <span class="text-orange">{{ _('Only verified users can create public pastes.') }}</span>
                 <input type="hidden" name="isprivate" value="on">
                 {% endif %}
               </label>

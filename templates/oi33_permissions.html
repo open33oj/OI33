@@ -12,7 +12,7 @@
       </div>
       <div class="section__body no-padding">
         <p style="padding:0.5rem 1rem;margin:0;font-size:0.9rem;opacity:0.7;">
-          {{ _('realname_flag is the OI33 identity tag (0=Verified, 1=Student, 2=Teacher, 3=Admin). PRIV is the Hydro built-in privilege level.') }}
+          {{ _('realname_flag is the OI33 identity tag (0=Unverified, 1=Verified, 2=Teacher, 3=Admin). PRIV is the Hydro built-in privilege level.') }}
         </p>
         <table class="data-table">
           <colgroup>
@@ -47,13 +47,13 @@
               <td>PRIV_USER_PROFILE</td>
             </tr>
             <tr>
-              <td>{{ _('Public (teacher+) paste') }}</td>
-              <td class="text-red">✗</td>
+              <td>{{ _('Create public paste') }}</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-green">✓</td>
               <td class="text-green">✓</td>
-              <td>flag ≥ 2</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 1</td>
             </tr>
             <tr>
               <td>{{ _('View public paste') }}</td>

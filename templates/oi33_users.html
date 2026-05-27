@@ -10,8 +10,8 @@
         <h1 class="section__title">{{ _('OI33 All Users') }}</h1>
         <div class="section__tools">
           <a href="/oi33/users" class="rounded button{% if flag is undefined %} primary{% endif %}">{{ _('All') }}</a>
-          <a href="/oi33/users?flag=0" class="rounded button{% if flag == 0 %} primary{% endif %}">{{ _('Verified') }}</a>
-          <a href="/oi33/users?flag=1" class="rounded button{% if flag == 1 %} primary{% endif %}">{{ _('Student') }}</a>
+          <a href="/oi33/users?flag=0" class="rounded button{% if flag == 0 %} primary{% endif %}">{{ _('Unverified') }}</a>
+          <a href="/oi33/users?flag=1" class="rounded button{% if flag == 1 %} primary{% endif %}">{{ _('Verified') }}</a>
           <a href="/oi33/users?flag=2" class="rounded button{% if flag == 2 %} primary{% endif %}">{{ _('Teacher') }}</a>
           <a href="/oi33/users?flag=3" class="rounded button{% if flag == 3 %} primary{% endif %}">{{ _('Admin') }}</a>
           {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
@@ -55,10 +55,10 @@
               <td class="col--coin">{{ udoc.coin_all or 0 }}</td>
               <td class="col--birthday">{{ udoc.birthday_date or '' }}</td>
               <td class="col--flag">
-                {%- if udoc.realname_flag == 1 -%}{{ _('Student') }}
+                {%- if udoc.realname_flag == 1 -%}{{ _('Verified') }}
                 {%- elif udoc.realname_flag == 2 -%}{{ _('Teacher') }}
                 {%- elif udoc.realname_flag == 3 -%}{{ _('Admin') }}
-                {%- elif udoc.realname_flag == 0 -%}{{ _('Verified') }}
+                {%- elif udoc.realname_flag == 0 -%}{{ _('Unverified') }}
                 {%- else -%}-{%- endif -%}
               </td>
               <td class="col--name">{{ udoc.realname_name or '-' }}</td>

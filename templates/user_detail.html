@@ -157,10 +157,10 @@
                   <dl class="large horizontal">
                     <dt>{{ _('Flag') }}</dt>
                     <dd>
-                      {% if udoc.realname_flag == 1 %}{{ _('Student') }}
+                      {% if udoc.realname_flag == 1 %}{{ _('Verified') }}
                       {% elif udoc.realname_flag == 2 %}{{ _('Teacher') }}
                       {% elif udoc.realname_flag == 3 %}{{ _('Admin') }}
-                      {% elif udoc.realname_flag == 0 %}{{ _('Verified') }}
+                      {% elif udoc.realname_flag == 0 %}{{ _('Unverified') }}
                       {% else %}-{% endif %}
                     </dd>
                     {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or isSelfProfile %}

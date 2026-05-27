@@ -74,10 +74,10 @@
               {% set newFlag = r.realname_flag or 0 %}
               {% set oldName = current.realname_name or '' %}
               {% set newName = r.realname_name or '' %}
-              {% if oldFlag == 1 %}{{ _('Student') }}{% elif oldFlag == 2 %}{{ _('Teacher') }}{% elif oldFlag == 3 %}{{ _('Admin') }}{% elif oldFlag == 0 %}{{ _('Verified') }}{% else %}-{% endif %}
+              {% if oldFlag == 1 %}{{ _('Verified') }}{% elif oldFlag == 2 %}{{ _('Teacher') }}{% elif oldFlag == 3 %}{{ _('Admin') }}{% elif oldFlag == 0 %}{{ _('Unverified') }}{% else %}-{% endif %}
               {% if oldName %}({{ oldName }}){% endif %}
               →
-              {% if newFlag == 1 %}{{ _('Student') }}{% elif newFlag == 2 %}{{ _('Teacher') }}{% elif newFlag == 3 %}{{ _('Admin') }}{% elif newFlag == 0 %}{{ _('Verified') }}{% else %}-{% endif %}
+              {% if newFlag == 1 %}{{ _('Verified') }}{% elif newFlag == 2 %}{{ _('Teacher') }}{% elif newFlag == 3 %}{{ _('Admin') }}{% elif newFlag == 0 %}{{ _('Unverified') }}{% else %}-{% endif %}
               {% if newName %}({{ newName }}){% endif %}
             {% elif r.kind == 'badge' %}
               {% if current.badge_text %}

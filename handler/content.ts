@@ -20,7 +20,7 @@ class PasteCreateHandler extends Handler {
     async post(domainId: string, title: string, content: string, isprivate = false) {
         const flag = await checkUserFlag(this.user._id);
         if (!isprivate && !canPublish(flag)) {
-            throw new ForbiddenError('Only teachers and admins can create public pastes.');
+            throw new ForbiddenError('Only verified users can create public pastes.');
         }
         const pasteid = await oi33Model.pasteAdd(this.user._id, title, content, !!isprivate);
         this.response.redirect = this.url('oi33_paste_show', { id: pasteid });
@@ -48,7 +48,7 @@ class PasteEditHandler extends Handler {
         if (this.user._id !== doc.owner) this.checkPriv(PRIV.PRIV_MOD_BADGE);
         const flag = await checkUserFlag(this.user._id);
         if (!isprivate && !canPublish(flag)) {
-            throw new ForbiddenError('Only teachers and admins can publish pastes.');
+            throw new ForbiddenError('Only verified users can publish pastes.');
         }
         await oi33Model.pasteEdit(pasteId, doc.owner, title, content, !!isprivate);
         this.response.redirect = this.url('oi33_paste_show', { id: pasteId });
@@ -60,13 +60,8 @@ class PasteShowHandler extends Handler {
     async get(domainId: string, id: string) {
         const doc = await oi33Model.pasteGet(id);
         if (!doc) throw new NotFoundError(id);
-        if (this.user._id !== doc.owner) {
-            if (doc.isprivate) {
-                this.checkPriv(PRIV.PRIV_MOD_BADGE);
-            } else {
-                const flag = await checkUserFlag(doc.owner);
-                if (!canPublish(flag)) this.checkPriv(PRIV.PRIV_MOD_BADGE);
-            }
+        if (this.user._id !== doc.owner && doc.isprivate) {
+            this.checkPriv(PRIV.PRIV_MOD_BADGE);
         }
         const udoc = await UserModel.getById(domainId, doc.owner);
         const legacy = this.request.path.startsWith('/paste/');
