@@ -20,7 +20,7 @@ const KEY_LAST_NOTIFY_KIND = 'oi33.judge_monitor.last_notify_kind';
 // 阈值放宽到 32 分钟。
 const JUDGE_THRESHOLD_MS = 22 * 60 * 1000;
 const SERVER_THRESHOLD_MS = 32 * 60 * 1000;
-const CHECK_INTERVAL_MS = 10 * 60 * 1000;
+const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 interface JudgeStatus {
     mid: string;
@@ -136,10 +136,39 @@ function buildManualMessage(statuses: JudgeStatus[]): string {
     ].join('\n');
 }
 
+function buildDeltaMessage(
+    joined: JudgeStatus[], left: JudgeStatus[], allStatuses: JudgeStatus[],
+): string {
+    const lines: string[] = ['## 🔔 评测机状态变更', ''];
+    if (joined.length) {
+        lines.push(`**新增在线** (${joined.length} 台)：`);
+        for (const s of joined) {
+            const typeLabel = s.type === 'judge' ? 'judge' : 'server';
+            lines.push(`> 🟢 **${s.name || s.mid}** \`${typeLabel}\``);
+        }
+        lines.push('');
+    }
+    if (left.length) {
+        lines.push(`**掉线** (${left.length} 台)：`);
+        for (const s of left) {
+            const typeLabel = s.type === 'judge' ? 'judge' : 'server';
+            lines.push(`> 🔴 **${s.name || s.mid}** \`${typeLabel}\` — 最后心跳 ${fmtDate(s.updateAt)}（${fmtElapsed(s.minutesSince)}）`);
+        }
+        lines.push('');
+    }
+    lines.push('---');
+    lines.push('**当前状态**：');
+    lines.push(buildStatusReport(allStatuses));
+    lines.push('');
+    lines.push(`> 检测时间：${fmtDate(new Date())}`);
+    return lines.join('\n');
+}
+
 async function runScheduledCheck(force = false) {
     if (!force && !SystemModel.get(KEY_ENABLED)) return;
     const statuses = await getJudgeStatuses();
-    const onlineCount = statuses.filter((s) => s.online).length;
+    const onlineMids = statuses.filter((s) => s.online).map((s) => s.mid);
+    const onlineCount = onlineMids.length;
     const now = new Date();
 
     await SystemModel.set(KEY_LAST_CHECK_AT, now.toISOString());
@@ -150,21 +179,46 @@ async function runScheduledCheck(force = false) {
     if (!webhookUrl) return;
     if (!statuses.length) return;
 
-    const allOffline = onlineCount === 0;
-    const currentState = allOffline ? 'offline' : 'online';
-    const lastState = SystemModel.get(KEY_LAST_STATE) as string | undefined;
-    if (currentState === lastState) return;
-
-    if (currentState === 'offline') {
-        await sendWecom(webhookUrl, buildOfflineMessage(statuses));
-        await SystemModel.set(KEY_LAST_NOTIFY_KIND, 'offline');
-        await SystemModel.set(KEY_LAST_NOTIFY_AT, now.toISOString());
-    } else if (lastState === 'offline') {
-        await sendWecom(webhookUrl, buildRecoveryMessage(statuses));
-        await SystemModel.set(KEY_LAST_NOTIFY_KIND, 'recovery');
-        await SystemModel.set(KEY_LAST_NOTIFY_AT, now.toISOString());
+    const prevStateRaw = SystemModel.get(KEY_LAST_STATE) as string | undefined;
+    if (!prevStateRaw) {
+        await SystemModel.set(KEY_LAST_STATE, JSON.stringify(onlineMids));
+        return;
     }
-    await SystemModel.set(KEY_LAST_STATE, currentState);
+
+    const prevOnlineMids: string[] = JSON.parse(prevStateRaw);
+    const currentSet = new Set(onlineMids);
+    const prevSet = new Set(prevOnlineMids);
+    const joinedMids = [...currentSet].filter((m) => !prevSet.has(m));
+    const leftMids = [...prevSet].filter((m) => !currentSet.has(m));
+
+    if (joinedMids.length === 0 && leftMids.length === 0) return;
+
+    const joined = statuses.filter((s) => joinedMids.includes(s.mid));
+    const left = leftMids.map((mid) => {
+        const found = statuses.find((s) => s.mid === mid);
+        return found || { mid, type: 'judge' as const, updateAt: new Date(0), online: false, minutesSince: 0, name: mid };
+    });
+
+    const allOffline = onlineCount === 0;
+    const wasAllOffline = prevOnlineMids.length === 0;
+
+    let message: string;
+    let kind: string;
+    if (allOffline && !wasAllOffline) {
+        message = buildOfflineMessage(statuses);
+        kind = 'offline';
+    } else if (!allOffline && wasAllOffline) {
+        message = buildRecoveryMessage(statuses);
+        kind = 'recovery';
+    } else {
+        message = buildDeltaMessage(joined, left, statuses);
+        kind = 'delta';
+    }
+
+    await sendWecom(webhookUrl, message);
+    await SystemModel.set(KEY_LAST_STATE, JSON.stringify(onlineMids));
+    await SystemModel.set(KEY_LAST_NOTIFY_KIND, kind);
+    await SystemModel.set(KEY_LAST_NOTIFY_AT, now.toISOString());
 }
 
 function buildBody(statuses: JudgeStatus[]) {
@@ -179,7 +233,18 @@ function buildBody(statuses: JudgeStatus[]) {
     const lastCheckOnline = SystemModel.get(KEY_LAST_CHECK_ONLINE) as number | undefined;
     const lastNotifyAt = SystemModel.get(KEY_LAST_NOTIFY_AT) as string | undefined;
     const lastNotifyKind = SystemModel.get(KEY_LAST_NOTIFY_KIND) as string | undefined;
-    const lastState = SystemModel.get(KEY_LAST_STATE) as string | undefined;
+    const lastStateRaw = SystemModel.get(KEY_LAST_STATE) as string | undefined;
+    let lastState: string;
+    if (lastStateRaw) {
+        try {
+            const mids: string[] = JSON.parse(lastStateRaw);
+            lastState = mids.length === 0 ? 'offline' : 'online';
+        } catch {
+            lastState = lastStateRaw;
+        }
+    } else {
+        lastState = '';
+    }
     return {
         statuses,
         onlineCount,

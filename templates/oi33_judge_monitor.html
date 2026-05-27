@@ -33,6 +33,8 @@
             {{ _('Notification pushed:') }}
             {% if checkResult.pushedKind == 'offline' %}
               <span style="color:#c62828;">{{ _('All judges offline') }}</span>
+            {% elif checkResult.pushedKind == 'delta' %}
+              <span style="color:#1976d2;">{{ _('Judge status changed') }}</span>
             {% else %}
               <span style="color:#2e7d32;">{{ _('At least one judge online') }}</span>
             {% endif %}
@@ -173,6 +175,8 @@
                   <span style="color:#c62828;">{{ _('Offline alert') }}</span>
                 {% elif lastNotifyKind == 'recovery' %}
                   <span style="color:#2e7d32;">{{ _('Recovery notice') }}</span>
+                {% elif lastNotifyKind == 'delta' %}
+                  <span style="color:#1976d2;">{{ _('Status change') }}</span>
                 {% endif %}
                 — {{ datetimeSpan(lastNotifyAt)|safe }}
               {% else %}
