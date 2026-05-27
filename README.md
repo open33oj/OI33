@@ -15,61 +15,75 @@
 | 硬币 | 余额排行、发放/扣除、交易流水 | `/oi33/coin/*` |
 | 生日 | 设置生日、今日寿星展示（含动画）、全部生日列表 | `/oi33/birthday/*` |
 | 徽章 | 创建/编辑/删除徽章 | `/oi33/badge/*` |
-| 实名 | 学生/老师认证、实名展示 | `/oi33/realname/*` |
+| 实名 | 身份标签 4 级（未实名/已实名/老师/管理员），实名展示 | `/oi33/realname/*` |
 | 签到 | 每日打卡+运势、连续签到统计 | `/oi33/checkin` |
 | 倒计时 | 首页倒计时组件（配置驱动） | 首页 partial |
-| 剪贴板 | Markdown 剪贴板 CRUD、公有/私有 | `/oi33/paste/*` |
+| 剪贴板 | Markdown 剪贴板 CRUD、公有/私有（已实名才能发布公开粘贴） | `/oi33/paste/*` |
 | 前端覆盖 | Logo、favicon、模板覆盖 | 静态资源 |
-| 管理仪表盘 | 统一查看所有数据 | `/oi33/admin` |
+| 管理仪表盘 | 统一查看所有数据 + 操作日志 | `/oi33/admin` |
 | 数据迁移 | 从老插件迁移数据到新集合 | `/oi33/migrate` |
-| AT/CF 用户名 | 设置 AtCoder / Codeforces 用户名（走审批流程），预留 rating 字段供脚本更新 | `/oi33/profile/edit/:uid` |
+| Wiki 百科 | 分类目录、Markdown 页面 CRUD、JSON 批量导入/导出（仅管理员可编辑） | `/oi33/wiki/*` |
+| AT/CF 用户名 | 设置 AtCoder / Codeforces 用户名（走审批流程），rating 字段由后台脚本自动更新 | `/oi33/profile/edit/:uid` |
 | AT/CF Rating 排名 | 公开展示已绑定 AT/CF 用户的信息及 rating，支持按任意 rating 排序 | `/oi33/at-cf-rating` |
 | 统一资料审批 | 生日、实名、徽章、AT/CF 用户名 均走提交→审批流 | `/oi33/requests` |
 | MCP / Agent API 令牌 | 供外部 MCP 工具或 AI Agent 调用的只读 Bearer Token，可限定域和过期时间 | `/oi33/tokens` |
+| 评测机监控 | 每 5 分钟检查心跳，离线/恢复时通过企业微信 Webhook 推送通知 | `/oi33/judge-monitor` |
+| 权限速查表 | 按角色列出各功能权限矩阵 | `/oi33/permissions` |
 
 ## 数据库
 
-新插件使用 `oi33_*` 前缀的 4 个集合，与 Hydro 核心的 `user` 集合解耦：
+新插件使用 `oi33_*` 前缀的 7 个集合，与 Hydro 核心的 `user` 集合解耦：
 
 | 集合 | 用途 |
 |------|------|
 | `oi33_user` | 用户属性：硬币余额、生日、徽章、实名、签到数据、AT/CF 用户名及 rating |
 | `oi33_coin_bill` | 硬币交易流水 |
 | `oi33_paste` | 剪贴板文档 |
-| `oi33_token` | MCP / Agent API 令牌（哈希存储，只读） |
-| `oi33_log` | 操作日志（硬币、生日、徽章、实名、剪贴板） |
+| `oi33_wiki` | Wiki 百科页面（含 `index` 页作为首页公告） |
+| `oi33_wiki_category` | Wiki 分类目录（默认：算法、公告） |
+| `oi33_request` | 资料修改审批（生日、实名、徽章、AT/CF 用户名） |
+| `oi33_token` | MCP / Agent API 令牌（SHA-256 哈希存储，只读） |
+| `oi33_log` | 操作日志（硬币、生日、徽章、实名、剪贴板、Wiki、审批） |
 
 ## 权限配置
 
 | 路由 | 所需权限 | 说明 |
 |------|---------|------|
+| `/oi33/wiki` | 公开 | Wiki 首页（分类浏览 + 公告） |
+| `/oi33/wiki/:id` | 公开 | 查看 Wiki 页面 |
+| `/oi33/wiki/export` | 公开 | 批量导出 Wiki 为 JSON |
+| `/oi33/wiki/:id/export` | 公开 | 导出单页 Wiki 为 JSON |
 | `/oi33/birthday` | 公开 | 查看今日生日 |
-| `/oi33/birthday/all` | `PRIV_USER_PROFILE` | 查看所有用户生日 |
 | `/oi33/paste/show/:id` | 公开 | 查看公开剪贴板 |
+| `/oi33/at-cf-rating` | 公开 | AT/CF Rating 排名 |
+| `/oi33/rating` | 公开 | Rating （旧路由，已弃用） |
+| `/oi33/wiki/create` | `PRIV_USER_PROFILE`（且 `realname_flag === 3`） | 创建 Wiki 页面 |
+| `/oi33/wiki/:id/edit` | `PRIV_USER_PROFILE`（且 `realname_flag === 3`） | 编辑 Wiki 页面 |
 | `/oi33/checkin` | `PRIV_USER_PROFILE` | 每日签到 |
 | `/oi33/coin/show` | `PRIV_USER_PROFILE` | 查看硬币排行 |
 | `/oi33/coin/bill/:uid` | `PRIV_USER_PROFILE` | 查看自己账单（查看他人需 `PRIV_MOD_BADGE`） |
+| `/oi33/birthday/all` | `PRIV_USER_PROFILE` | 查看所有用户生日 |
 | `/oi33/badge` | `PRIV_USER_PROFILE` | 查看徽章 |
-| `/oi33/paste/create` | `PRIV_USER_PROFILE` | 创建剪贴板 |
+| `/oi33/paste/create` | `PRIV_USER_PROFILE`（公开粘贴需 `realname_flag >= 1`） | 创建剪贴板 |
 | `/oi33/paste/manage` | `PRIV_USER_PROFILE` | 管理自己的剪贴板 |
 | `/oi33/paste/show/:id/edit` | `PRIV_USER_PROFILE` | 编辑自己剪贴板（编辑他人需 `PRIV_MOD_BADGE`） |
 | `/oi33/paste/show/:id/delete` | `PRIV_USER_PROFILE` | 删除自己剪贴板（删除他人需 `PRIV_MOD_BADGE`） |
+| `/oi33/profile/edit/:uid` | `PRIV_USER_PROFILE`（自己）/ `PRIV_MOD_BADGE`（他人） | 统一资料编辑（生日、实名、徽章、AT/CF） |
+| `/oi33/tokens` | `PRIV_USER_PROFILE`（管理员可查看全部） | 查看自己的令牌 |
+| `/oi33/wiki/import` | `PRIV_MOD_BADGE` | Wiki 导入页面 |
+| `/oi33/wiki/import/submit` | `PRIV_MOD_BADGE` | 执行 Wiki JSON 导入 |
+| `/oi33/wiki/categories` | `PRIV_MOD_BADGE` | 管理 Wiki 分类 |
+| `/oi33/wiki/:id/delete` | `PRIV_MOD_BADGE` | 删除 Wiki 页面 |
+| `/oi33/judge-monitor` | `PRIV_MOD_BADGE` | 评测机监控面板 |
+| `/oi33/permissions` | `PRIV_MOD_BADGE` | 权限速查表 |
 | `/oi33/coin/inc` | `PRIV_MOD_BADGE` | 发放硬币 |
-| `/oi33/birthday/set` | `PRIV_MOD_BADGE` | 设置生日 |
-| `/oi33/badge/create` | `PRIV_MOD_BADGE` | 创建徽章 |
 | `/oi33/badge/manage` | `PRIV_MOD_BADGE` | 管理徽章 |
 | `/oi33/badge/manage/:uid/del` | `PRIV_MOD_BADGE` | 删除徽章 |
-| `/oi33/realname/set` | `PRIV_MOD_BADGE` | 设置实名 |
-| `/oi33/realname/show` | `PRIV_MOD_BADGE` | 查看实名列表 |
 | `/oi33/paste/all` | `PRIV_MOD_BADGE` | 查看所有剪贴板 |
 | `/oi33/admin` | `PRIV_MOD_BADGE` | 管理仪表盘 |
 | `/oi33/migrate` | `PRIV_MOD_BADGE` | 执行数据迁移 |
-| `/oi33/users` | `PRIV_MOD_BADGE` | 查看全部用户数据 |
-| `/oi33/at-cf-rating` | 公开 | AT/CF Rating 排名 |
-| `/oi33/rating` | 公开 | Rating （旧路由，已弃用） |
-| `/oi33/profile/edit/:uid` | `PRIV_USER_PROFILE`（自己）/ `PRIV_MOD_BADGE`（他人） | 统一资料编辑（生日、实名、徽章、AT/CF） |
+| `/oi33/users` | `PRIV_MOD_BADGE` | 查看全部用户数据 + 身份筛选 |
 | `/oi33/requests` | `PRIV_MOD_BADGE` | 审批列表 |
-| `/oi33/tokens` | `PRIV_USER_PROFILE` | 查看自己的令牌（管理员可查看全部） |
 | `/oi33/tokens/create` | `PRIV_ALL` | 创建 MCP / Agent API 令牌 |
 | `/oi33/tokens/:id/delete` | `PRIV_ALL` | 删除令牌 |
 | `/record` | 导航默认跳转 `?uidOrName=自己`（登录用户） | 评测记录页（覆盖模板） |
@@ -328,6 +342,89 @@ hydrooj addon remove frontend-33oj
   ]
 }
 ```
+
+## 身份标签（`realname_flag`）
+
+| 值 | 标签 | 公开剪贴板 | Wiki 编辑 |
+|----|------|-----------|----------|
+| 0 | 未实名 | ❌ | ❌ |
+| 1 | 已实名 | ✅ | ❌ |
+| 2 | 老师 | ✅ | ❌ |
+| 3 | 管理员 | ✅ | ✅ |
+
+## Wiki 百科系统
+
+OI33 内置 Wiki 百科，支持 Markdown 页面 CRUD、多级分类目录和 JSON 批量导入导出。
+
+### 数据库
+
+| 集合 | 说明 |
+|------|------|
+| `oi33_wiki` | 页面文档（`_id` 为随机 slug，`title`、`content`、`category`、`order`、`createdAt`、`updatedAt`） |
+| `oi33_wiki_category` | 分类目录（`_id` 为 slug，`name` 为显示名，`order` 排序） |
+
+- 默认分类：`algorithm`（算法）、`announcement`（公告）
+- 特殊页面 `_id: "index"` 为首页公告，不可删除
+
+### 权限
+
+- 查看：公开
+- 创建/编辑：`realname_flag === 3`（管理员）
+- 删除/导入/分类管理：`PRIV_MOD_BADGE`
+- 导出：公开
+
+### JSON 导入格式
+
+访问 `/oi33/wiki/import`，将 JSON 数组粘贴到文本框提交即可：
+
+```json
+[
+  {
+    "title": "快速排序",
+    "content": "# 快速排序\n\n快速排序是一种...",
+    "category": "algorithm"
+  },
+  {
+    "title": "OI 赛前须知",
+    "content": "# OI 赛前须知\n\n1. 关闭...",
+    "category": "announcement"
+  }
+]
+```
+
+- 必填字段：`title`、`content`
+- 可选字段：`category`（不填默认为 `other`）
+- 遇到不存在的分类会自动创建
+- 可提交单个对象或数组
+- 通过 `/oi33/wiki/export` 导出的 JSON 可直接重新导入
+
+## 评测机监控
+
+每 5 分钟检查一次 `status` 集合的心跳记录。评测机超过 22 分钟未上报视为离线，服务器（嵌入式部署）超过 32 分钟未上报视为离线。
+
+当状态发生变化（在线→离线 / 全部离线 / 离线→在线）时，通过企业微信 Webhook 自动推送通知。
+
+### 配置
+
+在 `/oi33/judge-monitor` 面板中设置：
+
+| 配置项 | 说明 |
+|--------|------|
+| Webhook URL | 企业微信群机器人 Webhook 地址 |
+| 启用监控 | 开关 |
+| 包含服务器 | 是否同时监控服务器类型节点 |
+
+### 状态通知类型
+
+| 类型 | 触发条件 |
+|------|---------|
+| `delta` | 部分机器状态发生变化（上下线混合） |
+| `offline` | 全部在线 → 全部离线 |
+| `recovery` | 全部离线 → 任意机器恢复在线 |
+
+## 权限速查表
+
+`/oi33/permissions` 提供按角色（Guest / flag 0~3）列出的功能权限矩阵，包括剪贴板、Wiki、资料编辑、硬币/徽章/签到、管理工具等。
 
 ## MCP / Agent API 令牌
 
