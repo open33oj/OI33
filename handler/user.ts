@@ -125,8 +125,9 @@ class BadgeDelHandler extends Handler {
 
 class UsersShowHandler extends Handler {
     @query('page', Types.PositiveInt, true)
-    async get(domainId: string, page = 1) {
-        const { docs, upcount } = await oi33Model.getAllUsersData(page, 50);
+    @query('flag', Types.Int, true)
+    async get(domainId: string, page = 1, flag?: number) {
+        const { docs, upcount } = await oi33Model.getAllUsersData(page, 50, flag);
         const uids = docs.map((d: any) => d._id);
         const udict = await UserModel.getList(domainId, uids);
         const oi33Dict = await oi33Model.getUserDataByUids(uids);
@@ -137,7 +138,7 @@ class UsersShowHandler extends Handler {
             return u;
         }).filter((u: any) => u);
         this.response.template = 'oi33_users.html';
-        this.response.body = { udocs, page, upcount };
+        this.response.body = { udocs, page, upcount, flag };
     }
 }
 

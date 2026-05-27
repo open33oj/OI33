@@ -1,13 +1,24 @@
 import {
     UserModel,
-    Handler, PRIV, Types, param, query, NotFoundError, Context,
+    Handler, PRIV, Types, param, query, NotFoundError, ForbiddenError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
+
+async function checkUserFlag(uid: number): Promise<number> {
+    const oi33 = (await oi33Model.getUserDataByUids([uid]))[uid];
+    return oi33 ? (oi33.realname_flag ?? -1) : -1;
+}
+
+function canPublish(flag: number): boolean {
+    return flag === 2 || flag === 3;
+}
 
 // --- Pastebin handlers ---
 
 class PasteCreateHandler extends Handler {
     async get() {
+        const flag = await checkUserFlag(this.user._id);
+        this.response.body = { canPublic: canPublish(flag) };
         this.response.template = 'oi33_paste_create.html';
     }
 
@@ -15,6 +26,10 @@ class PasteCreateHandler extends Handler {
     @param('content', Types.Content)
     @param('isprivate', Types.Boolean)
     async post(domainId: string, title: string, content: string, isprivate = false) {
+        const flag = await checkUserFlag(this.user._id);
+        if (!isprivate && !canPublish(flag)) {
+            throw new ForbiddenError('Only teachers and admins can create public pastes.');
+        }
         const pasteid = await oi33Model.pasteAdd(this.user._id, title, content, !!isprivate);
         this.response.redirect = this.url('oi33_paste_show', { id: pasteid });
     }
@@ -26,7 +41,8 @@ class PasteEditHandler extends Handler {
         const doc = await oi33Model.pasteGet(id);
         if (!doc) throw new NotFoundError(id);
         if (this.user._id !== doc.owner) this.checkPriv(PRIV.PRIV_MOD_BADGE);
-        this.response.body = { doc };
+        const flag = await checkUserFlag(this.user._id);
+        this.response.body = { doc, canPublic: canPublish(flag) };
         this.response.template = 'oi33_paste_edit.html';
     }
 
@@ -38,6 +54,10 @@ class PasteEditHandler extends Handler {
         const doc = await oi33Model.pasteGet(pasteId);
         if (!doc) throw new NotFoundError(pasteId);
         if (this.user._id !== doc.owner) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        const flag = await checkUserFlag(this.user._id);
+        if (!isprivate && !canPublish(flag)) {
+            throw new ForbiddenError('Only teachers and admins can publish pastes.');
+        }
         await oi33Model.pasteEdit(pasteId, doc.owner, title, content, !!isprivate);
         this.response.redirect = this.url('oi33_paste_show', { id: pasteId });
     }
