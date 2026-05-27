@@ -8,7 +8,7 @@
         <h1 class="section__title">{{ doc.title }}</h1>
       </div>
       <div class="section__body">
-        <div class="typo">
+        <div class="typo richmedia">
           <div style="margin-bottom:1rem;font-size:0.85rem;opacity:0.6;">
             {{ _('Category') }}: <a href="/oi33/wiki?category={{ doc.category }}">{{ catDict[doc.category] or doc.category }}</a>
             · {{ _('Updated At') }} {{ datetimeSpan(doc.updatedAt)|safe }}
