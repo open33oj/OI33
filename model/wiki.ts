@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import { db } from 'hydrooj';
-import { Oi33Wiki, Oi33WikiCategoryDoc, Oi33WikiStatus } from './types';
+import { Oi33Wiki, Oi33WikiCategoryDoc } from './types';
 import { addLog } from './log';
 
 export const wikiColl = db.collection('oi33_wiki');
@@ -16,10 +16,7 @@ export async function wikiAdd(uid: number, title: string, content: string, categ
         title,
         content,
         category,
-        status: 'approved',
         order: 0,
-        createdBy: uid,
-        updatedBy: uid,
         createdAt: now,
         updatedAt: now,
     });
@@ -27,13 +24,14 @@ export async function wikiAdd(uid: number, title: string, content: string, categ
     return slug;
 }
 
-export async function wikiEdit(id: string, uid: number, title: string, content: string, category: string, summary?: string, status?: Oi33WikiStatus): Promise<boolean> {
+export async function wikiEdit(id: string, uid: number, title: string, content: string, category: string): Promise<boolean> {
     const doc = await wikiColl.findOne({ _id: id });
     if (!doc) return false;
     const now = new Date();
-    const $set: Record<string, any> = { title, content, category, updatedBy: uid, updatedAt: now };
-    if (status !== undefined) $set.status = status;
-    const result = await wikiColl.updateOne({ _id: id }, { $set });
+    const result = await wikiColl.updateOne(
+        { _id: id },
+        { $set: { title, content, category, updatedAt: now } },
+    );
     await addLog({ type: 'wiki', action: 'edit', uid, title, wikiId: id });
     return result.modifiedCount > 0;
 }
@@ -43,13 +41,31 @@ export async function wikiGet(id: string): Promise<Oi33Wiki | null> {
 }
 
 export async function wikiGetApproved(category?: string, page = 1, pageSize = 30) {
-    const filter: Record<string, any> = { status: 'approved' };
+    const filter: Record<string, any> = { _id: { $ne: 'index' } };
     if (category) filter.category = category;
     const total = await wikiColl.countDocuments(filter);
     const upcount = Math.ceil(total / pageSize);
-    const docs = await wikiColl.find(filter).sort({ order: 1, createdAt: 1 })
+    const docs = await wikiColl.find(filter).sort({ updatedAt: -1 })
         .skip((page - 1) * pageSize).limit(pageSize).toArray();
     return { docs, total, upcount };
+}
+
+export async function wikiGetOrCreateIndex(): Promise<Oi33Wiki> {
+    let doc = await wikiColl.findOne({ _id: 'index' });
+    if (!doc) {
+        const now = new Date();
+        doc = {
+            _id: 'index',
+            title: 'Wiki Index',
+            content: '欢迎来到 33OJ 百科！这里会发布最新的通知公告。',
+            category: 'announcement',
+            order: 0,
+            createdAt: now,
+            updatedAt: now,
+        } as Oi33Wiki;
+        await wikiColl.insertOne(doc);
+    }
+    return doc;
 }
 
 export async function wikiDelete(id: string, uid: number): Promise<boolean> {

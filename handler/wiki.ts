@@ -1,5 +1,4 @@
 import {
-    UserModel,
     Handler, PRIV, Types, param, query, NotFoundError, ForbiddenError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
@@ -16,11 +15,13 @@ class WikiMainHandler extends Handler {
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, category?: string, page = 1) {
         const { docs, upcount } = await oi33Model.wikiGetApproved(category, page, 20);
-        const uids = [...new Set(docs.map((d: any) => d.updatedBy))];
-        const udict = await UserModel.getList(domainId, uids as number[]);
         const categories = await oi33Model.wikiCatGetAll();
+        const bulletinDoc = await oi33Model.wikiGetOrCreateIndex();
         this.response.template = 'oi33_wiki_main.html';
-        this.response.body = { docs, udict, upcount, page, categories, category };
+        this.response.body = {
+            docs, upcount, page, categories, category,
+            bulletin: bulletinDoc,
+        };
     }
 }
 
@@ -29,18 +30,11 @@ class WikiShowHandler extends Handler {
     async get(domainId: string, id: string) {
         const doc = await oi33Model.wikiGet(id);
         if (!doc) throw new NotFoundError(id);
-        if (doc.status !== 'approved' && !this.user.hasPriv(PRIV.PRIV_MOD_BADGE)) {
-            const flag = await checkUserFlag(this.user._id);
-            if (!canEdit(flag) && doc.createdBy !== this.user._id) {
-                throw new NotFoundError(id);
-            }
-        }
-        const udoc = await UserModel.getById(domainId, doc.updatedBy);
         const categories = await oi33Model.wikiCatGetAll();
         const catDict: Record<string, string> = {};
         for (const c of categories) catDict[c._id] = c.name;
         this.response.template = 'oi33_wiki_show.html';
-        this.response.body = { doc, udoc, catDict, categories };
+        this.response.body = { doc, catDict, categories };
     }
 }
 
@@ -65,12 +59,11 @@ class WikiEditHandler extends Handler {
     @param('title', Types.Title)
     @param('content', Types.Content)
     @param('category', Types.String)
-    @param('summary', Types.String, true)
-    async post(domainId: string, id: string | undefined, title: string, content: string, category: string, summary = '') {
+    async post(domainId: string, id: string | undefined, title: string, content: string, category: string) {
         const flag = await checkUserFlag(this.user._id);
         if (!canEdit(flag)) throw new ForbiddenError('Only admins can edit wiki pages');
         if (id) {
-            const ok = await oi33Model.wikiEdit(id, this.user._id, title, content, category, summary);
+            const ok = await oi33Model.wikiEdit(id, this.user._id, title, content, category);
             if (!ok) throw new NotFoundError(id);
             this.response.redirect = this.url('oi33_wiki_show', { id });
         } else {
@@ -113,6 +106,13 @@ class WikiImportHandler extends Handler {
             if (!Array.isArray(pages)) pages = [pages];
         } catch {
             throw new Error('Invalid JSON.');
+        }
+        const existingCats = await oi33Model.wikiCatGetAll();
+        const existingSlugs = new Set(existingCats.map((c) => c._id));
+        const newCats = [...new Set(pages.map((p) => p.category || 'other'))]
+            .filter((s) => !existingSlugs.has(s));
+        for (const slug of newCats) {
+            await oi33Model.wikiCatAdd(slug, slug, 0);
         }
         let imported = 0;
         for (const p of pages) {
@@ -163,6 +163,7 @@ class WikiDeleteHandler extends Handler {
     @param('id', Types.String)
     async post(domainId: string, id: string) {
         this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        if (id === 'index') throw new ForbiddenError('Cannot delete the wiki index page.');
         const ok = await oi33Model.wikiDelete(id, this.user._id);
         if (!ok) throw new NotFoundError(id);
         this.response.redirect = this.url('oi33_wiki_main');

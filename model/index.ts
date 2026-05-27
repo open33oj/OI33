@@ -11,7 +11,7 @@ import {
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
 } from './paste';
 import {
-    wikiAdd, wikiEdit, wikiGet, wikiGetApproved,
+    wikiAdd, wikiEdit, wikiGet, wikiGetApproved, wikiGetOrCreateIndex,
     wikiDelete,
     wikiCatGetAll, wikiCatAdd, wikiCatEdit, wikiCatDelete,
 } from './wiki';
@@ -49,7 +49,7 @@ const oi33Model = {
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,
     createToken, getTokensByUid, getAllActiveTokens, getTokenByHash, deleteToken, touchToken,
-    wikiAdd, wikiEdit, wikiGet, wikiGetApproved,
+    wikiAdd, wikiEdit, wikiGet, wikiGetApproved, wikiGetOrCreateIndex,
     wikiDelete,
     wikiCatGetAll, wikiCatAdd, wikiCatEdit, wikiCatDelete,
 };

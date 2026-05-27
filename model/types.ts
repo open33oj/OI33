@@ -65,22 +65,14 @@ export interface Oi33Paste {
     isprivate: boolean;
 }
 
-export type Oi33WikiStatus = 'draft' | 'pending' | 'approved' | 'rejected';
-
 export interface Oi33Wiki {
     _id: string;
     title: string;
     content: string;
     category: string;
-    status: Oi33WikiStatus;
     order: number;
-    createdBy: number;
-    updatedBy: number;
-    approvedBy?: number;
     createdAt: Date;
     updatedAt: Date;
-    approvedAt?: Date;
-    rejectReason?: string;
 }
 
 export interface Oi33WikiCategoryDoc {
