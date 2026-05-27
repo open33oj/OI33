@@ -12,20 +12,26 @@
         </div>
       </div>
       <div class="section__body">
-        <p>{{ _('Paste JSON array of wiki pages below. Each page should have: title, content, category (optional).') }}</p>
-        <form method="post" action="/oi33/wiki/import/submit">
+        <p>{{ _('Paste JSON array of wiki pages below, or upload a .json file. Each page should have: title, content, category (optional).') }}</p>
+        <form method="post" action="/oi33/wiki/import/submit" enctype="multipart/form-data">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <div class="row">
             <div class="medium-12 columns">
               {{ form.form_textarea({
                 columns: 12,
-                label: _('JSON Data'),
+                label: _('JSON Data (paste)'),
                 name: '__raw_body',
                 value: '',
-                required: true,
-                extra_style: 'height: 400px; font-family: monospace;',
+                required: false,
+                extra_style: 'height: 300px; font-family: monospace;',
                 extra_textarea_class: ''
               }) }}
+            </div>
+          </div>
+          <p style="margin: 0.5rem 0; opacity: 0.7;">{{ _('Or upload a .json file instead of pasting:') }}</p>
+          <div class="row">
+            <div class="medium-6 columns form__item">
+              <input type="file" name="file" accept=".json">
             </div>
           </div>
           <div class="row" style="margin-left: 5px; text-align: left;">

@@ -99,13 +99,31 @@ class WikiBulkExportHandler extends Handler {
 class WikiImportHandler extends Handler {
     async post(domainId: string) {
         this.checkPriv(PRIV.PRIV_MOD_BADGE);
-        const raw = (this.request.body as any).__raw_body || '';
         let pages: { title: string; content: string; category: string }[];
-        try {
-            pages = JSON.parse(raw);
+
+        // Support direct JSON body (avoids textarea copy-paste backslash loss)
+        const contentType = (this.request as any).type || '';
+        if (contentType.includes('application/json')) {
+            pages = (this.request.body as any);
             if (!Array.isArray(pages)) pages = [pages];
-        } catch {
-            throw new Error('Invalid JSON.');
+        } else {
+            const raw = (this.request.body as any).__raw_body || '';
+            try {
+                pages = JSON.parse(raw);
+                if (!Array.isArray(pages)) pages = [pages];
+            } catch {
+                // Try file upload
+                const files = (this.request as any).files || {};
+                const file = files.file;
+                if (file && file.path) {
+                    const fs = require('fs');
+                    const raw2 = fs.readFileSync(file.path, 'utf-8');
+                    pages = JSON.parse(raw2);
+                    if (!Array.isArray(pages)) pages = [pages];
+                } else {
+                    throw new Error('Invalid JSON. Paste JSON or upload a .json file.');
+                }
+            }
         }
         const existingCats = await oi33Model.wikiCatGetAll();
         const existingSlugs = new Set(existingCats.map((c) => c._id));
