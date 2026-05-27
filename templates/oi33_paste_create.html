@@ -16,9 +16,14 @@
             <br>
             <div class="medium-2 columns">
               <label>
+                {% if canPublic %}
                 <label class="checkbox">
                   <input type="checkbox" name="isprivate" value="on" class="checkbox"> {{ _('Private') }}
                 </label>
+                {% else %}
+                <span class="text-orange">{{ _('Only teachers and admins can create public pastes.') }}</span>
+                <input type="hidden" name="isprivate" value="on">
+                {% endif %}
               </label>
             </div>
           </div>

@@ -353,14 +353,17 @@ async function pasteGetUser(owner: number, limit: number, page: number) {
 
 // --- Combined users query ---
 
-async function getAllUsersData(page: number, pageSize: number) {
-    const filter = {
-        $or: [
-            { coin_now: { $exists: true } },
-            { birthday_date: { $exists: true } },
-            { realname_flag: { $exists: true } },
-        ],
-    };
+async function getAllUsersData(page: number, pageSize: number, flag?: number) {
+    const conditions: Record<string, any>[] = [
+        { coin_now: { $exists: true } },
+        { birthday_date: { $exists: true } },
+        { realname_flag: { $exists: true } },
+    ];
+    const filter: Record<string, any> = { $or: conditions };
+    if (flag !== undefined) {
+        filter.realname_flag = flag;
+        delete filter.$or;
+    }
     const total = await userColl.countDocuments(filter);
     const upcount = Math.ceil(total / pageSize);
     const docs = await userColl.find(filter).sort({ _id: 1 })

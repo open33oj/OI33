@@ -8,11 +8,22 @@
     <div class="section">
       <div class="section__header">
         <h1 class="section__title">{{ _('OI33 All Users') }}</h1>
-        {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
         <div class="section__tools">
+          <form method="get" style="display:inline;">
+            <select name="flag" class="compact select" style="vertical-align:middle;min-width:5rem;">
+              <option value="" {% if flag is undefined %}selected{% endif %}>{{ _('All') }}</option>
+              <option value="0" {% if flag == 0 %}selected{% endif %}>{{ _('Verified') }}</option>
+              <option value="1" {% if flag == 1 %}selected{% endif %}>{{ _('Student') }}</option>
+              <option value="2" {% if flag == 2 %}selected{% endif %}>{{ _('Teacher') }}</option>
+              <option value="3" {% if flag == 3 %}selected{% endif %}>{{ _('Admin') }}</option>
+            </select>
+            <button type="submit" class="rounded button" style="vertical-align:middle;">{{ _('Filter') }}</button>
+            {% if flag is defined %}<a href="/oi33/users" class="rounded button" style="vertical-align:middle;">{{ _('Clear') }}</a>{% endif %}
+          </form>
+          {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
           <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
       <div class="section__body no-padding">
         {% if not udocs.length %}
