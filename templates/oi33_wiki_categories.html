@@ -1,0 +1,85 @@
+{% set page_name = "oi33_wiki_categories" %}
+{% import "components/nothing.html" as nothing with context %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Wiki Categories') }}</h1>
+        <div class="section__tools">
+          <a href="/oi33/wiki" class="rounded button">{{ _('Back to Wiki') }}</a>
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <h3>{{ _('Add Category') }}</h3>
+        <form method="post" style="margin-bottom:2rem;">
+          <input type="hidden" name="action" value="add">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <div class="row">
+            <div class="medium-4 columns">
+              <label>
+                {{ _('Slug') }}
+                <input name="slug" placeholder="algorithm" class="textbox">
+              </label>
+            </div>
+            <div class="medium-4 columns">
+              <label>
+                {{ _('Name') }}
+                <input name="name" placeholder="{{ _('Algorithm') }}" class="textbox" required>
+              </label>
+            </div>
+            <div class="medium-2 columns">
+              <label>
+                {{ _('Order') }}
+                <input name="order" value="0" type="number" class="textbox">
+              </label>
+            </div>
+            <div class="medium-2 columns" style="padding-top:1.5rem;">
+              <button type="submit" class="rounded primary button">{{ _('Add') }}</button>
+            </div>
+          </div>
+        </form>
+
+        {% if not categories.length %}
+        {{ nothing.render(_('No categories.')) }}
+        {% else %}
+        <table class="data-table">
+          <colgroup>
+            <col class="col--slug" style="width:12rem">
+            <col class="col--name">
+            <col class="col--order" style="width:6rem">
+            <col class="col--actions" style="width:6rem">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="col--slug">{{ _('Slug') }}</th>
+              <th class="col--name">{{ _('Name') }}</th>
+              <th class="col--order">{{ _('Order') }}</th>
+              <th class="col--actions">{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in categories %}
+            <tr>
+              <form method="post" style="margin:0;">
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                <td class="col--slug"><input name="slug" value="{{ c._id }}" readonly class="textbox" style="opacity:0.6;background:transparent;border:none;box-shadow:none;padding:0;"></td>
+                <td class="col--name"><input name="name" value="{{ c.name }}" class="textbox" style="margin:0;"></td>
+                <td class="col--order"><input name="order" value="{{ c.order }}" type="number" class="textbox" style="margin:0;width:4rem;"></td>
+                <td class="col--actions">
+                  <button type="submit" class="rounded button">{{ _('Save') }}</button>
+                </td>
+              </form>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

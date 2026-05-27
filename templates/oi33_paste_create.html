@@ -4,7 +4,24 @@
 <div class="row">
   <div class="medium-9 columns">
     <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Create') }}</h1>
+        <div class="section__tools">
+          <a href="/oi33/wiki" class="rounded button">{{ _('Wiki') }}</a>
+          {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+          {% endif %}
+        </div>
+      </div>
       <div class="section__body">
+        <div class="row" style="margin-bottom:1rem;">
+          <div class="medium-12 columns">
+            <a href="{{ url('oi33_paste_create') }}" class="rounded primary button">{{ _('Pastebin') }}</a>
+            {% if handler.user._id and canCreateWiki %}
+            <a href="/oi33/wiki/create" class="rounded button">{{ _('Wiki Page') }}</a>
+            {% endif %}
+          </div>
+        </div>
         <form method="post">
           <div class="row">
             <div class="medium-10 columns">

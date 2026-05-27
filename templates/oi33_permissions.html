@@ -1,0 +1,221 @@
+{% set page_name = "oi33_permissions" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('OI33 Permissions') }}</h1>
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+      <div class="section__body no-padding">
+        <p style="padding:0.5rem 1rem;margin:0;font-size:0.9rem;opacity:0.7;">
+          {{ _('realname_flag is the OI33 identity tag (0=Verified, 1=Student, 2=Teacher, 3=Admin). PRIV is the Hydro built-in privilege level.') }}
+        </p>
+        <table class="data-table">
+          <colgroup>
+            <col style="width:14rem;">
+            <col style="width:5rem;">
+            <col style="width:5rem;">
+            <col style="width:5rem;">
+            <col style="width:5rem;">
+            <col style="width:5rem;">
+            <col style="width:10rem;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>{{ _('Feature') }}</th>
+              <th>{{ _('Guest') }}</th>
+              <th>flag 0</th>
+              <th>flag 1</th>
+              <th>flag 2</th>
+              <th>flag 3</th>
+              <th>{{ _('Basis') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Pastebin') }}</td></tr>
+            <tr>
+              <td>{{ _('Create paste') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_USER_PROFILE</td>
+            </tr>
+            <tr>
+              <td>{{ _('Public (teacher+) paste') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
+            </tr>
+            <tr>
+              <td>{{ _('View public paste') }}</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td>{{ _('Public') }}</td>
+            </tr>
+            <tr>
+              <td>{{ _('View private paste') }}</td>
+              <td class="text-red">✗</td>
+              <td>{{ _('Own') }}</td>
+              <td>{{ _('Own') }}</td>
+              <td>{{ _('Own') }}</td>
+              <td>{{ _('Own') }}</td>
+              <td>owner / PRIV_MOD_BADGE</td>
+            </tr>
+            <tr>
+              <td>{{ _('View all pastes') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_MOD_BADGE</td>
+            </tr>
+            <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Wiki') }}</td></tr>
+            <tr>
+              <td>{{ _('View wiki') }}</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td>{{ _('Public') }}</td>
+            </tr>
+            <tr>
+              <td>{{ _('Create / Edit wiki') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>flag = 3</td>
+            </tr>
+            <tr>
+              <td>{{ _('Delete wiki') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>flag = 3</td>
+            </tr>
+            <tr>
+              <td>{{ _('Import/Export wiki') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>flag = 3</td>
+            </tr>
+            <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Profile') }}</td></tr>
+            <tr>
+              <td>{{ _('Edit own profile') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_USER_PROFILE</td>
+            </tr>
+            <tr>
+              <td>{{ _('Edit others profile') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_MOD_BADGE</td>
+            </tr>
+            <tr>
+              <td>{{ _('Approve requests') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_MOD_BADGE</td>
+            </tr>
+            <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Coin / Badge / Checkin') }}</td></tr>
+            <tr>
+              <td>{{ _('Checkin') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_USER_PROFILE</td>
+            </tr>
+            <tr>
+              <td>{{ _('View coin leaderboard') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_USER_PROFILE</td>
+            </tr>
+            <tr>
+              <td>{{ _('Grant coins') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_MOD_BADGE</td>
+            </tr>
+            <tr>
+              <td>{{ _('Manage badges') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_MOD_BADGE</td>
+            </tr>
+            <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Admin Tools') }}</td></tr>
+            <tr>
+              <td>{{ _('User management') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_MOD_BADGE</td>
+            </tr>
+            <tr>
+              <td>{{ _('Judge monitor') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_MOD_BADGE</td>
+            </tr>
+            <tr>
+              <td>{{ _('API tokens') }}</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-red">✗</td>
+              <td class="text-green">✓</td>
+              <td>PRIV_MOD_BADGE</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

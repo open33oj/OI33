@@ -4,6 +4,12 @@
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
+      {% if legacy %}
+      <div class="section__body" style="background:#fff3cd;text-align:center;">
+        <span style="color:#856404;">{{ _('This URL will be deprecated soon. Please update your bookmark to:') }}</span>
+        <a href="/oi33/paste/show/{{ doc._id }}">/oi33/paste/show/{{ doc._id }}</a>
+      </div>
+      {% endif %}
       <div class="section__body">
         <div class="row">
           <div class="medium-12 columns" style="text-align: center;">
