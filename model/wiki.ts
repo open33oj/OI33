@@ -51,21 +51,23 @@ export async function wikiGetApproved(category?: string, page = 1, pageSize = 30
 }
 
 export async function wikiGetOrCreateIndex(): Promise<Oi33Wiki> {
-    let doc = await wikiColl.findOne({ _id: 'index' });
-    if (!doc) {
-        const now = new Date();
-        doc = {
-            _id: 'index',
-            title: 'Wiki Index',
-            content: '欢迎来到 33OJ 百科！这里会发布最新的通知公告。',
-            category: 'announcement',
-            order: 0,
-            createdAt: now,
-            updatedAt: now,
-        } as Oi33Wiki;
-        await wikiColl.insertOne(doc);
-    }
-    return doc;
+    const now = new Date();
+    const result = await wikiColl.findOneAndUpdate(
+        { _id: 'index' },
+        {
+            $setOnInsert: {
+                _id: 'index',
+                title: 'Wiki Index',
+                content: '欢迎来到 33OJ 百科！这里会发布最新的通知公告。',
+                category: 'announcement',
+                order: 0,
+                createdAt: now,
+                updatedAt: now,
+            },
+        },
+        { upsert: true, returnDocument: 'after' },
+    );
+    return result as Oi33Wiki;
 }
 
 export async function wikiDelete(id: string, uid: number): Promise<boolean> {
