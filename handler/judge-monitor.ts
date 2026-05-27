@@ -185,7 +185,16 @@ async function runScheduledCheck(force = false) {
         return;
     }
 
-    const prevOnlineMids: string[] = JSON.parse(prevStateRaw);
+    let prevOnlineMids: string[];
+    try {
+        prevOnlineMids = JSON.parse(prevStateRaw);
+        if (!Array.isArray(prevOnlineMids) || !prevOnlineMids.every((m) => typeof m === 'string')) {
+            throw new Error('Invalid state format');
+        }
+    } catch {
+        await SystemModel.set(KEY_LAST_STATE, JSON.stringify(onlineMids));
+        return;
+    }
     const currentSet = new Set(onlineMids);
     const prevSet = new Set(prevOnlineMids);
     const joinedMids = [...currentSet].filter((m) => !prevSet.has(m));

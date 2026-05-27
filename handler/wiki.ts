@@ -63,8 +63,9 @@ class WikiEditHandler extends Handler {
         const flag = await checkUserFlag(this.user._id);
         if (!canEdit(flag)) throw new ForbiddenError('Only admins can edit wiki pages');
         if (id) {
-            const ok = await oi33Model.wikiEdit(id, this.user._id, title, content, category);
-            if (!ok) throw new NotFoundError(id);
+            const doc = await oi33Model.wikiGet(id);
+            if (!doc) throw new NotFoundError(id);
+            await oi33Model.wikiEdit(id, this.user._id, title, content, category);
             this.response.redirect = this.url('oi33_wiki_show', { id });
         } else {
             const newId = await oi33Model.wikiAdd(this.user._id, title, content, category);
@@ -97,7 +98,7 @@ class WikiBulkExportHandler extends Handler {
 }
 
 class WikiImportHandler extends Handler {
-    async post(domainId: string) {
+    async post() {
         this.checkPriv(PRIV.PRIV_MOD_BADGE);
         let pages: { title: string; content: string; category: string }[];
 
@@ -116,10 +117,14 @@ class WikiImportHandler extends Handler {
                 const files = (this.request as any).files || {};
                 const file = files.file;
                 if (file && file.path) {
-                    const fs = require('fs');
-                    const raw2 = fs.readFileSync(file.path, 'utf-8');
-                    pages = JSON.parse(raw2);
-                    if (!Array.isArray(pages)) pages = [pages];
+                    try {
+                        const fs = require('fs');
+                        const raw2 = fs.readFileSync(file.path, 'utf-8');
+                        pages = JSON.parse(raw2);
+                        if (!Array.isArray(pages)) pages = [pages];
+                    } catch {
+                        throw new Error('Invalid JSON in uploaded file.');
+                    }
                 } else {
                     throw new Error('Invalid JSON. Paste JSON or upload a .json file.');
                 }
