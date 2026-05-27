@@ -95,7 +95,7 @@ export interface Oi33Token {
 }
 
 export interface Oi33Log {
-    _id: Date;
+    _id: ObjectId;
     type: 'coin' | 'birthday' | 'badge' | 'realname' | 'paste' | 'request' | 'wiki';
     sender?: number;
     receiver?: number;

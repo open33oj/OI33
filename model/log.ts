@@ -1,10 +1,10 @@
-import { db } from 'hydrooj';
+import { db, ObjectId } from 'hydrooj';
 import { Oi33Log } from './types';
 
 export const logColl = db.collection('oi33_log');
 
 export async function addLog(entry: Omit<Oi33Log, '_id'>) {
-    await logColl.insertOne({ ...entry, _id: new Date() } as any);
+    await logColl.insertOne({ ...entry, _id: new ObjectId() } as any);
 }
 
 export async function getRecentActivities(limit = 40) {

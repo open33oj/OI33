@@ -117,7 +117,7 @@
         <div class="oi33-timeline">
           {% for a in activities %}
           <div class="oi33-timeline__item">
-            <span class="oi33-timeline__time">{{ datetimeSpan(a._id)|safe }}</span>
+            <span class="oi33-timeline__time">{{ datetimeSpan(a.timestamp)|safe }}</span>
 
             {% if a.type == 'coin' %}
               <span class="oi33-timeline__tag">{{ _('activity_tag_coin') }}</span>

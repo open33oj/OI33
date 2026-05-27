@@ -1,4 +1,4 @@
-import { Handler, PRIV, Types, query, Context, UserModel } from 'hydrooj';
+import { Handler, PRIV, Types, query, Context, UserModel, ObjectId } from 'hydrooj';
 import Schema from 'schemastery';
 import { oi33Model } from '../model';
 import { migrate, previewMigration } from '../migrate';
@@ -16,6 +16,7 @@ class Oi33AdminHandler extends Handler {
         const uidSet = new Set<number>();
         const reqIdSet = new Set<string>();
         for (const a of activities) {
+            (a as any).timestamp = (a._id as ObjectId).getTimestamp();
             for (const k of ['sender', 'receiver', 'userId', 'owner', 'requester'] as const) {
                 const v = a[k];
                 if (typeof v === 'number') uidSet.add(v);
