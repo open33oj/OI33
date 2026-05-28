@@ -24,6 +24,30 @@ export async function wikiAdd(uid: number, title: string, content: string, categ
     return slug;
 }
 
+export async function wikiImport(uid: number, id: string, title: string, content: string, category: string): Promise<string> {
+    const now = new Date();
+    const existing = await wikiColl.findOne({ _id: id });
+    if (existing) {
+        await wikiColl.updateOne(
+            { _id: id },
+            { $set: { title, content, category, updatedAt: now } },
+        );
+        await addLog({ type: 'wiki', action: 'edit', uid, title, wikiId: id });
+    } else {
+        await wikiColl.insertOne({
+            _id: id,
+            title,
+            content,
+            category,
+            order: 0,
+            createdAt: now,
+            updatedAt: now,
+        });
+        await addLog({ type: 'wiki', action: 'create', uid, title, wikiId: id });
+    }
+    return id;
+}
+
 export async function wikiEdit(id: string, uid: number, title: string, content: string, category: string): Promise<boolean> {
     const doc = await wikiColl.findOne({ _id: id });
     if (!doc) return false;

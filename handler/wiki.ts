@@ -81,7 +81,7 @@ class WikiExportHandler extends Handler {
     async get(domainId: string, id: string) {
         const doc = await oi33Model.wikiGet(id);
         if (!doc) throw new NotFoundError(id);
-        const data = JSON.stringify({ title: doc.title, content: doc.content, category: doc.category }, null, 2);
+        const data = JSON.stringify({ _id: doc._id, title: doc.title, content: doc.content, category: doc.category }, null, 2);
         this.binary(data, `${doc.title.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_')}.json`);
     }
 }
@@ -91,7 +91,7 @@ class WikiBulkExportHandler extends Handler {
     async get(domainId: string, category?: string) {
         const { docs } = await oi33Model.wikiGetApproved(category, 1, 9999);
         const data = JSON.stringify(docs.map((d: any) => ({
-            title: d.title, content: d.content, category: d.category,
+            _id: d._id, title: d.title, content: d.content, category: d.category,
         })), null, 2);
         this.binary(data, `wiki_export${category ? '_' + category : ''}.json`);
     }
@@ -100,34 +100,38 @@ class WikiBulkExportHandler extends Handler {
 class WikiImportHandler extends Handler {
     async post() {
         this.checkPriv(PRIV.PRIV_MOD_BADGE);
-        let pages: { title: string; content: string; category: string }[];
+        let pages: { _id?: string; title: string; content: string; category: string }[];
 
         // Support direct JSON body (avoids textarea copy-paste backslash loss)
-        const contentType = (this.request as any).type || '';
+        const contentType = (this.request.headers as any)?.['content-type'] || '';
         if (contentType.includes('application/json')) {
             pages = (this.request.body as any);
             if (!Array.isArray(pages)) pages = [pages];
         } else {
-            const raw = (this.request.body as any).__raw_body || '';
-            try {
-                pages = JSON.parse(raw);
-                if (!Array.isArray(pages)) pages = [pages];
-            } catch {
-                // Try file upload
-                const files = (this.request as any).files || {};
-                const file = files.file;
-                if (file && file.path) {
-                    try {
-                        const fs = require('fs');
-                        const raw2 = fs.readFileSync(file.path, 'utf-8');
-                        pages = JSON.parse(raw2);
-                        if (!Array.isArray(pages)) pages = [pages];
-                    } catch {
-                        throw new Error('Invalid JSON in uploaded file.');
-                    }
-                } else {
-                    throw new Error('Invalid JSON. Paste JSON or upload a .json file.');
+            const raw = (this.request.body as any).__raw_body;
+            if (raw) {
+                try {
+                    pages = JSON.parse(raw);
+                    if (!Array.isArray(pages)) pages = [pages];
+                } catch (e: any) {
+                    throw new Error(`Invalid JSON in textarea: ${e.message}. Paste JSON or upload a .json file.`);
                 }
+            }
+            // Try file upload
+            const files = (this.request as any).files || {};
+            const file = files.file;
+            if (!pages && file && file.filepath) {
+                try {
+                    const fs = require('fs');
+                    const raw2 = fs.readFileSync(file.filepath, 'utf-8');
+                    pages = JSON.parse(raw2);
+                    if (!Array.isArray(pages)) pages = [pages];
+                } catch (e: any) {
+                    throw new Error(`Invalid JSON in uploaded file: ${e.message}`);
+                }
+            }
+            if (!pages) {
+                throw new Error('Invalid JSON. Paste JSON or upload a .json file.');
             }
         }
         const existingCats = await oi33Model.wikiCatGetAll();
@@ -141,7 +145,11 @@ class WikiImportHandler extends Handler {
         for (const p of pages) {
             if (!p.title || !p.content) continue;
             const cat = p.category || 'other';
-            await oi33Model.wikiAdd(this.user._id, p.title, p.content, cat);
+            if (p._id) {
+                await oi33Model.wikiImport(this.user._id, p._id, p.title, p.content, cat);
+            } else {
+                await oi33Model.wikiAdd(this.user._id, p.title, p.content, cat);
+            }
             imported++;
         }
         this.response.redirect = this.url('oi33_wiki_main');
