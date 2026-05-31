@@ -1,4 +1,4 @@
-import { db } from 'hydrooj';
+import { db, ObjectId } from 'hydrooj';
 
 export async function previewMigration() {
     const [
@@ -28,6 +28,7 @@ export async function migrate() {
         bills: 0,
         pastes: 0,
         users: 0,
+        logs: 0,
         errors: [] as string[],
     };
 
@@ -170,6 +171,27 @@ export async function migrate() {
         }
     } catch (e: any) {
         result.errors.push(`Step 4 (merge users): ${e.message}`);
+    }
+
+    try {
+        // Step 5: Backfill createdAt for old log entries (from _id when it was Date)
+        const logsToFix = await db.collection('oi33_log').find({
+            createdAt: { $exists: false },
+        }).toArray();
+        for (const log of logsToFix) {
+            try {
+                const ct = log._id instanceof Date ? log._id : new ObjectId(log._id).getTimestamp();
+                await db.collection('oi33_log').updateOne(
+                    { _id: log._id },
+                    { $set: { createdAt: ct } },
+                );
+                result.logs++;
+            } catch (e: any) {
+                result.errors.push(`Log createdAt backfill ${log._id}: ${e.message}`);
+            }
+        }
+    } catch (e: any) {
+        result.errors.push(`Step 5 (log createdAt backfill): ${e.message}`);
     }
 
     return result;
