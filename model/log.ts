@@ -3,19 +3,19 @@ import { Oi33Log } from './types';
 
 export const logColl = db.collection('oi33_log');
 
-export async function addLog(entry: Omit<Oi33Log, '_id'>) {
-    await logColl.insertOne({ ...entry, _id: new ObjectId() } as any);
+export async function addLog(entry: Omit<Oi33Log, '_id' | 'createdAt'>) {
+    await logColl.insertOne({ ...entry, _id: new ObjectId(), createdAt: new Date() } as any);
 }
 
 export async function getRecentActivities(limit = 40) {
-    return await logColl.find().sort({ _id: -1 }).limit(limit).toArray();
+    return await logColl.find().sort({ createdAt: -1, _id: -1 }).limit(limit).toArray();
 }
 
 export async function getRecentActivitiesPaginated(page: number, pageSize = 30) {
     const total = await logColl.countDocuments();
     const tpcount = Math.ceil(total / pageSize);
     const activities = await logColl.find()
-        .sort({ _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).toArray();
+        .sort({ createdAt: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).toArray();
     return { activities, tpcount };
 }
 
