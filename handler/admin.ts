@@ -16,7 +16,9 @@ class Oi33AdminHandler extends Handler {
         const uidSet = new Set<number>();
         const reqIdSet = new Set<string>();
         for (const a of activities) {
-            (a as any).timestamp = a._id instanceof Date ? a._id : new ObjectId(a._id as any).getTimestamp();
+            (a as any).timestamp = (a as any).createdAt instanceof Date
+                ? (a as any).createdAt
+                : a._id instanceof Date ? a._id : new ObjectId(a._id as any).getTimestamp();
             for (const k of ['sender', 'receiver', 'userId', 'owner', 'requester'] as const) {
                 const v = a[k];
                 if (typeof v === 'number') uidSet.add(v);
