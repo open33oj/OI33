@@ -10,7 +10,7 @@ import { checkUserFlag, canPublish } from './utils';
 class PasteCreateHandler extends Handler {
     async get() {
         const flag = await checkUserFlag(this.user._id);
-        this.response.body = { canPublic: canPublish(flag), canCreateWiki: flag === 3 };
+        this.response.body = { canPublic: canPublish(flag), canCreateWiki: this.user.hasPriv(PRIV.PRIV_MOD_BADGE) };
         this.response.template = 'oi33_paste_create.html';
     }
 
