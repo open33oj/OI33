@@ -42,7 +42,7 @@
         </li>
       {% else %}
         <li class="nav__list-item">
-          <a href="{{ url('user_login') }}" class="nav__item" name="nav_login">{{ _('Login') }}</a>
+          <a href="{{ url('user_login', redirect='/oi33/wiki') }}" class="nav__item" name="nav_login">{{ _('Login') }}</a>
         </li>
       {% endif %}
     </ol>
@@ -56,4 +56,5 @@
   </div>
   {% include "partials/oi33_wiki_footer.html" %}
 </div>
+{% if not handler.user._id %}{% include "partials/login_dialog.html" %}{% endif %}
 {% endblock %}
