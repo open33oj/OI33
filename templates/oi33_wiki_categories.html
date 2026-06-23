@@ -1,6 +1,5 @@
 {% set page_name = "oi33_wiki_categories" %}
-{% import "components/nothing.html" as nothing with context %}
-{% extends "layout/basic.html" %}
+{% extends "layout/oi33_wiki.html" %}
 {% block content %}
 <div class="row">
   <div class="medium-12 columns">
@@ -8,7 +7,7 @@
       <div class="section__header">
         <h1 class="section__title">{{ _('Wiki Categories') }}</h1>
         <div class="section__tools">
-          <a href="/oi33/wiki" class="rounded button">{{ _('Back to Wiki') }}</a>
+          <a href="/oi33/wiki/pages" class="rounded button">{{ _('All Pages') }}</a>
           <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
         </div>
       </div>
@@ -42,9 +41,7 @@
           </div>
         </form>
 
-        {% if not categories.length %}
-        {{ nothing.render(_('No categories.')) }}
-        {% else %}
+        {% if categories.length %}
         <table class="data-table">
           <colgroup>
             <col class="col--slug" style="width:12rem">
