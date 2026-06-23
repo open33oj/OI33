@@ -25,6 +25,12 @@ import {
     createToken, getTokensByUid, getAllActiveTokens, getTokenByHash, deleteToken, touchToken,
 } from './token';
 import {
+    createClient, getClients, getClient, deleteClient, verifyClientSecret,
+    redirectAllowed, createCode, consumeCode,
+    createAccessToken, getAccessTokenByRaw, refreshAccessToken, revokeToken, revokeAllForClient,
+    logDeny, DEFAULT_SCOPES,
+} from './oauth';
+import {
     getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
 } from './log';
 
@@ -34,6 +40,10 @@ export { pasteColl } from './paste';
 export { wikiColl, wikiCatColl } from './wiki';
 export { requestColl } from './request';
 export { tokenColl } from './token';
+export {
+    clientColl as oauthClientColl, codeColl as oauthCodeColl,
+    tokenColl as oauthTokenColl, refreshColl as oauthRefreshColl,
+} from './oauth';
 export { logColl } from './log';
 
 const oi33Model = {
@@ -49,6 +59,10 @@ const oi33Model = {
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,
     createToken, getTokensByUid, getAllActiveTokens, getTokenByHash, deleteToken, touchToken,
+    createClient, getClients, getClient, deleteClient, verifyClientSecret,
+    redirectAllowed, createCode, consumeCode,
+    createAccessToken, getAccessTokenByRaw, refreshAccessToken, revokeToken, revokeAllForClient,
+    logDeny, DEFAULT_SCOPES,
     wikiAdd, wikiImport, wikiEdit, wikiGet, wikiGetApproved, wikiGetOrCreateIndex,
     wikiDelete,
     wikiCatGetAll, wikiCatAdd, wikiCatEdit, wikiCatDelete,
@@ -67,6 +81,10 @@ declare module 'hydrooj' {
         oi33_token: import('./types').Oi33Token;
         oi33_log: import('./types').Oi33Log;
         oi33_request: import('./types').Oi33Request;
+        oi33_oauth_client: import('./types').Oi33OAuthClient;
+        oi33_oauth_code: import('./types').Oi33OAuthCode;
+        oi33_oauth_token: import('./types').Oi33OAuthToken;
+        oi33_oauth_refresh: import('./types').Oi33OAuthRefreshToken;
     }
 }
 
