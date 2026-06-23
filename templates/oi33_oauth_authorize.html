@@ -1,0 +1,57 @@
+{% set page_name = "oi33_oauth_authorize" %}
+{% extends "layout/basic.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="medium-6 medium-centered columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Authorize Application') }}</h1>
+      </div>
+      <div class="section__body">
+        <p style="font-size:1.05rem;line-height:1.7;">
+          {% if client.description %}<span style="display:block;opacity:0.8;margin-bottom:0.5rem;">{{ client.description }}</span>{% endif %}
+          <strong>{{ client.name }}</strong> {{ _('requests permission to access your 33OJ account.') }}
+        </p>
+
+        <div style="background:var(--code-bg,#f5f5f5);padding:0.8rem 1rem;border-radius:4px;margin:1.5rem 0;font-size:0.9rem;">
+          {{ _('This app will be able to read your username.') }}
+        </div>
+
+        <p style="opacity:0.7;font-size:0.85rem;margin-bottom:1.5rem;">
+          {{ _('By authorizing, this application will be able to access the above information using your account. You can revoke access at any time.') }}
+        </p>
+
+        <form method="post" action="/oi33/oauth/authorize">
+          <input type="hidden" name="csrfToken" value="{{ csrfToken }}">
+          <input type="hidden" name="decision" value="approve">
+          <input type="hidden" name="client_id" value="{{ client_id }}">
+          <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+          <input type="hidden" name="state" value="{{ state }}">
+          <input type="hidden" name="code_challenge" value="{{ code_challenge }}">
+          <input type="hidden" name="code_challenge_method" value="{{ code_challenge_method }}">
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+            <button type="submit" class="primary rounded button">{{ _('Authorize') }}</button>
+          </div>
+        </form>
+
+        <form method="post" action="/oi33/oauth/authorize" style="margin-top:0.6rem;">
+          <input type="hidden" name="csrfToken" value="{{ csrfToken }}">
+          <input type="hidden" name="decision" value="deny">
+          <input type="hidden" name="client_id" value="{{ client_id }}">
+          <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+          <input type="hidden" name="state" value="{{ state }}">
+          <input type="hidden" name="code_challenge" value="{{ code_challenge }}">
+          <input type="hidden" name="code_challenge_method" value="{{ code_challenge_method }}">
+          <button type="submit" class="rounded button">{{ _('Deny') }}</button>
+        </form>
+
+        <p style="margin-top:1.5rem;font-size:0.8rem;opacity:0.5;">
+          {{ _('Logged in as') }} <a href="{{ url('user_detail', uid=handler.user._id) }}">{{ handler.user.uname }}</a>
+          · <a href="/logout">{{ _('Logout') }}</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
