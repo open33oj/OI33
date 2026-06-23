@@ -22,6 +22,9 @@
               <tr><td>{{ _('Coin bills to migrate') }}：</td><td><strong>{{ result.bills }}</strong></td></tr>
               <tr><td>{{ _('Pastes to migrate') }}：</td><td><strong>{{ result.pastes }}</strong></td></tr>
               <tr><td>{{ _('User records to migrate') }}：</td><td><strong>{{ result.users }}</strong></td></tr>
+              {% if result.oauthLogsDeleted %}
+              <tr><td>{{ _('OAuth logs deleted') }}：</td><td><strong>{{ result.oauthLogsDeleted }}</strong></td></tr>
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">
@@ -56,6 +59,12 @@
               <td style="padding:0.5rem 0;">{{ _('User records to migrate') }}：</td>
               <td><strong>{{ preview.userCount }}</strong></td>
             </tr>
+            {% if preview.oauthLogCount %}
+            <tr>
+              <td style="padding:0.5rem 0;">{{ _('OAuth logs to delete') }}：</td>
+              <td><strong>{{ preview.oauthLogCount }}</strong></td>
+            </tr>
+            {% endif %}
           </table>
 
           <form method="post">
