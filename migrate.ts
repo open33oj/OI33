@@ -6,6 +6,7 @@ export async function previewMigration() {
         pasteCount,
         birthdayCount,
         userCount,
+        oauthLogCount,
     ] = await Promise.all([
         db.collection('coin').countDocuments(),
         db.collection('paste').countDocuments(),
@@ -19,8 +20,9 @@ export async function previewMigration() {
                 { checkin_time: { $exists: true } },
             ],
         }),
+        db.collection('oi33_log').countDocuments({ type: 'oauth' }),
     ]);
-    return { billCount, pasteCount, birthdayCount, userCount };
+    return { billCount, pasteCount, birthdayCount, userCount, oauthLogCount };
 }
 
 export async function migrate() {
@@ -29,6 +31,7 @@ export async function migrate() {
         pastes: 0,
         users: 0,
         logs: 0,
+        oauthLogsDeleted: 0,
         errors: [] as string[],
     };
 
@@ -192,6 +195,14 @@ export async function migrate() {
         }
     } catch (e: any) {
         result.errors.push(`Step 5 (log createdAt backfill): ${e.message}`);
+    }
+
+    try {
+        // Step 6: Delete orphan OAuth log entries (admin template has no rendering for type='oauth')
+        const delResult = await db.collection('oi33_log').deleteMany({ type: 'oauth' });
+        result.oauthLogsDeleted = delResult.deletedCount;
+    } catch (e: any) {
+        result.errors.push(`Step 6 (delete oauth logs): ${e.message}`);
     }
 
     return result;
