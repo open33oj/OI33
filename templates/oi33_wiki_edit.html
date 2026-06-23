@@ -1,15 +1,21 @@
 {% set page_name = "oi33_wiki_edit" %}
-{% extends "layout/basic.html" %}
+{% extends "layout/oi33_wiki.html" %}
+{% block nav_actions %}
+{% if doc %}
+<li class="nav__list-item">
+  <a href="/oi33/wiki/{{ doc._id }}" class="nav__item">{{ _('View') }}</a>
+</li>
+{% endif %}
+<li class="nav__list-item">
+  <a href="/oi33/wiki" class="nav__item">{{ _('Back to Wiki') }}</a>
+</li>
+{% endblock %}
 {% block content %}
 <div class="row">
-  <div class="medium-9 columns">
+  <div class="medium-12 columns">
     <div class="section">
       <div class="section__header">
         <h1 class="section__title">{% if doc %}{{ _('Edit Wiki Page') }}{% else %}{{ _('New Wiki Page') }}{% endif %}</h1>
-        <div class="section__tools">
-          {% if doc %}<a href="/oi33/wiki/{{ doc._id }}" class="rounded button">{{ _('View') }}</a>{% endif %}
-          <a href="/oi33/wiki" class="rounded button">{{ _('Back to Wiki') }}</a>
-        </div>
       </div>
       <div class="section__body">
         <form method="post">
@@ -17,7 +23,7 @@
             <div class="medium-12 columns">
               <label>
                 {{ _('Title') }}
-                <input name="title" value="{{ doc.title or '' }}" placeholder="{{ _('Title') }}" class="textbox" autofocus>
+                <input name="title" value="{{ doc.title if doc else '' }}" placeholder="{{ _('Title') }}" class="textbox" autofocus>
               </label>
             </div>
           </div>
@@ -39,7 +45,7 @@
                 columns: 12,
                 label: _('Content'),
                 name: 'content',
-                value: doc.content or '',
+                value: doc.content if doc else '',
                 markdown: true,
                 required: true,
                 extra_style: 'height: 500px',
@@ -51,16 +57,11 @@
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             {% if doc %}<input type="hidden" name="id" value="{{ doc._id }}">{% endif %}
             <button type="submit" class="rounded primary button">{{ _('Save') }}</button>
-            {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
-            <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
-            {% endif %}
+            <a href="{% if doc %}/oi33/wiki/{{ doc._id }}{% else %}/oi33/wiki{% endif %}" class="rounded button">{{ _('Cancel') }}</a>
           </div>
         </form>
       </div>
     </div>
-  </div>
-  <div class="medium-3 columns">
-    {% include 'components/md_hint.html' %}
   </div>
 </div>
 {% endblock %}
