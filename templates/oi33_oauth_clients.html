@@ -1,0 +1,119 @@
+{% set page_name = "oi33_oauth_clients" %}
+{% extends "layout/basic.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('OAuth Clients') }}</h1>
+        <div class="section__tools">
+          <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+
+      <div class="section__body">
+        <p style="opacity:0.7;font-size:0.9rem;margin-bottom:1.5rem;">
+          {{ _('Register applications here so they can log in with 33OJ accounts via OAuth2 Authorization Code flow.') }}
+        </p>
+
+        {% if rawSecret %}
+        <div class="message" style="background:#e8f5e9;border:1px solid #4caf50;padding:1rem;margin-bottom:1.5rem;border-radius:4px;">
+          <strong>{{ _('Client created successfully!') }}</strong><br>
+          {{ _('Copy this client secret now. You will not be able to see it again:') }}<br>
+          <code style="background:#fff;padding:0.5rem;display:block;margin-top:0.5rem;word-break:break-all;">{{ rawSecret }}</code>
+          <div style="margin-top:0.8rem;">
+            {{ _('Client ID') }}:
+            <code style="background:#fff;padding:0.3rem 0.5rem;">{{ newClient._id }}</code>
+            <a href="{{ url('oi33_oauth_client_show', id=newClient._id) }}" class="small rounded button" style="margin-left:0.5rem;">{{ _('Integration Guide') }}</a>
+          </div>
+        </div>
+        {% endif %}
+
+        <h3>{{ _('Register New Client') }}</h3>
+        <form method="post" action="/oi33/oauth/clients/create">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <div class="row">
+            <div class="medium-4 columns">
+              <label>{{ _('Client Name') }}
+                <input type="text" name="name" placeholder="{{ _('e.g. My Blog') }}" required>
+              </label>
+            </div>
+            <div class="medium-8 columns">
+              <label>{{ _('Redirect URIs') }}
+                <input type="text" name="redirectUris" placeholder="https://example.com/callback" required>
+                <span class="help-text">{{ _('Comma or whitespace separated, exact match.') }}</span>
+              </label>
+            </div>
+          </div>
+          <div class="row">
+            <div class="medium-4 columns">
+              <label>{{ _('Description') }}
+                <input type="text" name="description" placeholder="{{ _('optional') }}">
+              </label>
+            </div>
+            <div class="medium-2 columns">
+              <label>{{ _('Access Token TTL (s)') }}
+                <input type="number" name="accessTokenTtl" placeholder="3600">
+              </label>
+            </div>
+            <div class="medium-2 columns">
+              <label>{{ _('Refresh Token TTL (s)') }}
+                <input type="number" name="refreshTokenTtl" placeholder="2592000">
+              </label>
+            </div>
+            <div class="medium-4 columns">
+              <label>{{ _('Public Client (PKCE)') }}
+                <span class="help-text">{{ _('No = server-side app with secret; Yes = SPA/mobile using PKCE') }}</span>
+                <select name="isPublic">
+                  <option value="false">{{ _('No') }}</option>
+                  <option value="true">{{ _('Yes') }}</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <button type="submit" class="primary rounded button">{{ _('Create Client') }}</button>
+        </form>
+
+        <hr style="margin:2rem 0;">
+
+        <h3>{{ _('Registered Clients') }}</h3>
+        {% if clients.length %}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ _('Client Name') }}</th>
+              <th>{{ _('Client ID') }}</th>
+              <th>{{ _('Type') }}</th>
+              <th>{{ _('Redirect URIs') }}</th>
+              <th>{{ _('Created') }}</th>
+              <th>{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in clients %}
+            <tr>
+              <td>{{ c.name }}{% if c.description %}<div style="font-size:0.8rem;opacity:0.6;">{{ c.description }}</div>{% endif %}</td>
+              <td><code style="word-break:break-all;">{{ c._id }}</code>{% if c.secretPrefix %}<div style="font-size:0.75rem;opacity:0.5;">{{ c.secretPrefix }}…</div>{% endif %}</td>
+              <td>{% if c.isPublic %}{{ _('Public (PKCE)') }}{% else %}{{ _('Confidential') }}{% endif %}</td>
+              <td style="font-size:0.8rem;word-break:break-all;">{{ c.redirectUris.join(', ') }}</td>
+              <td>{{ datetimeSpan(c.createdAt)|safe }}</td>
+              <td>
+                <a href="{{ url('oi33_oauth_client_show', id=c._id) }}" class="small rounded button">{{ _('View') }}</a>
+                <form method="post" action="/oi33/oauth/clients/{{ c._id }}/delete" style="display:inline;">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <button type="submit" class="small rounded button" onclick="return confirm('{{ _('Delete this client? All its tokens will be revoked.') }}')">{{ _('Delete') }}</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p>{{ _('No OAuth clients yet.') }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

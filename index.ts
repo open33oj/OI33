@@ -8,6 +8,7 @@ import { apply as applyJudgeMonitor } from './handler/judge-monitor';
 import { apply as applyToken } from './handler/token';
 import { apply as applyWiki } from './handler/wiki';
 import { apply as applyPermissions } from './handler/permissions';
+import { apply as applyOAuth } from './handler/oauth';
 
 export async function apply(ctx: Context) {
     applyPatches(ctx);
@@ -19,4 +20,5 @@ export async function apply(ctx: Context) {
     await applyToken(ctx);
     await applyWiki(ctx);
     await applyPermissions(ctx);
+    await applyOAuth(ctx);
 }

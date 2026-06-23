@@ -94,10 +94,64 @@ export interface Oi33Token {
     isActive: boolean;
 }
 
+export type Oi33OAuthScope = 'profile';
+
+export interface Oi33OAuthClient {
+    _id: string;
+    name: string;
+    description?: string;
+    secretHash?: string;
+    secretPrefix?: string;
+    redirectUris: string[];
+    scopes: Oi33OAuthScope[];
+    isPublic: boolean;
+    accessTokenTtl: number;
+    refreshTokenTtl: number;
+    createdAt: Date;
+    createdBy: number;
+    isActive: boolean;
+}
+
+export interface Oi33OAuthCode {
+    _id: string;
+    clientId: string;
+    uid: number;
+    redirectUri: string;
+    scopes: Oi33OAuthScope[];
+    codeChallenge?: string;
+    codeChallengeMethod?: 'S256' | 'plain';
+    expiresAt: Date;
+    consumed: boolean;
+}
+
+export interface Oi33OAuthToken {
+    _id: string;
+    tokenHash: string;
+    tokenPrefix: string;
+    clientId: string;
+    uid: number;
+    scopes: Oi33OAuthScope[];
+    expiresAt: Date;
+    createdAt: Date;
+    lastUsedAt: Date;
+    isActive: boolean;
+}
+
+export interface Oi33OAuthRefreshToken {
+    _id: string;
+    tokenHash: string;
+    clientId: string;
+    uid: number;
+    scopes: Oi33OAuthScope[];
+    expiresAt: Date;
+    createdAt: Date;
+    isActive: boolean;
+}
+
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'paste' | 'request' | 'wiki';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'paste' | 'request' | 'wiki' | 'oauth';
     sender?: number;
     receiver?: number;
     amount?: number;
@@ -119,4 +173,7 @@ export interface Oi33Log {
     status?: Oi33RequestStatus;
     kind?: Oi33RequestKind;
     uid?: number;
+    oauthClientId?: string;
+    oauthAction?: 'authorize' | 'deny' | 'token' | 'refresh' | 'revoke' | 'client_create' | 'client_delete';
+    oauthScopes?: string[];
 }
