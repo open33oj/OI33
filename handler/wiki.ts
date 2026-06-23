@@ -2,26 +2,31 @@ import {
     Handler, PRIV, Types, param, query, NotFoundError, ForbiddenError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
-import { checkUserFlag } from './utils';
-
-function canEdit(flag: number): boolean {
-    return flag === 3;
-}
 
 // --- Wiki public pages ---
 
 class WikiMainHandler extends Handler {
+    @query('page', Types.PositiveInt, true)
+    async get(domainId: string, page = 1) {
+        const { docs, upcount } = await oi33Model.wikiGetApproved(undefined, page, 20);
+        const categories = await oi33Model.wikiCatGetAll();
+        const bulletinDoc = await oi33Model.wikiGetOrCreateIndex();
+        this.response.template = 'oi33_wiki_main.html';
+        this.response.body = {
+            docs, upcount, page, categories,
+            bulletin: bulletinDoc,
+        };
+    }
+}
+
+class WikiPagesHandler extends Handler {
     @query('category', Types.String, true)
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, category?: string, page = 1) {
         const { docs, upcount } = await oi33Model.wikiGetApproved(category, page, 20);
         const categories = await oi33Model.wikiCatGetAll();
-        const bulletinDoc = await oi33Model.wikiGetOrCreateIndex();
-        this.response.template = 'oi33_wiki_main.html';
-        this.response.body = {
-            docs, upcount, page, categories, category,
-            bulletin: bulletinDoc,
-        };
+        this.response.template = 'oi33_wiki_pages.html';
+        this.response.body = { docs, upcount, page, categories, category };
     }
 }
 
@@ -43,8 +48,7 @@ class WikiShowHandler extends Handler {
 class WikiEditHandler extends Handler {
     @param('id', Types.String, true)
     async get(domainId: string, id?: string) {
-        const flag = await checkUserFlag(this.user._id);
-        if (!canEdit(flag)) throw new ForbiddenError('Only admins can edit wiki pages');
+        this.checkPriv(PRIV.PRIV_MOD_BADGE);
         const categories = await oi33Model.wikiCatGetAll();
         let doc: any = null;
         if (id) {
@@ -60,8 +64,7 @@ class WikiEditHandler extends Handler {
     @param('content', Types.Content)
     @param('category', Types.String)
     async post(domainId: string, id: string | undefined, title: string, content: string, category: string) {
-        const flag = await checkUserFlag(this.user._id);
-        if (!canEdit(flag)) throw new ForbiddenError('Only admins can edit wiki pages');
+        this.checkPriv(PRIV.PRIV_MOD_BADGE);
         if (id) {
             const doc = await oi33Model.wikiGet(id);
             if (!doc) throw new NotFoundError(id);
@@ -203,6 +206,7 @@ class WikiDeleteHandler extends Handler {
 
 export async function apply(ctx: Context) {
     ctx.Route('oi33_wiki_main', '/oi33/wiki', WikiMainHandler);
+    ctx.Route('oi33_wiki_pages', '/oi33/wiki/pages', WikiPagesHandler);
     ctx.Route('oi33_wiki_create', '/oi33/wiki/create', WikiEditHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_wiki_bulk_export', '/oi33/wiki/export', WikiBulkExportHandler);
     ctx.Route('oi33_wiki_bulk_import', '/oi33/wiki/import', WikiBulkImportHandler, PRIV.PRIV_MOD_BADGE);
