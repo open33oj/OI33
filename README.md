@@ -27,6 +27,7 @@
 | AT/CF Rating 排名 | 公开展示已绑定 AT/CF 用户的信息及 rating，支持按任意 rating 排序 | `/oi33/at-cf-rating` |
 | 统一资料审批 | 生日、实名、徽章、AT/CF 用户名 均走提交→审批流 | `/oi33/requests` |
 | MCP / Agent API 令牌 | 供外部 MCP 工具或 AI Agent 调用的只读 Bearer Token，可限定域和过期时间 | `/oi33/tokens` |
+| OAuth2 登录 | 33OJ 作为 OAuth2 身份提供方，让其他网站实现「使用 33OJ 登录」 | `/oi33/oauth/*` |
 | 评测机监控 | 每 5 分钟检查心跳，离线/恢复时通过企业微信 Webhook 推送通知 | `/oi33/judge-monitor` |
 | 权限速查表 | 按角色列出各功能权限矩阵 | `/oi33/permissions` |
 
@@ -43,7 +44,11 @@
 | `oi33_wiki_category` | Wiki 分类目录（默认：算法、公告） |
 | `oi33_request` | 资料修改审批（生日、实名、徽章、AT/CF 用户名） |
 | `oi33_token` | MCP / Agent API 令牌（SHA-256 哈希存储，只读） |
-| `oi33_log` | 操作日志（硬币、生日、徽章、实名、剪贴板、Wiki、审批） |
+| `oi33_oauth_client` | OAuth2 客户端应用注册（client_id、secret hash、回调 URI、是否公开客户端） |
+| `oi33_oauth_code` | OAuth2 授权码（10 分钟有效，一次性） |
+| `oi33_oauth_token` | OAuth2 访问令牌（`33oat_` 前缀，SHA-256 哈希存储） |
+| `oi33_oauth_refresh` | OAuth2 刷新令牌（`33ojrt_` 前缀） |
+| `oi33_log` | 操作日志（硬币、生日、徽章、实名、剪贴板、Wiki、审批、OAuth） |
 
 ## 权限配置
 
@@ -86,6 +91,14 @@
 | `/oi33/requests` | `PRIV_MOD_BADGE` | 审批列表 |
 | `/oi33/tokens/create` | `PRIV_ALL` | 创建 MCP / Agent API 令牌 |
 | `/oi33/tokens/:id/delete` | `PRIV_ALL` | 删除令牌 |
+| `/oi33/oauth/authorize` | `PRIV_USER_PROFILE` | OAuth2 授权页面（用户同意/拒绝） |
+| `/oi33/oauth/token` | 公开（客户端凭据认证） | OAuth2 换取/刷新访问令牌 |
+| `/oi33/oauth/userinfo` | 公开（Bearer 令牌认证） | OAuth2 获取用户信息 |
+| `/oi33/oauth/revoke` | 公开 | OAuth2 吊销令牌 |
+| `/oi33/oauth/clients` | `PRIV_MOD_BADGE` | OAuth2 应用管理列表 |
+| `/oi33/oauth/clients/create` | `PRIV_MOD_BADGE` | 注册新 OAuth2 应用 |
+| `/oi33/oauth/clients/:id` | `PRIV_MOD_BADGE` | 查看应用详情 + 接入指南 |
+| `/oi33/oauth/clients/:id/delete` | `PRIV_MOD_BADGE` | 删除 OAuth2 应用（吊销其所有令牌） |
 | `/record` | 导航默认跳转 `?uidOrName=自己`（登录用户） | 评测记录页（覆盖模板） |
 
 ## 安装与迁移
@@ -506,4 +519,226 @@ Token 仅允许访问以下路由（精确匹配或前缀匹配）：
 - **MCP 工具集成**：为 MCP Server 提供安全的只读凭证，避免暴露账号密码
 - **自动化报表脚本**：定时脚本通过 Token 读取 OJ 数据生成统计报表
 - **第三方数据同步**：与其他系统对接时仅暴露只读权限
+
+## OAuth2 登录（33OJ 作为身份提供方）
+
+33OJ 可作为 OAuth2 身份提供方（IdP），让你的其他网站、博客、工具实现「使用 33OJ 登录」——类似「使用 GitHub 登录」。实现的是标准 OAuth2 **Authorization Code** 流程（RFC 6749），支持 PKCE（RFC 7636）和刷新令牌。
+
+### 快速接入
+
+#### 1. 在 33OJ 注册应用
+
+管理员访问 `/oi33/oauth/clients` → 填写：
+
+| 字段 | 说明 |
+|------|------|
+| 应用名称 | 显示在授权页上的名字（如「我的博客」） |
+| 回调 URI | 你的网站接收授权码的地址，需精确匹配，多个用逗号或空格分隔（如 `https://blog.example.com/auth/callback`） |
+| 公开客户端 (PKCE) | **No** = 有后端的机密应用（用 client_secret）；**Yes** = 纯前端 SPA/移动端（用 PKCE，无 secret） |
+| Access/Refresh Token TTL | 令牌有效期（秒），留空用默认值（1 小时 / 30 天） |
+
+创建后会**一次性显示 `client_secret`**，立即复制保存（之后只能看到前缀）。应用详情页 `/oi33/oauth/clients/:id` 自带完整的接入指南和端点 URL。
+
+#### 2. 端点
+
+| 端点 | URL | 说明 |
+|------|-----|------|
+| 授权 | `GET /oi33/oauth/authorize` | 引导用户前往，展示授权同意页 |
+| 换令牌 | `POST /oi33/oauth/token` | 用授权码换 access_token / refresh_token |
+| 用户信息 | `GET /oi33/oauth/userinfo` | 用 access_token 换用户信息 |
+| 吊销 | `POST /oi33/oauth/revoke` | 吊销 access/refresh token |
+
+> 完整 URL 前缀为你的 33OJ 站点地址（如 `https://oj.33dai.top`），可在应用详情页直接复制。
+
+#### 3. 授权码流程
+
+```
+你的网站                   33OJ                    用户浏览器
+   │                         │                         │
+   │  1. 重定向到 authorize  │◄────────────────────────│
+   │                         │  展示授权同意页          │
+   │                         │────────────────────────►│ 用户点「授权」
+   │  2. 回调带 code         │◄────────────────────────│
+   │                         │                         │
+   │  3. POST /token 换令牌  │────────────────────────►│
+   │     (服务端，带 secret)  │  返回 access_token       │
+   │◄────────────────────────│                         │
+   │                         │                         │
+   │  4. GET /userinfo       │                         │
+   │     (带 Bearer token)   │                         │
+   │  返回用户信息            │                         │
+   │◄────────────────────────│                         │
+```
+
+**第 1 步：引导用户授权**
+
+将用户重定向到：
+
+```
+GET /oi33/oauth/authorize?
+    response_type=code
+    &client_id=YOUR_CLIENT_ID
+    &redirect_uri=YOUR_REDIRECT_URI
+    &state=RANDOM_STRING
+```
+
+- 未登录用户会先跳转到 33OJ 登录页，登录后自动回到授权页
+- `state` 是你生成的随机串，用于防 CSRF，回调时原样带回，务必校验
+- 公开客户端（PKCE）额外传 `code_challenge` 和 `code_challenge_method=S256`
+
+**第 2 步：接收回调**
+
+用户授权后，33OJ 重定向回你的 `redirect_uri`：
+
+```
+https://your-site/callback?code=AUTH_CODE&state=RANDOM_STRING
+```
+
+校验 `state` 与第 1 步一致后，用 `code` 换令牌。
+
+**第 3 步：换令牌（服务端）**
+
+```
+POST /oi33/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=AUTH_CODE
+&redirect_uri=YOUR_REDIRECT_URI
+&client_id=YOUR_CLIENT_ID
+&client_secret=YOUR_CLIENT_SECRET
+```
+
+> 公开客户端（PKCE）不传 `client_secret`，改传 `code_verifier`（第 1 步 `code_challenge` 的原文）。
+>
+> 也可用 HTTP Basic Auth 头传客户端凭据：`Authorization: Basic base64(client_id:client_secret)`
+
+响应：
+
+```json
+{
+  "access_token": "33oat_...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "33ojrt_...",
+  "scope": "profile"
+}
+```
+
+**第 4 步：获取用户信息**
+
+```
+GET /oi33/oauth/userinfo
+Authorization: Bearer 33oat_...
+```
+
+响应：
+
+```json
+{
+  "sub": "2",
+  "uname": "alice"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `sub` | string | 用户唯一标识（即 33OJ 的 uid，字符串形式，**不会变**，适合作为主键） |
+| `uname` | string | 用户名（可能改名，不建议作为主键） |
+
+> 只暴露这两个字段。不包含邮箱、硬币、生日等任何 OI33 业务数据。
+
+**第 5 步（可选）：刷新令牌**
+
+access_token 过期后，用 refresh_token 换新的（机密客户端需带 secret）：
+
+```
+POST /oi33/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token
+&refresh_token=33ojrt_...
+&client_id=YOUR_CLIENT_ID
+&client_secret=YOUR_CLIENT_SECRET
+```
+
+**吊销令牌**
+
+```
+POST /oi33/oauth/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=33oat_...   (或 33ojrt_...)
+```
+
+### 代码示例（Node.js / Express）
+
+```javascript
+const express = require('express');
+const session = require('express-session');
+const axios = require('axios');
+const crypto = require('crypto');
+
+const app = express();
+app.use(session({ secret: 'your-session-secret', resave: false, saveUninitialized: true }));
+
+const OJ_BASE = 'https://oj.33dai.top';
+const CLIENT_ID = '33oj_xxxxxxxx';
+const CLIENT_SECRET = '33ojcs_xxxxxxxx';
+const REDIRECT_URI = 'https://your-site/auth/callback';
+
+// 第 1 步：跳转到 33OJ 授权
+app.get('/login', (req, res) => {
+  const state = crypto.randomBytes(16).toString('hex');
+  req.session.oauthState = state;
+  res.redirect(`${OJ_BASE}/oi33/oauth/authorize?response_type=code`
+    + `&client_id=${CLIENT_ID}`
+    + `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+    + `&state=${state}`);
+});
+
+// 第 2-4 步：回调 → 换令牌 → 取用户信息
+app.get('/auth/callback', async (req, res) => {
+  if (req.query.state !== req.session.oauthState) return res.status(403).send('State mismatch');
+
+  // 换令牌
+  const tokenRes = await axios.post(`${OJ_BASE}/oi33/oauth/token`, new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: req.query.code,
+    redirect_uri: REDIRECT_URI,
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+  }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+
+  // 取用户信息
+  const userInfo = await axios.get(`${OJ_BASE}/oi33/oauth/userinfo`, {
+    headers: { Authorization: `Bearer ${tokenRes.data.access_token}` },
+  });
+
+  // 用 sub 作为唯一标识登录/注册用户
+  req.session.user = { sub: userInfo.data.sub, uname: userInfo.data.uname };
+  res.redirect('/');
+});
+
+app.listen(3000);
+```
+
+### 客户端类型对比
+
+| | 机密客户端 (Confidential) | 公开客户端 (Public / PKCE) |
+|---|---|---|
+| 适用场景 | 有后端的服务器应用 | SPA、移动端、桌面软件 |
+| 认证方式 | `client_secret` | PKCE（`code_challenge`/`code_verifier`） |
+| secret 安全性 | 存在服务器，不暴露 | 无 secret，靠 PKCE 防截获 |
+| 注册时选 | Public Client (PKCE) = **No** | Public Client (PKCE) = **Yes** |
+
+### 安全说明
+
+- `client_secret` 仅在创建时显示一次，数据库存 SHA-256 hash，无法找回
+- 授权码 10 分钟有效且一次性，使用后即作废
+- access_token / refresh_token 均哈希存储，泄漏后可在应用管理页删除客户端吊销其所有令牌
+- `redirect_uri` 必须与注册的完全匹配，防止授权码被发到错误地址
+- `state` 参数防 CSRF，务必校验
+- 所有 OAuth 操作（授权/拒绝/换令牌/刷新/吊销/应用增删）记录在 `oi33_log`，可在管理仪表盘查看
+
 

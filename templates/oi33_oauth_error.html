@@ -1,0 +1,25 @@
+{% set page_name = "oi33_oauth_error" %}
+{% extends "layout/basic.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="medium-6 medium-centered columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Authorization Error') }}</h1>
+      </div>
+      <div class="section__body">
+        <p style="font-size:1.05rem;">
+          <strong>{{ error }}</strong>
+        </p>
+        {% if message %}
+        <p style="opacity:0.8;">{{ message }}</p>
+        {% endif %}
+        <p style="margin-top:1.5rem;">
+          <a href="/" class="rounded button">{{ _('Back to Home') }}</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

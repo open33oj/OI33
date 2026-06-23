@@ -153,6 +153,13 @@ export function applyPatches(_ctx: Context) {
         const auth = h.request.headers.authorization;
         if (!auth || !auth.startsWith('Bearer ')) return;
 
+        // OAuth provider endpoints manage their own Bearer auth (access tokens
+        // live in oi33_oauth_token, not oi33_token). Skip the API-token check
+        // so those handlers can verify tokens themselves.
+        if (typeof h.request.path === 'string' && h.request.path.startsWith('/oi33/oauth/')) {
+            return;
+        }
+
         const tokenDoc = await verifyBearerToken(auth, h.domain?._id || h.domainId || '');
         if (!tokenDoc) throw new Error('Invalid or expired token');
 
