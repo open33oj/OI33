@@ -1,6 +1,6 @@
 {% extends "layout/html5.html" %}
 {% block body %}
-<nav class="nav slideout-menu" id="wiki-menu">
+<nav class="nav slideout-menu" id="menu">
   <div class="row"><div class="columns clearfix">
     <ol class="nav__list nav__list--main clearfix">
       <li class="nav__list-item">
@@ -51,6 +51,7 @@
 <nav class="nav--shadow"></nav>
 <div class="slideout-panel" id="panel">
   <div class="slideout-overlay"></div>
+  {% if UserContext %}{% include "partials/header_mobile.html" %}{% endif %}
   <div class="main">
     {% block content %}{% endblock %}
   </div>
