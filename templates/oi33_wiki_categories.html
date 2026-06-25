@@ -47,7 +47,7 @@
             <col class="col--slug" style="width:12rem">
             <col class="col--name">
             <col class="col--order" style="width:6rem">
-            <col class="col--actions" style="width:6rem">
+            <col class="col--actions" style="width:11rem">
           </colgroup>
           <thead>
             <tr>
@@ -60,16 +60,22 @@
           <tbody>
             {% for c in categories %}
             <tr>
-              <form method="post" style="margin:0;">
-                <input type="hidden" name="action" value="edit">
-                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                <td class="col--slug"><input name="slug" value="{{ c._id }}" readonly class="textbox" style="opacity:0.6;background:transparent;border:none;box-shadow:none;padding:0;"></td>
-                <td class="col--name"><input name="name" value="{{ c.name }}" class="textbox" style="margin:0;"></td>
-                <td class="col--order"><input name="order" value="{{ c.order }}" type="number" class="textbox" style="margin:0;width:4rem;"></td>
-                <td class="col--actions">
+              <td class="col--slug"><input form="wikiCatEdit_{{ loop.index }}" name="slug" value="{{ c._id }}" readonly class="textbox" style="opacity:0.6;background:transparent;border:none;box-shadow:none;padding:0;"></td>
+              <td class="col--name"><input form="wikiCatEdit_{{ loop.index }}" name="name" value="{{ c.name }}" class="textbox" style="margin:0;"></td>
+              <td class="col--order"><input form="wikiCatEdit_{{ loop.index }}" name="order" value="{{ c.order }}" type="number" class="textbox" style="margin:0;width:4rem;"></td>
+              <td class="col--actions">
+                <form id="wikiCatEdit_{{ loop.index }}" method="post" style="display:inline;">
+                  <input type="hidden" name="action" value="edit">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <button type="submit" class="rounded button">{{ _('Save') }}</button>
-                </td>
-              </form>
+                </form>
+                <form method="post" style="display:inline;" onsubmit="return confirm('{{ _('Delete this category? It can only be deleted when no pages use it.') }}')">
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="slug" value="{{ c._id }}">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <button type="submit" class="rounded button">{{ _('Delete') }}</button>
+                </form>
+              </td>
             </tr>
             {% endfor %}
           </tbody>

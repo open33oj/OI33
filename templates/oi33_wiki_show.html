@@ -19,16 +19,13 @@
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
-      <div class="section__header">
-        <h1 class="section__title">{{ doc.title }}</h1>
-      </div>
       <div class="section__body">
         <div class="typo richmedia">
-          <div style="margin-bottom:1rem;font-size:0.85rem;opacity:0.6;">
+          <div class="markdown">{{ doc.content|markdown|safe }}</div>
+          <div style="margin-top:1rem;font-size:0.85rem;opacity:0.6;">
             {{ _('Category') }}: <a href="/oi33/wiki/pages?category={{ doc.category }}">{{ catDict[doc.category] or doc.category }}</a>
             · {{ _('Updated At') }} {{ datetimeSpan(doc.updatedAt)|safe }}
           </div>
-          <div class="markdown">{{ doc.content|markdown|safe }}</div>
         </div>
       </div>
     </div>

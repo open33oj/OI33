@@ -35,6 +35,7 @@ class WikiShowHandler extends Handler {
     async get(domainId: string, id: string) {
         const doc = await oi33Model.wikiGet(id);
         if (!doc) throw new NotFoundError(id);
+        this.UiContext.extraTitleContent = doc.title;
         const categories = await oi33Model.wikiCatGetAll();
         const catDict: Record<string, string> = {};
         for (const c of categories) catDict[c._id] = c.name;
