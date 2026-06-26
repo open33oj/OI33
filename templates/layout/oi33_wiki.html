@@ -58,4 +58,76 @@
   {% include "partials/oi33_wiki_footer.html" %}
 </div>
 {% if not handler.user._id %}{% include "partials/login_dialog.html" %}{% endif %}
+<script>
+(function () {
+  function decodeHash(hash) {
+    var raw = (hash || '').replace(/^#/, '');
+    if (!raw) return [];
+    try {
+      var decoded = decodeURIComponent(raw);
+      return decoded === raw ? [raw] : [raw, decoded];
+    } catch (e) {
+      return [raw];
+    }
+  }
+
+  function findHashTarget(hash) {
+    var ids = decodeHash(hash);
+    for (var i = 0; i < ids.length; i++) {
+      var target = document.getElementById(ids[i]);
+      if (target) return target;
+    }
+    return null;
+  }
+
+  function getFixedHeaderOffset() {
+    var offset = 0;
+    var nav = document.querySelector('.nav--shadow');
+    if (nav) {
+      var style = window.getComputedStyle(nav);
+      if (style.display !== 'none' && style.position === 'fixed') {
+        offset = Math.max(offset, nav.getBoundingClientRect().height);
+      }
+    }
+    return offset + 10;
+  }
+
+  function scrollToHash(hash) {
+    var target = findHashTarget(hash || window.location.hash);
+    if (!target) return false;
+    var top = target.getBoundingClientRect().top + window.pageYOffset - getFixedHeaderOffset();
+    window.scrollTo(0, Math.max(0, top));
+    return true;
+  }
+
+  function queueScrollToHash(hash) {
+    scrollToHash(hash);
+    setTimeout(function () { scrollToHash(hash); }, 0);
+    setTimeout(function () { scrollToHash(hash); }, 120);
+    setTimeout(function () { scrollToHash(hash); }, 320);
+    setTimeout(function () { scrollToHash(hash); }, 700);
+  }
+
+  document.addEventListener('click', function (event) {
+    var link = event.target.closest && event.target.closest('.typo.richmedia a[href^="#"]');
+    if (!link) return;
+    var hash = link.getAttribute('href');
+    if (!findHashTarget(hash)) return;
+    event.preventDefault();
+    if (window.location.hash !== hash) {
+      history.pushState(null, '', hash);
+    }
+    queueScrollToHash(hash);
+  }, true);
+
+  if (window.location.hash) {
+    queueScrollToHash(window.location.hash);
+    window.addEventListener('load', function () { queueScrollToHash(window.location.hash); });
+  }
+
+  window.addEventListener('hashchange', function () {
+    queueScrollToHash(window.location.hash);
+  });
+})();
+</script>
 {% endblock %}
