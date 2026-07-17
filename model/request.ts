@@ -47,8 +47,9 @@ export async function applyRequestPayload(uid: number, payload: Oi33RequestPaylo
     const update: any = {};
     if (Object.keys($set).length) update.$set = $set;
     if (Object.keys($unset).length) update.$unset = $unset;
-    if (!Object.keys(update).length) return;
+    if (!Object.keys(update).length) return true;
     await userColl.updateOne({ _id: uid }, update, { upsert: true });
+    return true;
 }
 
 export async function submitRequest(uid: number, kind: Oi33RequestKind, requester: number, payload: Oi33RequestPayload) {
@@ -84,13 +85,16 @@ export async function directUpdate(uid: number, kind: Oi33RequestKind, admin: nu
 export async function approveRequest(reqId: ObjectId, handlerUid: number) {
     const doc = await requestColl.findOne({ _id: reqId, status: 'pending' });
     if (!doc) return false;
-    await applyRequestPayload(doc.uid, doc);
-    await requestColl.updateOne(
-        { _id: reqId },
+    const applied = await applyRequestPayload(doc.uid, doc);
+    if (!applied) return false;
+    const result = await requestColl.updateOne(
+        { _id: reqId, status: 'pending' },
         { $set: { status: 'approved', handler: handlerUid, handledAt: new Date() } },
     );
-    await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'approved', kind: doc.kind });
-    return true;
+    if (result.matchedCount) {
+        await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'approved', kind: doc.kind });
+    }
+    return result.matchedCount > 0;
 }
 
 export async function rejectRequest(reqId: ObjectId, handlerUid: number) {

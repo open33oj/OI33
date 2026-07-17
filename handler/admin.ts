@@ -19,7 +19,7 @@ class Oi33AdminHandler extends Handler {
             (a as any).timestamp = (a as any).createdAt instanceof Date
                 ? (a as any).createdAt
                 : a._id instanceof Date ? a._id : new ObjectId(a._id as any).getTimestamp();
-            for (const k of ['sender', 'receiver', 'userId', 'owner', 'requester'] as const) {
+            for (const k of ['sender', 'receiver', 'userId', 'owner', 'requester', 'uid'] as const) {
                 const v = a[k];
                 if (typeof v === 'number') uidSet.add(v);
             }

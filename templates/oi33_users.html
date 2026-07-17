@@ -69,7 +69,7 @@
             {%- endfor -%}
           </tbody>
         </table>
-        {{ paginator.render(page, upcount) }}
+        {{ paginator.render(page, upcount, add_qs=('&flag=' + flag if flag is defined else '')) }}
         {% endif %}
       </div>
     </div>

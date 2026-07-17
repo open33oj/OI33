@@ -1,5 +1,5 @@
 import {
-    Handler, PRIV, Types, param, NotFoundError, ValidationError, ObjectId,
+    Handler, PRIV, Types, param, NotFoundError, ValidationError, ObjectId, ForbiddenError,
     UserModel, Context,
 } from 'hydrooj';
 import { oi33Model, Oi33RequestPayload, Oi33RequestKind } from '../model';
@@ -118,7 +118,8 @@ class RequestListHandler extends Handler {
 class RequestApproveHandler extends Handler {
     @param('id', Types.ObjectId)
     async post(domainId: string, id: ObjectId) {
-        await oi33Model.approveRequest(id, this.user._id);
+        const ok = await oi33Model.approveRequest(id, this.user._id);
+        if (!ok) throw new ForbiddenError('申请不存在或已处理。');
         this.response.redirect = this.url('oi33_requests');
     }
 }

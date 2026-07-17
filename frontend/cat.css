@@ -1,0 +1,123 @@
+.oi33-cat-card {
+  overflow: hidden;
+}
+
+.oi33-cat-card .section__body {
+  padding: 0 12px 13px;
+}
+
+.oi33-cat-stage {
+  position: relative;
+  width: 100%;
+  height: 170px;
+  overflow: hidden;
+  touch-action: manipulation;
+  border-radius: 10px;
+  background:
+    linear-gradient(to bottom, rgba(112, 154, 172, .08) 0 68%, rgba(95, 83, 72, .06) 68% 100%);
+  box-shadow: inset 0 0 0 1px rgba(90, 76, 65, .09);
+}
+
+.oi33-cat-floor {
+  position: absolute;
+  right: 10px;
+  bottom: 17px;
+  left: 10px;
+  height: 2px;
+  background: rgba(83, 73, 65, .16);
+}
+
+.oi33-cat-actor {
+  position: absolute;
+  bottom: 18px;
+  left: 0;
+  width: 80px;
+  height: 80px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  border: 0;
+  outline-offset: 2px;
+  background: transparent;
+  will-change: transform;
+}
+
+.oi33-cat-actor:disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
+.oi33-cat-sprite {
+  --oi33-cat-flip: 1;
+  display: block;
+  width: 80px;
+  height: 80px;
+  background-repeat: no-repeat;
+  background-size: 200% 200%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  transform-origin: center bottom;
+  transform: scaleX(var(--oi33-cat-flip));
+}
+
+.oi33-cat-stage[data-cat-state="sit"] .oi33-cat-sprite {
+  background-position: 0 0;
+}
+
+.oi33-cat-stage[data-cat-state="sit-tail"] .oi33-cat-sprite {
+  background-position: 100% 0;
+}
+
+.oi33-cat-stage[data-cat-state="walk-a"] .oi33-cat-sprite {
+  background-position: 0 100%;
+}
+
+.oi33-cat-stage[data-cat-state="walk-b"] .oi33-cat-sprite {
+  background-position: 100% 100%;
+}
+
+.oi33-cat-stage.is-walking[data-cat-direction="right"] .oi33-cat-sprite {
+  --oi33-cat-flip: -1;
+}
+
+.oi33-cat-stage.is-walking .oi33-cat-sprite {
+  animation: oi33-cat-walk-bob .42s steps(2, end) infinite;
+}
+
+.oi33-cat-message {
+  min-height: 20px;
+  margin: 8px 2px 0;
+  color: #8c6a59;
+  font-size: 12px;
+}
+
+.oi33-cat-noscript {
+  color: #8c6a59;
+  font-size: 12px;
+}
+
+.theme--dark .oi33-cat-stage {
+  background:
+    linear-gradient(to bottom, rgba(123, 164, 181, .09) 0 68%, rgba(255, 255, 255, .035) 68% 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+
+.theme--dark .oi33-cat-floor {
+  background: rgba(255, 255, 255, .12);
+}
+
+.theme--dark .oi33-cat-message,
+.theme--dark .oi33-cat-noscript {
+  color: #c8b4a8;
+}
+
+@keyframes oi33-cat-walk-bob {
+  0%, 100% { transform: translateY(0) scaleX(var(--oi33-cat-flip)); }
+  50% { transform: translateY(-2px) scaleX(var(--oi33-cat-flip)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oi33-cat-stage.is-walking .oi33-cat-sprite {
+    animation: none;
+  }
+}
