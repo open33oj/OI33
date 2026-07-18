@@ -36,7 +36,6 @@
             </div>
             <div class="media__body profile-header__main">
               <h1>
-                {% set _canSeeRealname = not _profileHidden and ((handler.user.realname_flag or 0) >= 2 or isSelfProfile) %}
                 {% if not _profileHidden %}
                 {% if udoc.realname_flag == 3 %}
                 <span class="icon icon-crown"></span>
@@ -53,7 +52,7 @@
                   {{ udoc.oi33_original_uname or udoc.uname }}
                 {% elif _profileHidden %}
                   UID {{ udoc._id }}
-                {% elif _canSeeRealname and udoc.realname_name %}
+                {% elif (handler.user.realname_flag or 0) >= 2 and udoc.realname_name %}
                   [{{ udoc.realname_name }}]{{ udoc.uname }}
                 {% elif handler.user.hasPerm(perm.PERM_VIEW_DISPLAYNAME) and udoc.displayName %}
                   ({{ udoc.displayName }}){{ udoc.uname }}
@@ -187,6 +186,8 @@
                     {% if (handler.user.realname_flag or 0) >= 2 or isSelfProfile %}
                     <dt>{{ _('Birthday') }}</dt>
                     <dd>{{ udoc.birthday_date or _('Not Set') }}</dd>
+                    {% endif %}
+                    {% if (handler.user.realname_flag or 0) >= 2 %}
                     <dt>{{ _('Realname Name') }}</dt>
                     <dd>{{ udoc.realname_name or _('Not Set') }}</dd>
                     {% endif %}

@@ -14,7 +14,6 @@
   {% endif %}
 
   <a class="user-profile-name uname--lv{{ udoc.level|default(0) }}" href="{{ url('user_detail', uid=udoc._id) }}">
-    {% set _canSeeRealname = (handler.user.realname_flag or 0) >= 2 or (handler.user._id and handler.user._id == udoc._id) %}
     {% if udoc.realname_flag == 3 %}
     <span class="icon icon-crown"></span>
     {% elif udoc.realname_flag == 2 %}
@@ -25,7 +24,7 @@
     <span class="icon icon-check"></span>
     {% endif %}
 
-    {% if _canSeeRealname and udoc.realname_name %}
+    {% if (handler.user.realname_flag or 0) >= 2 and udoc.realname_name %}
       [{{ udoc.realname_name }}]{{ udoc.uname }}
     {% else %}
       {{ udoc.uname }}

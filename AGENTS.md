@@ -102,6 +102,8 @@ Never use `getListForRender` when the `user.html` component is rendered, because
 
 Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymized in all user-list rendering as `UID <id>` with the default blank avatar. Their custom username and avatar are visible only on their own user-detail page to viewers with `realname_flag >= 2`.
 
+Authentication visibility and real-name visibility are separate: flag >= 1 restores the public username/avatar, but `realname_name` and the `[realname]username` rendering are visible only to viewers with OI33 flag >= 2.
+
 ### Cat food rewards
 
 - Effective immediately from `2026-07-18`: a normal daily check-in grants 100 cat food; a check-in continuing the previous day's streak grants 150.
@@ -116,6 +118,7 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 
 - **Regular user** editing self → `oi33Model.submitRequest()` creates a `pending` doc in `oi33_request`; `oi33_user` is unchanged until approval. Existing pending for the same `uid` + `kind` is marked `cancelled` (both the request doc and its activity-log entry), so the old log line shows "已取消" instead of staying "待审批".
 - **OI33 manager/executive-admin direct edit** → `oi33Model.directUpdate()` writes the new values to `oi33_user` AND records a status=`approved` audit entry in `oi33_request`. Flag-2 managers may directly set ordinary users only to identity 0/1 and cannot change another manager/executive-admin's identity; flag-3 executive admins may edit every identity level and every user.
+- **Hydro `PRIV_ALL` bootstrap** → a Hydro super administrator may directly edit any user's OI33 identity regardless of their current OI33 flag, including promoting themselves to flag 3 (executive administrator).
 - Approval queue at `/oi33/requests` is available to OI33 managers/executive admins. Flag-2 managers can approve identity targets 0-1; flag-3 executive admins can approve targets 0-2. Identity target 3 cannot be approved through the queue. Approve → `applyRequestPayload` applies the saved fields, sets `status=approved`. Reject → sets `status=rejected`.
 - Empty `badge_text` clears the entire badge triple via `$unset`. Empty `birthday_date` clears both `birthday_date` and `birthday_monthDay`.
 

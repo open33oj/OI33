@@ -62,20 +62,23 @@ class ProfileEditHandler extends Handler {
     @param('uid', Types.Int)
     async get(domainId: string, uid: number) {
         const editorRole = await getIdentityRole(this.user._id);
-        if (uid !== this.user._id && editorRole < 2) throw new ForbiddenError('无权编辑其他用户。');
+        const isHydroSuperAdmin = this.user.hasPriv(PRIV.PRIV_ALL);
+        if (uid !== this.user._id && editorRole < 2 && !isHydroSuperAdmin) throw new ForbiddenError('无权编辑其他用户。');
         const udoc = await UserModel.getById(domainId, uid);
         if (!udoc) throw new NotFoundError(uid);
         const oi33Doc: any = (await oi33Model.getUserDataByUids([uid]))[uid] || {};
         const pendingMap = await oi33Model.getUserPendingRequests(uid);
         const targetRole = oi33Doc.realname_flag ?? 0;
-        const canEditRealname = editorRole !== 2 || uid === this.user._id || targetRole < 2;
-        const maxRealnameFlag = editorRole >= 3 ? 3 : editorRole === 2 && uid === this.user._id ? 2 : editorRole === 2 ? 1 : 2;
+        const canEditRealname = isHydroSuperAdmin || editorRole !== 2 || uid === this.user._id || targetRole < 2;
+        const maxRealnameFlag = isHydroSuperAdmin || editorRole >= 3
+            ? 3
+            : editorRole === 2 && uid === this.user._id ? 2 : editorRole === 2 ? 1 : 2;
         if (udoc.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);
         this.response.template = 'oi33_profile_edit.html';
         this.response.body = {
             udoc, oi33Doc, pendingMap,
             isSelf: uid === this.user._id,
-            canDirect: editorRole >= 2,
+            canDirect: isHydroSuperAdmin || editorRole >= 2,
             canEditRealname,
             maxRealnameFlag,
         };
@@ -98,7 +101,8 @@ class ProfileEditHandler extends Handler {
         atcoder = '', codeforces = '',
     ) {
         const editorRole = await getIdentityRole(this.user._id);
-        if (uid !== this.user._id && editorRole < 2) throw new ForbiddenError('无权编辑其他用户。');
+        const isHydroSuperAdmin = this.user.hasPriv(PRIV.PRIV_ALL);
+        if (uid !== this.user._id && editorRole < 2 && !isHydroSuperAdmin) throw new ForbiddenError('无权编辑其他用户。');
         if (!KINDS.includes(kind as Oi33RequestKind)) throw new ValidationError('kind');
         const udoc = await UserModel.getById(domainId, uid);
         if (!udoc) throw new NotFoundError(uid);
@@ -110,7 +114,7 @@ class ProfileEditHandler extends Handler {
             atcoder, codeforces,
         );
 
-        if (editorRole === 2 && kind === 'realname') {
+        if (!isHydroSuperAdmin && editorRole === 2 && kind === 'realname') {
             const targetRole = await getIdentityRole(uid);
             if (uid !== this.user._id && targetRole >= 2) {
                 throw new ForbiddenError('管理员不能修改其他管理员或行政管理员的认证身份。');
@@ -119,11 +123,11 @@ class ProfileEditHandler extends Handler {
                 throw new ForbiddenError('管理员无权设置该认证等级。');
             }
         }
-        if (editorRole < 2 && kind === 'realname' && realname_flag > 2) {
+        if (!isHydroSuperAdmin && editorRole < 2 && kind === 'realname' && realname_flag > 2) {
             throw new ForbiddenError('无权申请管理员身份。');
         }
 
-        if (editorRole >= 2) {
+        if (isHydroSuperAdmin || editorRole >= 2) {
             await oi33Model.directUpdate(uid, kind as Oi33RequestKind, this.user._id, payload);
         } else {
             await oi33Model.submitRequest(uid, kind as Oi33RequestKind, this.user._id, payload);

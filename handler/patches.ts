@@ -1,6 +1,7 @@
 import { Context, UserModel, moment } from 'hydrooj';
 import { createHash } from 'crypto';
 import { HomeHandler } from 'hydrooj/src/handler/home';
+import { RecordMainConnectionHandler } from 'hydrooj/src/handler/record';
 import { oi33Model } from '../model';
 
 export function applyPatches(_ctx: Context) {
@@ -141,6 +142,32 @@ export function applyPatches(_ctx: Context) {
             udict[uid] = udoc;
         }
     });
+
+    // WebSocket connections do not pass through the normal HTTP user layer.
+    // Hydrate both the viewer and row owner immediately before rendering a
+    // pushed record row, so real-name visibility follows the same rule as the
+    // initial page render.
+    const origRecordConnectionRender = (RecordMainConnectionHandler.prototype as any).renderHTML;
+    (RecordMainConnectionHandler.prototype as any).renderHTML = async function (template: string, body: any) {
+        if (template === 'record_main_tr.html') {
+            const viewerUid = Number(this.user?._id) || 0;
+            const ownerUid = Number(body?.udoc?._id) || 0;
+            const uids = [...new Set([viewerUid, ownerUid].filter(Boolean))];
+            const oi33Dict = uids.length ? await oi33Model.getUserDataByUids(uids) : {};
+            if (viewerUid && this.user) {
+                const viewer = cloneUserForDisplay(this.user);
+                oi33Model.mergeOi33Fields(viewer, oi33Dict[viewerUid]);
+                this.user = viewer;
+            }
+            if (ownerUid && body?.udoc) {
+                const owner = cloneUserForDisplay(body.udoc);
+                oi33Model.mergeOi33Fields(owner, oi33Dict[ownerUid]);
+                oi33Model.anonymizeOi33Identity(owner);
+                body = { ...body, udoc: owner };
+            }
+        }
+        return origRecordConnectionRender.call(this, template, body);
+    };
 
     // (e) Bearer token auth — Hydro v5 uses event-based handler lifecycle
     // 'handler/before' is fired after prepare() but before get()/post()
