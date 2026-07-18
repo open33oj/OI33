@@ -1,4 +1,5 @@
 import { db, ObjectId } from 'hydrooj';
+import { backfillAllCatFood, previewCatFoodBackfill } from './model/user';
 
 export async function previewMigration() {
     const [
@@ -7,6 +8,7 @@ export async function previewMigration() {
         birthdayCount,
         userCount,
         oauthLogCount,
+        catFoodPreview,
     ] = await Promise.all([
         db.collection('coin').countDocuments(),
         db.collection('paste').countDocuments(),
@@ -21,8 +23,13 @@ export async function previewMigration() {
             ],
         }),
         db.collection('oi33_log').countDocuments({ type: 'oauth' }),
+        previewCatFoodBackfill(),
     ]);
-    return { billCount, pasteCount, birthdayCount, userCount, oauthLogCount };
+    return {
+        billCount, pasteCount, birthdayCount, userCount, oauthLogCount,
+        catFoodUsers: catFoodPreview.users,
+        catFoodAmount: catFoodPreview.amount,
+    };
 }
 
 export async function migrate() {
@@ -32,6 +39,8 @@ export async function migrate() {
         users: 0,
         logs: 0,
         oauthLogsDeleted: 0,
+        catFoodUsers: 0,
+        catFoodAmount: 0,
         errors: [] as string[],
     };
 
@@ -203,6 +212,15 @@ export async function migrate() {
         result.oauthLogsDeleted = delResult.deletedCount;
     } catch (e: any) {
         result.errors.push(`Step 6 (delete oauth logs): ${e.message}`);
+    }
+
+    try {
+        // Step 7: One-time cat food grant for all check-in days accumulated before launch.
+        const backfill = await backfillAllCatFood();
+        result.catFoodUsers = backfill.users;
+        result.catFoodAmount = backfill.amount;
+    } catch (e: any) {
+        result.errors.push(`Step 7 (cat food backfill): ${e.message}`);
     }
 
     return result;

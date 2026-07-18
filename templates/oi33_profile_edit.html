@@ -19,7 +19,7 @@
       <div class="section__header">
         <h1 class="section__title" data-heading>
           {{ _('OI33 Profile Settings') }} —
-          {% if udoc.realname_name %}[{{ udoc.realname_name }}]{% endif %}{{ udoc.uname }}
+          {% if udoc.oi33_profile_hidden %}UID {{ udoc._id }}{% else %}{% if udoc.realname_name %}[{{ udoc.realname_name }}]{% endif %}{{ udoc.uname }}{% endif %}
         </h1>
         <div class="section__tools">
           <a href="/user/{{ udoc._id }}" class="rounded button">{{ _('Cancel') }}</a>

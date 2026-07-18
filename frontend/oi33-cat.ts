@@ -32,7 +32,7 @@ function mountCat(stage: HTMLElement) {
 
     const random = seededRandom(mixSeed(uid, Date.now() & 0xffff));
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const CAT_SIZE = 80;
+    const CAT_SIZE = 40;
     const SIDE_PADDING = 10;
     let x = 0;
     let state: CatFrame = 'sit';
@@ -73,12 +73,12 @@ function mountCat(stage: HTMLElement) {
     const wagTail = () => {
         if (!active || state !== 'sit') return;
         setFrame('sit-tail');
-        setMessage('小猫竖起尾巴看了看四周');
+        setMessage('小猫竖着尾巴，安静地看着四周');
         tailTimer = window.setTimeout(() => {
             if (!active || state !== 'sit-tail') return;
             setFrame('sit');
             setMessage('小猫安静地坐着');
-        }, 360 + Math.floor(random() * 280));
+        }, 2400 + Math.floor(random() * 1200));
     };
 
     function sit(shortRest = false) {
@@ -88,10 +88,12 @@ function mountCat(stage: HTMLElement) {
         delete stage.dataset.catDirection;
         setMessage('小猫坐下来休息了');
         const restTime = shortRest
-            ? 1000 + random() * 900
-            : 2200 + random() * 3600;
-        if (!shortRest && random() < 0.72) {
-            tailTimer = window.setTimeout(wagTail, 450 + random() * Math.max(500, restTime - 1100));
+            ? 6000 + random() * 3000
+            : 10000 + random() * 8000;
+        const tailChance = shortRest ? 0.35 : 0.62;
+        if (random() < tailChance) {
+            const latestTailStart = Math.max(2200, restTime - 4500);
+            tailTimer = window.setTimeout(wagTail, 1800 + random() * (latestTailStart - 1800));
         }
         actionTimer = window.setTimeout(walkRandomly, restTime);
     }
@@ -109,7 +111,7 @@ function mountCat(stage: HTMLElement) {
 
         const direction = target < startX ? -1 : 1;
         const startedAt = performance.now();
-        const speed = clicked ? 52 : 25 + random() * 14;
+        const speed = clicked ? 48 : 21 + random() * 11;
         const duration = Math.max(500, distance / speed * 1000);
         let lastFrame: CatFrame = 'walk-a';
 
@@ -125,7 +127,7 @@ function mountCat(stage: HTMLElement) {
             const eased = progress < 0.5
                 ? 2 * progress * progress
                 : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-            const nextFrame: CatFrame = Math.floor((now - startedAt) / 210) % 2 ? 'walk-b' : 'walk-a';
+            const nextFrame: CatFrame = Math.floor((now - startedAt) / 260) % 2 ? 'walk-b' : 'walk-a';
             if (nextFrame !== lastFrame) {
                 lastFrame = nextFrame;
                 setFrame(nextFrame);

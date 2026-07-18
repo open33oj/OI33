@@ -15,10 +15,10 @@
 | 硬币 | 余额排行、发放/扣除、交易流水 | `/oi33/coin/*` |
 | 生日 | 设置生日、今日寿星展示（含动画）、全部生日列表 | `/oi33/birthday/*` |
 | 徽章 | 创建/编辑/删除徽章 | `/oi33/badge/*` |
-| 实名 | 身份标签 4 级（未实名/已实名/老师/管理员），实名展示 | `/oi33/realname/*` |
-| 签到 | 每日打卡+运势、连续签到统计 | `/oi33/checkin` |
+| 实名 | 身份标签 4 级（未认证/已认证/老师/管理员），认证信息展示 | `/oi33/realname/*` |
+| 签到 | 每日打卡+运势、连续签到统计；签到奖励猫粮 | `/oi33/checkin` |
 | 倒计时 | 首页倒计时组件（配置驱动） | 首页 partial |
-| 剪贴板 | Markdown 剪贴板 CRUD、公有/私有（已实名才能发布公开粘贴） | `/oi33/paste/*` |
+| 剪贴板 | Markdown 剪贴板 CRUD、公有/私有（已认证才能发布公开粘贴） | `/oi33/paste/*` |
 | 前端覆盖 | Logo、favicon、模板覆盖 | 静态资源 |
 | 管理仪表盘 | 统一查看所有数据 + 操作日志 | `/oi33/admin` |
 | 数据迁移 | 从老插件迁移数据到新集合 | `/oi33/migrate` |
@@ -37,7 +37,7 @@
 
 | 集合 | 用途 |
 |------|------|
-| `oi33_user` | 用户属性：硬币余额、生日、徽章、实名、签到数据、AT/CF 用户名及 rating |
+| `oi33_user` | 用户属性：硬币余额、生日、徽章、实名、签到数据、猫粮余额、AT/CF 用户名及 rating |
 | `oi33_coin_bill` | 硬币交易流水 |
 | `oi33_paste` | 剪贴板文档 |
 | `oi33_wiki` | Wiki 百科页面（含 `index` 页作为首页公告） |
@@ -48,7 +48,7 @@
 | `oi33_oauth_code` | OAuth2 授权码（10 分钟有效，一次性） |
 | `oi33_oauth_token` | OAuth2 访问令牌（`33oat_` 前缀，SHA-256 哈希存储） |
 | `oi33_oauth_refresh` | OAuth2 刷新令牌（`33ojrt_` 前缀） |
-| `oi33_log` | 操作日志（硬币、生日、徽章、实名、剪贴板、Wiki、审批、OAuth） |
+| `oi33_log` | 操作日志（硬币、生日、徽章、实名、签到、剪贴板、Wiki、审批、OAuth） |
 
 ## 权限配置
 
@@ -65,6 +65,7 @@
 | `/oi33/wiki/create` | `PRIV_USER_PROFILE`（且 `realname_flag === 3`） | 创建 Wiki 页面 |
 | `/oi33/wiki/:id/edit` | `PRIV_USER_PROFILE`（且 `realname_flag === 3`） | 编辑 Wiki 页面 |
 | `/oi33/checkin` | `PRIV_USER_PROFILE` | 每日签到 |
+| `/oi33/cat-food/bill/:uid` | `PRIV_USER_PROFILE` | 查看自己的猫粮明细（查看他人需 `PRIV_MOD_BADGE`） |
 | `/oi33/coin/show` | `PRIV_USER_PROFILE` | 查看硬币排行 |
 | `/oi33/coin/bill/:uid` | `PRIV_USER_PROFILE` | 查看自己账单（查看他人需 `PRIV_MOD_BADGE`） |
 | `/oi33/birthday/all` | `PRIV_USER_PROFILE` | 查看所有用户生日 |
@@ -118,6 +119,7 @@ pm2 restart hydrooj
 #    - paste 集合 → oi33_paste
 #    - birthday 集合 → oi33_user
 #    - user 集合字段 (coin_*, badge, realname_*, checkin_*) → oi33_user
+#    - 按历史 checkin_cnt_all * 100 一次性补发猫粮；上线当天已连续签到者再补 50
 
 # 3. 确认迁移数据正确后，移除老插件
 hydrooj addon remove coin-33oj
@@ -135,6 +137,13 @@ hydrooj addon remove frontend-33oj
 #    db.paste.drop()
 #    db.user.updateMany({}, { $unset: { coin_now:"", coin_all:"", badge:"", realname_flag:"", realname_name:"", checkin_time:"", checkin_luck:"", checkin_cnt_now:"", checkin_cnt_all:"" } })
 ```
+
+## 猫粮规则
+
+- 功能上线后立即生效：普通签到奖励 100 猫粮；若承接前一天的连续签到，则奖励 150 猫粮。
+- 上线时按已有累计签到天数 `checkin_cnt_all * 100` 一次性补发；若上线当天已经连续签到，再额外补发 50。补发带版本标记，并按应得余额补差，不会重复执行。
+- 猫粮余额显示在用户详情页的小猫组件下方；签到成功后会显示“签到成功，猫粮+X”。
+- 猫粮余额旁提供明细入口，可查看历史补发和每次签到奖励记录。
 
 ## 系统设置
 
@@ -360,10 +369,12 @@ hydrooj addon remove frontend-33oj
 
 | 值 | 标签 | 公开剪贴板 | Wiki 编辑 |
 |----|------|-----------|----------|
-| 0 | 未实名 | ❌ | ❌ |
-| 1 | 已实名 | ✅ | ❌ |
+| 0 | 未认证 | ❌ | ❌ |
+| 1 | 已认证 | ✅ | ❌ |
 | 2 | 老师 | ✅ | ❌ |
 | 3 | 管理员 | ✅ | ✅ |
+
+未认证用户在全站用户展示中仅显示 `UID <id>` 和默认空白头像，不展示自定义用户名、头像或实名名称。只有老师或管理员访问该用户的个人页时，才能看到其自定义用户名和头像。
 
 ## Wiki 百科系统
 

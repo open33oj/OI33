@@ -19,6 +19,26 @@ export async function getRecentActivitiesPaginated(page: number, pageSize = 30) 
     return { activities, tpcount };
 }
 
+function catFoodLogFilter(userId: number) {
+    return {
+        type: 'checkin',
+        userId,
+        amount: { $exists: true, $ne: 0 },
+    };
+}
+
+export async function getCatFoodLogCount(userId: number) {
+    return await logColl.countDocuments(catFoodLogFilter(userId) as any);
+}
+
+export async function getCatFoodLogs(userId: number, page: number, pageSize = 50) {
+    return await logColl.find(catFoodLogFilter(userId) as any)
+        .sort({ createdAt: -1, _id: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .toArray();
+}
+
 export async function compactRequestLogs() {
     const terminalReqIds = await logColl.distinct('reqId', {
         type: 'request',

@@ -9,6 +9,7 @@ import { apply as applyToken } from './handler/token';
 import { apply as applyWiki } from './handler/wiki';
 import { apply as applyPermissions } from './handler/permissions';
 import { apply as applyOAuth } from './handler/oauth';
+import { backfillAllCatFood } from './model/user';
 
 export async function apply(ctx: Context) {
     applyPatches(ctx);
@@ -21,4 +22,16 @@ export async function apply(ctx: Context) {
     await applyWiki(ctx);
     await applyPermissions(ctx);
     await applyOAuth(ctx);
+    if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0') {
+        ctx.on('app/started', async () => {
+            try {
+                const result = await backfillAllCatFood();
+                if (result.users) {
+                    console.info(`[oi33] cat food backfill: ${result.users} users, ${result.amount} granted`);
+                }
+            } catch (e) {
+                console.error('[oi33] cat food backfill failed:', e);
+            }
+        });
+    }
 }

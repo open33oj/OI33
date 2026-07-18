@@ -54,6 +54,7 @@ class ProfileEditHandler extends Handler {
         if (!udoc) throw new NotFoundError(uid);
         const oi33Doc = (await oi33Model.getUserDataByUids([uid]))[uid] || {};
         const pendingMap = await oi33Model.getUserPendingRequests(uid);
+        if (udoc.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);
         this.response.template = 'oi33_profile_edit.html';
         this.response.body = {
             udoc, oi33Doc, pendingMap,

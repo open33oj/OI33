@@ -148,11 +148,37 @@ class CheckinHandler extends Handler {
     async post() {
         const uid = this.user._id;
         const now = moment().format('YYYY-MM-DD');
-        const oi33User = await oi33Model.getCheckinUser(uid);
-        if (!oi33User || oi33User.checkin_time !== now) {
-            await oi33Model.doCheckin(uid, now);
+        const result = await oi33Model.doCheckin(uid, now);
+        if (result.checkedIn) {
+            const notification = result.cat_food_reward
+                ? this.translate('Check-in succeeded, cat food +{0}')
+                    .replace('{0}', String(result.cat_food_reward))
+                : this.translate('Check-in succeeded');
+            this.response.redirect = this.url('homepage', { query: { notification } });
+            return;
         }
-        this.response.redirect = '/';
+        this.response.redirect = this.url('homepage');
+    }
+}
+
+class CatFoodBillHandler extends Handler {
+    @param('uid', Types.Int)
+    @query('page', Types.PositiveInt, true)
+    async get(domainId: string, uid: number, page = 1) {
+        if (uid !== this.user._id) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        const [count, logs, oi33User] = await Promise.all([
+            oi33Model.getCatFoodLogCount(uid),
+            oi33Model.getCatFoodLogs(uid, page, 50),
+            oi33Model.getCheckinUser(uid),
+        ]);
+        this.response.template = 'oi33_cat_food_bill.html';
+        this.response.body = {
+            uid,
+            logs,
+            page,
+            upcount: Math.ceil(count / 50),
+            balance: oi33User?.cat_food ?? 0,
+        };
     }
 }
 
@@ -189,5 +215,6 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_badge_manage', '/oi33/badge/manage', BadgeManageHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_badge_del', '/oi33/badge/manage/:uid/del', BadgeDelHandler, PRIV.PRIV_MOD_BADGE);
     ctx.Route('oi33_checkin', '/oi33/checkin', CheckinHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_cat_food_bill', '/oi33/cat-food/bill/:uid', CatFoodBillHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_at_cf_rating', '/oi33/at-cf-rating', RatingShowHandler);
 }

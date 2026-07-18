@@ -157,6 +157,18 @@
               <span class="oi33-timeline__note">→</span>
               {{ a.realnameName or _('(clear)') }}
 
+            {% elif a.type == 'checkin' %}
+              <span class="oi33-timeline__tag">{{ _('activity_tag_checkin') }}</span>
+              {{ userLink(a.userId) }}
+              {% if a.action == 'cat_food_backfill' %}
+                <span class="oi33-timeline__note">{{ _('Historical check-in grant') }}</span>
+              {% else %}
+                <span class="oi33-timeline__note">{{ _('Check-in succeeded') }}</span>
+              {% endif %}
+              {% if a.amount %}
+                <span class="oi33-timeline__amount-pos">{{ _('Cat food') }} +{{ a.amount }}</span>
+              {% endif %}
+
             {% elif a.type == 'paste' %}
               <span class="oi33-timeline__tag">{{ _('activity_tag_paste') }}</span>
               {{ userLink(a.owner) }}

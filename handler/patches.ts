@@ -13,10 +13,10 @@ export function applyPatches(_ctx: Context) {
         const oi33Dict = await oi33Model.getUserDataByUids(uids);
         for (const uid of uids) {
             const oi33 = oi33Dict[uid];
-            if (!oi33) continue;
             const u = udict[uid];
             if (!u) continue;
             oi33Model.mergeOi33Fields(u, oi33);
+            oi33Model.anonymizeOi33Identity(u);
         }
         return udict;
     };
@@ -30,10 +30,10 @@ export function applyPatches(_ctx: Context) {
         const oi33Dict = await oi33Model.getUserDataByUids(uids);
         for (const uid of uids) {
             const oi33 = oi33Dict[uid];
-            if (!oi33) continue;
             const u = udict[uid];
             if (!u) continue;
             oi33Model.mergeOi33Fields(u, oi33);
+            oi33Model.anonymizeOi33Identity(u);
         }
         return udict;
     };
@@ -45,7 +45,7 @@ export function applyPatches(_ctx: Context) {
         const udoc = await origGetById.call(UserModel, domainId, _id, scope);
         if (!udoc) return udoc;
         const oi33 = (await oi33Model.getUserDataByUids([_id]))[_id];
-        if (oi33) oi33Model.mergeOi33Fields(udoc, oi33);
+        oi33Model.mergeOi33Fields(udoc, oi33);
         return udoc;
     };
 
@@ -102,6 +102,13 @@ export function applyPatches(_ctx: Context) {
         return payload;
     };
 
+    // Keep user-detail JSON/template data anonymous. The original username/avatar
+    // are stored as non-enumerable fields for the teacher/admin template exception.
+    _ctx.on('handler/after/UserDetailHandler', (h: any) => {
+        const udoc = h.response?.body?.udoc;
+        if (udoc?.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);
+    });
+
     // (e) Bearer token auth — Hydro v5 uses event-based handler lifecycle
     // 'handler/before' is fired after prepare() but before get()/post()
     const READONLY_METHODS = new Set(['get', 'head', 'options']);
@@ -127,6 +134,7 @@ export function applyPatches(_ctx: Context) {
         /^\/oi33\/paste\/manage(\/|$)/,
         /^\/oi33\/paste\/all(\/|$)/,
         /^\/oi33\/coin\/bill\//,
+        /^\/oi33\/cat-food\/bill\//,
         /^\/oi33\/admin(\/|$)/,
         /^\/oi33\/requests(\/|$)/,
         /^\/oi33\/tokens(\/|$)/,
@@ -150,6 +158,11 @@ export function applyPatches(_ctx: Context) {
     }
 
     _ctx.on('handler/before', async (h: any) => {
+        if (h.user?._id) {
+            const oi33 = (await oi33Model.getUserDataByUids([h.user._id]))[h.user._id];
+            oi33Model.mergeOi33Fields(h.user, oi33);
+        }
+
         const auth = h.request.headers.authorization;
         if (!auth || !auth.startsWith('Bearer ')) return;
 

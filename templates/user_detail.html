@@ -4,11 +4,25 @@
 {%- macro atcolor(r) -%}{% if r >= 2800 %}#FF0000{% elif r >= 2400 %}#FF8000{% elif r >= 2000 %}#C0C000{% elif r >= 1600 %}#0000FF{% elif r >= 1200 %}#00C0C0{% elif r >= 800 %}#008000{% elif r >= 400 %}#804000{% else %}#808080{% endif %}{%- endmacro -%}
 {%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
 {% block content %}
-{{ set(UiContext, 'udoc', udoc) }}
+{% set _profileHidden = udoc.oi33_profile_hidden %}
+{% set _canSeeHiddenIdentity = (handler.user.realname_flag or 0) >= 2 or handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+{% set _showCustomIdentity = not _profileHidden or _canSeeHiddenIdentity %}
+{% if _profileHidden %}
+  {% set _safeProfileName = (udoc.oi33_original_uname or udoc.uname) if _showCustomIdentity else 'UID ' + udoc._id %}
+  {% set _safeProfileAvatar = (udoc.oi33_original_avatar or udoc.avatar) if _showCustomIdentity else '' %}
+  {{ set(UiContext, 'udoc', { _id: udoc._id, uname: _safeProfileName, avatar: _safeProfileAvatar }) }}
+  {{ set(UiContext, 'extraTitleContent', _safeProfileName) }}
+{% else %}
+  {{ set(UiContext, 'udoc', udoc) }}
+{% endif %}
 <style>
   .user-profile-bg {
+    {% if _profileHidden %}
+    background-image: url("/components/profile/backgrounds/1.jpg");
+    {% else %}
     background-image: url("{{ udoc.backgroundImage }}"),
     url("/components/profile/backgrounds/1.jpg");
+    {% endif %}
   }
 </style>
 <div class="row">
@@ -18,11 +32,12 @@
         <div class="profile-header__content">
           <div class="media">
             <div class="media__left">
-              <img src="{{ avatarUrl(udoc.avatar, 120) }}" width="120" height="120" class="large user-profile-avatar">
+              <img src="{{ avatarUrl((udoc.oi33_original_avatar or udoc.avatar) if _showCustomIdentity else '', 120) }}" width="120" height="120" class="large user-profile-avatar">
             </div>
             <div class="media__body profile-header__main">
               <h1>
-                {% set _canSeeRealname = handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or isSelfProfile %}
+                {% set _canSeeRealname = not _profileHidden and (handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or isSelfProfile) %}
+                {% if not _profileHidden %}
                 {% if udoc.realname_flag == 3 %}
                 <span class="icon icon-crown"></span>
                 {% elif udoc.realname_flag == 2 %}
@@ -32,8 +47,13 @@
                 {% elif udoc.realname_flag == 0 %}
                 <span class="icon icon-check"></span>
                 {% endif %}
+                {% endif %}
 
-                {% if _canSeeRealname and udoc.realname_name %}
+                {% if _profileHidden and _showCustomIdentity %}
+                  {{ udoc.oi33_original_uname or udoc.uname }}
+                {% elif _profileHidden %}
+                  UID {{ udoc._id }}
+                {% elif _canSeeRealname and udoc.realname_name %}
                   [{{ udoc.realname_name }}]{{ udoc.uname }}
                 {% elif handler.user.hasPerm(perm.PERM_VIEW_DISPLAYNAME) and udoc.displayName %}
                   ({{ udoc.displayName }}){{ udoc.uname }}
@@ -41,8 +61,7 @@
                   {{ udoc.uname }}
                 {% endif %}
 
-
-                {% if udoc.badge %}
+                {% if not _profileHidden and udoc.badge %}
                 {% set _badge = udoc.badge.split('#') %}
                 <span class="user-profile-badge v-center"
                   style="background-color:#{{ _badge[1] }}{% if _badge[2] %};color:#{{ _badge[2] }}{% endif %}">{{
@@ -55,6 +74,7 @@
                 {{ _('UID') }}: {{ udoc['_id'] }}
               </p>
 
+              {% if not _profileHidden %}
               {% if udoc['coin_all'] > 0 %}
               <p>
                 当前硬币数量: {{ udoc['coin_now'] }} （累计获取硬币数量：{{ udoc['coin_all'] }}）:
@@ -133,21 +153,22 @@
                 </span>
                 {% endif %}
               </div>
+              {% endif %}
               {% if isSelfProfile or handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
               <div style="margin-top: 12px;">
                 <a href="/oi33/profile/edit/{{ udoc._id }}" class="rounded primary button">
                   <span class="icon icon-wrench"></span> {{ _('Edit OI33 Profile') }}
                 </a>
-                <a href="/oi33/coin/bill/{{ udoc._id }}" class="rounded button">
+                {% if not _profileHidden %}<a href="/oi33/coin/bill/{{ udoc._id }}" class="rounded button">
                   <span class="icon icon-search"></span> {{ _('View Coin Bill') }}
-                </a>
+                </a>{% endif %}
               </div>
               {% endif %}
             </div>
           </div>
         </div>
       </div>
-      <div class="profile-content">
+      {% if not _profileHidden %}<div class="profile-content">
         <div class="section__tab-container immersive">
           <ul class="section__tabs">
             <li class="section__tab-item">
@@ -226,7 +247,7 @@
             {% for page in findSubModule('partials/user_detail/') %}{% include page %}{% endfor %}
           </ul>
         </div>
-      </div>
+      </div>{% endif %}
     </div>
   </div>
   <div class="medium-3 columns">
@@ -247,9 +268,19 @@
           </button>
         </div>
         <p class="oi33-cat-message" aria-live="polite">小猫正在看看四周……</p>
+        <div class="oi33-cat-food" aria-label="{{ _('Cat food') }} {{ udoc.cat_food or 0 }}">
+          <span class="oi33-cat-food__label">{{ _('Cat food') }}</span>
+          <span class="oi33-cat-food__actions">
+            <strong class="oi33-cat-food__amount">{{ udoc.cat_food or 0 }}</strong>
+            {% if isSelfProfile or handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+            <a class="oi33-cat-food__detail" href="{{ url('oi33_cat_food_bill', uid=udoc._id) }}">{{ _('Details') }}</a>
+            {% endif %}
+          </span>
+        </div>
         <noscript><p class="oi33-cat-noscript">启用 JavaScript 后，小猫就会在这里散步。</p></noscript>
       </div>
     </div>
+    {% if not _profileHidden %}
     {% if isSelfProfile %}
     {{ home.render_sidebar() }}
     {% endif %}
@@ -291,6 +322,7 @@
         </dl>
       </div>
     </div>
+    {% endif %}
     {% endif %}
   </div>
 </div>

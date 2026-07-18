@@ -18,7 +18,7 @@
           <h1 class="section__title">{{ _('Filter') }}</h1>
           <div class="section__tools">
             {% if handler.user.hasPriv(PRIV.PRIV_USER_PROFILE) %}
-            <a href="{{ url('record_main', query={uidOrName: handler.user.uname}) }}" class="button{% if filterUidOrName == handler.user.uname or filterUidOrName == handler.user._id.toString() %} primary{% endif %}">{{ _('My Submissions') }}</a>
+            <a href="{{ url('record_main', query={uidOrName: handler.user._id if handler.user.oi33_profile_hidden else handler.user.uname}) }}" class="button{% if filterUidOrName == handler.user.uname or filterUidOrName == handler.user._id.toString() %} primary{% endif %}">{{ _('My Submissions') }}</a>
             {% endif %}
             <a href="{{ url('record_main') }}" class="button{% if filterUidOrName is undefined and not allDomain %} primary{% endif %}">{{ _('All Submissions') }}</a>
             <a href="{{ url('record_main', query={allDomain: '1'}) }}" class="button{% if allDomain %} primary{% endif %}">{{ _('All Domain Submissions') }}</a>

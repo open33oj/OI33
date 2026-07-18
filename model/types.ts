@@ -40,6 +40,9 @@ export interface Oi33User {
     checkin_luck?: number;
     checkin_cnt_now?: number;
     checkin_cnt_all?: number;
+    cat_food?: number;
+    cat_food_backfill_version?: number;
+    cat_food_backfilled_at?: Date;
     atcoder?: string;
     codeforces?: string;
     atcoder_rating?: number;
@@ -151,7 +154,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'paste' | 'request' | 'wiki' | 'oauth';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'paste' | 'request' | 'wiki' | 'oauth';
     sender?: number;
     receiver?: number;
     amount?: number;

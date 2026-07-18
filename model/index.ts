@@ -1,10 +1,11 @@
 import {
-    getUserDataByUids, mergeOi33Fields,
+    getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
     coinInc, coinBillCount, coinGetAll, coinUserBillCount, coinGetUser, coinGetLeaderboard,
     setBirthday, getTodayBirthdays, getAllBirthdays, getBirthdayCount, getRecentBirthdays,
     setBadge, getBadgedUsers, removeBadge,
     setRealname, getRealnamedUsers,
     doCheckin, getCheckinUser,
+    previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
     getAllUsersData, getRatedUsers,
 } from './user';
 import {
@@ -32,6 +33,7 @@ import {
 } from './oauth';
 import {
     getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
+    getCatFoodLogCount, getCatFoodLogs,
 } from './log';
 
 export * from './types';
@@ -47,14 +49,16 @@ export {
 export { logColl } from './log';
 
 const oi33Model = {
-    getUserDataByUids, mergeOi33Fields,
+    getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
     coinInc, coinBillCount, coinGetAll, coinUserBillCount, coinGetUser, coinGetLeaderboard,
     setBirthday, getTodayBirthdays, getAllBirthdays, getBirthdayCount, getRecentBirthdays,
     setBadge, getBadgedUsers, removeBadge,
     setRealname, getRealnamedUsers,
     doCheckin, getCheckinUser,
+    previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
     getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
+    getCatFoodLogCount, getCatFoodLogs,
     submitRequest, directUpdate, approveRequest, rejectRequest,
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,

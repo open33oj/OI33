@@ -4,6 +4,93 @@ import { addLog } from './log';
 
 export const userColl = db.collection('oi33_user');
 
+export const CAT_FOOD_START_DATE = '2026-07-18';
+export const CAT_FOOD_NORMAL_REWARD = 100;
+export const CAT_FOOD_STREAK_REWARD = 150;
+const CAT_FOOD_BACKFILL_VERSION = 2;
+
+function getPreviousDate(dateStr: string) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() - 1);
+    return date.toISOString().slice(0, 10);
+}
+
+function getHistoricalCatFood(doc: Pick<Oi33User, 'checkin_cnt_all' | 'checkin_cnt_now' | 'checkin_time'>) {
+    const base = Math.max(0, Math.floor(Number(doc.checkin_cnt_all) || 0)) * CAT_FOOD_NORMAL_REWARD;
+    const streakBonus = doc.checkin_time === CAT_FOOD_START_DATE && (doc.checkin_cnt_now || 0) > 1
+        ? CAT_FOOD_STREAK_REWARD - CAT_FOOD_NORMAL_REWARD
+        : 0;
+    return base + streakBonus;
+}
+
+function getCatFoodBackfillGrant(doc: Oi33User) {
+    const target = getHistoricalCatFood(doc);
+    return Math.max(0, target - Math.max(0, Number(doc.cat_food) || 0));
+}
+
+function needsCatFoodBackfillFilter() {
+    return {
+        $or: [
+            { cat_food_backfill_version: { $exists: false } },
+            { cat_food_backfill_version: { $lt: CAT_FOOD_BACKFILL_VERSION } },
+        ],
+    };
+}
+
+export async function previewCatFoodBackfill() {
+    const docs = await userColl.find(needsCatFoodBackfillFilter())
+        .project({ _id: 1, checkin_cnt_all: 1, checkin_cnt_now: 1, checkin_time: 1, cat_food: 1 }).toArray();
+    return {
+        users: docs.length,
+        amount: docs.reduce((sum, doc) => sum + getCatFoodBackfillGrant(doc), 0),
+    };
+}
+
+export async function backfillCatFoodForUser(userId: number) {
+    const doc = await userColl.findOne({ _id: userId });
+    if (!doc || (doc.cat_food_backfill_version || 0) >= CAT_FOOD_BACKFILL_VERSION) {
+        return { updated: false, granted: 0 };
+    }
+    // Reconcile to the launch entitlement instead of blindly adding it again.
+    // This lets users already marked by v1 receive only the newly missing amount.
+    const granted = getCatFoodBackfillGrant(doc);
+    const update: any = {
+        $set: {
+            cat_food_backfill_version: CAT_FOOD_BACKFILL_VERSION,
+            cat_food_backfilled_at: new Date(),
+        },
+    };
+    if (granted) update.$inc = { cat_food: granted };
+    const result = await userColl.updateOne(
+        { _id: userId, ...needsCatFoodBackfillFilter() },
+        update,
+    );
+    if (!result.modifiedCount) return { updated: false, granted: 0 };
+    if (granted) {
+        await addLog({
+            type: 'checkin',
+            userId,
+            action: 'cat_food_backfill',
+            amount: granted,
+        });
+    }
+    return { updated: true, granted };
+}
+
+export async function backfillAllCatFood() {
+    const docs = await userColl.find(needsCatFoodBackfillFilter()).project({ _id: 1 }).toArray();
+    let users = 0;
+    let amount = 0;
+    for (const doc of docs) {
+        const result = await backfillCatFoodForUser(doc._id);
+        if (!result.updated) continue;
+        users++;
+        amount += result.granted;
+    }
+    return { users, amount };
+}
+
 export async function getUserDataByUids(uids: number[]): Promise<Record<number, Oi33User>> {
     const docs = await userColl.find({ _id: { $in: uids } }).toArray();
     const dict: Record<number, Oi33User> = {};
@@ -11,12 +98,45 @@ export async function getUserDataByUids(uids: number[]): Promise<Record<number, 
     return dict;
 }
 
+function setPrivateDisplayField(udoc: any, key: string, value: any) {
+    Object.defineProperty(udoc, key, {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value,
+    });
+}
+
+export function anonymizeOi33Identity(udoc: any) {
+    if (!udoc?.oi33_profile_hidden) return;
+    if (udoc.oi33_original_uname === undefined) setPrivateDisplayField(udoc, 'oi33_original_uname', udoc.uname || '');
+    if (udoc.oi33_original_avatar === undefined) setPrivateDisplayField(udoc, 'oi33_original_avatar', udoc.avatar || '');
+    setPrivateDisplayField(udoc, 'oi33_identity_anonymized', true);
+    udoc.uname = `UID ${udoc._id}`;
+    udoc.avatar = '';
+    if ('avatarUrl' in udoc) udoc.avatarUrl = '';
+    udoc.displayName = '';
+    udoc.realname_name = '';
+}
+
 export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: string[]) {
-    if (!oi33) return;
+    const profileHidden = (oi33?.realname_flag ?? 0) < 1;
+    udoc.oi33_profile_hidden = profileHidden;
+    if (profileHidden) {
+        if (udoc.oi33_original_uname === undefined) setPrivateDisplayField(udoc, 'oi33_original_uname', udoc.uname || '');
+        if (udoc.oi33_original_avatar === undefined) setPrivateDisplayField(udoc, 'oi33_original_avatar', udoc.avatar || '');
+    }
+    if (!oi33) {
+        if (udoc.oi33_identity_anonymized) anonymizeOi33Identity(udoc);
+        return;
+    }
     const mergeAll = !fields;
     if (mergeAll || fields!.includes('coin')) {
         udoc.coin_now = oi33.coin_now ?? 0;
         udoc.coin_all = oi33.coin_all ?? 0;
+    }
+    if (mergeAll || fields!.includes('cat_food')) {
+        udoc.cat_food = oi33.cat_food ?? 0;
     }
     if (mergeAll || fields!.includes('birthday')) {
         udoc.birthday_date = oi33.birthday_date || '';
@@ -40,6 +160,7 @@ export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: 
         udoc.codeforces_rating = oi33.codeforces_rating;
         udoc.codeforces_updated_at = oi33.codeforces_updated_at;
     }
+    if (udoc.oi33_identity_anonymized) anonymizeOi33Identity(udoc);
 }
 
 // --- Coin ---
@@ -150,29 +271,75 @@ export async function getRealnamedUsers() {
 // --- Checkin ---
 
 export async function doCheckin(userId: number, todayStr: string) {
+    await backfillCatFoodForUser(userId);
     const doc = await userColl.findOne({ _id: userId });
     const prev = doc || {};
+    if (doc?.checkin_time === todayStr) {
+        return {
+            checkedIn: false,
+            checkin_luck: doc.checkin_luck ?? 0,
+            checkin_cnt_now: doc.checkin_cnt_now ?? 0,
+            checkin_cnt_all: doc.checkin_cnt_all ?? 0,
+            cat_food_reward: 0,
+            cat_food: doc.cat_food ?? 0,
+        };
+    }
     let checkin_cnt_all = (prev.checkin_cnt_all || 0) + 1;
     let checkin_cnt_now = prev.checkin_cnt_now || 0;
-    if (prev.checkin_time && checkin_cnt_now) {
-        const prevDate = new Date(prev.checkin_time);
-        const todayDate = new Date(todayStr);
-        const diffDays = Math.round((todayDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays === 1) {
-            checkin_cnt_now++;
-        } else {
-            checkin_cnt_now = 1;
-        }
-    } else {
-        checkin_cnt_now = 1;
-    }
+    const isConsecutive = prev.checkin_time === getPreviousDate(todayStr) && checkin_cnt_now > 0;
+    checkin_cnt_now = isConsecutive ? checkin_cnt_now + 1 : 1;
     const checkin_luck = Math.floor(Math.random() * 7);
-    await userColl.updateOne(
-        { _id: userId },
-        { $set: { checkin_time: todayStr, checkin_luck, checkin_cnt_now, checkin_cnt_all } },
-        { upsert: true },
-    );
-    return { checkin_luck, checkin_cnt_now, checkin_cnt_all };
+    const cat_food_reward = todayStr >= CAT_FOOD_START_DATE
+        ? isConsecutive ? CAT_FOOD_STREAK_REWARD : CAT_FOOD_NORMAL_REWARD
+        : 0;
+    const filter = doc
+        ? {
+            _id: userId,
+            ...(doc.checkin_time
+                ? { checkin_time: doc.checkin_time }
+                : { checkin_time: { $exists: false } }),
+        }
+        : { _id: userId, checkin_time: { $exists: false } };
+    const update: any = {
+        $set: { checkin_time: todayStr, checkin_luck, checkin_cnt_now, checkin_cnt_all },
+        $setOnInsert: {
+            cat_food_backfill_version: CAT_FOOD_BACKFILL_VERSION,
+            cat_food_backfilled_at: new Date(),
+        },
+    };
+    if (cat_food_reward) update.$inc = { cat_food: cat_food_reward };
+
+    let result;
+    try {
+        result = await userColl.updateOne(filter, update, { upsert: !doc });
+    } catch (e: any) {
+        if (e?.code !== 11000) throw e;
+    }
+    if (!result || (!result.matchedCount && !result.upsertedCount)) {
+        const current = await userColl.findOne({ _id: userId });
+        return {
+            checkedIn: false,
+            checkin_luck: current?.checkin_luck ?? 0,
+            checkin_cnt_now: current?.checkin_cnt_now ?? 0,
+            checkin_cnt_all: current?.checkin_cnt_all ?? 0,
+            cat_food_reward: 0,
+            cat_food: current?.cat_food ?? 0,
+        };
+    }
+    await addLog({
+        type: 'checkin',
+        userId,
+        action: 'checkin',
+        amount: cat_food_reward,
+    });
+    return {
+        checkedIn: true,
+        checkin_luck,
+        checkin_cnt_now,
+        checkin_cnt_all,
+        cat_food_reward,
+        cat_food: (prev.cat_food ?? 0) + cat_food_reward,
+    };
 }
 
 export async function getCheckinUser(userId: number) {

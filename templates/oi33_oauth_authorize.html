@@ -47,7 +47,7 @@
         </form>
 
         <p style="margin-top:1.5rem;font-size:0.8rem;opacity:0.5;">
-          {{ _('Logged in as') }} <a href="{{ url('user_detail', uid=handler.user._id) }}">{{ handler.user.uname }}</a>
+          {{ _('Logged in as') }} <a href="{{ url('user_detail', uid=handler.user._id) }}">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %}</a>
           · <a href="/logout">{{ _('Logout') }}</a>
         </p>
       </div>

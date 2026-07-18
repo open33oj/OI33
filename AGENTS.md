@@ -55,7 +55,7 @@ oi33/
 
 | Collection | Key fields |
 |------------|-----------|
-| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未实名/已实名/老师/管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `atcoder`, `codeforces`, `atcoder_rating` (Number), `codeforces_rating` (Number), `atcoder_updated_at`, `codeforces_updated_at` |
+| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/老师/管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `atcoder`, `codeforces`, `atcoder_rating` (Number), `codeforces_rating` (Number), `atcoder_updated_at`, `codeforces_updated_at` |
 | `oi33_coin_bill` | `_id` (ObjectId), `userId`, `rootId`, `amount`, `text` |
 | `oi33_paste` | `_id` (random string), `updateAt`, `title`, `owner`, `content`, `isprivate` |
 | `oi33_wiki` | `_id` (random slug: 8 hex bytes + base36 timestamp), `title`, `content`, `category`, `order`, `createdAt`, `updatedAt` |
@@ -66,7 +66,7 @@ oi33/
 | `oi33_oauth_code` | `_id` (auth code), `clientId`, `uid`, `redirectUri`, `scopes`, `codeChallenge?`, `codeChallengeMethod?`, `expiresAt` (10 min), `consumed` |
 | `oi33_oauth_token` | `_id`, `tokenHash` (SHA-256 of `33oat_…`), `tokenPrefix`, `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `lastUsedAt`, `isActive` |
 | `oi33_oauth_refresh` | `_id`, `tokenHash` (SHA-256 of `33ojrt_…`), `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `isActive` |
-| `oi33_log` | `_id` (Date), `type` (coin/birthday/badge/realname/paste/wiki/request/oauth), type-specific fields |
+| `oi33_log` | `_id` (Date), `type` (coin/birthday/badge/realname/checkin/paste/wiki/request/oauth), type-specific fields |
 
 Every write operation also inserts into `oi33_log` so the admin activity timeline has timestamps for all entries.
 
@@ -85,8 +85,8 @@ Every write operation also inserts into `oi33_log` so the admin activity timelin
 ### `realname_flag` identity levels
 | Flag | Label | Paste public? |
 |------|-------|--------------|
-| 0 | 未实名 (Unverified) | No |
-| 1 | 已实名 (Verified) | Yes (`flag >= 1`) |
+| 0 | 未认证 (Unverified) | No |
+| 1 | 已认证 (Verified) | Yes (`flag >= 1`) |
 | 2 | 老师 (Teacher) | Yes |
 | 3 | 管理员 (Admin) | Yes |
 
@@ -99,6 +99,14 @@ When rendering user lists with oi33 data:
 5. Call `oi33Model.mergeOi33Fields(udoc, oi33Data)` to merge oi33 fields onto each udoc
 
 Never use `getListForRender` when the `user.html` component is rendered, because that component calls `udoc.hasPriv()` which is only available on `getList` results.
+
+Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymized in all user-list rendering as `UID <id>` with the default blank avatar. Their custom username and avatar are visible only on their own user-detail page to viewers with `realname_flag >= 2` or `PRIV_MOD_BADGE`.
+
+### Cat food rewards
+
+- Effective immediately from `2026-07-18`: a normal daily check-in grants 100 cat food; a check-in continuing the previous day's streak grants 150.
+- Existing users receive a one-time launch grant of `checkin_cnt_all * 100`; users who already completed a consecutive check-in on launch day receive another 50. Versioned balance reconciliation makes the grant idempotent.
+- Cat food is displayed below the cat component on the user detail page. A successful check-in redirects with a Hydro success notification showing the awarded amount.
 
 ### Profile edit + approval flow
 
@@ -125,6 +133,7 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/badge/manage` | BadgeManageHandler | PRIV_MOD_BADGE |
 | `/oi33/badge/manage/:uid/del` | BadgeDelHandler | PRIV_MOD_BADGE |
 | `/oi33/checkin` | CheckinHandler | PRIV_USER_PROFILE |
+| `/oi33/cat-food/bill/:uid` | CatFoodBillHandler | PRIV_USER_PROFILE (self only; admin can view anyone) |
 | `/oi33/profile/edit/:uid` | ProfileEditHandler | PRIV_USER_PROFILE (self only; admin can edit anyone) |
 | `/oi33/requests` | RequestListHandler | PRIV_MOD_BADGE |
 | `/oi33/requests/:id/approve` | RequestApproveHandler (POST) | PRIV_MOD_BADGE |

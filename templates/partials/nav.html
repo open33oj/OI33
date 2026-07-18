@@ -15,7 +15,7 @@
       {%- for item in overrideNav|default(ui.getNodes('Nav')) -%}{% if item.checker(handler) %}
         {% if item.name == 'record_main' and handler.user.hasPriv(PRIV.PRIV_USER_PROFILE) %}
         <li class="nav__list-item">
-          <a href="{{ url('record_main', query={uidOrName: handler.user.uname}) }}" class="nav__item{% if page_name.startsWith('record') %} nav--active{% endif %}">
+          <a href="{{ url('record_main', query={uidOrName: handler.user._id if handler.user.oi33_profile_hidden else handler.user.uname}) }}" class="nav__item{% if page_name.startsWith('record') %} nav--active{% endif %}">
             {{ _(item.displayName or item.name) }}
           </a>
         </li>
@@ -65,7 +65,7 @@
       </li>
     {% endif %}
       <li class="nav__list-item" data-dropdown-pos="bottom right" data-dropdown-custom-class="nav__dropdown" data-dropdown-target="#menu-nav-user" data-dropdown-disabledconstrainToWindow data-dropdown-trigger-desktop-only>
-        <a href="{{ url('user_detail', uid=handler.user._id) }}" class="nav__item">{{ handler.user.uname }} <span class="icon icon-expand_more nojs--hide"></span></a>
+        <a href="{{ url('user_detail', uid=handler.user._id) }}" class="nav__item">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %} <span class="icon icon-expand_more nojs--hide"></span></a>
         <ol class="dropdown-target menu" id="menu-nav-user">
           <li class="menu__item">
             <a href="{{ url('user_detail', uid=handler.user._id) }}" class="menu__link">

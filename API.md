@@ -176,9 +176,10 @@ curl -H "Authorization: Bearer 33tok_xxx" \
 
 | 端点 | 说明 | 权限 |
 |------|------|------|
-| `GET /oi33/checkin` | 签到（会写入数据库） | 登录用户 |
+| `POST /oi33/checkin` | 签到（会写入数据库） | 登录用户 |
+| `GET /oi33/cat-food/bill/:uid?noTemplate=1` | 猫粮奖励明细 | 自己 / 管理员 |
 
-> ⚠️ `/oi33/checkin` **不在 Token 白名单中**。该路由的 `get()` 方法内部会调用 `doCheckin()` 写入签到记录，因此即使它是 `GET` 请求，Token 访问也会返回 `This route is not available via token`。
+> ⚠️ `/oi33/checkin` **不在 Token 白名单中**，猫粮明细路由为只读接口，可以通过 Token 访问。
 
 ### 2.5 剪贴板（Pastebin）
 
@@ -310,9 +311,10 @@ if (!READONLY_ROUTE_PATTERNS.some((re) => re.test(h.request.path))) {
 | `/oi33/badge/manage` | ✅ 允许 | 徽章管理页（精确匹配） |
 | `/oi33/paste/show/*` | ✅ 允许 | 剪贴板查看 |
 | `/oi33/at-cf-rating` | ✅ 允许 | Rating 排名 |
+| `/oi33/cat-food/bill/*` | ✅ 允许 | 猫粮奖励明细（自己或管理员） |
 | `/oi33/admin`, `/oi33/requests` | ✅ 允许 | 管理页（需管理员权限） |
 | `/oi33/tokens` | ✅ 允许 | Token 列表 |
-| `/oi33/checkin` | ❌ 禁止 | GET 内部会写入签到记录 |
+| `/oi33/checkin` | ❌ 禁止 | POST 会写入签到记录 |
 | `/oi33/badge/manage/*/del` | ❌ 禁止 | GET 内部会删除徽章 |
 | `/oi33/coin/inc` | ❌ 禁止 | 非白名单（且 POST 会被方法拦截） |
 | `/oi33/profile/edit/*` | ❌ 禁止 | 非白名单（且 POST 会被方法拦截） |

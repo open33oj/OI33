@@ -2,6 +2,13 @@
 {% if udoc %}
 <span class="user-profile-link">
 
+  {% if udoc.oi33_profile_hidden or udoc.realname_flag is undefined %}
+    {% if avatar %}
+      <img class="small user-profile-avatar v-center" loading="lazy" src="{{ avatarUrl('') }}" width="20" height="20">
+    {% endif %}
+    <a class="user-profile-name" href="{{ url('user_detail', uid=udoc._id) }}">UID {{ udoc._id }}</a>
+  {% else %}
+
   {% if avatar %}
     <img class="small user-profile-avatar v-center" loading="lazy" src="{{ avatarUrl(udoc.avatar|default('')) }}" width="20" height="20">
   {% endif %}
@@ -20,8 +27,6 @@
 
     {% if _canSeeRealname and udoc.realname_name %}
       [{{ udoc.realname_name }}]{{ udoc.uname }}
-    {% elif handler.user.hasPerm(perm.PERM_VIEW_DISPLAYNAME) and udoc.displayName %}
-      ({{ udoc.displayName }}){{ udoc.uname }}
     {% else %}
       {{ udoc.uname }}
     {% endif %}
@@ -50,6 +55,7 @@
         <span class="user-profile-badge v-center badge--mod" data-tooltip="{{ _('Moderator') }}">MOD</span>
       {% endif %}
     {% endif %}
+  {% endif %}
   {% endif %}
 </span>
 {% else %}
