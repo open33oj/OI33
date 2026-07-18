@@ -5,7 +5,7 @@
 {%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
 {% block content %}
 {% set _profileHidden = udoc.oi33_profile_hidden %}
-{% set _canSeeHiddenIdentity = (handler.user.realname_flag or 0) >= 2 or handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+{% set _canSeeHiddenIdentity = (handler.user.realname_flag or 0) >= 2 %}
 {% set _showCustomIdentity = not _profileHidden or _canSeeHiddenIdentity %}
 {% if _profileHidden %}
   {% set _safeProfileName = (udoc.oi33_original_uname or udoc.uname) if _showCustomIdentity else 'UID ' + udoc._id %}

@@ -109,8 +109,12 @@ function setPrivateDisplayField(udoc: any, key: string, value: any) {
 
 export function anonymizeOi33Identity(udoc: any) {
     if (!udoc?.oi33_profile_hidden) return;
-    if (udoc.oi33_original_uname === undefined) setPrivateDisplayField(udoc, 'oi33_original_uname', udoc.uname || '');
-    if (udoc.oi33_original_avatar === undefined) setPrivateDisplayField(udoc, 'oi33_original_avatar', udoc.avatar || '');
+    if (!udoc.oi33_identity_anonymized) {
+        setPrivateDisplayField(udoc, 'oi33_original_uname', udoc.uname || '');
+        setPrivateDisplayField(udoc, 'oi33_original_avatar', udoc.avatar || '');
+        setPrivateDisplayField(udoc, 'oi33_original_avatarUrl', udoc.avatarUrl || '');
+        setPrivateDisplayField(udoc, 'oi33_original_displayName', udoc.displayName || '');
+    }
     setPrivateDisplayField(udoc, 'oi33_identity_anonymized', true);
     udoc.uname = `UID ${udoc._id}`;
     udoc.avatar = '';
@@ -119,9 +123,19 @@ export function anonymizeOi33Identity(udoc: any) {
     udoc.realname_name = '';
 }
 
+function restoreOi33Identity(udoc: any) {
+    if (!udoc?.oi33_identity_anonymized) return;
+    if (udoc.oi33_original_uname !== undefined) udoc.uname = udoc.oi33_original_uname;
+    if (udoc.oi33_original_avatar !== undefined) udoc.avatar = udoc.oi33_original_avatar;
+    if (udoc.oi33_original_avatarUrl !== undefined) udoc.avatarUrl = udoc.oi33_original_avatarUrl;
+    if (udoc.oi33_original_displayName !== undefined) udoc.displayName = udoc.oi33_original_displayName;
+    setPrivateDisplayField(udoc, 'oi33_identity_anonymized', false);
+}
+
 export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: string[]) {
     const profileHidden = (oi33?.realname_flag ?? 0) < 1;
     udoc.oi33_profile_hidden = profileHidden;
+    if (!profileHidden) restoreOi33Identity(udoc);
     if (profileHidden) {
         if (udoc.oi33_original_uname === undefined) setPrivateDisplayField(udoc, 'oi33_original_uname', udoc.uname || '');
         if (udoc.oi33_original_avatar === undefined) setPrivateDisplayField(udoc, 'oi33_original_avatar', udoc.avatar || '');

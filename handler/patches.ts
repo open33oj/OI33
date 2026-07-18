@@ -4,6 +4,14 @@ import { HomeHandler } from 'hydrooj/src/handler/home';
 import { oi33Model } from '../model';
 
 export function applyPatches(_ctx: Context) {
+    function cloneUserForDisplay<T>(udoc: T): T {
+        if (!udoc || typeof udoc !== 'object') return udoc;
+        return Object.create(
+            Object.getPrototypeOf(udoc),
+            Object.getOwnPropertyDescriptors(udoc),
+        );
+    }
+
     // (a) UserModel.getList — merge oi33_user fields into udoc
     // getList returns User instances with hasPriv(), used by pages that render user.html
     const origGetList = UserModel.getList;
@@ -13,8 +21,10 @@ export function applyPatches(_ctx: Context) {
         const oi33Dict = await oi33Model.getUserDataByUids(uids);
         for (const uid of uids) {
             const oi33 = oi33Dict[uid];
-            const u = udict[uid];
-            if (!u) continue;
+            const original = udict[uid];
+            if (!original) continue;
+            const u = cloneUserForDisplay(original);
+            udict[uid] = u;
             oi33Model.mergeOi33Fields(u, oi33);
             oi33Model.anonymizeOi33Identity(u);
         }
@@ -30,8 +40,10 @@ export function applyPatches(_ctx: Context) {
         const oi33Dict = await oi33Model.getUserDataByUids(uids);
         for (const uid of uids) {
             const oi33 = oi33Dict[uid];
-            const u = udict[uid];
-            if (!u) continue;
+            const original = udict[uid];
+            if (!original) continue;
+            const u = cloneUserForDisplay(original);
+            udict[uid] = u;
             oi33Model.mergeOi33Fields(u, oi33);
             oi33Model.anonymizeOi33Identity(u);
         }
@@ -42,10 +54,12 @@ export function applyPatches(_ctx: Context) {
     // user_detail handler uses getById, which is NOT covered by getList patch
     const origGetById = UserModel.getById;
     UserModel.getById = async function (domainId: string, _id: number, scope?: any) {
-        const udoc = await origGetById.call(UserModel, domainId, _id, scope);
-        if (!udoc) return udoc;
+        const original = await origGetById.call(UserModel, domainId, _id, scope);
+        if (!original) return original;
+        const udoc = cloneUserForDisplay(original);
         const oi33 = (await oi33Model.getUserDataByUids([_id]))[_id];
         oi33Model.mergeOi33Fields(udoc, oi33);
+        oi33Model.anonymizeOi33Identity(udoc);
         return udoc;
     };
 
