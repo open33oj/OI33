@@ -123,6 +123,25 @@ export function applyPatches(_ctx: Context) {
         if (udoc?.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);
     });
 
+    // RecordListHandler and its WebSocket connection render rows through
+    // different code paths. Normalize the HTTP response explicitly so the
+    // first paint cannot expose a username before the socket replaces a row.
+    _ctx.on('handler/after/RecordListHandler', async (h: any) => {
+        const udict = h.response?.body?.udict;
+        if (!udict || typeof udict !== 'object') return;
+        const uids = Object.keys(udict).map(Number).filter(Number.isFinite);
+        if (!uids.length) return;
+        const oi33Dict = await oi33Model.getUserDataByUids(uids);
+        for (const uid of uids) {
+            const original = udict[uid];
+            if (!original) continue;
+            const udoc = cloneUserForDisplay(original);
+            oi33Model.mergeOi33Fields(udoc, oi33Dict[uid]);
+            oi33Model.anonymizeOi33Identity(udoc);
+            udict[uid] = udoc;
+        }
+    });
+
     // (e) Bearer token auth — Hydro v5 uses event-based handler lifecycle
     // 'handler/before' is fired after prepare() but before get()/post()
     const READONLY_METHODS = new Set(['get', 'head', 'options']);
