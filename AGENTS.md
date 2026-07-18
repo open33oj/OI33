@@ -55,7 +55,7 @@ oi33/
 
 | Collection | Key fields |
 |------------|-----------|
-| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/老师/管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `atcoder`, `codeforces`, `atcoder_rating` (Number), `codeforces_rating` (Number), `atcoder_updated_at`, `codeforces_updated_at` |
+| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/管理员/行政管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `atcoder`, `codeforces`, `atcoder_rating` (Number), `codeforces_rating` (Number), `atcoder_updated_at`, `codeforces_updated_at` |
 | `oi33_coin_bill` | `_id` (ObjectId), `userId`, `rootId`, `amount`, `text` |
 | `oi33_paste` | `_id` (random string), `updateAt`, `title`, `owner`, `content`, `isprivate` |
 | `oi33_wiki` | `_id` (random slug: 8 hex bytes + base36 timestamp), `title`, `content`, `category`, `order`, `createdAt`, `updatedAt` |
@@ -79,7 +79,7 @@ Every write operation also inserts into `oi33_log` so the admin activity timelin
 ### Privilege levels used
 - Public: no privilege
 - `PRIV_USER_PROFILE`: any logged-in user
-- `PRIV_MOD_BADGE`: admin-level (used for all management & approval operations)
+- OI33 `realname_flag >= 2`: all OI33 management and approval operations
 - `PRIV_ALL`: super-admin (used only for token management)
 
 ### `realname_flag` identity levels
@@ -87,8 +87,8 @@ Every write operation also inserts into `oi33_log` so the admin activity timelin
 |------|-------|--------------|
 | 0 | 未认证 (Unverified) | No |
 | 1 | 已认证 (Verified) | Yes (`flag >= 1`) |
-| 2 | 老师 (Teacher) | Yes |
-| 3 | 管理员 (Admin) | Yes |
+| 2 | 管理员 (internal key: Teacher) | Yes |
+| 3 | 行政管理员 (internal key: Admin) | Yes |
 
 ### User data pattern
 When rendering user lists with oi33 data:
@@ -100,7 +100,7 @@ When rendering user lists with oi33 data:
 
 Never use `getListForRender` when the `user.html` component is rendered, because that component calls `udoc.hasPriv()` which is only available on `getList` results.
 
-Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymized in all user-list rendering as `UID <id>` with the default blank avatar. Their custom username and avatar are visible only on their own user-detail page to viewers with `realname_flag >= 2` or `PRIV_MOD_BADGE`.
+Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymized in all user-list rendering as `UID <id>` with the default blank avatar. Their custom username and avatar are visible only on their own user-detail page to viewers with `realname_flag >= 2`.
 
 ### Cat food rewards
 
@@ -115,51 +115,51 @@ User-facing edit lives at `/oi33/profile/edit/:uid` (`handler/profile.ts`). The 
 AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字段（`atcoder_rating`, `codeforces_rating`）及最后更新时间（`atcoder_updated_at`, `codeforces_updated_at`）由后台更新脚本自动维护，不可手动设置，但在个人页面上会显示。
 
 - **Regular user** editing self → `oi33Model.submitRequest()` creates a `pending` doc in `oi33_request`; `oi33_user` is unchanged until approval. Existing pending for the same `uid` + `kind` is marked `cancelled` (both the request doc and its activity-log entry), so the old log line shows "已取消" instead of staying "待审批".
-- **`PRIV_MOD_BADGE` user** → `oi33Model.directUpdate()` writes the new values to `oi33_user` AND records a status=`approved` audit entry in `oi33_request`.
-- Approval queue at `/oi33/requests` (admin only). Approve → `applyRequestPayload` applies the saved fields, sets `status=approved`. Reject → sets `status=rejected`.
+- **OI33 manager/executive-admin direct edit** → `oi33Model.directUpdate()` writes the new values to `oi33_user` AND records a status=`approved` audit entry in `oi33_request`. Flag-2 managers may directly set ordinary users only to identity 0/1 and cannot change another manager/executive-admin's identity; flag-3 executive admins may edit every identity level and every user.
+- Approval queue at `/oi33/requests` is available to OI33 managers/executive admins. Flag-2 managers can approve identity targets 0-1; flag-3 executive admins can approve targets 0-2. Identity target 3 cannot be approved through the queue. Approve → `applyRequestPayload` applies the saved fields, sets `status=approved`. Reject → sets `status=rejected`.
 - Empty `badge_text` clears the entire badge triple via `$unset`. Empty `birthday_date` clears both `birthday_date` and `birthday_monthDay`.
 
 ## Routes
 
 | Route | Handler | Permission |
 |-------|---------|------------|
-| `/oi33/users` | UsersShowHandler | PRIV_MOD_BADGE |
+| `/oi33/users` | UsersShowHandler | OI33 flag >= 2 |
 | `/oi33/coin/show` | CoinShowHandler → /oi33/users | PRIV_USER_PROFILE |
-| `/oi33/coin/inc` | CoinIncHandler | PRIV_MOD_BADGE |
+| `/oi33/coin/inc` | CoinIncHandler | OI33 flag >= 2 |
 | `/oi33/coin/bill/:uid` | CoinBillHandler | PRIV_USER_PROFILE |
 | `/oi33/birthday` | BirthdayShowHandler | public |
 | `/oi33/birthday/all` | BirthdayAllHandler → /oi33/users | PRIV_USER_PROFILE |
 | `/oi33/badge` | BadgeShowHandler | PRIV_USER_PROFILE |
-| `/oi33/badge/manage` | BadgeManageHandler | PRIV_MOD_BADGE |
-| `/oi33/badge/manage/:uid/del` | BadgeDelHandler | PRIV_MOD_BADGE |
+| `/oi33/badge/manage` | BadgeManageHandler | OI33 flag >= 2 |
+| `/oi33/badge/manage/:uid/del` | BadgeDelHandler | OI33 flag >= 2 |
 | `/oi33/checkin` | CheckinHandler | PRIV_USER_PROFILE |
 | `/oi33/cat-food/bill/:uid` | CatFoodBillHandler | PRIV_USER_PROFILE (self only; admin can view anyone) |
-| `/oi33/profile/edit/:uid` | ProfileEditHandler | PRIV_USER_PROFILE (self only; admin can edit anyone) |
-| `/oi33/requests` | RequestListHandler | PRIV_MOD_BADGE |
-| `/oi33/requests/:id/approve` | RequestApproveHandler (POST) | PRIV_MOD_BADGE |
-| `/oi33/requests/:id/reject` | RequestRejectHandler (POST) | PRIV_MOD_BADGE |
+| `/oi33/profile/edit/:uid` | ProfileEditHandler | PRIV_USER_PROFILE (self; OI33 manager/executive admin can edit others with role limits) |
+| `/oi33/requests` | RequestListHandler | Logged in + OI33 manager/executive admin |
+| `/oi33/requests/:id/approve` | RequestApproveHandler (POST) | Logged in + role-based approval limit |
+| `/oi33/requests/:id/reject` | RequestRejectHandler (POST) | Logged in + OI33 manager/executive admin |
 | `/oi33/at-cf-rating` | RatingShowHandler | public |
 | `/oi33/paste/create` | PasteCreateHandler | PRIV_USER_PROFILE |
 | `/oi33/paste/manage` | PasteManageHandler | PRIV_USER_PROFILE |
-| `/oi33/paste/all` | PasteAllHandler | PRIV_MOD_BADGE |
+| `/oi33/paste/all` | PasteAllHandler | OI33 flag >= 2 |
 | `/oi33/paste/show/:id` | PasteShowHandler | public |
 | `/oi33/paste/show/:id/edit` | PasteEditHandler | PRIV_USER_PROFILE |
 | `/oi33/paste/show/:id/delete` | PasteDeleteHandler | PRIV_USER_PROFILE |
-| `/oi33/admin` | Oi33AdminHandler | PRIV_MOD_BADGE |
-| `/oi33/migrate` | MigrateHandler | PRIV_MOD_BADGE |
+| `/oi33/admin` | Oi33AdminHandler | OI33 flag >= 2 |
+| `/oi33/migrate` | MigrateHandler | OI33 flag >= 2 |
 | `/oi33/wiki` | WikiMainHandler | public |
 | `/oi33/wiki/pages` | WikiPagesHandler | public |
-| `/oi33/wiki/create` | WikiEditHandler (GET/POST) | PRIV_MOD_BADGE |
+| `/oi33/wiki/create` | WikiEditHandler (GET/POST) | OI33 flag >= 2 |
 | `/oi33/wiki/:id` | WikiShowHandler | public |
-| `/oi33/wiki/:id/edit` | WikiEditHandler (GET/POST) | PRIV_MOD_BADGE |
+| `/oi33/wiki/:id/edit` | WikiEditHandler (GET/POST) | OI33 flag >= 2 |
 | `/oi33/wiki/:id/export` | WikiExportHandler | public |
-| `/oi33/wiki/:id/delete` | WikiDeleteHandler (POST) | PRIV_MOD_BADGE |
+| `/oi33/wiki/:id/delete` | WikiDeleteHandler (POST) | OI33 flag >= 2 |
 | `/oi33/wiki/export` | WikiBulkExportHandler | public |
-| `/oi33/wiki/import` | WikiBulkImportHandler (GET form) | PRIV_MOD_BADGE |
-| `/oi33/wiki/import/submit` | WikiImportHandler (POST JSON) | PRIV_MOD_BADGE |
-| `/oi33/wiki/categories` | WikiCategoriesHandler (GET/POST) | PRIV_MOD_BADGE |
-| `/oi33/judge-monitor` | JudgeMonitorHandler (GET/POST) | PRIV_MOD_BADGE |
-| `/oi33/permissions` | PermissionsShowHandler | PRIV_MOD_BADGE |
+| `/oi33/wiki/import` | WikiBulkImportHandler (GET form) | OI33 flag >= 2 |
+| `/oi33/wiki/import/submit` | WikiImportHandler (POST JSON) | OI33 flag >= 2 |
+| `/oi33/wiki/categories` | WikiCategoriesHandler (GET/POST) | OI33 flag >= 2 |
+| `/oi33/judge-monitor` | JudgeMonitorHandler (GET/POST) | OI33 flag >= 2 |
+| `/oi33/permissions` | PermissionsShowHandler | OI33 flag >= 2 |
 | `/oi33/tokens` | TokenListHandler | PRIV_USER_PROFILE (admin sees all) |
 | `/oi33/tokens/create` | TokenCreateHandler (POST) | PRIV_ALL |
 | `/oi33/tokens/:id/delete` | TokenDeleteHandler (POST) | PRIV_ALL |
@@ -167,10 +167,10 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/oauth/token` | OAuthTokenHandler (POST) | public (client auth) |
 | `/oi33/oauth/userinfo` | OAuthUserInfoHandler (GET) | public (Bearer access token) |
 | `/oi33/oauth/revoke` | OAuthRevokeHandler (POST) | public |
-| `/oi33/oauth/clients` | OAuthClientsHandler | PRIV_MOD_BADGE |
-| `/oi33/oauth/clients/:id` | OAuthClientShowHandler | PRIV_MOD_BADGE |
-| `/oi33/oauth/clients/create` | OAuthClientCreateHandler (POST) | PRIV_MOD_BADGE |
-| `/oi33/oauth/clients/:id/delete` | OAuthClientDeleteHandler (POST) | PRIV_MOD_BADGE |
+| `/oi33/oauth/clients` | OAuthClientsHandler | OI33 flag >= 2 |
+| `/oi33/oauth/clients/:id` | OAuthClientShowHandler | OI33 flag >= 2 |
+| `/oi33/oauth/clients/create` | OAuthClientCreateHandler (POST) | OI33 flag >= 2 |
+| `/oi33/oauth/clients/:id/delete` | OAuthClientDeleteHandler (POST) | OI33 flag >= 2 |
 | `/paste/show/:id` | PasteShowHandler | PRIV_USER_PROFILE (legacy redirect) |
 
 **Deprecated** (replaced by unified `/oi33/profile/edit/:uid`):
@@ -182,7 +182,7 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 
 ### Wiki handler patterns
 - Wiki pages use a dedicated layout (`layout/oi33_wiki.html`) with custom nav and footer, making the wiki section feel like a standalone site.
-- Wiki editing requires `PRIV_MOD_BADGE` (route-level check).
+- Wiki editing requires OI33 `realname_flag >= 2`.
 - Wiki categories page (`/oi33/wiki/categories`) is admin-only; public category browsing is available via the sidebar on the "All Pages" page.
 - Wiki import: accepts JSON array via POST body as `__raw_body`. Each object: `{ title, content, category? }`. Auto-creates unknown categories.
 - Wiki export: returns JSON array `[{ title, content, category }, ...]`. Optional `?category=` filter. Single page export at `/oi33/wiki/:id/export`.
@@ -215,8 +215,8 @@ Patches are wrapped in `applyPatches(ctx)` and called from the top-level `apply(
 
 ## Template conventions
 - Use `_('key')` for i18n (keys defined in zh.yaml)
-- Use `handler.user.hasPriv(PRIV.PRIV_MOD_BADGE)` to gate admin-only UI
-- Page title uses `_('Back to Admin')` → links to `/oi33/admin`, gated by `PRIV_MOD_BADGE`
+- Use `(handler.user.realname_flag or 0) >= 2` to gate OI33 management UI
+- Page title uses `_('Back to Admin')` → links to `/oi33/admin`, gated by OI33 `realname_flag >= 2`
 - Use `{{ datetimeSpan(value)|safe }}` for timestamp rendering
 - POST forms must include `<input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">`
 

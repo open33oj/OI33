@@ -1,7 +1,7 @@
 {% set page_name = "oi33_wiki_main" %}
 {% extends "layout/oi33_wiki.html" %}
 {% block nav_actions %}
-{% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+{% if (handler.user.realname_flag or 0) >= 2 %}
 <li class="nav__list-item">
   <a href="/oi33/wiki/index/edit" class="nav__item">{{ _('Edit') }}</a>
 </li>

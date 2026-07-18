@@ -36,7 +36,7 @@
             </div>
             <div class="media__body profile-header__main">
               <h1>
-                {% set _canSeeRealname = not _profileHidden and (handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or isSelfProfile) %}
+                {% set _canSeeRealname = not _profileHidden and ((handler.user.realname_flag or 0) >= 2 or isSelfProfile) %}
                 {% if not _profileHidden %}
                 {% if udoc.realname_flag == 3 %}
                 <span class="icon icon-crown"></span>
@@ -154,7 +154,7 @@
                 {% endif %}
               </div>
               {% endif %}
-              {% if isSelfProfile or handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+              {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
               <div style="margin-top: 12px;">
                 <a href="/oi33/profile/edit/{{ udoc._id }}" class="rounded primary button">
                   <span class="icon icon-wrench"></span> {{ _('Edit OI33 Profile') }}
@@ -184,7 +184,7 @@
                       {% elif udoc.realname_flag == 0 %}{{ _('Unverified') }}
                       {% else %}-{% endif %}
                     </dd>
-                    {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) or isSelfProfile %}
+                    {% if (handler.user.realname_flag or 0) >= 2 or isSelfProfile %}
                     <dt>{{ _('Birthday') }}</dt>
                     <dd>{{ udoc.birthday_date or _('Not Set') }}</dd>
                     <dt>{{ _('Realname Name') }}</dt>
@@ -272,7 +272,7 @@
           <span class="oi33-cat-food__label">{{ _('Cat food') }}</span>
           <span class="oi33-cat-food__actions">
             <strong class="oi33-cat-food__amount">{{ udoc.cat_food or 0 }}</strong>
-            {% if isSelfProfile or handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+            {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
             <a class="oi33-cat-food__detail" href="{{ url('oi33_cat_food_bill', uid=udoc._id) }}">{{ _('Details') }}</a>
             {% endif %}
           </span>

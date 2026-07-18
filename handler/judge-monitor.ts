@@ -1,6 +1,7 @@
 import {
     Context, Handler, PRIV, SystemModel, Types, db, param,
 } from 'hydrooj';
+import { checkOi33Admin } from './utils';
 
 const statusColl = db.collection('status');
 
@@ -275,6 +276,7 @@ function buildBody(statuses: JudgeStatus[]) {
 
 class JudgeMonitorHandler extends Handler {
     async get() {
+        await checkOi33Admin(this.user._id);
         const statuses = await getJudgeStatuses();
         this.response.template = 'oi33_judge_monitor.html';
         this.response.body = buildBody(statuses);
@@ -285,6 +287,7 @@ class JudgeMonitorHandler extends Handler {
     @param('enabled', Types.String, true)
     @param('include_server', Types.String, true)
     async post(domainId: string, action: string, webhook = '', enabled = '', include_server = '') {
+        await checkOi33Admin(this.user._id);
         if (action === 'save') {
             await SystemModel.set(KEY_WEBHOOK, webhook.trim());
             await SystemModel.set(KEY_ENABLED, enabled === 'on' || enabled === 'true');
@@ -323,7 +326,7 @@ class JudgeMonitorHandler extends Handler {
 }
 
 export async function apply(ctx: Context) {
-    ctx.Route('oi33_judge_monitor', '/oi33/judge-monitor', JudgeMonitorHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_judge_monitor', '/oi33/judge-monitor', JudgeMonitorHandler, PRIV.PRIV_USER_PROFILE);
     if (process.env.NODE_APP_INSTANCE !== '0') return;
     ctx.interval(() => {
         runScheduledCheck().catch((e) => {

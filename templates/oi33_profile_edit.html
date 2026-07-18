@@ -23,7 +23,7 @@
         </h1>
         <div class="section__tools">
           <a href="/user/{{ udoc._id }}" class="rounded button">{{ _('Cancel') }}</a>
-          {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+          {% if (handler.user.realname_flag or 0) >= 2 %}
           <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
           {% endif %}
         </div>
@@ -61,18 +61,21 @@
       </div>
       <div class="section__body">
         {{ pending_notice('realname') }}
+        {% if canEditRealname %}
+        {% if maxRealnameFlag >= 3 %}
+          {% set realnameFlagOptions = {'0': _('Unverified'), '1': _('Verified'), '2': _('Teacher'), '3': _('Admin')} %}
+        {% elif maxRealnameFlag >= 2 %}
+          {% set realnameFlagOptions = {'0': _('Unverified'), '1': _('Verified'), '2': _('Teacher')} %}
+        {% else %}
+          {% set realnameFlagOptions = {'0': _('Unverified'), '1': _('Verified')} %}
+        {% endif %}
         <form method="post">
           <input type="hidden" name="kind" value="realname">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           {{ form.form_select({
             label: _('Flag'),
             name: 'realname_flag',
-            options: {
-              '0': _('Unverified'),
-              '1': _('Verified'),
-              '2': _('Teacher'),
-              '3': _('Admin')
-            },
+            options: realnameFlagOptions,
             value: (oi33Doc.realname_flag or 0)|string
           }) }}
           {{ form.form_text({
@@ -82,6 +85,9 @@
           }) }}
           <div class="row"><div class="columns">{{ submit_button() }}</div></div>
         </form>
+        {% else %}
+        <blockquote class="note typo">管理员不能修改其他管理员或行政管理员的认证身份。</blockquote>
+        {% endif %}
       </div>
     </div>
 

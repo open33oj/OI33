@@ -3,6 +3,7 @@ import {
     Handler, PRIV, Types, param, query, NotFoundError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
+import { checkOi33Admin } from './utils';
 
 // --- Coin handlers ---
 
@@ -14,6 +15,7 @@ class CoinShowHandler extends Handler {
 
 class CoinIncHandler extends Handler {
     async get() {
+        await checkOi33Admin(this.user._id);
         this.response.template = 'oi33_coin_inc.html';
     }
 
@@ -21,6 +23,7 @@ class CoinIncHandler extends Handler {
     @param('amount', Types.Int)
     @param('text', Types.String)
     async post(domainId: string, uidOrName: string, amount: number, text: string) {
+        await checkOi33Admin(this.user._id);
         let udoc = await UserModel.getById(domainId, +uidOrName)
             || await UserModel.getByUname(domainId, uidOrName)
             || await UserModel.getByEmail(domainId, uidOrName);
@@ -34,7 +37,7 @@ class CoinBillHandler extends Handler {
     @param('uid', Types.Int)
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, uid: number, page = 1) {
-        if (uid !== this.user._id) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        if (uid !== this.user._id) await checkOi33Admin(this.user._id);
         let ucount: number;
         let upcount: number;
         let bills: any[];
@@ -98,6 +101,7 @@ class BadgeShowHandler extends Handler {
 
 class BadgeManageHandler extends Handler {
     async get() {
+        await checkOi33Admin(this.user._id);
         const oi33Docs = await oi33Model.getBadgedUsers();
         const uids = oi33Docs.map((d: any) => d._id);
         const udict = await UserModel.getList('', uids);
@@ -116,6 +120,7 @@ class BadgeManageHandler extends Handler {
 class BadgeDelHandler extends Handler {
     @param('uid', Types.Int)
     async get(domainId: string, uid: number) {
+        await checkOi33Admin(this.user._id);
         await oi33Model.removeBadge(uid);
         this.response.redirect = '/oi33/badge/manage';
     }
@@ -127,6 +132,7 @@ class UsersShowHandler extends Handler {
     @query('page', Types.PositiveInt, true)
     @query('flag', Types.Int, true)
     async get(domainId: string, page = 1, flag?: number) {
+        await checkOi33Admin(this.user._id);
         const { docs, upcount } = await oi33Model.getAllUsersData(page, 50, flag);
         const uids = docs.map((d: any) => d._id);
         const udict = await UserModel.getList(domainId, uids);
@@ -165,7 +171,7 @@ class CatFoodBillHandler extends Handler {
     @param('uid', Types.Int)
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, uid: number, page = 1) {
-        if (uid !== this.user._id) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        if (uid !== this.user._id) await checkOi33Admin(this.user._id);
         const [count, logs, oi33User] = await Promise.all([
             oi33Model.getCatFoodLogCount(uid),
             oi33Model.getCatFoodLogs(uid, page, 50),
@@ -205,15 +211,15 @@ class RatingShowHandler extends Handler {
 }
 
 export async function apply(ctx: Context) {
-    ctx.Route('oi33_users', '/oi33/users', UsersShowHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_users', '/oi33/users', UsersShowHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_coin_show', '/oi33/coin/show', CoinShowHandler, PRIV.PRIV_USER_PROFILE);
-    ctx.Route('oi33_coin_inc', '/oi33/coin/inc', CoinIncHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_coin_inc', '/oi33/coin/inc', CoinIncHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_coin_bill', '/oi33/coin/bill/:uid', CoinBillHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_birthday_show', '/oi33/birthday', BirthdayShowHandler);
     ctx.Route('oi33_birthday_all', '/oi33/birthday/all', BirthdayAllHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_badge_show', '/oi33/badge', BadgeShowHandler, PRIV.PRIV_USER_PROFILE);
-    ctx.Route('oi33_badge_manage', '/oi33/badge/manage', BadgeManageHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_badge_del', '/oi33/badge/manage/:uid/del', BadgeDelHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_badge_manage', '/oi33/badge/manage', BadgeManageHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_badge_del', '/oi33/badge/manage/:uid/del', BadgeDelHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_checkin', '/oi33/checkin', CheckinHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_food_bill', '/oi33/cat-food/bill/:uid', CatFoodBillHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_at_cf_rating', '/oi33/at-cf-rating', RatingShowHandler);

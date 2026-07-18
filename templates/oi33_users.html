@@ -14,7 +14,7 @@
           <a href="/oi33/users?flag=1" class="rounded button{% if flag == 1 %} primary{% endif %}">{{ _('Verified') }}</a>
           <a href="/oi33/users?flag=2" class="rounded button{% if flag == 2 %} primary{% endif %}">{{ _('Teacher') }}</a>
           <a href="/oi33/users?flag=3" class="rounded button{% if flag == 3 %} primary{% endif %}">{{ _('Admin') }}</a>
-          {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+          {% if (handler.user.realname_flag or 0) >= 2 %}
           <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
           {% endif %}
         </div>

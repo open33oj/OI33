@@ -15,7 +15,7 @@
 | 硬币 | 余额排行、发放/扣除、交易流水 | `/oi33/coin/*` |
 | 生日 | 设置生日、今日寿星展示（含动画）、全部生日列表 | `/oi33/birthday/*` |
 | 徽章 | 创建/编辑/删除徽章 | `/oi33/badge/*` |
-| 实名 | 身份标签 4 级（未认证/已认证/老师/管理员），认证信息展示 | `/oi33/realname/*` |
+| 实名 | 身份标签 4 级（未认证/已认证/管理员/行政管理员），认证信息展示 | `/oi33/realname/*` |
 | 签到 | 每日打卡+运势、连续签到统计；签到奖励猫粮 | `/oi33/checkin` |
 | 倒计时 | 首页倒计时组件（配置驱动） | 首页 partial |
 | 剪贴板 | Markdown 剪贴板 CRUD、公有/私有（已认证才能发布公开粘贴） | `/oi33/paste/*` |
@@ -65,41 +65,41 @@
 | `/oi33/wiki/create` | `PRIV_USER_PROFILE`（且 `realname_flag === 3`） | 创建 Wiki 页面 |
 | `/oi33/wiki/:id/edit` | `PRIV_USER_PROFILE`（且 `realname_flag === 3`） | 编辑 Wiki 页面 |
 | `/oi33/checkin` | `PRIV_USER_PROFILE` | 每日签到 |
-| `/oi33/cat-food/bill/:uid` | `PRIV_USER_PROFILE` | 查看自己的猫粮明细（查看他人需 `PRIV_MOD_BADGE`） |
+| `/oi33/cat-food/bill/:uid` | `PRIV_USER_PROFILE` | 查看自己的猫粮明细（查看他人需 OI33 身份 ≥ 2） |
 | `/oi33/coin/show` | `PRIV_USER_PROFILE` | 查看硬币排行 |
-| `/oi33/coin/bill/:uid` | `PRIV_USER_PROFILE` | 查看自己账单（查看他人需 `PRIV_MOD_BADGE`） |
+| `/oi33/coin/bill/:uid` | `PRIV_USER_PROFILE` | 查看自己账单（查看他人需 OI33 身份 ≥ 2） |
 | `/oi33/birthday/all` | `PRIV_USER_PROFILE` | 查看所有用户生日 |
 | `/oi33/badge` | `PRIV_USER_PROFILE` | 查看徽章 |
 | `/oi33/paste/create` | `PRIV_USER_PROFILE`（公开粘贴需 `realname_flag >= 1`） | 创建剪贴板 |
 | `/oi33/paste/manage` | `PRIV_USER_PROFILE` | 管理自己的剪贴板 |
-| `/oi33/paste/show/:id/edit` | `PRIV_USER_PROFILE` | 编辑自己剪贴板（编辑他人需 `PRIV_MOD_BADGE`） |
-| `/oi33/paste/show/:id/delete` | `PRIV_USER_PROFILE` | 删除自己剪贴板（删除他人需 `PRIV_MOD_BADGE`） |
-| `/oi33/profile/edit/:uid` | `PRIV_USER_PROFILE`（自己）/ `PRIV_MOD_BADGE`（他人） | 统一资料编辑（生日、实名、徽章、AT/CF） |
+| `/oi33/paste/show/:id/edit` | `PRIV_USER_PROFILE` | 编辑自己剪贴板（编辑他人需 OI33 身份 ≥ 2） |
+| `/oi33/paste/show/:id/delete` | `PRIV_USER_PROFILE` | 删除自己剪贴板（删除他人需 OI33 身份 ≥ 2） |
+| `/oi33/profile/edit/:uid` | `PRIV_USER_PROFILE`（自己）/ OI33 管理员或行政管理员（他人） | 统一资料编辑；管理员不能修改其他管理员/行政管理员的认证身份 |
 | `/oi33/tokens` | `PRIV_USER_PROFILE`（管理员可查看全部） | 查看自己的令牌 |
-| `/oi33/wiki/import` | `PRIV_MOD_BADGE` | Wiki 导入页面 |
-| `/oi33/wiki/import/submit` | `PRIV_MOD_BADGE` | 执行 Wiki JSON 导入 |
-| `/oi33/wiki/categories` | `PRIV_MOD_BADGE` | 管理 Wiki 分类 |
-| `/oi33/wiki/:id/delete` | `PRIV_MOD_BADGE` | 删除 Wiki 页面 |
-| `/oi33/judge-monitor` | `PRIV_MOD_BADGE` | 评测机监控面板 |
-| `/oi33/permissions` | `PRIV_MOD_BADGE` | 权限速查表 |
-| `/oi33/coin/inc` | `PRIV_MOD_BADGE` | 发放硬币 |
-| `/oi33/badge/manage` | `PRIV_MOD_BADGE` | 管理徽章 |
-| `/oi33/badge/manage/:uid/del` | `PRIV_MOD_BADGE` | 删除徽章 |
-| `/oi33/paste/all` | `PRIV_MOD_BADGE` | 查看所有剪贴板 |
-| `/oi33/admin` | `PRIV_MOD_BADGE` | 管理仪表盘 |
-| `/oi33/migrate` | `PRIV_MOD_BADGE` | 执行数据迁移 |
-| `/oi33/users` | `PRIV_MOD_BADGE` | 查看全部用户数据 + 身份筛选 |
-| `/oi33/requests` | `PRIV_MOD_BADGE` | 审批列表 |
+| `/oi33/wiki/import` | OI33 身份 ≥ 2 | Wiki 导入页面 |
+| `/oi33/wiki/import/submit` | OI33 身份 ≥ 2 | 执行 Wiki JSON 导入 |
+| `/oi33/wiki/categories` | OI33 身份 ≥ 2 | 管理 Wiki 分类 |
+| `/oi33/wiki/:id/delete` | OI33 身份 ≥ 2 | 删除 Wiki 页面 |
+| `/oi33/judge-monitor` | OI33 身份 ≥ 2 | 评测机监控面板 |
+| `/oi33/permissions` | OI33 身份 ≥ 2 | 权限速查表 |
+| `/oi33/coin/inc` | OI33 身份 ≥ 2 | 发放硬币 |
+| `/oi33/badge/manage` | OI33 身份 ≥ 2 | 管理徽章 |
+| `/oi33/badge/manage/:uid/del` | OI33 身份 ≥ 2 | 删除徽章 |
+| `/oi33/paste/all` | OI33 身份 ≥ 2 | 查看所有剪贴板 |
+| `/oi33/admin` | OI33 身份 ≥ 2 | 管理仪表盘 |
+| `/oi33/migrate` | OI33 身份 ≥ 2 | 执行数据迁移 |
+| `/oi33/users` | OI33 身份 ≥ 2 | 查看全部用户数据 + 身份筛选 |
+| `/oi33/requests` | 已登录且身份为管理员/行政管理员 | 审批列表；管理员可批准 0-1，行政管理员可批准 0-2 |
 | `/oi33/tokens/create` | `PRIV_ALL` | 创建 MCP / Agent API 令牌 |
 | `/oi33/tokens/:id/delete` | `PRIV_ALL` | 删除令牌 |
 | `/oi33/oauth/authorize` | `PRIV_USER_PROFILE` | OAuth2 授权页面（用户同意/拒绝） |
 | `/oi33/oauth/token` | 公开（客户端凭据认证） | OAuth2 换取/刷新访问令牌 |
 | `/oi33/oauth/userinfo` | 公开（Bearer 令牌认证） | OAuth2 获取用户信息 |
 | `/oi33/oauth/revoke` | 公开 | OAuth2 吊销令牌 |
-| `/oi33/oauth/clients` | `PRIV_MOD_BADGE` | OAuth2 应用管理列表 |
-| `/oi33/oauth/clients/create` | `PRIV_MOD_BADGE` | 注册新 OAuth2 应用 |
-| `/oi33/oauth/clients/:id` | `PRIV_MOD_BADGE` | 查看应用详情 + 接入指南 |
-| `/oi33/oauth/clients/:id/delete` | `PRIV_MOD_BADGE` | 删除 OAuth2 应用（吊销其所有令牌） |
+| `/oi33/oauth/clients` | OI33 身份 ≥ 2 | OAuth2 应用管理列表 |
+| `/oi33/oauth/clients/create` | OI33 身份 ≥ 2 | 注册新 OAuth2 应用 |
+| `/oi33/oauth/clients/:id` | OI33 身份 ≥ 2 | 查看应用详情 + 接入指南 |
+| `/oi33/oauth/clients/:id/delete` | OI33 身份 ≥ 2 | 删除 OAuth2 应用（吊销其所有令牌） |
 | `/record` | 导航默认跳转 `?uidOrName=自己`（登录用户） | 评测记录页（覆盖模板） |
 
 ## 安装与迁移
@@ -371,10 +371,10 @@ hydrooj addon remove frontend-33oj
 |----|------|-----------|----------|
 | 0 | 未认证 | ❌ | ❌ |
 | 1 | 已认证 | ✅ | ❌ |
-| 2 | 老师 | ✅ | ❌ |
-| 3 | 管理员 | ✅ | ✅ |
+| 2 | 管理员 | ✅ | ✅ |
+| 3 | 行政管理员 | ✅ | ✅ |
 
-未认证用户在全站用户展示中仅显示 `UID <id>` 和默认空白头像，不展示自定义用户名、头像或实名名称。只有老师或管理员访问该用户的个人页时，才能看到其自定义用户名和头像。
+未认证用户在全站用户展示中仅显示 `UID <id>` 和默认空白头像，不展示自定义用户名、头像或实名名称。只有管理员或行政管理员访问该用户的个人页时，才能看到其自定义用户名和头像。
 
 ## Wiki 百科系统
 
@@ -393,8 +393,8 @@ OI33 内置 Wiki 百科，支持 Markdown 页面 CRUD、多级分类目录和 JS
 ### 权限
 
 - 查看：公开
-- 创建/编辑：`realname_flag === 3`（管理员）
-- 删除/导入/分类管理：`PRIV_MOD_BADGE`
+- 创建/编辑：`realname_flag >= 2`（管理员或行政管理员）
+- 删除/导入/分类管理：`realname_flag >= 2`
 - 导出：公开
 
 ### JSON 导入格式

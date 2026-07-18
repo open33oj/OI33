@@ -211,7 +211,7 @@ curl -H "Authorization: Bearer 33tok_xxx" \
 
 | 端点 | 说明 | 权限 |
 |------|------|------|
-| `GET /oi33/requests?noTemplate=1` | 待审批申请列表 | 管理员 |
+| `GET /oi33/requests?noTemplate=1` | 待审批申请列表 | OI33 管理员/行政管理员 |
 
 ### 2.8 管理仪表盘
 
@@ -312,7 +312,7 @@ if (!READONLY_ROUTE_PATTERNS.some((re) => re.test(h.request.path))) {
 | `/oi33/paste/show/*` | ✅ 允许 | 剪贴板查看 |
 | `/oi33/at-cf-rating` | ✅ 允许 | Rating 排名 |
 | `/oi33/cat-food/bill/*` | ✅ 允许 | 猫粮奖励明细（自己或管理员） |
-| `/oi33/admin`, `/oi33/requests` | ✅ 允许 | 管理页（需管理员权限） |
+| `/oi33/admin`, `/oi33/requests` | ✅ 允许 | 管理/审批页（仍需对应页面权限） |
 | `/oi33/tokens` | ✅ 允许 | Token 列表 |
 | `/oi33/checkin` | ❌ 禁止 | POST 会写入签到记录 |
 | `/oi33/badge/manage/*/del` | ❌ 禁止 | GET 内部会删除徽章 |

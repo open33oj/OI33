@@ -117,7 +117,7 @@ export function applyPatches(_ctx: Context) {
     };
 
     // Keep user-detail JSON/template data anonymous. The original username/avatar
-    // are stored as non-enumerable fields for the teacher/admin template exception.
+    // are stored as non-enumerable fields for the OI33 manager template exception.
     _ctx.on('handler/after/UserDetailHandler', (h: any) => {
         const udoc = h.response?.body?.udoc;
         if (udoc?.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);

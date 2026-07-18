@@ -7,6 +7,18 @@ import { oi33Model, Oi33RequestPayload, Oi33RequestKind } from '../model';
 const COLOR_RE = /(^#?[0-9A-Fa-f]{6}$)|(^#?[0-9A-Fa-f]{3}$)/;
 const KINDS: Oi33RequestKind[] = ['birthday', 'realname', 'badge', 'atcoder', 'codeforces'];
 
+async function getIdentityRole(uid: number) {
+    const doc = (await oi33Model.getUserDataByUids([uid]))[uid];
+    return doc?.realname_flag ?? 0;
+}
+
+function canApproveRequest(role: number, request: any) {
+    if (role < 2) return false;
+    if (request.kind !== 'realname') return true;
+    const targetRole = Number(request.realname_flag);
+    return Number.isInteger(targetRole) && targetRole >= 0 && targetRole < role;
+}
+
 function buildPayload(
     kind: Oi33RequestKind,
     birthday_date: string, realname_flag: number, realname_name: string,
@@ -49,17 +61,23 @@ function buildPayload(
 class ProfileEditHandler extends Handler {
     @param('uid', Types.Int)
     async get(domainId: string, uid: number) {
-        if (uid !== this.user._id) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        const editorRole = await getIdentityRole(this.user._id);
+        if (uid !== this.user._id && editorRole < 2) throw new ForbiddenError('无权编辑其他用户。');
         const udoc = await UserModel.getById(domainId, uid);
         if (!udoc) throw new NotFoundError(uid);
-        const oi33Doc = (await oi33Model.getUserDataByUids([uid]))[uid] || {};
+        const oi33Doc: any = (await oi33Model.getUserDataByUids([uid]))[uid] || {};
         const pendingMap = await oi33Model.getUserPendingRequests(uid);
+        const targetRole = oi33Doc.realname_flag ?? 0;
+        const canEditRealname = editorRole !== 2 || uid === this.user._id || targetRole < 2;
+        const maxRealnameFlag = editorRole >= 3 ? 3 : editorRole === 2 && uid === this.user._id ? 2 : editorRole === 2 ? 1 : 2;
         if (udoc.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);
         this.response.template = 'oi33_profile_edit.html';
         this.response.body = {
             udoc, oi33Doc, pendingMap,
             isSelf: uid === this.user._id,
-            canDirect: this.user.hasPriv(PRIV.PRIV_MOD_BADGE),
+            canDirect: editorRole >= 2,
+            canEditRealname,
+            maxRealnameFlag,
         };
     }
 
@@ -79,7 +97,8 @@ class ProfileEditHandler extends Handler {
         badge_text = '', badge_color = '', badge_textColor = '',
         atcoder = '', codeforces = '',
     ) {
-        if (uid !== this.user._id) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        const editorRole = await getIdentityRole(this.user._id);
+        if (uid !== this.user._id && editorRole < 2) throw new ForbiddenError('无权编辑其他用户。');
         if (!KINDS.includes(kind as Oi33RequestKind)) throw new ValidationError('kind');
         const udoc = await UserModel.getById(domainId, uid);
         if (!udoc) throw new NotFoundError(uid);
@@ -91,7 +110,20 @@ class ProfileEditHandler extends Handler {
             atcoder, codeforces,
         );
 
-        if (this.user.hasPriv(PRIV.PRIV_MOD_BADGE)) {
+        if (editorRole === 2 && kind === 'realname') {
+            const targetRole = await getIdentityRole(uid);
+            if (uid !== this.user._id && targetRole >= 2) {
+                throw new ForbiddenError('管理员不能修改其他管理员或行政管理员的认证身份。');
+            }
+            if (realname_flag > (uid === this.user._id ? 2 : 1)) {
+                throw new ForbiddenError('管理员无权设置该认证等级。');
+            }
+        }
+        if (editorRole < 2 && kind === 'realname' && realname_flag > 2) {
+            throw new ForbiddenError('无权申请管理员身份。');
+        }
+
+        if (editorRole >= 2) {
             await oi33Model.directUpdate(uid, kind as Oi33RequestKind, this.user._id, payload);
         } else {
             await oi33Model.submitRequest(uid, kind as Oi33RequestKind, this.user._id, payload);
@@ -102,6 +134,8 @@ class ProfileEditHandler extends Handler {
 
 class RequestListHandler extends Handler {
     async get() {
+        const approverRole = await getIdentityRole(this.user._id);
+        if (approverRole < 2) throw new ForbiddenError('仅管理员和行政管理员可以处理审批。');
         const requests = await oi33Model.getPendingRequests();
         const uidSet = new Set<number>();
         for (const r of requests) {
@@ -112,13 +146,21 @@ class RequestListHandler extends Handler {
         const udict = await UserModel.getList('', uids);
         const oi33Dict = await oi33Model.getUserDataByUids(uids);
         this.response.template = 'oi33_requests.html';
-        this.response.body = { requests, udict, oi33Dict };
+        this.response.body = { requests, udict, oi33Dict, approverRole };
     }
 }
 
 class RequestApproveHandler extends Handler {
     @param('id', Types.ObjectId)
     async post(domainId: string, id: ObjectId) {
+        const [approverRole, request] = await Promise.all([
+            getIdentityRole(this.user._id),
+            oi33Model.getRequestById(id),
+        ]);
+        if (!request || request.status !== 'pending') throw new ForbiddenError('申请不存在或已处理。');
+        if (!canApproveRequest(approverRole, request)) {
+            throw new ForbiddenError('当前身份无权批准该认证等级。');
+        }
         const ok = await oi33Model.approveRequest(id, this.user._id);
         if (!ok) throw new ForbiddenError('申请不存在或已处理。');
         this.response.redirect = this.url('oi33_requests');
@@ -128,6 +170,8 @@ class RequestApproveHandler extends Handler {
 class RequestRejectHandler extends Handler {
     @param('id', Types.ObjectId)
     async post(domainId: string, id: ObjectId) {
+        const approverRole = await getIdentityRole(this.user._id);
+        if (approverRole < 2) throw new ForbiddenError('仅管理员和行政管理员可以处理审批。');
         await oi33Model.rejectRequest(id, this.user._id);
         this.response.redirect = this.url('oi33_requests');
     }
@@ -135,7 +179,7 @@ class RequestRejectHandler extends Handler {
 
 export async function apply(ctx: Context) {
     ctx.Route('oi33_profile_edit', '/oi33/profile/edit/:uid', ProfileEditHandler, PRIV.PRIV_USER_PROFILE);
-    ctx.Route('oi33_requests', '/oi33/requests', RequestListHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_request_approve', '/oi33/requests/:id/approve', RequestApproveHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_request_reject', '/oi33/requests/:id/reject', RequestRejectHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_requests', '/oi33/requests', RequestListHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_request_approve', '/oi33/requests/:id/approve', RequestApproveHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_request_reject', '/oi33/requests/:id/reject', RequestRejectHandler, PRIV.PRIV_USER_PROFILE);
 }

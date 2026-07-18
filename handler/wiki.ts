@@ -2,6 +2,7 @@ import {
     Handler, PRIV, Types, param, query, NotFoundError, ForbiddenError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
+import { checkOi33Admin } from './utils';
 
 // --- Wiki public pages ---
 
@@ -49,7 +50,7 @@ class WikiShowHandler extends Handler {
 class WikiEditHandler extends Handler {
     @param('id', Types.String, true)
     async get(domainId: string, id?: string) {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         const categories = await oi33Model.wikiCatGetAll();
         let doc: any = null;
         if (id) {
@@ -65,7 +66,7 @@ class WikiEditHandler extends Handler {
     @param('content', Types.Content)
     @param('category', Types.String)
     async post(domainId: string, id: string | undefined, title: string, content: string, category: string) {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         if (id) {
             const doc = await oi33Model.wikiGet(id);
             if (!doc) throw new NotFoundError(id);
@@ -103,7 +104,7 @@ class WikiBulkExportHandler extends Handler {
 
 class WikiImportHandler extends Handler {
     async post() {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         let pages: { _id?: string; title: string; content: string; category: string }[];
 
         // Support direct JSON body (avoids textarea copy-paste backslash loss)
@@ -162,14 +163,14 @@ class WikiImportHandler extends Handler {
 
 class WikiBulkImportHandler extends Handler {
     async get() {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         this.response.template = 'oi33_wiki_import.html';
     }
 }
 
 class WikiCategoriesHandler extends Handler {
     async get() {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         const categories = await oi33Model.wikiCatGetAll();
         this.response.template = 'oi33_wiki_categories.html';
         this.response.body = { categories };
@@ -180,7 +181,7 @@ class WikiCategoriesHandler extends Handler {
     @param('name', Types.String, true)
     @param('order', Types.Int, true)
     async post(domainId: string, action: string, slug?: string, name?: string, order?: number) {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         if (action === 'add' && name) {
             const s = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
             await oi33Model.wikiCatAdd(s, name, order || 0);
@@ -197,7 +198,7 @@ class WikiCategoriesHandler extends Handler {
 class WikiDeleteHandler extends Handler {
     @param('id', Types.String)
     async post(domainId: string, id: string) {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         if (id === 'index') throw new ForbiddenError('Cannot delete the wiki index page.');
         const ok = await oi33Model.wikiDelete(id, this.user._id);
         if (!ok) throw new NotFoundError(id);
@@ -210,11 +211,11 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_wiki_pages', '/oi33/wiki/pages', WikiPagesHandler);
     ctx.Route('oi33_wiki_create', '/oi33/wiki/create', WikiEditHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_wiki_bulk_export', '/oi33/wiki/export', WikiBulkExportHandler);
-    ctx.Route('oi33_wiki_bulk_import', '/oi33/wiki/import', WikiBulkImportHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_wiki_import_submit', '/oi33/wiki/import/submit', WikiImportHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_wiki_categories', '/oi33/wiki/categories', WikiCategoriesHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_wiki_bulk_import', '/oi33/wiki/import', WikiBulkImportHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_wiki_import_submit', '/oi33/wiki/import/submit', WikiImportHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_wiki_categories', '/oi33/wiki/categories', WikiCategoriesHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_wiki_show', '/oi33/wiki/:id', WikiShowHandler);
     ctx.Route('oi33_wiki_edit', '/oi33/wiki/:id/edit', WikiEditHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_wiki_export_single', '/oi33/wiki/:id/export', WikiExportHandler);
-    ctx.Route('oi33_wiki_delete', '/oi33/wiki/:id/delete', WikiDeleteHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_wiki_delete', '/oi33/wiki/:id/delete', WikiDeleteHandler, PRIV.PRIV_USER_PROFILE);
 }

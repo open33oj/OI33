@@ -11,7 +11,7 @@
             <h2>{{ _('My Pastes') }}</h2>
             <div style="margin-top:2em;display:flex;justify-content:center;gap:0.5rem;">
               <a href="/oi33/paste/create" class="rounded primary button">{{ _('Create') }}</a>
-              {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+              {% if (handler.user.realname_flag or 0) >= 2 %}
               <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
               {% endif %}
             </div>

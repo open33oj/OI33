@@ -6,7 +6,7 @@
     <div class="section">
       <div class="section__header">
         <h1 class="section__title" id="create" data-heading>{{ _('Grant Coins') }}</h1>
-        {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+        {% if (handler.user.realname_flag or 0) >= 2 %}
         <div class="section__tools">
           <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
         </div>

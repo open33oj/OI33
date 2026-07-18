@@ -3,14 +3,14 @@ import {
     Handler, PRIV, Types, param, query, NotFoundError, ForbiddenError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
-import { checkUserFlag, canPublish } from './utils';
+import { checkUserFlag, canPublish, checkOi33Admin } from './utils';
 
 // --- Pastebin handlers ---
 
 class PasteCreateHandler extends Handler {
     async get() {
         const flag = await checkUserFlag(this.user._id);
-        this.response.body = { canPublic: canPublish(flag), canCreateWiki: this.user.hasPriv(PRIV.PRIV_MOD_BADGE) };
+        this.response.body = { canPublic: canPublish(flag), canCreateWiki: flag >= 2 };
         this.response.template = 'oi33_paste_create.html';
     }
 
@@ -32,7 +32,7 @@ class PasteEditHandler extends Handler {
     async get(domainId: string, id: string) {
         const doc = await oi33Model.pasteGet(id);
         if (!doc) throw new NotFoundError(id);
-        if (this.user._id !== doc.owner) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        if (this.user._id !== doc.owner) await checkOi33Admin(this.user._id);
         const flag = await checkUserFlag(this.user._id);
         this.response.body = { doc, canPublic: canPublish(flag) };
         this.response.template = 'oi33_paste_edit.html';
@@ -45,7 +45,7 @@ class PasteEditHandler extends Handler {
     async post(domainId: string, pasteId: string, title: string, content: string, isprivate = false) {
         const doc = await oi33Model.pasteGet(pasteId);
         if (!doc) throw new NotFoundError(pasteId);
-        if (this.user._id !== doc.owner) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        if (this.user._id !== doc.owner) await checkOi33Admin(this.user._id);
         const flag = await checkUserFlag(this.user._id);
         if (!isprivate && !canPublish(flag)) {
             throw new ForbiddenError('Only verified users can publish pastes.');
@@ -61,7 +61,7 @@ class PasteShowHandler extends Handler {
         const doc = await oi33Model.pasteGet(id);
         if (!doc) throw new NotFoundError(id);
         if (this.user._id !== doc.owner && doc.isprivate) {
-            this.checkPriv(PRIV.PRIV_MOD_BADGE);
+            await checkOi33Admin(this.user._id);
         }
         const udoc = await UserModel.getById(domainId, doc.owner);
         const legacy = this.request.path.startsWith('/paste/');
@@ -75,7 +75,7 @@ class PasteDeleteHandler extends Handler {
     async get(domainId: string, id: string) {
         const doc = await oi33Model.pasteGet(id);
         if (!doc) throw new NotFoundError(id);
-        if (this.user._id !== doc.owner) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        if (this.user._id !== doc.owner) await checkOi33Admin(this.user._id);
         this.response.body = { doc };
         this.response.template = 'oi33_paste_delete.html';
     }
@@ -84,7 +84,7 @@ class PasteDeleteHandler extends Handler {
     async post(domainId: string, pasteId: string) {
         const doc = await oi33Model.pasteGet(pasteId);
         if (!doc) throw new NotFoundError(pasteId);
-        if (this.user._id !== doc.owner) this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        if (this.user._id !== doc.owner) await checkOi33Admin(this.user._id);
         await oi33Model.pasteDel(pasteId);
         this.response.redirect = this.url('oi33_paste_manage');
     }
@@ -104,6 +104,7 @@ class PasteManageHandler extends Handler {
 class PasteAllHandler extends Handler {
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, page = 1) {
+        await checkOi33Admin(this.user._id);
         const dcount = await oi33Model.pasteCountUser(0);
         const upcount = Math.ceil(dcount / 20);
         const doc = await oi33Model.pasteGetUser(0, 20, page);
@@ -115,7 +116,7 @@ class PasteAllHandler extends Handler {
 export async function apply(ctx: Context) {
     ctx.Route('oi33_paste_create', '/oi33/paste/create', PasteCreateHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_paste_manage', '/oi33/paste/manage', PasteManageHandler, PRIV.PRIV_USER_PROFILE);
-    ctx.Route('oi33_paste_all', '/oi33/paste/all', PasteAllHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_paste_all', '/oi33/paste/all', PasteAllHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_paste_show', '/oi33/paste/show/:id', PasteShowHandler);
     ctx.Route('oi33_paste_edit', '/oi33/paste/show/:id/edit', PasteEditHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_paste_del', '/oi33/paste/show/:id/delete', PasteDeleteHandler, PRIV.PRIV_USER_PROFILE);

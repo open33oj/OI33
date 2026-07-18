@@ -53,7 +53,7 @@
           <div class="row" style="margin-left: 5px; text-align: left;">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <button type="submit" class="rounded primary button">{{ _('Save') }}</button>
-            {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+            {% if (handler.user.realname_flag or 0) >= 2 %}
             <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
             {% endif %}
           </div>

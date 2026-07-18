@@ -9,7 +9,7 @@
   <a href="/oi33/wiki/{{ doc._id }}/export" class="nav__item">{{ _('Export') }}</a>
 </li>
 {% endif %}
-{% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) and doc._id != 'index' %}
+{% if (handler.user.realname_flag or 0) >= 2 and doc._id != 'index' %}
 <li class="nav__list-item">
   <a href="javascript:;" onclick="if(confirm('{{ _("Are you sure you want to delete this page?") }}')){var f=document.getElementById('w_delete');f.submit();}" class="nav__item">{{ _('Delete') }}</a>
 </li>
@@ -31,7 +31,7 @@
     </div>
   </div>
 </div>
-{% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+{% if (handler.user.realname_flag or 0) >= 2 %}
 <form id="w_delete" method="post" action="/oi33/wiki/{{ doc._id }}/delete" style="display:none;">
   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
 </form>

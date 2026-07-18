@@ -5,6 +5,7 @@ import {
 } from 'hydrooj';
 import { oi33Model } from '../model';
 import { DEFAULT_SCOPES } from '../model/oauth';
+import { checkOi33Admin } from './utils';
 
 function base64url(buf: Buffer): string {
     return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -299,7 +300,7 @@ class OAuthRevokeHandler extends OAuthApiHandler {
 
 class OAuthClientsHandler extends Handler {
     async get() {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         const clients = await oi33Model.getClients();
         this.response.template = 'oi33_oauth_clients.html';
         this.response.body = { clients, newClient: null, rawSecret: null };
@@ -318,7 +319,7 @@ class OAuthClientCreateHandler extends Handler {
         isPublic = 'false', description = '',
         accessTokenTtl = 0, refreshTokenTtl = 0,
     ) {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         if (!name || !redirectUris) throw new ValidationError('name');
         const uriList = redirectUris.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
         if (!uriList.length) throw new ValidationError('redirectUris');
@@ -338,7 +339,7 @@ class OAuthClientCreateHandler extends Handler {
 class OAuthClientDeleteHandler extends Handler {
     @param('id', Types.String)
     async post(domainId: string, id: string) {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         const ok = await oi33Model.deleteClient(id);
         if (!ok) throw new NotFoundError(id);
         this.response.redirect = this.url('oi33_oauth_clients');
@@ -348,7 +349,7 @@ class OAuthClientDeleteHandler extends Handler {
 class OAuthClientShowHandler extends Handler {
     @param('id', Types.String)
     async get(domainId: string, id: string) {
-        this.checkPriv(PRIV.PRIV_MOD_BADGE);
+        await checkOi33Admin(this.user._id);
         const client = await oi33Model.getClient(id);
         if (!client) throw new NotFoundError(id);
         const baseUrl = SystemModel.get('server.url') as string || '/';
@@ -365,8 +366,8 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_oauth_token', '/oi33/oauth/token', OAuthTokenHandler);
     ctx.Route('oi33_oauth_userinfo', '/oi33/oauth/userinfo', OAuthUserInfoHandler);
     ctx.Route('oi33_oauth_revoke', '/oi33/oauth/revoke', OAuthRevokeHandler);
-    ctx.Route('oi33_oauth_clients', '/oi33/oauth/clients', OAuthClientsHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_oauth_client_create', '/oi33/oauth/clients/create', OAuthClientCreateHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_oauth_client_show', '/oi33/oauth/clients/:id', OAuthClientShowHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_oauth_client_delete', '/oi33/oauth/clients/:id/delete', OAuthClientDeleteHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_oauth_clients', '/oi33/oauth/clients', OAuthClientsHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_oauth_client_create', '/oi33/oauth/clients/create', OAuthClientCreateHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_oauth_client_show', '/oi33/oauth/clients/:id', OAuthClientShowHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_oauth_client_delete', '/oi33/oauth/clients/:id/delete', OAuthClientDeleteHandler, PRIV.PRIV_USER_PROFILE);
 }

@@ -4,12 +4,14 @@ import { oi33Model } from '../model';
 import { migrate, previewMigration } from '../migrate';
 import { runExport } from '../scripts/export-hydro-data';
 import { runUpdateRatings } from '../scripts/update-ratings';
+import { checkOi33Admin } from './utils';
 
 // --- Admin dashboard ---
 
 class Oi33AdminHandler extends Handler {
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, page = 1) {
+        await checkOi33Admin(this.user._id);
         await oi33Model.compactRequestLogs();
         const { activities, tpcount } = await oi33Model.getRecentActivitiesPaginated(page);
         const pendingCount = await oi33Model.getPendingRequestCount();
@@ -38,12 +40,14 @@ class Oi33AdminHandler extends Handler {
 
 class MigrateHandler extends Handler {
     async get() {
+        await checkOi33Admin(this.user._id);
         const preview = await previewMigration();
         this.response.template = 'oi33_migrate.html';
         this.response.body = { preview };
     }
 
     async post() {
+        await checkOi33Admin(this.user._id);
         const result = await migrate();
         this.response.template = 'oi33_migrate.html';
         this.response.body = { result, done: true };
@@ -51,8 +55,8 @@ class MigrateHandler extends Handler {
 }
 
 export async function apply(ctx: Context) {
-    ctx.Route('oi33_admin', '/oi33/admin', Oi33AdminHandler, PRIV.PRIV_MOD_BADGE);
-    ctx.Route('oi33_migrate', '/oi33/migrate', MigrateHandler, PRIV.PRIV_MOD_BADGE);
+    ctx.Route('oi33_admin', '/oi33/admin', Oi33AdminHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_migrate', '/oi33/migrate', MigrateHandler, PRIV.PRIV_USER_PROFILE);
 
     ctx.addScript(
         'exportHydroData',

@@ -69,18 +69,18 @@
               <td class="text-red">✗</td>
               <td>{{ _('Own') }}</td>
               <td>{{ _('Own') }}</td>
-              <td>{{ _('Own') }}</td>
-              <td>{{ _('Own') }}</td>
-              <td>owner / PRIV_MOD_BADGE</td>
+              <td>全部</td>
+              <td>全部</td>
+              <td>owner / flag ≥ 2</td>
             </tr>
             <tr>
               <td>{{ _('View all pastes') }}</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Wiki') }}</td></tr>
             <tr>
@@ -97,27 +97,27 @@
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>flag = 3</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr>
               <td>{{ _('Delete wiki') }}</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>flag = 3</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr>
               <td>{{ _('Import/Export wiki') }}</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>flag = 3</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Profile') }}</td></tr>
             <tr>
@@ -134,18 +134,18 @@
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr>
               <td>{{ _('Approve requests') }}</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Coin / Badge / Checkin') }}</td></tr>
             <tr>
@@ -171,18 +171,18 @@
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr>
               <td>{{ _('Manage badges') }}</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr><td colspan="7" style="font-weight:600;background:var(--table-header-bg);">{{ _('Admin Tools') }}</td></tr>
             <tr>
@@ -190,27 +190,27 @@
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr>
               <td>{{ _('Judge monitor') }}</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
             <tr>
               <td>{{ _('API tokens') }}</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
-              <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td>{{ _('Own') }}</td>
+              <td>{{ _('Own') }}</td>
+              <td>查看本人；创建/删除仍需 PRIV_ALL</td>
             </tr>
             <tr>
               <td>OAuth 授权</td>
@@ -226,9 +226,9 @@
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
               <td class="text-red">✗</td>
-              <td class="text-red">✗</td>
               <td class="text-green">✓</td>
-              <td>PRIV_MOD_BADGE</td>
+              <td class="text-green">✓</td>
+              <td>flag ≥ 2</td>
             </tr>
           </tbody>
         </table>

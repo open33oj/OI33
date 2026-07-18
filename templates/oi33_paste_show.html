@@ -39,9 +39,9 @@
         <div class="row" style="margin-left: 5px; text-align: left;">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
         </div>
-        {% if handler.user._id == doc.owner or handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+        {% if handler.user._id == doc.owner or (handler.user.realname_flag or 0) >= 2 %}
         <ul class="section__footer supplementary dot list">
-          {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+          {% if (handler.user.realname_flag or 0) >= 2 %}
           <li><a href="/oi33/admin">
               <span class="icon icon-copy"></span> {{ _('Back to Admin') }}
             </a></li>

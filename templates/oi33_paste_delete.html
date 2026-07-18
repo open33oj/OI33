@@ -21,7 +21,7 @@
             <div style="margin:1.6rem 0 1.6rem;">{{ _('Are you sure you want to delete this paste?') }}</div>
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <button type="submit" class="rounded primary button">{{ _('Delete') }}</button>
-            {% if handler.user.hasPriv(PRIV.PRIV_MOD_BADGE) %}
+            {% if (handler.user.realname_flag or 0) >= 2 %}
             <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
             {% endif %}
           </div>

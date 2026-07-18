@@ -39,13 +39,16 @@
         {%- for r in requests -%}
         {% set current = (oi33Dict[r.uid] or {}) %}
         {% set udoc = udict[r.uid] %}
+        {% set canApprove = r.kind != 'realname' or (r.realname_flag >= 0 and r.realname_flag < approverRole) %}
         <div class="oi33-req-item">
           <div class="oi33-req-action-link">
+            {% if canApprove %}
             <form method="post" action="/oi33/requests/{{ r._id }}/approve" style="display:inline;">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
               <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
             </form>
             <span style="opacity:0.3;">/</span>
+            {% endif %}
             <form method="post" action="/oi33/requests/{{ r._id }}/reject" style="display:inline;">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
               <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
@@ -60,7 +63,7 @@
 
           <div class="oi33-req-user">
             <a href="{{ url('user_detail', uid=r.uid) }}">
-              {% if udoc and udoc.realname_name %}[{{ udoc.realname_name }}]{% endif %}{{ udoc.uname if udoc else 'UID ' + r.uid }}
+              {% if udoc %}{{ udoc.oi33_original_uname or udoc.uname }}{% else %}UID {{ r.uid }}{% endif %}
             </a>
           </div>
 
