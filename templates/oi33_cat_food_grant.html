@@ -1,0 +1,26 @@
+{% set page_name = "oi33_cat_account" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row oi33-account-page">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">发放猫粮</h1>
+        <div class="section__tools">
+          {% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放</a>{% endif %}
+          <a href="{{ url('oi33_admin') }}" class="rounded button">返回管理页</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <form method="post">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          {{ form.form_text({ label: '用户 UID 或用户名', name: 'uidOrName', autofocus: true, required: true }) }}
+          {{ form.form_text({ label: '发放猫粮数量（基本单位 g）', name: 'amount', required: true }) }}
+          {{ form.form_text({ label: '发放原因', name: 'reason', required: true }) }}
+          <div class="row"><div class="columns"><button type="submit" class="rounded primary button">确认发放</button></div></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

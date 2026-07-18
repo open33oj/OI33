@@ -1,4 +1,5 @@
 {% set page_name = "oi33_migrate" %}
+{% import "components/cat_food.html" as catFood with context %}
 {% extends "layout/basic.html" %}
 {% block content %}
 
@@ -24,7 +25,7 @@
               <tr><td>{{ _('User records to migrate') }}：</td><td><strong>{{ result.users }}</strong></td></tr>
               {% if result.catFoodUsers %}
               <tr><td>{{ _('Cat food users backfilled') }}：</td><td><strong>{{ result.catFoodUsers }}</strong></td></tr>
-              <tr><td>{{ _('Cat food granted') }}：</td><td><strong>{{ result.catFoodAmount }}</strong></td></tr>
+              <tr><td>{{ _('Cat food granted') }}：</td><td><strong>{{ catFood.amount(result.catFoodAmount) }}</strong></td></tr>
               {% endif %}
               {% if result.oauthLogsDeleted %}
               <tr><td>{{ _('OAuth logs deleted') }}：</td><td><strong>{{ result.oauthLogsDeleted }}</strong></td></tr>
@@ -70,7 +71,7 @@
             </tr>
             <tr>
               <td style="padding:0.5rem 0;">{{ _('Cat food granted') }}：</td>
-              <td><strong>{{ preview.catFoodAmount }}</strong></td>
+              <td><strong>{{ catFood.amount(preview.catFoodAmount) }}</strong></td>
             </tr>
             {% endif %}
             {% if preview.oauthLogCount %}

@@ -1,0 +1,92 @@
+{% set page_name = "oi33_cat_can" %}
+{% import "components/cat_food.html" as catFood with context %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row oi33-can-page"
+  data-buy-price="{{ quote.buyPrice }}"
+  data-sell-price="{{ quote.sellPrice }}"
+  data-balance="{{ balance }}"
+  data-inventory="{{ inventory }}"
+  data-available="{{ quote.availableCans }}"
+  data-fee-numerator="{{ feeNumerator }}"
+  data-fee-denominator="{{ feeDenominator }}"
+  data-cooldown-until="{{ cooldownUntilMs }}"
+  data-trade-cooldown="{{ tradeCooldownMs }}"
+  data-min="{{ minQuantity }}"
+  data-step="{{ inputStep }}">
+  <div class="medium-10 medium-centered columns">
+    <div class="section oi33-can-hero">
+      <div class="section__header">
+        <h1 class="section__title">猫罐头市场</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_cat_account', uid=handler.user._id) }}" class="rounded button">账户明细</a>
+          <a href="{{ url('user_detail', uid=handler.user._id) }}" class="rounded button">返回小猫</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <div class="oi33-can-quote-grid">
+          <div class="oi33-can-quote oi33-can-quote--buy">
+            <span>当前买入价格</span>
+            <strong>{{ catFood.amount(quote.buyPrice) }}</strong>
+            <small>猫粮 / 个</small>
+          </div>
+          <div class="oi33-can-quote">
+            <span>当前卖出价格</span>
+            <strong>{{ catFood.amount(quote.sellPrice) }}</strong>
+            <small>猫粮 / 个</small>
+          </div>
+          <div class="oi33-can-quote oi33-can-quote--inventory">
+            <span>我的剩余罐头</span>
+            <strong>{{ inventory }}</strong>
+            <small>个</small>
+          </div>
+          <div class="oi33-can-quote oi33-can-quote--food">
+            <span>我的剩余猫粮</span>
+            <strong>{{ catFood.amount(balance) }}</strong>
+            <small>可用余额</small>
+          </div>
+        </div>
+        <div class="oi33-can-cooldown"><span>交易冷却</span><strong data-cooldown-countdown>{% if isCoolingDown %}计算中…{% else %}当前可交易{% endif %}</strong></div>
+        <blockquote class="note typo oi33-can-security">请妥善保管自己的密码，不要在公共电脑保存密码，避免猫粮被坏蛋消耗</blockquote>
+        {% if not quote.isOpen %}<p class="oi33-can-closed">市场当前休息，开放时间为每天 08:00～22:00。</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="row oi33-can-trade-row">
+      <div class="medium-6 columns">
+        <div class="section oi33-can-trade">
+          <div class="section__header"><h2 class="section__title">买入</h2></div>
+          <div class="section__body">
+            <form method="post" action="{{ url('oi33_cat_can_buy') }}" data-can-form="buy" data-base-disabled="{% if not quote.isOpen or quote.availableCans < minQuantity %}1{% else %}0{% endif %}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <label>数量
+                <input class="textbox" type="number" name="quantity" min="{{ minQuantity }}" step="{{ inputStep }}" value="{{ minQuantity }}" {% if not quote.isOpen or quote.availableCans < minQuantity or isCoolingDown %}disabled{% endif %}>
+              </label>
+              <div class="oi33-can-presets"><button type="button" data-add="1">+1</button><button type="button" data-add="10">+10</button><button type="button" data-fill="buy">最多</button></div>
+              <p class="oi33-can-estimate" data-estimate="buy">正在计算含手续费总价…</p>
+              <button class="expanded rounded primary button" type="submit" {% if not quote.isOpen or quote.availableCans < minQuantity or isCoolingDown %}disabled{% endif %}>买入猫罐头</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="medium-6 columns">
+        <div class="section oi33-can-trade">
+          <div class="section__header"><h2 class="section__title">卖出</h2></div>
+          <div class="section__body">
+            <form method="post" action="{{ url('oi33_cat_can_sell') }}" data-can-form="sell" data-base-disabled="{% if not quote.isOpen or inventory < minQuantity %}1{% else %}0{% endif %}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <label>数量
+                <input class="textbox" type="number" name="quantity" min="{{ minQuantity }}" step="{{ inputStep }}" value="{{ minQuantity }}" {% if not quote.isOpen or inventory < minQuantity or isCoolingDown %}disabled{% endif %}>
+              </label>
+              <div class="oi33-can-presets"><button type="button" data-add="1">+1</button><button type="button" data-add="10">+10</button><button type="button" data-fill="sell">全部</button></div>
+              <p class="oi33-can-estimate" data-estimate="sell">正在计算到账金额…</p>
+              <button class="expanded rounded button" type="submit" {% if not quote.isOpen or inventory < minQuantity or isCoolingDown %}disabled{% endif %}>卖出猫罐头</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

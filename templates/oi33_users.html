@@ -32,7 +32,7 @@
             <col class="col--birthday" style="width:6.5rem">
             <col class="col--flag" style="width:4rem">
             <col class="col--name" style="width:6rem">
-            <col class="col--actions" style="width:5rem">
+            <col class="col--actions" style="width:8rem">
           </colgroup>
           <thead>
             <tr>
@@ -63,7 +63,8 @@
               </td>
               <td class="col--name">{{ udoc.realname_name or '-' }}</td>
               <td class="col--actions">
-                <a href="/oi33/profile/edit/{{ udoc._id }}">{{ _('Edit') }}</a>
+                <a href="/oi33/profile/edit/{{ udoc._id }}">{{ _('Edit') }}</a> ·
+                <a href="{{ url('oi33_cat_account', uid=udoc._id) }}">账户</a>
               </td>
             </tr>
             {%- endfor -%}

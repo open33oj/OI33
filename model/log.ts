@@ -21,7 +21,7 @@ export async function getRecentActivitiesPaginated(page: number, pageSize = 30) 
 
 function catFoodLogFilter(userId: number) {
     return {
-        type: 'checkin',
+        type: { $in: ['checkin', 'cat_account'] },
         userId,
         amount: { $exists: true, $ne: 0 },
     };

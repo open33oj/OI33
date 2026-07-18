@@ -35,6 +35,15 @@ import {
     getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
     getCatFoodLogCount, getCatFoodLogs,
 } from './log';
+import {
+    getOrCreateCurrentMarket, getCurrentQuote, ensureCurrentCatCanPrice,
+    ensureCatCanIndexes, buyCatCans, sellCatCans, getCatCanPage,
+} from './cat-can';
+import {
+    ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
+    createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
+    reverseCatCanTransaction,
+} from './cat-account';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -47,6 +56,8 @@ export {
     tokenColl as oauthTokenColl, refreshColl as oauthRefreshColl,
 } from './oauth';
 export { logColl } from './log';
+export { catCanBatchColl, catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
+export { catFoodBatchPreviewColl } from './cat-account';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -59,6 +70,11 @@ const oi33Model = {
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
     getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
     getCatFoodLogCount, getCatFoodLogs,
+    getOrCreateCurrentMarket, getCurrentQuote, ensureCurrentCatCanPrice,
+    ensureCatCanIndexes, buyCatCans, sellCatCans, getCatCanPage,
+    ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
+    createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
+    reverseCatCanTransaction,
     submitRequest, directUpdate, approveRequest, rejectRequest,
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,
@@ -89,6 +105,11 @@ declare module 'hydrooj' {
         oi33_oauth_code: import('./types').Oi33OAuthCode;
         oi33_oauth_token: import('./types').Oi33OAuthToken;
         oi33_oauth_refresh: import('./types').Oi33OAuthRefreshToken;
+        oi33_cat_can_batch: import('./types').Oi33CatCanBatch;
+        oi33_cat_can_bill: import('./types').Oi33CatCanBill;
+        oi33_cat_can_pool: import('./types').Oi33CatCanPool;
+        oi33_cat_can_price: import('./types').Oi33CatCanPrice;
+        oi33_cat_food_batch_preview: import('./types').Oi33CatFoodBatchPreview;
     }
 }
 

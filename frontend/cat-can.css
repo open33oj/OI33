@@ -1,0 +1,29 @@
+.oi33-can-page { --can-accent: #d98736; --can-green: #3b7d55; }
+.oi33-can-hero { overflow: hidden; }
+.oi33-can-hero .section__body { background: linear-gradient(135deg, rgba(255, 248, 235, .78), rgba(244, 250, 247, .78)); }
+.theme--dark .oi33-can-hero .section__body { background: linear-gradient(135deg, rgba(88, 59, 29, .28), rgba(29, 67, 54, .22)); }
+.oi33-can-quote-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.oi33-can-quote { min-height: 126px; padding: 20px; border: 1px solid rgba(128,128,128,.14); border-radius: 12px; background: rgba(255,255,255,.72); text-align: center; }
+.theme--dark .oi33-can-quote { background: rgba(20,20,20,.35); }
+.oi33-can-quote span, .oi33-can-quote small { display: block; opacity: .64; }
+.oi33-can-quote strong { display: block; margin: 7px 0 3px; color: var(--can-green); font-size: 2.2rem; line-height: 1.1; }
+.oi33-can-quote--buy strong { color: var(--can-accent); }
+.oi33-can-quote--inventory strong { color: #5974a6; }
+.oi33-can-quote--food strong { color: #8d6e3f; }
+.oi33-can-quote .oi33-cat-food-value { white-space: nowrap; }
+.oi33-can-cooldown { display: flex; justify-content: space-between; margin-top: 14px; padding: 10px 13px; border-radius: 9px; background: rgba(128,128,128,.08); }
+.oi33-can-cooldown span { opacity: .66; }
+.oi33-can-cooldown strong { color: #5974a6; }
+.oi33-can-security { margin: 14px 0 0; }
+.oi33-can-closed { margin: 14px 0 0; text-align: center; opacity: .68; }
+.oi33-can-trade-row { margin-top: 2px; }
+.oi33-can-trade { min-height: 250px; }
+.oi33-can-presets { display: flex; gap: 6px; margin: 8px 0; }
+.oi33-can-presets button { padding: 4px 10px; border: 0; border-radius: 999px; color: inherit; background: rgba(128,128,128,.12); cursor: pointer; }
+.oi33-can-presets button:hover { background: rgba(217,135,54,.18); }
+.oi33-can-estimate { min-height: 1.5em; margin: 10px 0 14px; color: var(--can-accent); font-weight: 600; }
+@media (max-width: 720px) {
+  .oi33-can-quote-grid { grid-template-columns: 1fr; }
+  .oi33-can-quote { min-height: 0; }
+  .oi33-can-trade { min-height: 0; }
+}

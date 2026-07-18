@@ -34,6 +34,10 @@ oi33_profile_edit: '编辑资料'
 oi33_users: '全部用户'
 oi33_requests: '审批申请'
 oi33_at_cf_rating: 'AT/CF Rating 排名'
+oi33_cat_can: '猫罐头市场'
+oi33_cat_account: '猫粮与罐头账户'
+oi33_cat_food_grant: '发放猫粮'
+oi33_cat_food_bulk: '批量发放猫粮'
 
 # --- Badge ---
 'Badge Rules:': '徽章规则：'

@@ -2,6 +2,7 @@
 {% extends "layout/basic.html" %}
 {% import "components/nothing.html" as nothing with context %}
 {% import "components/paginator.html" as paginator with context %}
+{% import "components/cat_food.html" as catFood with context %}
 
 {% macro userLink(uid) -%}
   {%- set u = udict[uid] -%}
@@ -93,6 +94,8 @@
             <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">设置</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
               <a href="/oi33/coin/inc" class="rounded button">{{ _('Grant Coins') }}</a>
+              <a href="{{ url('oi33_cat_food_grant') }}" class="rounded button">发放猫粮</a>
+              {% if (handler.user.realname_flag or 0) >= 3 %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放猫粮</a>{% endif %}
               <a href="/oi33/requests" class="{% if pendingCount %}primary {% endif %}rounded button">
                 {{ _('Pending Requests') }}{% if pendingCount %} ({{ pendingCount }}){% endif %}
               </a>
@@ -166,8 +169,17 @@
                 <span class="oi33-timeline__note">{{ _('Check-in succeeded') }}</span>
               {% endif %}
               {% if a.amount %}
-                <span class="oi33-timeline__amount-pos">{{ _('Cat food') }} +{{ a.amount }}</span>
+                <span class="oi33-timeline__amount-pos">{{ _('Cat food') }} {{ catFood.amount(a.amount, true) }}</span>
               {% endif %}
+
+            {% elif a.type == 'cat_account' %}
+              <span class="oi33-timeline__tag">猫粮</span>
+              {{ userLink(a.sender) }}
+              <span class="oi33-timeline__note">向</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__amount-pos">{{ catFood.amount(a.amount, true) }}</span>
+              {% if a.action == 'bulk_grant' %}<span class="oi33-timeline__note">（批量发放）</span>{% endif %}
+              {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
 
             {% elif a.type == 'paste' %}
               <span class="oi33-timeline__tag">{{ _('activity_tag_paste') }}</span>

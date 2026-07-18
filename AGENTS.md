@@ -17,6 +17,8 @@ oi33/
 │   ├── request.ts        # Profile edit request/approval flow
 │   ├── token.ts          # API token management
 │   ├── oauth.ts          # OAuth2 provider data (clients, codes, access/refresh tokens)
+│   ├── cat-can.ts        # Reserve-backed cat-can AMM, price history, inventory and trades
+│   ├── cat-account.ts    # Unified food/can ledger, charts, grants, previews and reversals
 │   └── log.ts            # Activity log (audit trail)
 ├── handler/
 │   ├── patches.ts        # Monkey-patches (UserModel.getList, HomeHandler.getCheckin / getCountdown)
@@ -29,6 +31,8 @@ oi33/
 │   ├── token.ts          # MCP/Agent API token CRUD
 │   ├── oauth.ts          # OAuth2 provider (authorize/token/userinfo/revoke + client mgmt)
 │   ├── wiki.ts           # Wiki pages + categories + import/export
+│   ├── cat-can.ts        # Cat-can market routes
+│   ├── cat-account.ts    # Unified account, grant, batch preview and reversal routes
 │   └── permissions.ts    # Permission matrix reference page
 ├── scripts/
 │   └── export-hydro-data.ts
@@ -55,7 +59,7 @@ oi33/
 
 | Collection | Key fields |
 |------------|-----------|
-| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/管理员/行政管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `atcoder`, `codeforces`, `atcoder_rating` (Number), `codeforces_rating` (Number), `atcoder_updated_at`, `codeforces_updated_at` |
+| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/管理员/行政管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_can`, `cat_can_trade_available_at`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `atcoder`, `codeforces`, rating fields |
 | `oi33_coin_bill` | `_id` (ObjectId), `userId`, `rootId`, `amount`, `text` |
 | `oi33_paste` | `_id` (random string), `updateAt`, `title`, `owner`, `content`, `isprivate` |
 | `oi33_wiki` | `_id` (random slug: 8 hex bytes + base36 timestamp), `title`, `content`, `category`, `order`, `createdAt`, `updatedAt` |
@@ -66,9 +70,14 @@ oi33/
 | `oi33_oauth_code` | `_id` (auth code), `clientId`, `uid`, `redirectUri`, `scopes`, `codeChallenge?`, `codeChallengeMethod?`, `expiresAt` (10 min), `consumed` |
 | `oi33_oauth_token` | `_id`, `tokenHash` (SHA-256 of `33oat_…`), `tokenPrefix`, `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `lastUsedAt`, `isActive` |
 | `oi33_oauth_refresh` | `_id`, `tokenHash` (SHA-256 of `33ojrt_…`), `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `isActive` |
-| `oi33_log` | `_id` (Date), `type` (coin/birthday/badge/realname/checkin/paste/wiki/request/oauth), type-specific fields |
+| `oi33_log` | `_id`, `createdAt`, `type` (coin/birthday/badge/realname/checkin/cat_account/paste/wiki/request/oauth), type-specific fields |
+| `oi33_cat_can_batch` | permanent per-user purchase batches with remaining quantity |
+| `oi33_cat_can_bill` | buy/sell/reversal ledger with principal, fee, food delta and can delta |
+| `oi33_cat_can_pool` | real reserve, virtual supply, burned fees, incremental global food/can counters and counter version |
+| `oi33_cat_can_price` | minimal 8-hour buy/sell price history (`_id`, prices, `createdAt`) |
+| `oi33_cat_food_batch_preview` | expiring, single-use bulk cat-food grant previews |
 
-Every write operation also inserts into `oi33_log` so the admin activity timeline has timestamps for all entries.
+Core profile/content write operations also insert into `oi33_log`. Cat-can trades use the dedicated `oi33_cat_can_bill` ledger.
 
 ## Handler Patterns
 
@@ -136,12 +145,20 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/badge/manage` | BadgeManageHandler | OI33 flag >= 2 |
 | `/oi33/badge/manage/:uid/del` | BadgeDelHandler | OI33 flag >= 2 |
 | `/oi33/checkin` | CheckinHandler | PRIV_USER_PROFILE |
-| `/oi33/cat-food/bill/:uid` | CatFoodBillHandler | PRIV_USER_PROFILE (self only; admin can view anyone) |
+| `/oi33/cat-food/bill/:uid` | CatFoodBillHandler | Legacy redirect to unified cat account |
 | `/oi33/profile/edit/:uid` | ProfileEditHandler | PRIV_USER_PROFILE (self; OI33 manager/executive admin can edit others with role limits) |
 | `/oi33/requests` | RequestListHandler | Logged in + OI33 manager/executive admin |
 | `/oi33/requests/:id/approve` | RequestApproveHandler (POST) | Logged in + role-based approval limit |
 | `/oi33/requests/:id/reject` | RequestRejectHandler (POST) | Logged in + OI33 manager/executive admin |
 | `/oi33/at-cf-rating` | RatingShowHandler | public |
+| `/oi33/cat-can` | CatCanMarketHandler | PRIV_USER_PROFILE |
+| `/oi33/cat-can/buy` | CatCanBuyHandler (POST) | PRIV_USER_PROFILE |
+| `/oi33/cat-can/sell` | CatCanSellHandler (POST) | PRIV_USER_PROFILE |
+| `/oi33/cat-account/:uid` | CatAccountHandler | PRIV_USER_PROFILE (self; OI33 flag >= 2 for others) |
+| `/oi33/cat-food/grant` | CatFoodGrantHandler | OI33 flag >= 2 |
+| `/oi33/cat-food/grant/bulk` | CatFoodBulkGrantHandler | OI33 flag >= 3 |
+| `/oi33/cat-food/grant/bulk/confirm` | CatFoodBulkConfirmHandler (POST) | OI33 flag >= 3 |
+| `/oi33/cat-account/transaction/:id/reverse` | CatCanReverseHandler (POST) | OI33 flag >= 2 |
 | `/oi33/paste/create` | PasteCreateHandler | PRIV_USER_PROFILE |
 | `/oi33/paste/manage` | PasteManageHandler | PRIV_USER_PROFILE |
 | `/oi33/paste/all` | PasteAllHandler | OI33 flag >= 2 |

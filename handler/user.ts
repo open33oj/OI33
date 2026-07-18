@@ -158,7 +158,7 @@ class CheckinHandler extends Handler {
         if (result.checkedIn) {
             const notification = result.cat_food_reward
                 ? this.translate('Check-in succeeded, cat food +{0}')
-                    .replace('{0}', String(result.cat_food_reward))
+                    .replace('{0}', oi33Model.formatCatFood(result.cat_food_reward))
                 : this.translate('Check-in succeeded');
             this.response.redirect = this.url('homepage', { query: { notification } });
             return;
@@ -169,22 +169,9 @@ class CheckinHandler extends Handler {
 
 class CatFoodBillHandler extends Handler {
     @param('uid', Types.Int)
-    @query('page', Types.PositiveInt, true)
-    async get(domainId: string, uid: number, page = 1) {
+    async get(domainId: string, uid: number) {
         if (uid !== this.user._id) await checkOi33Admin(this.user._id);
-        const [count, logs, oi33User] = await Promise.all([
-            oi33Model.getCatFoodLogCount(uid),
-            oi33Model.getCatFoodLogs(uid, page, 50),
-            oi33Model.getCheckinUser(uid),
-        ]);
-        this.response.template = 'oi33_cat_food_bill.html';
-        this.response.body = {
-            uid,
-            logs,
-            page,
-            upcount: Math.ceil(count / 50),
-            balance: oi33User?.cat_food ?? 0,
-        };
+        this.response.redirect = this.url('oi33_cat_account', { uid });
     }
 }
 

@@ -1,0 +1,99 @@
+{% set page_name = "oi33_cat_account" %}
+{% import "components/nothing.html" as nothing with context %}
+{% import "components/paginator.html" as paginator with context %}
+{% import "components/cat_food.html" as catFood with context %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row oi33-account-page">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">猫粮与罐头账户 · UID {{ uid }}</h1>
+        <div class="section__tools">
+          {% if canManage %}<a href="{{ url('oi33_cat_food_grant') }}" class="rounded primary button">发放猫粮</a>{% endif %}
+          {% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放</a>{% endif %}
+          <a href="{{ url('user_detail', uid=uid) }}" class="rounded button">返回个人页面</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <div class="oi33-account-balances">
+          <div><span>猫粮余额</span><strong>{{ catFood.amount(balance.food) }}</strong></div>
+          <div><span>罐头余额</span><strong>{{ balance.cans }}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">最近 7 天余额变化</h2></div>
+      <div class="section__body">
+        <div class="oi33-account-chart-legend"><span class="is-food">猫粮</span><span class="is-can">罐头</span></div>
+        <div class="oi33-account-chart-wrap">
+          <svg class="oi33-account-chart" viewBox="0 0 900 260" role="img" aria-label="最近七天猫粮和罐头余额变化图">
+            <line class="oi33-account-grid" x1="62" y1="20" x2="838" y2="20"></line>
+            <line class="oi33-account-grid" x1="62" y1="117" x2="838" y2="117"></line>
+            <line class="oi33-account-grid" x1="62" y1="214" x2="838" y2="214"></line>
+            <text x="8" y="24">{{ chart.foodMaxLabel }}</text>
+            <text x="8" y="218">{{ chart.foodMinLabel }}</text>
+            <text x="892" y="24" text-anchor="end">{{ chart.canMax }}</text>
+            <text x="892" y="218" text-anchor="end">{{ chart.canMin }}</text>
+            <polyline class="oi33-account-line is-food" points="{{ chart.foodPoints }}"></polyline>
+            <polyline class="oi33-account-line is-can" points="{{ chart.canPoints }}"></polyline>
+            {% for node in chart.nodes %}
+            <circle class="oi33-account-dot is-food" cx="{{ node.x }}" cy="{{ node.foodY }}" r="3"><title>{{ node.label }} 猫粮 {{ model.oi33.formatCatFood(node.food) }}（{{ node.food }} g）</title></circle>
+            <circle class="oi33-account-dot is-can" cx="{{ node.x }}" cy="{{ node.canY }}" r="3"><title>{{ node.label }} 罐头 {{ node.cans }}</title></circle>
+            <text class="oi33-account-date" x="{{ node.x }}" y="244" text-anchor="middle">{{ node.label }}</text>
+            {% endfor %}
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">账户明细</h2></div>
+      <div class="section__body no-padding">
+        {% if entries.length %}
+        <table class="data-table oi33-account-table">
+          <thead><tr><th>时间</th><th>事项</th><th>猫粮变化</th><th>罐头变化</th>{% if canManage %}<th>管理</th>{% endif %}</tr></thead>
+          <tbody>
+          {% for entry in entries %}
+          <tr>
+            <td>{{ datetimeSpan(entry.createdAt)|safe }}</td>
+            <td>
+              {% if entry.action == 'checkin' %}签到奖励
+              {% elif entry.action == 'cat_food_backfill' %}历史签到补发
+              {% elif entry.action == 'grant' %}管理员发放
+              {% elif entry.action == 'bulk_grant' %}行政管理员批量发放
+              {% elif entry.action == 'buy' %}买入罐头
+              {% elif entry.action == 'sell' %}卖出罐头
+              {% elif entry.action == 'reverse' %}撤销{% if entry.originalAction == 'buy' %}买入{% else %}卖出{% endif %}
+              {% elif entry.action == 'expire' %}历史过期销毁
+              {% else %}账户调整{% endif %}
+              {% if entry.reason %}<small class="oi33-account-reason">{{ entry.reason }}</small>{% endif %}
+              {% if entry.operator %}<small class="oi33-account-reason">操作人 UID {{ entry.operator }}</small>{% endif %}
+              {% if entry.reversedBy %}<small class="oi33-account-reason">操作人 UID {{ entry.reversedBy }}</small>{% endif %}
+              {% if entry.reversedAt %}<span class="oi33-account-reversed">已撤销</span>{% endif %}
+            </td>
+            <td class="{% if entry.foodDelta > 0 %}text-green{% elif entry.foodDelta < 0 %}text-red{% endif %}">{{ catFood.amount(entry.foodDelta, true) }}</td>
+            <td class="{% if entry.canDelta > 0 %}text-green{% elif entry.canDelta < 0 %}text-red{% endif %}">{% if entry.canDelta > 0 %}+{% endif %}{{ entry.canDelta }}</td>
+            {% if canManage %}
+            <td>
+              {% if entry.reversible %}
+              <form method="post" action="{{ url('oi33_cat_can_reverse', id=entry._id) }}" class="oi33-account-reverse-form">
+                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                <input class="textbox" type="text" name="reason" maxlength="100" placeholder="撤销原因" required>
+                <button type="submit" class="small rounded button">撤销</button>
+              </form>
+              {% else %}-{% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {{ paginator.render(page, upcount) }}
+        {% else %}<div class="oi33-account-empty">{{ nothing.render('还没有账户记录。') }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

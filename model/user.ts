@@ -3,6 +3,7 @@ import { Oi33User } from './types';
 import { addLog } from './log';
 
 export const userColl = db.collection('oi33_user');
+const catCanPoolCounterColl = db.collection('oi33_cat_can_pool');
 
 export const CAT_FOOD_START_DATE = '2026-07-18';
 export const CAT_FOOD_NORMAL_REWARD = 100;
@@ -74,6 +75,10 @@ export async function backfillCatFoodForUser(userId: number) {
             action: 'cat_food_backfill',
             amount: granted,
         });
+        await catCanPoolCounterColl.updateOne(
+            { _id: 'main' } as any,
+            { $inc: { userFoodTotal: granted }, $set: { updatedAt: new Date() } } as any,
+        );
     }
     return { updated: true, granted };
 }
@@ -151,6 +156,7 @@ export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: 
     }
     if (mergeAll || fields!.includes('cat_food')) {
         udoc.cat_food = oi33.cat_food ?? 0;
+        udoc.cat_can = oi33.cat_can ?? 0;
     }
     if (mergeAll || fields!.includes('birthday')) {
         udoc.birthday_date = oi33.birthday_date || '';
@@ -346,6 +352,12 @@ export async function doCheckin(userId: number, todayStr: string) {
         action: 'checkin',
         amount: cat_food_reward,
     });
+    if (cat_food_reward) {
+        await catCanPoolCounterColl.updateOne(
+            { _id: 'main' } as any,
+            { $inc: { userFoodTotal: cat_food_reward }, $set: { updatedAt: new Date() } } as any,
+        );
+    }
     return {
         checkedIn: true,
         checkin_luck,

@@ -43,12 +43,88 @@ export interface Oi33User {
     cat_food?: number;
     cat_food_backfill_version?: number;
     cat_food_backfilled_at?: Date;
+    cat_can?: number;
+    cat_can_trade_available_at?: Date;
     atcoder?: string;
     codeforces?: string;
     atcoder_rating?: number;
     codeforces_rating?: number;
     atcoder_updated_at?: string;
     codeforces_updated_at?: string;
+}
+
+export interface Oi33CatCanBatch {
+    _id: ObjectId;
+    uid: number;
+    quantity: number;
+    remaining: number;
+    unitPrice: number;
+    purchasedAt: Date;
+    expiresAt?: Date;
+    expiredAt?: Date;
+    adjustment?: 'reversal';
+    originalBillId?: ObjectId;
+}
+
+export interface Oi33CatCanBill {
+    _id: ObjectId;
+    uid: number;
+    action: 'buy' | 'sell' | 'expire' | 'reverse';
+    originalAction?: 'buy' | 'sell';
+    originalBillId?: ObjectId;
+    quantity: number;
+    unitPrice: number;
+    tradeAmount?: number;
+    fee?: number;
+    catFoodDelta: number;
+    batchId?: ObjectId;
+    expiresAt?: Date;
+    balanceAfter?: number;
+    inventoryAfter?: number;
+    reversedAt?: Date;
+    reversedBy?: number;
+    reversalReason?: string;
+    reversalBillId?: ObjectId;
+    createdAt: Date;
+}
+
+export interface Oi33CatFoodBatchPreview {
+    _id: ObjectId;
+    operator: number;
+    items: Array<{ uid: number; amount: number; reason: string }>;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    createdAt: Date;
+    expiresAt: Date;
+    confirmedAt?: Date;
+    completedAt?: Date;
+    failedAt?: Date;
+    total?: number;
+    error?: string;
+}
+
+export interface Oi33CatCanPool {
+    _id: 'main';
+    reserveFood: number;
+    virtualCanSupply: number;
+    feesBurned: number;
+    userFoodTotal: number;
+    circulatingCans: number;
+    balanceCounterVersion: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface Oi33CatCanPrice {
+    _id: Date;
+    sellPrice: number;
+    buyPrice: number;
+    userFood?: number;
+    userCans?: number;
+    reserveFood?: number;
+    virtualCanSupply?: number;
+    poolCans?: number;
+    feesBurned?: number;
+    createdAt: Date;
 }
 
 export interface Oi33CoinBill {
@@ -154,7 +230,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'paste' | 'request' | 'wiki' | 'oauth';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'paste' | 'request' | 'wiki' | 'oauth';
     sender?: number;
     receiver?: number;
     amount?: number;
@@ -176,6 +252,8 @@ export interface Oi33Log {
     status?: Oi33RequestStatus;
     kind?: Oi33RequestKind;
     uid?: number;
+    batchId?: ObjectId;
+    batchIndex?: number;
     oauthClientId?: string;
     oauthAction?: 'authorize' | 'deny' | 'token' | 'refresh' | 'revoke' | 'client_create' | 'client_delete';
     oauthScopes?: string[];

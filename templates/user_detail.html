@@ -1,5 +1,6 @@
 {% import "components/home.html" as home with context %}
 {% import "components/problem.html" as problem with context %}
+{% import "components/cat_food.html" as catFood with context %}
 {% extends "layout/basic.html" %}
 {%- macro atcolor(r) -%}{% if r >= 2800 %}#FF0000{% elif r >= 2400 %}#FF8000{% elif r >= 2000 %}#C0C000{% elif r >= 1600 %}#0000FF{% elif r >= 1200 %}#00C0C0{% elif r >= 800 %}#008000{% elif r >= 400 %}#804000{% else %}#808080{% endif %}{%- endmacro -%}
 {%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
@@ -272,12 +273,23 @@
         <div class="oi33-cat-food" aria-label="{{ _('Cat food') }} {{ udoc.cat_food or 0 }}">
           <span class="oi33-cat-food__label">{{ _('Cat food') }}</span>
           <span class="oi33-cat-food__actions">
-            <strong class="oi33-cat-food__amount">{{ udoc.cat_food or 0 }}</strong>
-            {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
-            <a class="oi33-cat-food__detail" href="{{ url('oi33_cat_food_bill', uid=udoc._id) }}">{{ _('Details') }}</a>
-            {% endif %}
+            <strong class="oi33-cat-food__amount">{{ catFood.amount(udoc.cat_food or 0) }}</strong>
           </span>
         </div>
+        <div class="oi33-cat-food" aria-label="猫罐头 {{ udoc.cat_can or 0 }}">
+          <span class="oi33-cat-food__label">猫罐头</span>
+          <span class="oi33-cat-food__actions"><strong class="oi33-cat-food__amount">{{ udoc.cat_can or 0 }}</strong></span>
+        </div>
+        {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
+        <a class="expanded rounded button" href="{{ url('oi33_cat_account', uid=udoc._id) }}" style="margin:10px 0 0;">
+          📒 账户明细
+        </a>
+        {% endif %}
+        {% if isSelfProfile %}
+        <a class="expanded rounded button" href="{{ url('oi33_cat_can') }}" style="margin:8px 0 0;">
+          🥫 猫罐头市场
+        </a>
+        {% endif %}
         <noscript><p class="oi33-cat-noscript">启用 JavaScript 后，小猫就会在这里散步。</p></noscript>
       </div>
     </div>
