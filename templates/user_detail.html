@@ -276,9 +276,9 @@
             <strong class="oi33-cat-food__amount">{{ catFood.amount(udoc.cat_food or 0) }}</strong>
           </span>
         </div>
-        <div class="oi33-cat-food" aria-label="猫罐头 {{ udoc.cat_can or 0 }}">
+        <div class="oi33-cat-food" aria-label="猫罐头 {{ udoc.cat_can or 0 }} 个">
           <span class="oi33-cat-food__label">猫罐头</span>
-          <span class="oi33-cat-food__actions"><strong class="oi33-cat-food__amount">{{ udoc.cat_can or 0 }}</strong></span>
+          <span class="oi33-cat-food__actions"><strong class="oi33-cat-food__amount">{{ udoc.cat_can or 0 }} 个</strong></span>
         </div>
         {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
         <a class="expanded rounded button" href="{{ url('oi33_cat_account', uid=udoc._id) }}" style="margin:10px 0 0;">

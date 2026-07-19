@@ -1,4 +1,4 @@
-{% import "components/user.html" as user with context %}
+{% import "components/oi33_user.html" as user with context %}
 {% macro renderRecord(cell, canView) %}
 {% if canView %}<a href="{{ url('record_detail', rid=cell.raw) }}">{% endif %}
   {%- set _color = utils.status.getScoreColor(cell.score|default(cell.value)) -%}

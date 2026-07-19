@@ -18,7 +18,7 @@
       <div class="section__body">
         <div class="oi33-account-balances">
           <div><span>猫粮余额</span><strong>{{ catFood.amount(balance.food) }}</strong></div>
-          <div><span>罐头余额</span><strong>{{ balance.cans }}</strong></div>
+          <div><span>罐头余额</span><strong>{{ balance.cans }} 个</strong></div>
         </div>
       </div>
     </div>
@@ -26,7 +26,7 @@
     <div class="section">
       <div class="section__header"><h2 class="section__title">最近 7 天余额变化</h2></div>
       <div class="section__body">
-        <div class="oi33-account-chart-legend"><span class="is-food">猫粮</span><span class="is-can">罐头</span></div>
+        <div class="oi33-account-chart-legend"><span class="is-food">猫粮</span><span class="is-can">罐头（个）</span></div>
         <div class="oi33-account-chart-wrap">
           <svg class="oi33-account-chart" viewBox="0 0 900 260" role="img" aria-label="最近七天猫粮和罐头余额变化图">
             <line class="oi33-account-grid" x1="62" y1="20" x2="838" y2="20"></line>
@@ -40,7 +40,7 @@
             <polyline class="oi33-account-line is-can" points="{{ chart.canPoints }}"></polyline>
             {% for node in chart.nodes %}
             <circle class="oi33-account-dot is-food" cx="{{ node.x }}" cy="{{ node.foodY }}" r="3"><title>{{ node.label }} 猫粮 {{ model.oi33.formatCatFood(node.food) }}（{{ node.food }} g）</title></circle>
-            <circle class="oi33-account-dot is-can" cx="{{ node.x }}" cy="{{ node.canY }}" r="3"><title>{{ node.label }} 罐头 {{ node.cans }}</title></circle>
+            <circle class="oi33-account-dot is-can" cx="{{ node.x }}" cy="{{ node.canY }}" r="3"><title>{{ node.label }} 罐头 {{ node.cans }} 个</title></circle>
             <text class="oi33-account-date" x="{{ node.x }}" y="244" text-anchor="middle">{{ node.label }}</text>
             {% endfor %}
           </svg>
@@ -62,6 +62,7 @@
               {% if entry.action == 'checkin' %}签到奖励
               {% elif entry.action == 'cat_food_backfill' %}历史签到补发
               {% elif entry.action == 'grant' %}管理员发放
+              {% elif entry.action == 'deduct' %}管理员扣除
               {% elif entry.action == 'bulk_grant' %}行政管理员批量发放
               {% elif entry.action == 'buy' %}买入罐头
               {% elif entry.action == 'sell' %}卖出罐头
@@ -74,7 +75,7 @@
               {% if entry.reversedAt %}<span class="oi33-account-reversed">已撤销</span>{% endif %}
             </td>
             <td class="{% if entry.foodDelta > 0 %}text-green{% elif entry.foodDelta < 0 %}text-red{% endif %}">{{ catFood.amount(entry.foodDelta, true) }}</td>
-            <td class="{% if entry.canDelta > 0 %}text-green{% elif entry.canDelta < 0 %}text-red{% endif %}">{% if entry.canDelta > 0 %}+{% endif %}{{ entry.canDelta }}</td>
+            <td class="{% if entry.canDelta > 0 %}text-green{% elif entry.canDelta < 0 %}text-red{% endif %}">{% if entry.canDelta > 0 %}+{% endif %}{{ entry.canDelta }} 个</td>
             {% if canManage %}
             <td>
               {% if entry.reversible %}

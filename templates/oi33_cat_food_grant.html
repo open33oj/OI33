@@ -1,4 +1,4 @@
-{% set page_name = "oi33_cat_account" %}
+{% set page_name = "oi33_cat_food_grant" %}
 {% extends "layout/basic.html" %}
 {% block content %}
 <div class="row oi33-account-page">
@@ -15,9 +15,9 @@
         <form method="post">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           {{ form.form_text({ label: '用户 UID 或用户名', name: 'uidOrName', autofocus: true, required: true }) }}
-          {{ form.form_text({ label: '发放猫粮数量（基本单位 g）', name: 'amount', required: true }) }}
-          {{ form.form_text({ label: '发放原因', name: 'reason', required: true }) }}
-          <div class="row"><div class="columns"><button type="submit" class="rounded primary button">确认发放</button></div></div>
+          {{ form.form_text({ label: '猫粮调整数量（基本单位 g，负数表示扣除）', name: 'amount', required: true }) }}
+          {{ form.form_text({ label: '调整原因', name: 'reason', required: true }) }}
+          <div class="row"><div class="columns"><button type="submit" class="rounded primary button">确认调整</button></div></div>
         </form>
       </div>
     </div>

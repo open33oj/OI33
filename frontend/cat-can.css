@@ -22,8 +22,23 @@
 .oi33-can-presets button { padding: 4px 10px; border: 0; border-radius: 999px; color: inherit; background: rgba(128,128,128,.12); cursor: pointer; }
 .oi33-can-presets button:hover { background: rgba(217,135,54,.18); }
 .oi33-can-estimate { min-height: 1.5em; margin: 10px 0 14px; color: var(--can-accent); font-weight: 600; }
+.oi33-can-history-legend { display: flex; align-items: center; gap: 18px; margin-bottom: 10px; }
+.oi33-can-history-legend span::before { display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; content: ''; }
+.oi33-can-history-legend .is-buy::before { background: var(--can-accent); }
+.oi33-can-history-legend .is-sell::before { background: var(--can-green); }
+.oi33-can-history-legend small { margin-left: auto; opacity: .62; }
+.oi33-can-history-wrap { overflow-x: auto; }
+.oi33-can-history-chart { min-width: 760px; width: 100%; height: auto; overflow: visible; }
+.oi33-can-history-chart text { fill: currentColor; font-size: 12px; opacity: .65; }
+.oi33-can-history-grid { stroke: currentColor; stroke-width: 1; opacity: .12; }
+.oi33-can-history-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.oi33-can-history-line.is-buy, .oi33-can-history-dot.is-buy { stroke: var(--can-accent); fill: var(--can-accent); }
+.oi33-can-history-line.is-sell, .oi33-can-history-dot.is-sell { stroke: var(--can-green); fill: var(--can-green); }
+.oi33-can-history-date { font-size: 10px !important; }
 @media (max-width: 720px) {
   .oi33-can-quote-grid { grid-template-columns: 1fr; }
   .oi33-can-quote { min-height: 0; }
   .oi33-can-trade { min-height: 0; }
+  .oi33-can-history-legend { align-items: flex-start; flex-wrap: wrap; }
+  .oi33-can-history-legend small { width: 100%; margin-left: 0; }
 }

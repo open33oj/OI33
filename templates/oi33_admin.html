@@ -175,10 +175,17 @@
             {% elif a.type == 'cat_account' %}
               <span class="oi33-timeline__tag">猫粮</span>
               {{ userLink(a.sender) }}
-              <span class="oi33-timeline__note">向</span>
-              {{ userLink(a.userId) }}
-              <span class="oi33-timeline__amount-pos">{{ catFood.amount(a.amount, true) }}</span>
-              {% if a.action == 'bulk_grant' %}<span class="oi33-timeline__note">（批量发放）</span>{% endif %}
+              {% if a.action == 'deduct' %}
+                <span class="oi33-timeline__note">从</span>
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__note">扣除</span>
+                <span class="oi33-timeline__amount-neg">{{ catFood.amount(a.amount, true) }}</span>
+              {% else %}
+                <span class="oi33-timeline__note">向</span>
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__amount-pos">{{ catFood.amount(a.amount, true) }}</span>
+                {% if a.action == 'bulk_grant' %}<span class="oi33-timeline__note">（批量发放）</span>{% endif %}
+              {% endif %}
               {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
 
             {% elif a.type == 'paste' %}

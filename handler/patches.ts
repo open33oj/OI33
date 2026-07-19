@@ -130,12 +130,22 @@ export function applyPatches(_ctx: Context) {
     _ctx.on('handler/after/RecordListHandler', async (h: any) => {
         const udict = h.response?.body?.udict;
         if (!udict || typeof udict !== 'object') return;
-        const uids = Object.keys(udict).map(Number).filter(Number.isFinite);
+        const viewerUid = Number(h.user?._id) || 0;
+        const uids = [...new Set([
+            viewerUid,
+            ...Object.keys(udict).map(Number).filter(Number.isFinite),
+        ].filter(Boolean))];
         if (!uids.length) return;
         const oi33Dict = await oi33Model.getUserDataByUids(uids);
+        if (viewerUid && h.user) {
+            const viewer = cloneUserForDisplay(h.user);
+            oi33Model.mergeOi33Fields(viewer, oi33Dict[viewerUid]);
+            h.user = viewer;
+            if (h.context?.HydroContext) h.context.HydroContext.user = viewer;
+        }
         for (const uid of uids) {
+            if (!udict[uid]) continue;
             const original = udict[uid];
-            if (!original) continue;
             const udoc = cloneUserForDisplay(original);
             oi33Model.mergeOi33Fields(udoc, oi33Dict[uid]);
             oi33Model.anonymizeOi33Identity(udoc);
@@ -166,7 +176,11 @@ export function applyPatches(_ctx: Context) {
                 body = { ...body, udoc: owner };
             }
         }
-        return origRecordConnectionRender.call(this, template, body);
+        return origRecordConnectionRender.call(
+            this,
+            template === 'record_main_tr.html' ? 'oi33_record_main_tr.html' : template,
+            body,
+        );
     };
 
     // (e) Bearer token auth — Hydro v5 uses event-based handler lifecycle

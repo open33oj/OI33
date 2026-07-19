@@ -203,13 +203,16 @@ export async function grantCatFood(
     operator: number,
     amount: number,
     reason: string,
-    action: 'grant' | 'bulk_grant' = 'grant',
+    action: 'grant' | 'deduct' | 'bulk_grant' = 'grant',
     meta: { batchId?: ObjectId; batchIndex?: number } = {},
 ) {
-    if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error('猫粮数量必须是正整数。');
-    if (!reason.trim() || reason.trim().length > 100) throw new Error('发放原因不能为空且不能超过 100 字。');
-    const result = await userColl.updateOne({ _id: uid }, { $inc: { cat_food: amount } }, { upsert: true });
-    if (!result.acknowledged) throw new Error('猫粮发放失败。');
+    if (!Number.isSafeInteger(amount) || amount === 0) throw new Error('猫粮调整数量必须是非零整数。');
+    if (!reason.trim() || reason.trim().length > 100) throw new Error('调整原因不能为空且不能超过 100 字。');
+    const result = amount > 0
+        ? await userColl.updateOne({ _id: uid }, { $inc: { cat_food: amount } }, { upsert: true })
+        : await userColl.updateOne({ _id: uid, cat_food: { $gte: -amount } }, { $inc: { cat_food: amount } });
+    if (!result.acknowledged) throw new Error('猫粮调整失败。');
+    if (amount < 0 && !result.modifiedCount) throw new Error('猫粮余额不足，无法扣除。');
     let counterUpdated = false;
     try {
         const counterResult = await catCanPoolColl.updateOne(

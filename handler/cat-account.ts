@@ -55,17 +55,28 @@ class CatFoodGrantHandler extends Handler {
     @param('reason', Types.String)
     async post(domainId: string, uidOrName: string, amount: number, reason: string) {
         await checkOi33Admin(this.user._id);
-        if (!Number.isSafeInteger(amount) || amount <= 0 || amount > MAX_GRANT_AMOUNT) {
-            throw new ForbiddenError(`发放数量必须是 1～${MAX_GRANT_AMOUNT} 的整数。`);
+        if (!Number.isSafeInteger(amount) || amount === 0 || Math.abs(amount) > MAX_GRANT_AMOUNT) {
+            throw new ForbiddenError(`调整数量必须是 -${MAX_GRANT_AMOUNT}～-1 或 1～${MAX_GRANT_AMOUNT} 的整数。`);
         }
-        if (!reason.trim() || reason.trim().length > 100) throw new ForbiddenError('发放原因不能为空且不能超过 100 字。');
-        const udoc = await UserModel.getById(domainId, +uidOrName)
-            || await UserModel.getByUname(domainId, uidOrName)
-            || await UserModel.getByEmail(domainId, uidOrName);
-        if (!udoc) throw new NotFoundError(uidOrName);
+        if (!reason.trim() || reason.trim().length > 100) throw new ForbiddenError('调整原因不能为空且不能超过 100 字。');
+        const anonymousUid = /^UID\s+(\d+)$/i.exec(uidOrName.trim());
+        const lookup = anonymousUid ? anonymousUid[1] : uidOrName.trim();
+        const udoc = await UserModel.getById(domainId, +lookup)
+            || await UserModel.getByUname(domainId, lookup)
+            || await UserModel.getByEmail(domainId, lookup);
+        if (!udoc) throw new NotFoundError(lookup);
         if (udoc._id === this.user._id) throw new ForbiddenError('不能给自己发放猫粮。');
-        const result = await oi33Model.grantCatFood(udoc._id, this.user._id, amount, reason.trim());
-        const notification = `已向 UID ${udoc._id} 发放 ${oi33Model.formatCatFood(amount)}，当前余额 ${oi33Model.formatCatFood(result.balance)}`;
+        let result: Awaited<ReturnType<typeof oi33Model.grantCatFood>>;
+        try {
+            result = await oi33Model.grantCatFood(
+                udoc._id, this.user._id, amount, reason.trim(), amount < 0 ? 'deduct' : 'grant',
+            );
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '猫粮调整失败。');
+        }
+        const notification = amount < 0
+            ? `已从 UID ${udoc._id} 扣除 ${oi33Model.formatCatFood(-amount)}，当前余额 ${oi33Model.formatCatFood(result.balance)}`
+            : `已向 UID ${udoc._id} 发放 ${oi33Model.formatCatFood(amount)}，当前余额 ${oi33Model.formatCatFood(result.balance)}`;
         this.response.redirect = this.url('oi33_cat_account', { uid: udoc._id, query: { notification } });
     }
 }
@@ -130,7 +141,7 @@ class CatCanReverseHandler extends Handler {
         if (!reason.trim() || reason.trim().length > 100) throw new ForbiddenError('撤销原因不能为空且不能超过 100 字。');
         try {
             const result = await oi33Model.reverseCatCanTransaction(id, this.user._id, reason.trim());
-            const notification = `交易已撤销：猫粮 ${result.foodDelta >= 0 ? '+' : ''}${oi33Model.formatCatFood(result.foodDelta)}，罐头 ${result.canDelta >= 0 ? '+' : ''}${result.canDelta}`;
+            const notification = `交易已撤销：猫粮 ${result.foodDelta >= 0 ? '+' : ''}${oi33Model.formatCatFood(result.foodDelta)}，罐头 ${result.canDelta >= 0 ? '+' : ''}${result.canDelta} 个`;
             this.response.redirect = this.url('oi33_cat_account', { uid: result.uid, query: { notification } });
         } catch (e: any) {
             throw new ForbiddenError(e?.message || '撤销交易失败。');

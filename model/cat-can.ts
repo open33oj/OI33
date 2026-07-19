@@ -18,6 +18,7 @@ const INITIAL_PRICE = 100;
 // A single 8-hour tick cannot erase the 5% buy spread. This keeps short-term
 // speculation modest while still allowing supply and demand to move the price.
 const MAX_TICK_PERCENT = 3;
+const PRICE_HISTORY_POINTS = 90;
 
 interface ShanghaiParts {
     year: number;
@@ -191,6 +192,47 @@ export async function getCurrentQuote(now = new Date()) {
         sellPrice,
         buyPrice: Number(market.buyPrice) || calculateBuyPrice(sellPrice),
     };
+}
+
+function buildPriceHistory(rows: any[]) {
+    const plot = { left: 62, right: 838, top: 20, bottom: 214 };
+    if (!rows.length) return { nodes: [], buyPoints: '', sellPoints: '', min: 0, max: 0 };
+    const prices = rows.flatMap((row) => [Number(row.buyPrice) || 0, Number(row.sellPrice) || 0]);
+    const rawMin = Math.min(...prices);
+    const rawMax = Math.max(...prices);
+    const padding = Math.max(1, Math.ceil((rawMax - rawMin || rawMax || 1) * 0.08));
+    const min = Math.max(0, rawMin - padding);
+    const max = rawMax + padding;
+    const range = Math.max(1, max - min);
+    const y = (value: number) => Math.round((plot.bottom - (plot.bottom - plot.top) * (value - min) / range) * 10) / 10;
+    const labelEvery = Math.max(1, Math.ceil(rows.length / 7));
+    const formatter = new Intl.DateTimeFormat('zh-CN', {
+        timeZone: TIME_ZONE, month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
+    });
+    const nodes = rows.map((row, index) => {
+        const at = new Date(row._id || row.createdAt);
+        const buyPrice = Number(row.buyPrice) || 0;
+        const sellPrice = Number(row.sellPrice) || 0;
+        return {
+            x: Math.round((plot.left + (plot.right - plot.left) * index / Math.max(1, rows.length - 1)) * 10) / 10,
+            buyY: y(buyPrice), sellY: y(sellPrice), buyPrice, sellPrice,
+            label: formatter.format(at),
+            showLabel: index === 0 || index === rows.length - 1 || index % labelEvery === 0,
+        };
+    });
+    return {
+        nodes,
+        buyPoints: nodes.map((node) => `${node.x},${node.buyY}`).join(' '),
+        sellPoints: nodes.map((node) => `${node.x},${node.sellY}`).join(' '),
+        min, max,
+    };
+}
+
+async function getCatCanPriceHistory() {
+    const rows = await catCanPriceColl.find({})
+        .sort({ _id: -1 }).limit(PRICE_HISTORY_POINTS).toArray();
+    rows.reverse();
+    return buildPriceHistory(rows);
 }
 
 function validateTrade(quantity: number, quote: Awaited<ReturnType<typeof getCurrentQuote>>) {
@@ -367,9 +409,10 @@ export async function sellCatCans(uid: number, quantity: number, now = new Date(
 
 export async function getCatCanPage(uid: number, now = new Date()) {
     const quote = await getCurrentQuote(now);
-    const [user, pool] = await Promise.all([
+    const [user, pool, priceHistory] = await Promise.all([
         userColl.findOne({ _id: uid }),
         getOrCreatePool(now),
+        getCatCanPriceHistory(),
     ]);
     const virtualCanSupply = Math.max(1, Number((pool as any)?.virtualCanSupply) || 1);
     const circulatingCans = Math.max(0, Number((pool as any)?.circulatingCans) || 0);
@@ -391,5 +434,6 @@ export async function getCatCanPage(uid: number, now = new Date()) {
         tradeCooldownMs: TRADE_COOLDOWN_MS,
         cooldownUntilMs: isCoolingDown ? cooldownUntil!.getTime() : 0,
         isCoolingDown,
+        priceHistory,
     };
 }
