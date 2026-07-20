@@ -6,6 +6,10 @@ import './cat-can-arena.css';
 const MAP_WIDTH = 640;
 const MAP_HEIGHT = 480;
 const DEFAULT_GRID_SCALE = 52;
+const MIN_VIEW_SCALE = 0.25;
+const MAX_VIEW_SCALE = 110;
+const MIN_GRID_SPACING = 4;
+const MIN_CAT_SIZE = 8;
 
 interface MapPlayer {
     uid: number;
@@ -244,6 +248,7 @@ function mountMap() {
     const context = canvas.getContext('2d');
     if (!context) return;
     const userId = Number(viewport.dataset.userId) || 0;
+    const focusUserId = Number(new URLSearchParams(window.location.search).get('focusUid')) || 0;
     const stateUrl = viewport.dataset.stateUrl || '/oi33/arena/state';
     const joinUrl = viewport.dataset.joinUrl || '/oi33/arena/join';
     const moveUrl = viewport.dataset.moveUrl || '/oi33/arena/move';
@@ -273,17 +278,13 @@ function mountMap() {
     overviewContext.fillStyle = '#ffffff';
     overviewContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
     const animations = new Map<number, { fromX: number; fromY: number; toX: number; toY: number; start: number; teleport: boolean }>();
-    let mode: 'near' | 'pixel' = 'near';
-    let gridScale = DEFAULT_GRID_SCALE;
-    let cameraX = MAP_WIDTH / 2;
-    let cameraY = MAP_HEIGHT / 2;
-    let pixelScale = 1;
-    let pixelOffsetX = 0;
-    let pixelOffsetY = 0;
-    let pixelInitialized = false;
+    let showGrid = false;
+    let showCats = true;
+    let viewScale = DEFAULT_GRID_SCALE;
+    let viewCenterX = MAP_WIDTH / 2;
+    let viewCenterY = MAP_HEIGHT / 2;
     let drag: {
-        x: number; y: number; cameraX: number; cameraY: number;
-        pixelOffsetX: number; pixelOffsetY: number; moved: boolean;
+        x: number; y: number; centerX: number; centerY: number; moved: boolean;
     } | null = null;
     let selectedTarget: { x: number; y: number } | null = null;
     let selectedColorCell: { x: number; y: number } | null = null;
@@ -310,6 +311,30 @@ function mountMap() {
             }
         }
     };
+    const viewSize = () => ({ width: canvas.clientWidth, height: canvas.clientHeight });
+    const viewOrigin = () => {
+        const view = viewSize();
+        return {
+            x: view.width / 2 - viewCenterX * viewScale,
+            y: view.height / 2 - viewCenterY * viewScale,
+        };
+    };
+    const clampView = () => {
+        const view = viewSize();
+        const margin = 70;
+        const mapWidth = MAP_WIDTH * viewScale;
+        const mapHeight = MAP_HEIGHT * viewScale;
+        const origin = viewOrigin();
+        const originX = Math.min(view.width - margin, Math.max(margin - mapWidth, origin.x));
+        const originY = Math.min(view.height - margin, Math.max(margin - mapHeight, origin.y));
+        viewCenterX = (view.width / 2 - originX) / viewScale;
+        viewCenterY = (view.height / 2 - originY) / viewScale;
+    };
+    const centerAt = (x: number, y: number) => {
+        viewCenterX = x + .5;
+        viewCenterY = y + .5;
+        clampView();
+    };
     const resize = () => {
         const ratio = window.devicePixelRatio || 1;
         const rect = viewport.getBoundingClientRect();
@@ -318,44 +343,7 @@ function mountMap() {
         canvas.style.width = `${rect.width}px`;
         canvas.style.height = `${rect.height}px`;
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
-        clampCamera();
-        if (!pixelInitialized) fitPixelView();
-        else clampPixelView();
-    };
-    const viewSize = () => ({ width: canvas.clientWidth, height: canvas.clientHeight });
-    const clampCamera = () => {
-        const view = viewSize();
-        const visibleColumns = view.width / gridScale;
-        const visibleRows = view.height / gridScale;
-        cameraX = Math.max(0, Math.min(MAP_WIDTH - visibleColumns, cameraX));
-        cameraY = Math.max(0, Math.min(MAP_HEIGHT - visibleRows, cameraY));
-    };
-    const centerAt = (x: number, y: number) => {
-        const view = viewSize();
-        cameraX = x + .5 - view.width / gridScale / 2;
-        cameraY = y + .5 - view.height / gridScale / 2;
-        clampCamera();
-    };
-    const clampPixelView = () => {
-        const view = viewSize();
-        const margin = 70;
-        const mapWidth = MAP_WIDTH * pixelScale;
-        const mapHeight = MAP_HEIGHT * pixelScale;
-        pixelOffsetX = Math.min(view.width - margin, Math.max(margin - mapWidth, pixelOffsetX));
-        pixelOffsetY = Math.min(view.height - margin, Math.max(margin - mapHeight, pixelOffsetY));
-    };
-    const fitPixelView = () => {
-        const view = viewSize();
-        pixelScale = Math.min(view.width / MAP_WIDTH, view.height / MAP_HEIGHT);
-        pixelOffsetX = (view.width - MAP_WIDTH * pixelScale) / 2;
-        pixelOffsetY = (view.height - MAP_HEIGHT * pixelScale) / 2;
-        pixelInitialized = true;
-    };
-    const centerPixelAt = (column: number, row: number) => {
-        const view = viewSize();
-        pixelOffsetX = view.width / 2 - (column + .5) * pixelScale;
-        pixelOffsetY = view.height / 2 - (row + .5) * pixelScale;
-        clampPixelView();
+        clampView();
     };
     const updateStats = () => {
         if (catCount) catCount.textContent = String(players.size);
@@ -383,13 +371,13 @@ function mountMap() {
             frameX = Math.floor(now() / 180) % 2;
             frameY = 1;
         }
-        const catSize = gridScale * .72;
-        const catX = px + (gridScale - catSize) / 2;
-        const catY = py + gridScale - catSize - Math.max(2, gridScale * .04);
+        const catSize = Math.max(MIN_CAT_SIZE, viewScale * .72);
+        const catX = px + (viewScale - catSize) / 2;
+        const catY = py + viewScale - catSize - Math.max(2, viewScale * .04);
         context.save();
         context.fillStyle = player.uid === userId ? 'rgba(255,215,94,.32)' : 'rgba(0,0,0,.2)';
         context.beginPath();
-        context.ellipse(px + gridScale / 2, py + gridScale - Math.max(2, gridScale * .05), catSize * .36, catSize * .11, 0, 0, Math.PI * 2);
+        context.ellipse(px + viewScale / 2, py + viewScale - Math.max(2, viewScale * .05), catSize * .36, catSize * .11, 0, 0, Math.PI * 2);
         context.fill();
         if (sprite.complete && sprite.naturalWidth) {
             context.imageSmoothingEnabled = false;
@@ -405,7 +393,7 @@ function mountMap() {
         const label = `${player.uname} · 🥫${player.cans}`;
         context.font = 'bold 11px sans-serif';
         const labelWidth = Math.min(150, context.measureText(label).width + 9);
-        return { label, x: px + gridScale / 2 - labelWidth / 2, y: py - 7, width: labelWidth, height: 16 };
+        return { label, x: px + viewScale / 2 - labelWidth / 2, y: py - 7, width: labelWidth, height: 16 };
     };
 
     const drawCatLabel = (player: MapPlayer, px: number, py: number) => {
@@ -420,35 +408,42 @@ function mountMap() {
         context.restore();
     };
 
-    const renderOverview = (width: number, height: number) => {
-        context.fillStyle = '#eef1ee';
+    const renderMap = (width: number, height: number) => {
+        context.fillStyle = paletteColor(238);
         context.fillRect(0, 0, width, height);
-        const mapWidth = MAP_WIDTH * pixelScale;
-        const mapHeight = MAP_HEIGHT * pixelScale;
+        const origin = viewOrigin();
+        const mapWidth = MAP_WIDTH * viewScale;
+        const mapHeight = MAP_HEIGHT * viewScale;
         context.imageSmoothingEnabled = false;
-        context.drawImage(overviewLayer, pixelOffsetX, pixelOffsetY, mapWidth, mapHeight);
-        context.strokeStyle = 'rgba(255,255,255,.12)';
-        context.strokeRect(pixelOffsetX + .5, pixelOffsetY + .5, mapWidth - 1, mapHeight - 1);
-    };
-
-    const renderNear = (width: number, height: number) => {
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, width, height);
-        const firstX = Math.max(0, Math.floor(cameraX));
-        const firstY = Math.max(0, Math.floor(cameraY));
-        const lastX = Math.min(MAP_WIDTH - 1, Math.ceil(cameraX + width / gridScale));
-        const lastY = Math.min(MAP_HEIGHT - 1, Math.ceil(cameraY + height / gridScale));
-        for (let y = firstY; y <= lastY; y++) {
-            for (let x = firstX; x <= lastX; x++) {
-                const px = (x - cameraX) * gridScale;
-                const py = (y - cameraY) * gridScale;
-                context.fillStyle = cells.has(cellKey(x, y)) ? paletteColor(cells.get(cellKey(x, y))!) : '#ffffff';
-                context.fillRect(px, py, gridScale, gridScale);
-                context.strokeStyle = 'rgba(0,0,0,.72)';
-                context.lineWidth = 1;
-                context.strokeRect(Math.round(px) + .5, Math.round(py) + .5, gridScale, gridScale);
+        context.drawImage(overviewLayer, origin.x, origin.y, mapWidth, mapHeight);
+        if (showGrid) {
+            context.strokeStyle = 'rgba(0,0,0,.72)';
+            context.lineWidth = 1;
+            const gridStep = Math.max(1, Math.ceil(MIN_GRID_SPACING / viewScale));
+            const firstColumn = Math.max(0, Math.floor((-origin.x / viewScale) / gridStep) * gridStep);
+            const lastColumn = Math.min(MAP_WIDTH, Math.ceil((width - origin.x) / viewScale));
+            const firstRow = Math.max(0, Math.floor((-origin.y / viewScale) / gridStep) * gridStep);
+            const lastRow = Math.min(MAP_HEIGHT, Math.ceil((height - origin.y) / viewScale));
+            context.beginPath();
+            for (let column = firstColumn; column <= lastColumn; column += gridStep) {
+                const x = Math.round(origin.x + column * viewScale) + .5;
+                context.moveTo(x, Math.max(0, origin.y));
+                context.lineTo(x, Math.min(height, origin.y + mapHeight));
             }
+            for (let row = firstRow; row <= lastRow; row += gridStep) {
+                const y = Math.round(origin.y + row * viewScale) + .5;
+                context.moveTo(Math.max(0, origin.x), y);
+                context.lineTo(Math.min(width, origin.x + mapWidth), y);
+            }
+            context.stroke();
         }
+        context.strokeStyle = showGrid ? 'rgba(0,0,0,.72)' : 'rgba(255,255,255,.12)';
+        context.strokeRect(origin.x + .5, origin.y + .5, mapWidth - 1, mapHeight - 1);
+        if (!showCats) return;
+        const firstX = Math.max(0, Math.floor(-origin.x / viewScale));
+        const firstY = Math.max(0, Math.floor(-origin.y / viewScale));
+        const lastX = Math.min(MAP_WIDTH - 1, Math.ceil((width - origin.x) / viewScale));
+        const lastY = Math.min(MAP_HEIGHT - 1, Math.ceil((height - origin.y) / viewScale));
         const stacks = new Map<string, MapPlayer[]>();
         Array.from(players.values()).sort((a, b) => a.cans - b.cans || b.uid - a.uid).forEach((player) => {
             const key = cellKey(player.x, player.y);
@@ -471,7 +466,7 @@ function mountMap() {
                         context.strokeStyle = `rgba(118,220,255,${1 - elapsed / 700})`;
                         context.lineWidth = 4;
                         context.beginPath();
-                        context.arc((animation.toX - cameraX + .5) * gridScale, (animation.toY - cameraY + .5) * gridScale, 10 + elapsed / 28, 0, Math.PI * 2);
+                        context.arc(origin.x + (animation.toX + .5) * viewScale, origin.y + (animation.toY + .5) * viewScale, 10 + elapsed / 28, 0, Math.PI * 2);
                         context.stroke();
                         context.restore();
                     } else animations.delete(player.uid);
@@ -486,8 +481,8 @@ function mountMap() {
             const stack = stacks.get(cellKey(player.x, player.y)) || [player];
             const stackIndex = stack.findIndex((item) => item.uid === player.uid);
             const offset = (stackIndex - (stack.length - 1) / 2) * 10;
-            const px = (drawX - cameraX) * gridScale + offset;
-            const py = (drawY - cameraY) * gridScale - Math.abs(offset) * .3;
+            const px = origin.x + drawX * viewScale + offset;
+            const py = origin.y + drawY * viewScale - Math.abs(offset) * .3;
             drawCat(player, px, py, walking);
             labelCandidates.push({ player, px, py });
         });
@@ -510,17 +505,9 @@ function mountMap() {
         if (!canvas.isConnected) return;
         const { width, height } = viewSize();
         context.clearRect(0, 0, width, height);
-        if (mode === 'pixel') renderOverview(width, height);
-        else renderNear(width, height);
+        renderMap(width, height);
         updateMeStatus();
         window.requestAnimationFrame(render);
-    };
-
-    const setMode = (next: 'near' | 'pixel') => {
-        mode = next;
-        document.querySelectorAll<HTMLElement>('[data-map-mode]').forEach((button) => button.classList.toggle('is-active', button.dataset.mapMode === mode));
-        if (mode === 'near' && state.me) centerAt(state.me.x, state.me.y);
-        if (mode === 'pixel' && !pixelInitialized) fitPixelView();
     };
 
     const applyPlayerUpdate = (incoming: any) => {
@@ -563,7 +550,7 @@ function mountMap() {
         players.set(next.uid, next);
         if (next.uid === userId) {
             state.me = next;
-            if (positionChanged && mode === 'near') centerAt(next.x, next.y);
+            if (positionChanged) centerAt(next.x, next.y);
         }
         updateStats();
         updateMeStatus();
@@ -635,17 +622,17 @@ function mountMap() {
         const rect = canvas.getBoundingClientRect();
         const px = clientX - rect.left;
         const py = clientY - rect.top;
-        if (mode === 'near') return { x: Math.floor(cameraX + px / gridScale), y: Math.floor(cameraY + py / gridScale) };
+        const origin = viewOrigin();
         return {
-            x: Math.floor((px - pixelOffsetX) / pixelScale),
-            y: Math.floor((py - pixelOffsetY) / pixelScale),
+            x: Math.floor((px - origin.x) / viewScale),
+            y: Math.floor((py - origin.y) / viewScale),
         };
     };
 
     viewport.addEventListener('pointerdown', (event) => {
         drag = {
-            x: event.clientX, y: event.clientY, cameraX, cameraY,
-            pixelOffsetX, pixelOffsetY, moved: false,
+            x: event.clientX, y: event.clientY,
+            centerX: viewCenterX, centerY: viewCenterY, moved: false,
         };
         viewport.setPointerCapture(event.pointerId);
         viewport.classList.add('is-dragging');
@@ -657,21 +644,15 @@ function mountMap() {
         const dx = event.clientX - drag.x;
         const dy = event.clientY - drag.y;
         if (Math.hypot(dx, dy) > 5) drag.moved = true;
-        if (mode === 'near') {
-            cameraX = drag.cameraX - dx / gridScale;
-            cameraY = drag.cameraY - dy / gridScale;
-            clampCamera();
-        } else {
-            pixelOffsetX = drag.pixelOffsetX + dx;
-            pixelOffsetY = drag.pixelOffsetY + dy;
-            clampPixelView();
-        }
+        viewCenterX = drag.centerX - dx / viewScale;
+        viewCenterY = drag.centerY - dy / viewScale;
+        clampView();
     });
     viewport.addEventListener('pointerup', (event) => {
         const wasDrag = drag?.moved;
         drag = null;
         viewport.classList.remove('is-dragging');
-        if (!wasDrag && mode === 'near') {
+        if (!wasDrag) {
             const cell = pointToCell(event.clientX, event.clientY);
             clickCell(cell.x, cell.y);
         }
@@ -686,27 +667,25 @@ function mountMap() {
         const pointerX = event.clientX - rect.left;
         const pointerY = event.clientY - rect.top;
         const factor = Math.exp(-event.deltaY * 0.0015);
-        if (mode === 'near') {
-            const mapX = cameraX + pointerX / gridScale;
-            const mapY = cameraY + pointerY / gridScale;
-            gridScale = Math.max(28, Math.min(110, gridScale * factor));
-            cameraX = mapX - pointerX / gridScale;
-            cameraY = mapY - pointerY / gridScale;
-            clampCamera();
-            return;
-        }
-        const mapX = (pointerX - pixelOffsetX) / pixelScale;
-        const mapY = (pointerY - pixelOffsetY) / pixelScale;
-        pixelScale = Math.max(0.25, Math.min(48, pixelScale * factor));
-        pixelOffsetX = pointerX - mapX * pixelScale;
-        pixelOffsetY = pointerY - mapY * pixelScale;
-        clampPixelView();
+        const view = viewSize();
+        const mapX = viewCenterX + (pointerX - view.width / 2) / viewScale;
+        const mapY = viewCenterY + (pointerY - view.height / 2) / viewScale;
+        viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale * factor));
+        viewCenterX = mapX - (pointerX - view.width / 2) / viewScale;
+        viewCenterY = mapY - (pointerY - view.height / 2) / viewScale;
+        clampView();
     }, { passive: false });
 
-    document.querySelectorAll<HTMLButtonElement>('[data-map-mode]').forEach((button) => button.addEventListener('click', () => setMode(button.dataset.mapMode as any)));
+    document.querySelectorAll<HTMLButtonElement>('[data-map-layer]').forEach((button) => button.addEventListener('click', () => {
+        const layer = button.dataset.mapLayer;
+        if (layer === 'grid') showGrid = !showGrid;
+        if (layer === 'cats') showCats = !showCats;
+        const active = layer === 'grid' ? showGrid : showCats;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+    }));
     document.querySelector<HTMLButtonElement>('[data-map-find-me]')?.addEventListener('click', () => {
         if (!state.me) return Notification.error('当前账号还没有可定位的小猫。');
-        setMode('near');
         centerAt(state.me.x, state.me.y);
     });
     document.querySelector<HTMLButtonElement>('[data-map-jump]')?.addEventListener('click', () => {
@@ -718,8 +697,7 @@ function mountMap() {
             Notification.error('请输入有效坐标：行 0～479，列 0～639。');
             return;
         }
-        if (mode === 'near') centerAt(column, row);
-        else centerPixelAt(column, row);
+        centerAt(column, row);
         if (coordinate) coordinate.textContent = `格子：（行 ${row}, 列 ${column}）`;
     });
     actionDialog?.querySelector<HTMLButtonElement>('[data-action-confirm]')?.addEventListener('click', async (event) => {
@@ -807,11 +785,16 @@ function mountMap() {
         overviewContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
         incoming.cells.forEach(([x, y, color]) => setCell(x, y, color));
         state.me = userId ? players.get(userId) || null : null;
-        if (state.me) centerAt(state.me.x, state.me.y);
+        const focusedPlayer = focusUserId ? players.get(focusUserId) : null;
+        if (focusedPlayer) {
+            centerAt(focusedPlayer.x, focusedPlayer.y);
+            if (coordinate) coordinate.textContent = `格子：（行 ${focusedPlayer.y}, 列 ${focusedPlayer.x}）`;
+        } else if (state.me) centerAt(state.me.x, state.me.y);
         else centerAt(MAP_WIDTH / 2, MAP_HEIGHT / 2);
         updateStats();
         updateMeStatus();
         loading?.classList.add('is-hidden');
+        if (focusUserId && !focusedPlayer) Notification.error('该用户的小猫尚未加入猫猫广场。');
     }).catch((e) => {
         if (loading) loading.textContent = `地图加载失败：${e.message || e}`;
     });

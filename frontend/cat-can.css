@@ -31,7 +31,8 @@
 .oi33-can-history-chart text { fill: currentColor; font-size: 12px; opacity: .65; }
 .oi33-can-history-grid { stroke: currentColor; stroke-width: 1; opacity: .12; }
 .oi33-can-history-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.oi33-can-history-line.is-sell, .oi33-can-history-dot.is-sell { stroke: var(--can-green); fill: var(--can-green); }
+.oi33-can-history-line.is-sell { stroke: var(--can-green); fill: none; }
+.oi33-can-history-dot.is-sell { stroke: var(--can-green); fill: var(--can-green); }
 .oi33-can-history-date { font-size: 10px !important; }
 @media (max-width: 720px) {
   .oi33-can-quote-grid { grid-template-columns: 1fr; }

@@ -18,9 +18,9 @@
       </div>
       <div class="section__body oi33-map-body">
         <div class="oi33-map-toolbar">
-          <div class="oi33-map-segmented" role="group" aria-label="地图缩放模式">
-            <button type="button" data-map-mode="near" class="is-active">网格地图</button>
-            <button type="button" data-map-mode="pixel">像素地图</button>
+          <div class="oi33-map-toggles" role="group" aria-label="地图显示选项">
+            <button type="button" data-map-layer="grid" aria-pressed="false">格线</button>
+            <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫与名字</button>
           </div>
           <button type="button" class="rounded button" data-map-find-me {% if not loggedIn %}disabled{% endif %}>定位我的小猫</button>
           <div class="oi33-map-jump" aria-label="按坐标跳转">
@@ -43,7 +43,7 @@
              data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
           <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
           <div class="oi33-map-loading">正在生成猫咪世界…</div>
-          <div class="oi33-map-hint">两种地图均可拖动并用滚轮连续缩放 · 点击自己的小猫改色</div>
+          <div class="oi33-map-hint">格线和小猫可独立显示 · 拖动与滚轮连续缩放 · 点击自己的小猫改色</div>
         </div>
       </div>
     </div>
