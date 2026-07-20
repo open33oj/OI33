@@ -14,6 +14,7 @@ import { apply as applyCatAccount } from './handler/cat-account';
 import { backfillAllCatFood } from './model/user';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
 import { ensureCatAccountIndexes } from './model/cat-account';
+import { ensureCatMapIndexes } from './model/cat-map';
 
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
@@ -54,6 +55,7 @@ export async function apply(ctx: Context) {
             try {
                 await ensureCatCanIndexes();
                 await ensureCatAccountIndexes();
+                await ensureCatMapIndexes();
                 await maintainCatCanMarket();
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {

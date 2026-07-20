@@ -2,6 +2,7 @@ import { db, ObjectId } from 'hydrooj';
 import { Oi33Request, Oi33RequestKind, Oi33RequestPayload, Oi33RequestStatus } from './types';
 import { addLog, logColl } from './log';
 import { userColl } from './user';
+import { removeCatMapPlayer } from './cat-map';
 
 export const requestColl = db.collection('oi33_request');
 
@@ -49,6 +50,9 @@ export async function applyRequestPayload(uid: number, payload: Oi33RequestPaylo
     if (Object.keys($unset).length) update.$unset = $unset;
     if (!Object.keys(update).length) return true;
     await userColl.updateOne({ _id: uid }, update, { upsert: true });
+    if (payload.realname_flag !== undefined && payload.realname_flag < 1) {
+        await removeCatMapPlayer(uid);
+    }
     return true;
 }
 

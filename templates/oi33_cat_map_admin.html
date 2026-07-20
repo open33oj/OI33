@@ -1,0 +1,55 @@
+{% set page_name = "oi33_cat_can_arena_admin" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-9 medium-centered columns">
+    <div class="section oi33-map-admin">
+      <div class="section__header">
+        <h1 class="section__title">猫咪像素地图绘图后台</h1>
+        <div class="section__tools"><a href="{{ url('oi33_cat_can_arena') }}" class="rounded button">返回地图</a></div>
+      </div>
+      <div class="section__body">
+        <blockquote class="note">坐标顺序统一为（行, 列）：左上角是 (0,0)，右下角是 (479,639)。矩形范围包含起点和终点。</blockquote>
+        <form method="post" action="{{ url('oi33_cat_map_admin_relocate') }}">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <div class="row">
+            <div class="medium-8 columns">
+              <label>强制随机迁移小猫
+                <input type="number" name="uid" min="1" required placeholder="输入用户 UID">
+              </label>
+            </div>
+            <div class="medium-4 columns">
+              <label>&nbsp;<button type="submit" class="expanded rounded button">迁移到随机空位</button></label>
+            </div>
+          </div>
+        </form>
+        <form method="post" data-admin-paint-form data-state-url="{{ url('oi33_cat_map_state') }}">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <input type="hidden" name="mode" value="rectangle">
+          <div class="row">
+            <div class="medium-4 columns"><label>起始行（0～479）<input type="number" name="rowStart" min="0" max="479" required></label></div>
+            <div class="medium-4 columns"><label>起始列（0～639）<input type="number" name="columnStart" min="0" max="639" required></label></div>
+            <div class="medium-4 columns"><label>颜色码（0～255）<input type="number" name="color" min="0" max="255" value="15" required data-color-input></label></div>
+          </div>
+          <div class="row" data-rect-fields>
+            <div class="medium-6 columns"><label>结束行（0～479）<input type="number" name="rowEnd" min="0" max="479" required></label></div>
+            <div class="medium-6 columns"><label>结束列（0～639）<input type="number" name="columnEnd" min="0" max="639" required></label></div>
+          </div>
+          <div class="oi33-map-color-selected"><span data-color-preview></span><strong>8-bit 颜色码参考表</strong></div>
+          <div class="oi33-map-palette" data-palette aria-label="8-bit 颜色码参考表"></div>
+          <p class="oi33-map-palette-note">0～15：标准色 · 16～231：6×6×6 色立方 · 232～255：灰阶</p>
+          <div class="oi33-admin-paint-toolbar">
+            <strong data-admin-selection>请在画布上点击一个像素</strong>
+            <span>点击选择 1×1 矩形，拖动选择更大范围；按住 Alt 拖动可平移；滚轮连续缩放</span>
+            <button type="button" class="rounded button" data-admin-fit>显示全图</button>
+            <button type="submit" class="primary rounded button">执行绘图</button>
+          </div>
+          <div class="oi33-admin-paint-map">
+            <canvas data-admin-paint-canvas aria-label="管理员像素绘图画布"></canvas>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

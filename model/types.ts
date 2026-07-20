@@ -127,6 +127,29 @@ export interface Oi33CatCanPrice {
     createdAt: Date;
 }
 
+export interface Oi33CatMapPlayer {
+    _id: number;
+    x: number;
+    y: number;
+    stackable?: boolean;
+    createdAt: Date;
+    joinedAt?: Date;
+    updatedAt: Date;
+    movedAt?: Date;
+    availableAt?: Date;
+    movementLock?: ObjectId;
+    movementLockAt?: Date;
+}
+
+export interface Oi33CatMapCell {
+    _id: string;
+    x: number;
+    y: number;
+    color: number;
+    updatedBy: number;
+    updatedAt: Date;
+}
+
 export interface Oi33CoinBill {
     _id: string;
     userId: number;
@@ -230,10 +253,11 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'paste' | 'request' | 'wiki' | 'oauth';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth';
     sender?: number;
     receiver?: number;
     amount?: number;
+    canAmount?: number;
     reason?: string;
     userId?: number;
     birthdayDate?: string;
@@ -257,4 +281,11 @@ export interface Oi33Log {
     oauthClientId?: string;
     oauthAction?: 'authorize' | 'deny' | 'token' | 'refresh' | 'revoke' | 'client_create' | 'client_delete';
     oauthScopes?: string[];
+    x?: number;
+    y?: number;
+    color?: number;
+    rowStart?: number;
+    columnStart?: number;
+    rowEnd?: number;
+    columnEnd?: number;
 }

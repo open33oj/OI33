@@ -7,8 +7,6 @@ export const catCanPoolColl = db.collection('oi33_cat_can_pool');
 export const catCanPriceColl = db.collection('oi33_cat_can_price');
 
 const TIME_ZONE = 'Asia/Shanghai';
-const OPEN_HOUR = 8;
-const CLOSE_HOUR = 22;
 const MIN_TRADE_QUANTITY = 1;
 const TRADE_COOLDOWN_MS = 2 * 60 * 60 * 1000;
 const BALANCE_COUNTER_VERSION = 1;
@@ -183,12 +181,10 @@ export async function getOrCreateCurrentMarket(now = new Date()) {
 }
 
 export async function getCurrentQuote(now = new Date()) {
-    const parts = shanghaiParts(now);
     const market: any = await ensureCurrentCatCanPrice(now);
-    const isOpen = parts.hour >= OPEN_HOUR && parts.hour < CLOSE_HOUR;
     const sellPrice = Number(market.sellPrice) || 1;
     return {
-        isOpen,
+        isOpen: true,
         sellPrice,
         buyPrice: Number(market.buyPrice) || calculateBuyPrice(sellPrice),
     };
@@ -196,8 +192,8 @@ export async function getCurrentQuote(now = new Date()) {
 
 function buildPriceHistory(rows: any[]) {
     const plot = { left: 62, right: 838, top: 20, bottom: 214 };
-    if (!rows.length) return { nodes: [], buyPoints: '', sellPoints: '', min: 0, max: 0 };
-    const prices = rows.flatMap((row) => [Number(row.buyPrice) || 0, Number(row.sellPrice) || 0]);
+    if (!rows.length) return { nodes: [], sellPoints: '', min: 0, max: 0 };
+    const prices = rows.map((row) => Number(row.sellPrice) || 0);
     const rawMin = Math.min(...prices);
     const rawMax = Math.max(...prices);
     const padding = Math.max(1, Math.ceil((rawMax - rawMin || rawMax || 1) * 0.08));
@@ -211,18 +207,16 @@ function buildPriceHistory(rows: any[]) {
     });
     const nodes = rows.map((row, index) => {
         const at = new Date(row._id || row.createdAt);
-        const buyPrice = Number(row.buyPrice) || 0;
         const sellPrice = Number(row.sellPrice) || 0;
         return {
             x: Math.round((plot.left + (plot.right - plot.left) * index / Math.max(1, rows.length - 1)) * 10) / 10,
-            buyY: y(buyPrice), sellY: y(sellPrice), buyPrice, sellPrice,
+            sellY: y(sellPrice), sellPrice,
             label: formatter.format(at),
             showLabel: index === 0 || index === rows.length - 1 || index % labelEvery === 0,
         };
     });
     return {
         nodes,
-        buyPoints: nodes.map((node) => `${node.x},${node.buyY}`).join(' '),
         sellPoints: nodes.map((node) => `${node.x},${node.sellY}`).join(' '),
         min, max,
     };
@@ -235,8 +229,7 @@ async function getCatCanPriceHistory() {
     return buildPriceHistory(rows);
 }
 
-function validateTrade(quantity: number, quote: Awaited<ReturnType<typeof getCurrentQuote>>) {
-    if (!quote.isOpen) throw new Error('猫罐头市场仅在每天 08:00～22:00 开放。');
+function validateTrade(quantity: number) {
     if (!Number.isSafeInteger(quantity) || quantity < MIN_TRADE_QUANTITY) {
         throw new Error(`交易数量必须是大于等于 ${MIN_TRADE_QUANTITY} 的整数。`);
     }
@@ -281,7 +274,7 @@ async function throwTradeUpdateFailure(uid: number, now: Date, fallback: string)
 
 export async function buyCatCans(uid: number, quantity: number, now = new Date()) {
     const quote = await getCurrentQuote(now);
-    validateTrade(quantity, quote);
+    validateTrade(quantity);
     const [pool, previousUser] = await Promise.all([getOrCreatePool(now), userColl.findOne({ _id: uid })]);
     assertTradeCooldown(previousUser, now);
     const cost = quote.buyPrice * quantity;
@@ -339,7 +332,7 @@ export async function buyCatCans(uid: number, quantity: number, now = new Date()
 
 export async function sellCatCans(uid: number, quantity: number, now = new Date()) {
     const quote = await getCurrentQuote(now);
-    validateTrade(quantity, quote);
+    validateTrade(quantity);
     const previousUser: any = await userColl.findOne({ _id: uid });
     assertTradeCooldown(previousUser, now);
     if ((Number(previousUser?.cat_can) || 0) < quantity) throw new Error('猫罐头库存不足。');

@@ -4,6 +4,7 @@ import { addLog } from './log';
 
 export const userColl = db.collection('oi33_user');
 const catCanPoolCounterColl = db.collection('oi33_cat_can_pool');
+const catMapPlayerCleanupColl = db.collection('oi33_cat_map_player');
 
 export const CAT_FOOD_START_DATE = '2026-07-18';
 export const CAT_FOOD_NORMAL_REWARD = 100;
@@ -281,6 +282,7 @@ export async function setRealname(userId: number, flag: number, name: string) {
         { $set: { realname_flag: flag, realname_name: name } },
         { upsert: true },
     );
+    if (flag < 1) await catMapPlayerCleanupColl.deleteOne({ _id: userId });
     await addLog({ type: 'realname', userId, realnameName: name });
 }
 

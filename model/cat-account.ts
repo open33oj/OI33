@@ -35,8 +35,11 @@ export async function ensureCatAccountIndexes() {
 function accountFoodFilter(uid: number) {
     return {
         userId: uid,
-        amount: { $exists: true, $ne: 0 },
         type: { $in: ['checkin', 'cat_account'] },
+        $or: [
+            { amount: { $exists: true, $ne: 0 } },
+            { canAmount: { $exists: true, $ne: 0 } },
+        ],
     };
 }
 
@@ -47,7 +50,7 @@ function normalizeFoodLog(log: any) {
         action: log.action || 'checkin',
         createdAt: new Date(log.createdAt || log._id?.getTimestamp?.() || Date.now()),
         foodDelta: Number(log.amount) || 0,
-        canDelta: 0,
+        canDelta: Number(log.canAmount) || 0,
         reason: log.reason || '',
         operator: log.sender,
         batchId: log.batchId ? String(log.batchId) : '',

@@ -129,6 +129,9 @@ class ProfileEditHandler extends Handler {
 
         if (isHydroSuperAdmin || editorRole >= 2) {
             await oi33Model.directUpdate(uid, kind as Oi33RequestKind, this.user._id, payload);
+            if (kind === 'realname' && realname_flag < 1) {
+                (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'remove', uid });
+            }
         } else {
             await oi33Model.submitRequest(uid, kind as Oi33RequestKind, this.user._id, payload);
         }
@@ -167,6 +170,9 @@ class RequestApproveHandler extends Handler {
         }
         const ok = await oi33Model.approveRequest(id, this.user._id);
         if (!ok) throw new ForbiddenError('申请不存在或已处理。');
+        if (request.kind === 'realname' && request.realname_flag !== undefined && request.realname_flag < 1) {
+            (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'remove', uid: request.uid });
+        }
         this.response.redirect = this.url('oi33_requests');
     }
 }

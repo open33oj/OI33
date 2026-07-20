@@ -74,6 +74,7 @@
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
               <a href="/oi33/users" class="primary rounded button">{{ _('OI33 All Users') }}</a>
               <a href="/oi33/at-cf-rating" class="rounded button">AT / CF Rating 排名</a>
+              <a href="{{ url('oi33_cat_can_arena') }}" class="rounded button">猫猫广场</a>
               <a href="/oi33/coin/bill/0" class="rounded button">{{ _('All Records') }}</a>
               <a href="/oi33/paste/all" class="rounded button">{{ _('All Pastes') }}</a>
             </div>
@@ -95,6 +96,7 @@
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
               <a href="/oi33/coin/inc" class="rounded button">{{ _('Grant Coins') }}</a>
               <a href="{{ url('oi33_cat_food_grant') }}" class="rounded button">发放猫粮</a>
+              {% if (handler.user.realname_flag or 0) >= 3 %}<a href="{{ url('oi33_cat_map_admin') }}" class="rounded button">像素地图绘图</a>{% endif %}
               {% if (handler.user.realname_flag or 0) >= 3 %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放猫粮</a>{% endif %}
               <a href="/oi33/requests" class="{% if pendingCount %}primary {% endif %}rounded button">
                 {{ _('Pending Requests') }}{% if pendingCount %} ({{ pendingCount }}){% endif %}
@@ -172,10 +174,38 @@
                 <span class="oi33-timeline__amount-pos">{{ _('Cat food') }} {{ catFood.amount(a.amount, true) }}</span>
               {% endif %}
 
+            {% elif a.type == 'cat_map' %}
+              <span class="oi33-timeline__tag">猫咪地图</span>
+              {{ userLink(a.userId) }}
+              {% if a.action == 'admin_paint_pixel' %}
+                <span class="oi33-timeline__note">后台绘制像素</span>
+                ({{ a.rowStart }}, {{ a.columnStart }}) 为颜色码 {{ a.color }}
+              {% elif a.action == 'admin_paint_rect' %}
+                <span class="oi33-timeline__note">后台填充矩形</span>
+                ({{ a.rowStart }}, {{ a.columnStart }}) 至 ({{ a.rowEnd }}, {{ a.columnEnd }}) 为颜色码 {{ a.color }}
+              {% elif a.action == 'admin_relocate' %}
+                <span class="oi33-timeline__note">将</span>
+                {{ userLink(a.targetUid) }}
+                <span class="oi33-timeline__note">的小猫从</span>
+                ({{ a.fromY }}, {{ a.fromX }}) 随机迁移到 ({{ a.y }}, {{ a.x }})
+              {% elif a.action == 'join' %}
+                <span class="oi33-timeline__note">免费加入猫猫广场，初始位置为</span>
+                ({{ a.y }}, {{ a.x }})
+              {% elif a.action == 'admin_move' %}
+                <span class="oi33-timeline__note">免消耗移动到</span>格子 ({{ a.x }}, {{ a.y }})
+              {% elif a.action == 'admin_teleport' %}
+                <span class="oi33-timeline__note">免消耗传送到</span>格子 ({{ a.x }}, {{ a.y }})
+              {% else %}
+                <span class="oi33-timeline__note">设置</span>格子 ({{ a.x }}, {{ a.y }}) 为颜色码 {{ a.color }}
+              {% endif %}
+
             {% elif a.type == 'cat_account' %}
               <span class="oi33-timeline__tag">猫粮</span>
               {{ userLink(a.sender) }}
-              {% if a.action == 'deduct' %}
+              {% if a.action == 'cat_map_move' or a.action == 'cat_map_teleport' %}
+                <span class="oi33-timeline__note">{% if a.action == 'cat_map_move' %}移动小猫{% else %}传送小猫{% endif %}</span>
+                <span class="oi33-timeline__amount-neg">{{ catFood.amount(a.amount, true) }}</span>
+              {% elif a.action == 'deduct' %}
                 <span class="oi33-timeline__note">从</span>
                 {{ userLink(a.userId) }}
                 <span class="oi33-timeline__note">扣除</span>

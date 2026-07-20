@@ -280,14 +280,20 @@
           <span class="oi33-cat-food__label">猫罐头</span>
           <span class="oi33-cat-food__actions"><strong class="oi33-cat-food__amount">{{ udoc.cat_can or 0 }} 个</strong></span>
         </div>
+        <a class="expanded rounded button" href="{{ url('oi33_cat_can_arena') }}" style="margin:10px 0 0;">
+          🗺️ 猫猫广场
+        </a>
         {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
-        <a class="expanded rounded button" href="{{ url('oi33_cat_account', uid=udoc._id) }}" style="margin:10px 0 0;">
+        <a class="expanded rounded button" href="{{ url('oi33_cat_account', uid=udoc._id) }}" style="margin:8px 0 0;">
           📒 账户明细
         </a>
         {% endif %}
         {% if isSelfProfile %}
         <a class="expanded rounded button" href="{{ url('oi33_cat_can') }}" style="margin:8px 0 0;">
-          🥫 猫罐头市场
+          🥫 罐头交易
+        </a>
+        <a class="expanded rounded button" href="https://oj.33dai.cn/oi33/wiki/8934184860f0fe89mrr292st" style="margin:8px 0 0;">
+          📖 系统说明
         </a>
         {% endif %}
         <noscript><p class="oi33-cat-noscript">启用 JavaScript 后，小猫就会在这里散步。</p></noscript>

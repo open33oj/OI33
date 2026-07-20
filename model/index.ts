@@ -44,6 +44,11 @@ import {
     createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
     reverseCatCanTransaction,
 } from './cat-account';
+import {
+    ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
+    moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
+    getCatMapCooldownMinutes,
+} from './cat-map';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -58,6 +63,7 @@ export {
 export { logColl } from './log';
 export { catCanBatchColl, catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
 export { catFoodBatchPreviewColl } from './cat-account';
+export { catMapPlayerColl, catMapCellColl } from './cat-map';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -75,6 +81,9 @@ const oi33Model = {
     ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
     createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
     reverseCatCanTransaction,
+    ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
+    moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
+    getCatMapCooldownMinutes,
     submitRequest, directUpdate, approveRequest, rejectRequest,
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,
@@ -110,6 +119,8 @@ declare module 'hydrooj' {
         oi33_cat_can_pool: import('./types').Oi33CatCanPool;
         oi33_cat_can_price: import('./types').Oi33CatCanPrice;
         oi33_cat_food_batch_preview: import('./types').Oi33CatFoodBatchPreview;
+        oi33_cat_map_player: import('./types').Oi33CatMapPlayer;
+        oi33_cat_map_cell: import('./types').Oi33CatMapCell;
     }
 }
 

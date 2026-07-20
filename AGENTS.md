@@ -19,6 +19,7 @@ oi33/
 │   ├── oauth.ts          # OAuth2 provider data (clients, codes, access/refresh tokens)
 │   ├── cat-can.ts        # Reserve-backed cat-can AMM, price history, inventory and trades
 │   ├── cat-account.ts    # Unified food/can ledger, charts, grants, previews and reversals
+│   ├── cat-map.ts        # 640x480 positions, persistent colors, movement costs/cooldowns
 │   └── log.ts            # Activity log (audit trail)
 ├── handler/
 │   ├── patches.ts        # Monkey-patches (UserModel.getList, HomeHandler.getCheckin / getCountdown)
@@ -31,7 +32,7 @@ oi33/
 │   ├── token.ts          # MCP/Agent API token CRUD
 │   ├── oauth.ts          # OAuth2 provider (authorize/token/userinfo/revoke + client mgmt)
 │   ├── wiki.ts           # Wiki pages + categories + import/export
-│   ├── cat-can.ts        # Cat-can market routes
+│   ├── cat-can.ts        # Cat-can market and realtime pixel-map routes/connections
 │   ├── cat-account.ts    # Unified account, grant, batch preview and reversal routes
 │   └── permissions.ts    # Permission matrix reference page
 ├── scripts/
@@ -70,12 +71,14 @@ oi33/
 | `oi33_oauth_code` | `_id` (auth code), `clientId`, `uid`, `redirectUri`, `scopes`, `codeChallenge?`, `codeChallengeMethod?`, `expiresAt` (10 min), `consumed` |
 | `oi33_oauth_token` | `_id`, `tokenHash` (SHA-256 of `33oat_…`), `tokenPrefix`, `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `lastUsedAt`, `isActive` |
 | `oi33_oauth_refresh` | `_id`, `tokenHash` (SHA-256 of `33ojrt_…`), `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `isActive` |
-| `oi33_log` | `_id`, `createdAt`, `type` (coin/birthday/badge/realname/checkin/cat_account/paste/wiki/request/oauth), type-specific fields |
+| `oi33_log` | `_id`, `createdAt`, `type` (coin/birthday/badge/realname/checkin/cat_account/cat_map/paste/wiki/request/oauth), type-specific fields |
 | `oi33_cat_can_batch` | permanent per-user purchase batches with remaining quantity |
 | `oi33_cat_can_bill` | buy/sell/reversal ledger with principal, fee, food delta and can delta |
 | `oi33_cat_can_pool` | real reserve, virtual supply, burned fees, incremental global food/can counters and counter version |
 | `oi33_cat_can_price` | minimal 8-hour buy/sell price history (`_id`, prices, `createdAt`) |
 | `oi33_cat_food_batch_preview` | expiring, single-use bulk cat-food grant previews |
+| `oi33_cat_map_player` | globally unique per-user positions, shared action cooldown and transient lock |
+| `oi33_cat_map_cell` | persistent 8-bit colors keyed by `x:y` |
 
 Core profile/content write operations also insert into `oi33_log`. Cat-can trades use the dedicated `oi33_cat_can_bill` ledger.
 
@@ -110,6 +113,8 @@ When rendering user lists with oi33 data:
 Never use `getListForRender` when the `user.html` component is rendered, because that component calls `udoc.hasPriv()` which is only available on `getList` results.
 
 Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymized in all user-list rendering as `UID <id>` with the default blank avatar. Their custom username and avatar are visible only on their own user-detail page to viewers with `realname_flag >= 2`.
+
+Cat-map participation also requires `realname_flag >= 1`. Downgrading a user below that level deletes their map-player position immediately so an invisible player cannot continue occupying a cell; re-verification requires joining the arena again.
 
 Authentication visibility and real-name visibility are separate: flag >= 1 restores the public username/avatar, but `realname_name` and the `[realname]username` rendering are visible only to viewers with OI33 flag >= 2.
 
@@ -152,6 +157,13 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/requests/:id/reject` | RequestRejectHandler (POST) | Logged in + OI33 manager/executive admin |
 | `/oi33/at-cf-rating` | RatingShowHandler | public |
 | `/oi33/cat-can` | CatCanMarketHandler | PRIV_USER_PROFILE |
+| `/oi33/arena` | CatCanArenaHandler | public (verified users only) |
+| `/oi33/arena/state` | CatMapStateHandler | public |
+| `/oi33/arena/join` | CatMapJoinHandler (POST) | PRIV_USER_PROFILE + verified; first placement is free |
+| `/oi33/arena/move` | CatMapMoveHandler (POST) | PRIV_USER_PROFILE + verified |
+| `/oi33/arena/color` | CatMapColorHandler (POST) | PRIV_USER_PROFILE + verified |
+| `/oi33/cat-arena/admin` | CatMapAdminHandler | OI33 flag = 3; rectangle paint and forced random relocation |
+| `/oi33/cat-arena/admin/relocate` | CatMapAdminRelocateHandler (POST) | OI33 flag = 3 |
 | `/oi33/cat-can/buy` | CatCanBuyHandler (POST) | PRIV_USER_PROFILE |
 | `/oi33/cat-can/sell` | CatCanSellHandler (POST) | PRIV_USER_PROFILE |
 | `/oi33/cat-account/:uid` | CatAccountHandler | PRIV_USER_PROFILE (self; OI33 flag >= 2 for others) |

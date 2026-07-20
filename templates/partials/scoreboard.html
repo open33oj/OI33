@@ -65,12 +65,6 @@
             </button>
             {{ user.render_inline(udict[column.raw], badge=false) }}
 
-            {%- for row in groups -%}
-            {%- if column.raw in row.uids -%}
-            ~ {{ row.name }}
-            {%- endif -%}
-            {%- endfor -%}
-
             {%- elif column.type == 'record' and column.raw -%}
             {{ renderRecord(column, canView) }}
             {%- elif column.type == 'records' -%}
