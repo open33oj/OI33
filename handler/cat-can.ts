@@ -58,6 +58,7 @@ async function buildCatMapState(viewerUid = 0) {
             cans: balance.cans,
             food: player._id === viewerUid ? balance.food : 0,
             availableAt: player.availableAt ? new Date(player.availableAt).getTime() : 0,
+            freeColorAvailable: !!player.freeColorAvailable,
         };
     }).filter(Boolean);
     const me = viewerUid ? players.find((player: any) => player.uid === viewerUid) || null : null;
@@ -98,6 +99,7 @@ class CatMapMoveHandler extends Handler {
                     foodCost: result.foodCost,
                     canCost: result.canCost,
                     availableAt: result.availableAt,
+                    freeColorAvailable: result.freeColorAvailable,
                 },
             };
             (this.ctx as any).broadcast('oi33/cat-map-change', payload);
@@ -141,7 +143,10 @@ class CatMapColorHandler extends Handler {
             const payload = { type: 'cell', cell: [result.x, result.y, result.color] };
             (this.ctx as any).broadcast('oi33/cat-map-change', payload);
             (this.ctx as any).broadcast('oi33/cat-map-change', {
-                type: 'cooldown', uid: this.user._id, availableAt: result.availableAt,
+                type: 'cooldown',
+                uid: this.user._id,
+                availableAt: result.availableAt,
+                freeColorAvailable: result.freeColorAvailable,
             });
             this.response.type = 'application/json';
             this.response.body = { ok: true, ...result };

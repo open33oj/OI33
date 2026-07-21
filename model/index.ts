@@ -61,7 +61,7 @@ export {
     tokenColl as oauthTokenColl, refreshColl as oauthRefreshColl,
 } from './oauth';
 export { logColl } from './log';
-export { catCanBatchColl, catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
+export { catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
 export { catFoodBatchPreviewColl } from './cat-account';
 export { catMapPlayerColl, catMapCellColl } from './cat-map';
 
@@ -114,7 +114,6 @@ declare module 'hydrooj' {
         oi33_oauth_code: import('./types').Oi33OAuthCode;
         oi33_oauth_token: import('./types').Oi33OAuthToken;
         oi33_oauth_refresh: import('./types').Oi33OAuthRefreshToken;
-        oi33_cat_can_batch: import('./types').Oi33CatCanBatch;
         oi33_cat_can_bill: import('./types').Oi33CatCanBill;
         oi33_cat_can_pool: import('./types').Oi33CatCanPool;
         oi33_cat_can_price: import('./types').Oi33CatCanPrice;

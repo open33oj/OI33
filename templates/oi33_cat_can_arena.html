@@ -20,17 +20,21 @@
         <div class="oi33-map-toolbar">
           <div class="oi33-map-toggles" role="group" aria-label="地图显示选项">
             <button type="button" data-map-layer="grid" aria-pressed="false">格线</button>
-            <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫与名字</button>
+            <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫</button>
+            <button type="button" data-map-layer="names" class="is-active" aria-pressed="true">名字</button>
           </div>
+          <span class="oi33-map-me" data-map-me-status>{% if loggedIn %}正在读取我的状态…{% else %}登录后可参与{% endif %}</span>
+          <span class="oi33-map-coordinate" data-map-coordinate>格子：—</span>
+          <span class="oi33-map-live" data-map-live>正在连接…</span>
+        </div>
+        <div class="oi33-map-navigation" aria-label="地图导航工具">
           <button type="button" class="rounded button" data-map-find-me {% if not loggedIn %}disabled{% endif %}>定位我的小猫</button>
           <div class="oi33-map-jump" aria-label="按坐标跳转">
             <label>行 <input type="number" min="0" max="479" placeholder="0～479" data-map-jump-row></label>
             <label>列 <input type="number" min="0" max="639" placeholder="0～639" data-map-jump-column></label>
             <button type="button" class="rounded button" data-map-jump>跳转</button>
           </div>
-          <span class="oi33-map-me" data-map-me-status>{% if loggedIn %}正在读取我的状态…{% else %}登录后可参与{% endif %}</span>
-          <span class="oi33-map-coordinate" data-map-coordinate>格子：—</span>
-          <span class="oi33-map-live" data-map-live>正在连接…</span>
+          <button type="button" class="oi33-map-fullscreen rounded button" data-map-fullscreen aria-pressed="false">全屏</button>
         </div>
         <div class="oi33-map-viewport"
              data-state-url="{{ url('oi33_cat_map_state') }}"
@@ -43,7 +47,7 @@
              data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
           <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
           <div class="oi33-map-loading">正在生成猫咪世界…</div>
-          <div class="oi33-map-hint">格线和小猫可独立显示 · 拖动与滚轮连续缩放 · 点击自己的小猫改色</div>
+          <div class="oi33-map-hint">格线、小猫和名字可独立显示 · 全屏后可用方向键浏览 · 拖动、滚轮或双指缩放 · 点击自己的小猫改色</div>
         </div>
       </div>
     </div>

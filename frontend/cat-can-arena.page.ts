@@ -10,6 +10,10 @@ const MIN_VIEW_SCALE = 0.25;
 const MAX_VIEW_SCALE = 110;
 const MIN_GRID_SPACING = 4;
 const MIN_CAT_SIZE = 8;
+const PLAYER_BUCKET_SIZE = 16;
+const CAT_IDLE_FRAME_MS = 3200;
+const LABEL_BUCKET_WIDTH = 80;
+const LABEL_BUCKET_HEIGHT = 24;
 
 interface MapPlayer {
     uid: number;
@@ -19,6 +23,7 @@ interface MapPlayer {
     cans: number;
     food: number;
     availableAt: number;
+    freeColorAvailable: boolean;
 }
 
 interface MapState {
@@ -259,18 +264,22 @@ function mountMap() {
     const live = document.querySelector<HTMLElement>('[data-map-live]');
     const catCount = document.querySelector<HTMLElement>('[data-map-cat-count]');
     const meStatus = document.querySelector<HTMLElement>('[data-map-me-status]');
+    const fullscreenRoot = viewport.closest<HTMLElement>('.oi33-map-body');
+    const fullscreenButton = document.querySelector<HTMLButtonElement>('[data-map-fullscreen]');
     const actionDialog = document.querySelector<HTMLDialogElement>('[data-map-action-dialog]');
     const colorDialog = document.querySelector<HTMLDialogElement>('[data-map-color-dialog]');
     const sprite = new Image();
     const spriteSheet = document.createElement('canvas');
     spriteSheet.width = 100;
     spriteSheet.height = 100;
-    sprite.src = viewport.dataset.spriteUrl || '/oi33-cat-sprites.svg';
-    sprite.addEventListener('load', () => spriteSheet.getContext('2d')?.drawImage(sprite, 0, 0, 100, 100));
 
     let state: MapState = { width: MAP_WIDTH, height: MAP_HEIGHT, players: [], cells: [], me: null, canJoin: false, serverTime: Date.now() };
     const players = new Map<number, MapPlayer>();
-    const cells = new Map<string, number>();
+    const playerBuckets = new Map<string, Set<number>>();
+    const playerByCell = new Map<string, number>();
+    const labelMetrics = new Map<number, { text: string; width: number }>();
+    const cellColors = new Int16Array(MAP_WIDTH * MAP_HEIGHT);
+    cellColors.fill(-1);
     const overviewLayer = document.createElement('canvas');
     overviewLayer.width = MAP_WIDTH;
     overviewLayer.height = MAP_HEIGHT;
@@ -280,22 +289,84 @@ function mountMap() {
     const animations = new Map<number, { fromX: number; fromY: number; toX: number; toY: number; start: number; teleport: boolean }>();
     let showGrid = false;
     let showCats = true;
+    let showNames = true;
     let viewScale = DEFAULT_GRID_SCALE;
     let viewCenterX = MAP_WIDTH / 2;
     let viewCenterY = MAP_HEIGHT / 2;
     let drag: {
         x: number; y: number; centerX: number; centerY: number; moved: boolean;
     } | null = null;
+    const activePointers = new Map<number, { x: number; y: number }>();
+    let pinch: { distance: number; scale: number; mapX: number; mapY: number } | null = null;
+    let gestureMoved = false;
+    const heldKeys = new Set<string>();
+    let keyboardVelocityX = 0;
+    let keyboardVelocityY = 0;
+    let lastRenderAt = performance.now();
     let selectedTarget: { x: number; y: number } | null = null;
     let selectedColorCell: { x: number; y: number } | null = null;
     let clockOffset = 0;
+    let renderDirty = true;
+    let lastIdleFrame = -1;
+    let lastStatusSecond = -1;
 
     const now = () => Date.now() + clockOffset;
+    const invalidate = () => { renderDirty = true; };
+    sprite.addEventListener('load', () => {
+        spriteSheet.getContext('2d')?.drawImage(sprite, 0, 0, 100, 100);
+        invalidate();
+    });
+    sprite.src = viewport.dataset.spriteUrl || '/oi33-cat-sprites.svg';
     const cellKey = (x: number, y: number) => `${x}:${y}`;
+    const bucketKey = (x: number, y: number) => `${Math.floor(x / PLAYER_BUCKET_SIZE)}:${Math.floor(y / PLAYER_BUCKET_SIZE)}`;
+    const removePlayerFromIndex = (player: MapPlayer) => {
+        const key = bucketKey(player.x, player.y);
+        const bucket = playerBuckets.get(key);
+        bucket?.delete(player.uid);
+        if (!bucket?.size) playerBuckets.delete(key);
+        if (playerByCell.get(cellKey(player.x, player.y)) === player.uid) playerByCell.delete(cellKey(player.x, player.y));
+    };
+    const storePlayer = (player: MapPlayer) => {
+        const previous = players.get(player.uid);
+        if (previous) removePlayerFromIndex(previous);
+        players.set(player.uid, player);
+        const key = bucketKey(player.x, player.y);
+        const bucket = playerBuckets.get(key) || new Set<number>();
+        bucket.add(player.uid);
+        playerBuckets.set(key, bucket);
+        playerByCell.set(cellKey(player.x, player.y), player.uid);
+        invalidate();
+    };
+    const deletePlayer = (uid: number) => {
+        const player = players.get(uid);
+        if (player) removePlayerFromIndex(player);
+        players.delete(uid);
+        labelMetrics.delete(uid);
+        invalidate();
+    };
+    const playersInView = (firstX: number, firstY: number, lastX: number, lastY: number) => {
+        const visible: MapPlayer[] = [];
+        const firstBucketX = Math.max(0, Math.floor(firstX / PLAYER_BUCKET_SIZE));
+        const firstBucketY = Math.max(0, Math.floor(firstY / PLAYER_BUCKET_SIZE));
+        const lastBucketX = Math.floor(Math.min(MAP_WIDTH - 1, lastX) / PLAYER_BUCKET_SIZE);
+        const lastBucketY = Math.floor(Math.min(MAP_HEIGHT - 1, lastY) / PLAYER_BUCKET_SIZE);
+        for (let bucketY = firstBucketY; bucketY <= lastBucketY; bucketY++) {
+            for (let bucketX = firstBucketX; bucketX <= lastBucketX; bucketX++) {
+                const bucket = playerBuckets.get(`${bucketX}:${bucketY}`);
+                if (!bucket) continue;
+                bucket.forEach((uid) => {
+                    const player = players.get(uid);
+                    if (player && player.x >= firstX && player.x <= lastX && player.y >= firstY && player.y <= lastY) visible.push(player);
+                });
+            }
+        }
+        return visible;
+    };
     const setCell = (x: number, y: number, color: number) => {
-        cells.set(cellKey(x, y), color);
+        cellColors[y * MAP_WIDTH + x] = color;
         overviewContext.fillStyle = paletteColor(color);
         overviewContext.fillRect(x, y, 1, 1);
+        invalidate();
     };
     const setRect = (rowStart: number, columnStart: number, rowEnd: number, columnEnd: number, color: number) => {
         overviewContext.fillStyle = paletteColor(color);
@@ -306,10 +377,9 @@ function mountMap() {
             rowEnd - rowStart + 1,
         );
         for (let row = rowStart; row <= rowEnd; row++) {
-            for (let column = columnStart; column <= columnEnd; column++) {
-                cells.set(cellKey(column, row), color);
-            }
+            cellColors.fill(color, row * MAP_WIDTH + columnStart, row * MAP_WIDTH + columnEnd + 1);
         }
+        invalidate();
     };
     const viewSize = () => ({ width: canvas.clientWidth, height: canvas.clientHeight });
     const viewOrigin = () => {
@@ -329,6 +399,7 @@ function mountMap() {
         const originY = Math.min(view.height - margin, Math.max(margin - mapHeight, origin.y));
         viewCenterX = (view.width / 2 - originX) / viewScale;
         viewCenterY = (view.height / 2 - originY) / viewScale;
+        invalidate();
     };
     const centerAt = (x: number, y: number) => {
         viewCenterX = x + .5;
@@ -359,16 +430,17 @@ function mountMap() {
         const cooldown = totalSeconds
             ? `冷却 ${String(Math.floor(totalSeconds / 3600)).padStart(2, '0')}:${String(Math.floor(totalSeconds / 60) % 60).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
             : '现在可操作';
-        const text = `我的猫粮 ${state.me.food}g · 🥫${state.me.cans} · ${cooldown}`;
+        const freeColor = state.me.freeColorAvailable ? ' · 免冷却染色 1 次' : '';
+        const text = `我的猫粮 ${state.me.food}g · 🥫${state.me.cans} · ${cooldown}${freeColor}`;
         if (meStatus.textContent !== text) meStatus.textContent = text;
     };
 
     const drawCat = (player: MapPlayer, px: number, py: number, walking: boolean) => {
-        const phase = Math.floor(now() / 1700 + player.uid) % 3;
+        const phase = Math.floor(now() / CAT_IDLE_FRAME_MS + player.uid) % 3;
         let frameX = phase === 1 ? 1 : 0;
         let frameY = phase === 2 ? 1 : 0;
         if (walking) {
-            frameX = Math.floor(now() / 180) % 2;
+            frameX = Math.floor(now() / 240) % 2;
             frameY = 1;
         }
         const catSize = Math.max(MIN_CAT_SIZE, viewScale * .72);
@@ -390,9 +462,15 @@ function mountMap() {
     };
 
     const catLabelRect = (player: MapPlayer, px: number, py: number) => {
-        const label = `${player.uname} · 🥫${player.cans}`;
-        context.font = 'bold 11px sans-serif';
-        const labelWidth = Math.min(150, context.measureText(label).width + 9);
+        const label = `${player.uname}🥫${player.cans}`;
+        let metrics = labelMetrics.get(player.uid);
+        if (!metrics || metrics.text !== label) {
+            context.font = 'bold 11px sans-serif';
+            metrics = { text: label, width: Math.min(150, context.measureText(label).width + 9) };
+            labelMetrics.set(player.uid, metrics);
+        }
+        const showEveryName = viewScale >= MAX_VIEW_SCALE - .01;
+        const labelWidth = showEveryName ? Math.min(metrics.width, Math.max(24, viewScale - 4)) : metrics.width;
         return { label, x: px + viewScale / 2 - labelWidth / 2, y: py - 7, width: labelWidth, height: 16 };
     };
 
@@ -439,21 +517,15 @@ function mountMap() {
         }
         context.strokeStyle = showGrid ? 'rgba(0,0,0,.72)' : 'rgba(255,255,255,.12)';
         context.strokeRect(origin.x + .5, origin.y + .5, mapWidth - 1, mapHeight - 1);
-        if (!showCats) return;
+        if (!showCats && !showNames) return;
         const firstX = Math.max(0, Math.floor(-origin.x / viewScale));
         const firstY = Math.max(0, Math.floor(-origin.y / viewScale));
         const lastX = Math.min(MAP_WIDTH - 1, Math.ceil((width - origin.x) / viewScale));
         const lastY = Math.min(MAP_HEIGHT - 1, Math.ceil((height - origin.y) / viewScale));
-        const stacks = new Map<string, MapPlayer[]>();
-        Array.from(players.values()).sort((a, b) => a.cans - b.cans || b.uid - a.uid).forEach((player) => {
-            const key = cellKey(player.x, player.y);
-            const group = stacks.get(key) || [];
-            group.push(player);
-            stacks.set(key, group);
-        });
         const currentTime = performance.now();
         const labelCandidates: Array<{ player: MapPlayer; px: number; py: number }> = [];
-        players.forEach((player) => {
+        const visiblePlayers = playersInView(firstX - 2, firstY - 2, lastX + 2, lastY + 2);
+        visiblePlayers.forEach((player) => {
             let drawX = player.x;
             let drawY = player.y;
             let walking = false;
@@ -461,7 +533,7 @@ function mountMap() {
             if (animation) {
                 const elapsed = currentTime - animation.start;
                 if (animation.teleport) {
-                    if (elapsed < 700) {
+                    if (elapsed < 700 && showCats) {
                         context.save();
                         context.strokeStyle = `rgba(118,220,255,${1 - elapsed / 700})`;
                         context.lineWidth = 4;
@@ -477,36 +549,93 @@ function mountMap() {
                     walking = true;
                 } else animations.delete(player.uid);
             }
-            if (drawX < firstX - 2 || drawX > lastX + 2 || drawY < firstY - 2 || drawY > lastY + 2) return;
-            const stack = stacks.get(cellKey(player.x, player.y)) || [player];
-            const stackIndex = stack.findIndex((item) => item.uid === player.uid);
-            const offset = (stackIndex - (stack.length - 1) / 2) * 10;
-            const px = origin.x + drawX * viewScale + offset;
-            const py = origin.y + drawY * viewScale - Math.abs(offset) * .3;
-            drawCat(player, px, py, walking);
-            labelCandidates.push({ player, px, py });
+            const px = origin.x + drawX * viewScale;
+            const py = origin.y + drawY * viewScale;
+            if (showCats) drawCat(player, px, py, walking);
+            if (showNames) labelCandidates.push({ player, px, py });
         });
-        const visibleLabels: Array<{ x: number; y: number; width: number; height: number }> = [];
+        if (viewScale >= MAX_VIEW_SCALE - .01) {
+            labelCandidates.forEach((candidate) => drawCatLabel(candidate.player, candidate.px, candidate.py));
+            return;
+        }
+        const labelBuckets = new Map<string, Array<{ x: number; y: number; width: number; height: number }>>();
         labelCandidates.sort((a, b) => b.player.cans - a.player.cans || a.player.uid - b.player.uid).forEach((candidate) => {
             const rect = catLabelRect(candidate.player, candidate.px, candidate.py);
-            const overlaps = visibleLabels.some((other) => !(
-                rect.x + rect.width + 2 < other.x
-                || other.x + other.width + 2 < rect.x
-                || rect.y + rect.height + 2 < other.y
-                || other.y + other.height + 2 < rect.y
-            ));
+            const firstBucketX = Math.floor(rect.x / LABEL_BUCKET_WIDTH);
+            const lastBucketX = Math.floor((rect.x + rect.width) / LABEL_BUCKET_WIDTH);
+            const firstBucketY = Math.floor(rect.y / LABEL_BUCKET_HEIGHT);
+            const lastBucketY = Math.floor((rect.y + rect.height) / LABEL_BUCKET_HEIGHT);
+            let overlaps = false;
+            for (let bucketY = firstBucketY; bucketY <= lastBucketY && !overlaps; bucketY++) {
+                for (let bucketX = firstBucketX; bucketX <= lastBucketX && !overlaps; bucketX++) {
+                    overlaps = (labelBuckets.get(`${bucketX}:${bucketY}`) || []).some((other) => !(
+                        rect.x + rect.width + 2 < other.x
+                        || other.x + other.width + 2 < rect.x
+                        || rect.y + rect.height + 2 < other.y
+                        || other.y + other.height + 2 < rect.y
+                    ));
+                }
+            }
             if (overlaps) return;
-            visibleLabels.push(rect);
+            for (let bucketY = firstBucketY; bucketY <= lastBucketY; bucketY++) {
+                for (let bucketX = firstBucketX; bucketX <= lastBucketX; bucketX++) {
+                    const key = `${bucketX}:${bucketY}`;
+                    const bucket = labelBuckets.get(key) || [];
+                    bucket.push(rect);
+                    labelBuckets.set(key, bucket);
+                }
+            }
             drawCatLabel(candidate.player, candidate.px, candidate.py);
         });
     };
 
     const render = () => {
         if (!canvas.isConnected) return;
-        const { width, height } = viewSize();
-        context.clearRect(0, 0, width, height);
-        renderMap(width, height);
-        updateMeStatus();
+        const frameAt = performance.now();
+        const elapsed = Math.min(.05, Math.max(0, (frameAt - lastRenderAt) / 1000));
+        lastRenderAt = frameAt;
+        const keyboardActive = document.fullscreenElement === fullscreenRoot && !actionDialog?.open && !colorDialog?.open;
+        const directionX = keyboardActive
+            ? Number(heldKeys.has('ArrowRight')) - Number(heldKeys.has('ArrowLeft'))
+            : 0;
+        const directionY = keyboardActive
+            ? Number(heldKeys.has('ArrowDown')) - Number(heldKeys.has('ArrowUp'))
+            : 0;
+        const directionLength = Math.hypot(directionX, directionY) || 1;
+        const speed = heldKeys.has('Shift') ? 960 : 520;
+        const targetVelocityX = directionX / directionLength * speed;
+        const targetVelocityY = directionY / directionLength * speed;
+        const smoothing = 1 - Math.exp(-elapsed * (directionX || directionY ? 14 : 10));
+        keyboardVelocityX += (targetVelocityX - keyboardVelocityX) * smoothing;
+        keyboardVelocityY += (targetVelocityY - keyboardVelocityY) * smoothing;
+        const keyboardMoving = Math.abs(keyboardVelocityX) + Math.abs(keyboardVelocityY) > .2;
+        if (keyboardMoving) {
+            viewCenterX += keyboardVelocityX * elapsed / viewScale;
+            viewCenterY += keyboardVelocityY * elapsed / viewScale;
+            clampView();
+        }
+        let animationActive = false;
+        animations.forEach((animation, uid) => {
+            if (frameAt - animation.start < 720) animationActive = true;
+            else animations.delete(uid);
+        });
+        const statusSecond = Math.floor(now() / 1000);
+        if (statusSecond !== lastStatusSecond) {
+            lastStatusSecond = statusSecond;
+            updateMeStatus();
+        }
+        const idleFrame = Math.floor(now() / CAT_IDLE_FRAME_MS);
+        const shouldDraw = renderDirty
+            || keyboardMoving
+            || (animationActive && (showCats || showNames))
+            || (showCats && idleFrame !== lastIdleFrame);
+        if (shouldDraw) {
+            const { width, height } = viewSize();
+            context.clearRect(0, 0, width, height);
+            renderMap(width, height);
+            renderDirty = false;
+            lastIdleFrame = idleFrame;
+        }
         window.requestAnimationFrame(render);
     };
 
@@ -521,8 +650,9 @@ function mountMap() {
                 cans: Math.max(0, Number(incoming.cans) || 0),
                 food: Math.max(0, Number(incoming.food) || 0),
                 availableAt: incoming.availableAt ? new Date(incoming.availableAt).getTime() : 0,
+                freeColorAvailable: !!incoming.freeColorAvailable,
             };
-            players.set(added.uid, added);
+            storePlayer(added);
             if (added.uid === userId) state.me = added;
             updateStats();
             updateMeStatus();
@@ -535,6 +665,9 @@ function mountMap() {
             x: Number(incoming.x),
             y: Number(incoming.y),
             availableAt: incoming.availableAt ? new Date(incoming.availableAt).getTime() : 0,
+            freeColorAvailable: incoming.freeColorAvailable === undefined
+                ? previous.freeColorAvailable
+                : !!incoming.freeColorAvailable,
         };
         const positionChanged = previous.x !== next.x || previous.y !== next.y;
         if (positionChanged && next.uid === userId && incoming.food === undefined) {
@@ -547,7 +680,7 @@ function mountMap() {
                 start: performance.now(), teleport: !adjacent,
             });
         }
-        players.set(next.uid, next);
+        storePlayer(next);
         if (next.uid === userId) {
             state.me = next;
             if (positionChanged) centerAt(next.x, next.y);
@@ -558,14 +691,15 @@ function mountMap() {
 
     const openColorDialog = (x: number, y: number) => {
         if (!colorDialog) return;
-        if (state.me && state.me.availableAt > now()) {
+        if (state.me && state.me.availableAt > now() && !state.me.freeColorAvailable) {
             Notification.error(`所有地图操作共享冷却，请在 ${new Date(state.me.availableAt).toLocaleString('zh-CN')} 后再换颜色。`);
             return;
         }
         selectedColorCell = { x, y };
         const input = colorDialog.querySelector<HTMLInputElement>('[data-color-input]');
         if (input) {
-            input.value = String(cells.get(cellKey(x, y)) ?? 34);
+            const currentColor = cellColors[y * MAP_WIDTH + x];
+            input.value = String(currentColor >= 0 ? currentColor : 34);
             input.dispatchEvent(new Event('input'));
         }
         colorDialog.showModal();
@@ -583,13 +717,13 @@ function mountMap() {
         const message = actionDialog.querySelector<HTMLElement>('[data-action-message]');
         const confirm = actionDialog.querySelector<HTMLButtonElement>('[data-action-confirm]');
         const cooling = !!me && me.availableAt > now();
-        const lacksResource = !!me && (adjacent ? me.food < 33 : me.cans < 1);
+        const lacksResource = !!me && (adjacent ? me.food < 33 : me.cans < 3);
         if (title) title.textContent = joining ? '加入猫猫广场' : adjacent ? '移动到相邻格' : '传送到目标格';
         if (message) {
             if (joining) message.textContent = `是否免费选择（行 ${y}, 列 ${x}）作为小猫的初始位置？首次加入不消耗资源，也不触发冷却。`;
             else if (cooling) message.textContent = `目标（行 ${y}, 列 ${x}）。所有操作共享冷却，可用时间：${new Date(me!.availableAt).toLocaleString('zh-CN')}。`;
-            else if (adjacent) message.textContent = `是否移动到（行 ${y}, 列 ${x}）？将销毁 33g 猫粮；当前余额 ${me!.food}g。`;
-            else message.textContent = `是否传送到（行 ${y}, 列 ${x}）？将消耗 1 个猫罐头并退回虚拟储备池；当前持有 ${me!.cans} 个。`;
+            else if (adjacent) message.textContent = `是否使用 33g 猫粮移动到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。`;
+            else message.textContent = `是否使用 3 个猫罐头传送到（行 ${y}, 列 ${x}）？当前持有 ${me!.cans} 个猫罐头。`;
         }
         if (confirm) confirm.disabled = cooling || lacksResource;
         actionDialog.showModal();
@@ -597,8 +731,9 @@ function mountMap() {
 
     const clickCell = (x: number, y: number) => {
         if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return;
-        const occupants = Array.from(players.values()).filter((player) => player.x === x && player.y === y);
-        const own = occupants.find((player) => player.uid === userId);
+        const occupantUid = playerByCell.get(cellKey(x, y));
+        const occupant = occupantUid === undefined ? undefined : players.get(occupantUid);
+        const own = occupant?.uid === userId ? occupant : undefined;
         if (own) {
             openColorDialog(x, y);
             return;
@@ -607,8 +742,8 @@ function mountMap() {
             Notification.error('登录并完成认证后，才能加入猫猫广场。');
             return;
         }
-        if (occupants.length) {
-            Notification.error(`格子（行 ${y}, 列 ${x}）已经有 ${occupants[0].uname} 的小猫了。`);
+        if (occupant) {
+            Notification.error(`格子（行 ${y}, 列 ${x}）已经有 ${occupant.uname} 的小猫了。`);
             return;
         }
         if (!state.me && !state.canJoin) {
@@ -629,15 +764,64 @@ function mountMap() {
         };
     };
 
+    const pointerDistance = () => {
+        const points = Array.from(activePointers.values());
+        return points.length >= 2 ? Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) : 0;
+    };
+    const pointerMidpoint = () => {
+        const points = Array.from(activePointers.values());
+        return { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
+    };
+    const beginPinch = () => {
+        if (activePointers.size < 2) {
+            pinch = null;
+            return;
+        }
+        const midpoint = pointerMidpoint();
+        const rect = viewport.getBoundingClientRect();
+        const view = viewSize();
+        const pointerX = midpoint.x - rect.left;
+        const pointerY = midpoint.y - rect.top;
+        pinch = {
+            distance: Math.max(1, pointerDistance()),
+            scale: viewScale,
+            mapX: viewCenterX + (pointerX - view.width / 2) / viewScale,
+            mapY: viewCenterY + (pointerY - view.height / 2) / viewScale,
+        };
+        drag = null;
+        gestureMoved = true;
+        viewport.classList.add('is-dragging');
+    };
     viewport.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        viewport.setPointerCapture(event.pointerId);
+        if (activePointers.size >= 2) {
+            beginPinch();
+            return;
+        }
+        gestureMoved = false;
         drag = {
             x: event.clientX, y: event.clientY,
             centerX: viewCenterX, centerY: viewCenterY, moved: false,
         };
-        viewport.setPointerCapture(event.pointerId);
         viewport.classList.add('is-dragging');
     });
     viewport.addEventListener('pointermove', (event) => {
+        if (activePointers.has(event.pointerId)) activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (pinch && activePointers.size >= 2) {
+            const midpoint = pointerMidpoint();
+            const rect = viewport.getBoundingClientRect();
+            const view = viewSize();
+            const pointerX = midpoint.x - rect.left;
+            const pointerY = midpoint.y - rect.top;
+            viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, pinch.scale * pointerDistance() / pinch.distance));
+            viewCenterX = pinch.mapX - (pointerX - view.width / 2) / viewScale;
+            viewCenterY = pinch.mapY - (pointerY - view.height / 2) / viewScale;
+            clampView();
+            gestureMoved = true;
+            return;
+        }
         const cell = pointToCell(event.clientX, event.clientY);
         if (coordinate) coordinate.textContent = cell.x >= 0 && cell.x < MAP_WIDTH && cell.y >= 0 && cell.y < MAP_HEIGHT ? `格子：（行 ${cell.y}, 列 ${cell.x}）` : '格子：—';
         if (!drag) return;
@@ -648,19 +832,36 @@ function mountMap() {
         viewCenterY = drag.centerY - dy / viewScale;
         clampView();
     });
-    viewport.addEventListener('pointerup', (event) => {
-        const wasDrag = drag?.moved;
+    const finishPointer = (event: PointerEvent, cancelled: boolean) => {
+        const wasDrag = cancelled || gestureMoved || !!drag?.moved || activePointers.size > 1;
+        activePointers.delete(event.pointerId);
+        if (activePointers.size >= 2) {
+            beginPinch();
+            return;
+        }
+        pinch = null;
+        if (activePointers.size === 1) {
+            const remaining = Array.from(activePointers.values())[0];
+            drag = {
+                x: remaining.x,
+                y: remaining.y,
+                centerX: viewCenterX,
+                centerY: viewCenterY,
+                moved: true,
+            };
+            gestureMoved = true;
+            return;
+        }
         drag = null;
+        gestureMoved = false;
         viewport.classList.remove('is-dragging');
-        if (!wasDrag) {
+        if (!wasDrag && !cancelled) {
             const cell = pointToCell(event.clientX, event.clientY);
             clickCell(cell.x, cell.y);
         }
-    });
-    viewport.addEventListener('pointercancel', () => {
-        drag = null;
-        viewport.classList.remove('is-dragging');
-    });
+    };
+    viewport.addEventListener('pointerup', (event) => finishPointer(event, false));
+    viewport.addEventListener('pointercancel', (event) => finishPointer(event, true));
     viewport.addEventListener('wheel', (event) => {
         event.preventDefault();
         const rect = viewport.getBoundingClientRect();
@@ -680,10 +881,50 @@ function mountMap() {
         const layer = button.dataset.mapLayer;
         if (layer === 'grid') showGrid = !showGrid;
         if (layer === 'cats') showCats = !showCats;
-        const active = layer === 'grid' ? showGrid : showCats;
+        if (layer === 'names') showNames = !showNames;
+        const active = layer === 'grid' ? showGrid : layer === 'cats' ? showCats : showNames;
         button.classList.toggle('is-active', active);
         button.setAttribute('aria-pressed', String(active));
+        invalidate();
     }));
+    const updateFullscreen = () => {
+        const active = document.fullscreenElement === fullscreenRoot;
+        if (!active) {
+            heldKeys.clear();
+            keyboardVelocityX = 0;
+            keyboardVelocityY = 0;
+        }
+        if (fullscreenButton) {
+            fullscreenButton.textContent = active ? '退出全屏' : '全屏';
+            fullscreenButton.setAttribute('aria-pressed', String(active));
+        }
+        window.requestAnimationFrame(resize);
+    };
+    if (!fullscreenRoot || !fullscreenButton || !document.fullscreenEnabled) {
+        if (fullscreenButton) fullscreenButton.hidden = true;
+    } else {
+        fullscreenButton.addEventListener('click', async () => {
+            try {
+                if (document.fullscreenElement === fullscreenRoot) await document.exitFullscreen();
+                else await fullscreenRoot.requestFullscreen();
+            } catch (e: any) {
+                Notification.error(e.message || '无法进入全屏模式。');
+            }
+        });
+        document.addEventListener('fullscreenchange', updateFullscreen);
+    }
+    document.addEventListener('keydown', (event) => {
+        if (!canvas.isConnected || document.fullscreenElement !== fullscreenRoot || event.defaultPrevented) return;
+        if (event.altKey || event.ctrlKey || event.metaKey || actionDialog?.open || colorDialog?.open) return;
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift'].includes(event.key)) return;
+        heldKeys.add(event.key);
+        if (event.key === 'Shift') return;
+        event.preventDefault();
+    });
+    document.addEventListener('keyup', (event) => heldKeys.delete(event.key));
+    window.addEventListener('blur', () => heldKeys.clear());
     document.querySelector<HTMLButtonElement>('[data-map-find-me]')?.addEventListener('click', () => {
         if (!state.me) return Notification.error('当前账号还没有可定位的小猫。');
         centerAt(state.me.x, state.me.y);
@@ -711,7 +952,9 @@ function mountMap() {
             if (joining) state.canJoin = false;
             Notification.success(result.action === 'join'
                 ? '加入成功，首次选择位置免费且没有触发冷却。'
-                : result.action === 'move' ? '移动成功，已销毁 33g 猫粮。' : '传送成功，1 个猫罐头已回到虚拟储备池。');
+                : result.action === 'move'
+                    ? '移动成功，已销毁 33g 猫粮，并获得 1 次免冷却染色。'
+                    : '传送成功，3 个猫罐头已回到虚拟储备池，并获得 1 次免冷却染色。');
             actionDialog.close();
         } catch (e: any) {
             Notification.error(e.message || String(e));
@@ -728,7 +971,10 @@ function mountMap() {
             const color = Number(input.value);
             const result = await request.post(colorUrl, { ...selectedColorCell, color });
             setCell(result.x, result.y, result.color);
-            if (state.me) state.me.availableAt = result.availableAt ? new Date(result.availableAt).getTime() : 0;
+            if (state.me) {
+                state.me.availableAt = result.availableAt ? new Date(result.availableAt).getTime() : 0;
+                state.me.freeColorAvailable = !!result.freeColorAvailable;
+            }
             Notification.success(`格子（行 ${result.y}, 列 ${result.x}）已设置为颜色码 ${result.color}。`);
             colorDialog.close();
         } catch (e: any) {
@@ -756,7 +1002,7 @@ function mountMap() {
         if (payload.type === 'player') applyPlayerUpdate(payload.player);
         if (payload.type === 'remove') {
             const uid = Number(payload.uid);
-            players.delete(uid);
+            deletePlayer(uid);
             animations.delete(uid);
             if (uid === userId) {
                 state.me = null;
@@ -771,6 +1017,7 @@ function mountMap() {
         }
         if (payload.type === 'cooldown' && Number(payload.uid) === userId && state.me) {
             state.me.availableAt = payload.availableAt ? new Date(payload.availableAt).getTime() : 0;
+            state.me.freeColorAvailable = !!payload.freeColorAvailable;
         }
     });
 
@@ -779,8 +1026,15 @@ function mountMap() {
         state = incoming;
         clockOffset = incoming.serverTime - Date.now();
         players.clear();
-        incoming.players.forEach((player) => players.set(player.uid, { ...player, availableAt: Number(player.availableAt) || 0 }));
-        cells.clear();
+        playerBuckets.clear();
+        playerByCell.clear();
+        labelMetrics.clear();
+        incoming.players.forEach((player) => storePlayer({
+            ...player,
+            availableAt: Number(player.availableAt) || 0,
+            freeColorAvailable: !!player.freeColorAvailable,
+        }));
+        cellColors.fill(-1);
         overviewContext.fillStyle = '#ffffff';
         overviewContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
         incoming.cells.forEach(([x, y, color]) => setCell(x, y, color));

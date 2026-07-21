@@ -17,7 +17,7 @@ oi33/
 │   ├── request.ts        # Profile edit request/approval flow
 │   ├── token.ts          # API token management
 │   ├── oauth.ts          # OAuth2 provider data (clients, codes, access/refresh tokens)
-│   ├── cat-can.ts        # Reserve-backed cat-can AMM, price history, inventory and trades
+│   ├── cat-can.ts        # Reserve-backed cat-can AMM, price history, balances and trades
 │   ├── cat-account.ts    # Unified food/can ledger, charts, grants, previews and reversals
 │   ├── cat-map.ts        # 640x480 positions, persistent colors, movement costs/cooldowns
 │   └── log.ts            # Activity log (audit trail)
@@ -72,15 +72,14 @@ oi33/
 | `oi33_oauth_token` | `_id`, `tokenHash` (SHA-256 of `33oat_…`), `tokenPrefix`, `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `lastUsedAt`, `isActive` |
 | `oi33_oauth_refresh` | `_id`, `tokenHash` (SHA-256 of `33ojrt_…`), `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `isActive` |
 | `oi33_log` | `_id`, `createdAt`, `type` (coin/birthday/badge/realname/checkin/cat_account/cat_map/paste/wiki/request/oauth), type-specific fields |
-| `oi33_cat_can_batch` | permanent per-user purchase batches with remaining quantity |
 | `oi33_cat_can_bill` | buy/sell/reversal ledger with principal, fee, food delta and can delta |
 | `oi33_cat_can_pool` | real reserve, virtual supply, burned fees, incremental global food/can counters and counter version |
 | `oi33_cat_can_price` | minimal 8-hour buy/sell price history (`_id`, prices, `createdAt`) |
 | `oi33_cat_food_batch_preview` | expiring, single-use bulk cat-food grant previews |
-| `oi33_cat_map_player` | globally unique per-user positions, shared action cooldown and transient lock |
+| `oi33_cat_map_player` | globally unique per-user positions, shared action cooldown, non-stacking `freeColorAvailable` credit and transient lock |
 | `oi33_cat_map_cell` | persistent 8-bit colors keyed by `x:y` |
 
-Core profile/content write operations also insert into `oi33_log`. Cat-can trades use the dedicated `oi33_cat_can_bill` ledger.
+Core profile/content write operations also insert into `oi33_log`. `oi33_user.cat_can` is the single source of truth for cat-can inventory, while trades use the immutable `oi33_cat_can_bill` ledger. Normal runtime no longer reads or writes the legacy `oi33_cat_can_batch` collection; `/oi33/migrate` previews and idempotently drops it.
 
 ## Handler Patterns
 
@@ -115,6 +114,8 @@ Never use `getListForRender` when the `user.html` component is rendered, because
 Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymized in all user-list rendering as `UID <id>` with the default blank avatar. Their custom username and avatar are visible only on their own user-detail page to viewers with `realname_flag >= 2`.
 
 Cat-map participation also requires `realname_flag >= 1`. Downgrading a user below that level deletes their map-player position immediately so an invisible player cannot continue occupying a cell; re-verification requires joining the arena again.
+
+Adjacent cat-map movement costs 33g cat food, while teleporting costs 3 cat cans. Every successful move or teleport sets `freeColorAvailable` to `true`; the next color change may bypass the current shared cooldown and atomically consumes that credit. The boolean credit never accumulates: moving or teleporting again before coloring still leaves exactly one free color change.
 
 Authentication visibility and real-name visibility are separate: flag >= 1 restores the public username/avatar, but `realname_name` and the `[realname]username` rendering are visible only to viewers with OI33 flag >= 2.
 

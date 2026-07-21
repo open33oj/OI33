@@ -1,7 +1,7 @@
 import { db, ObjectId } from 'hydrooj';
 import { addLog, logColl } from './log';
 import { userColl } from './user';
-import { catCanBatchColl, catCanBillColl, catCanPoolColl } from './cat-can';
+import { catCanBillColl, catCanPoolColl } from './cat-can';
 
 export const catFoodBatchPreviewColl = db.collection('oi33_cat_food_batch_preview');
 
@@ -302,7 +302,6 @@ export async function reverseCatCanTransaction(id: string, operator: number, rea
     const reversalId = new ObjectId();
     let accountUpdated = false;
     let poolUpdated = false;
-    let batchInserted = false;
     let reversalInserted = false;
     try {
         await userColl.updateOne(
@@ -320,14 +319,6 @@ export async function reverseCatCanTransaction(id: string, operator: number, rea
         );
         if (!poolResult.modifiedCount) throw new Error('市场储备不存在，无法撤销。');
         poolUpdated = true;
-        if (canDelta > 0) {
-            await catCanBatchColl.insertOne({
-                _id: new ObjectId(), uid: original.uid, quantity: canDelta, remaining: canDelta,
-                unitPrice: Number(original.unitPrice) || 0, purchasedAt: now,
-                adjustment: 'reversal', originalBillId: _id,
-            } as any);
-            batchInserted = true;
-        }
         const user: any = await userColl.findOne({ _id: original.uid });
         await catCanBillColl.insertOne({
             _id: reversalId, uid: original.uid, action: 'reverse', originalAction: original.action,
@@ -342,7 +333,6 @@ export async function reverseCatCanTransaction(id: string, operator: number, rea
         return { uid: original.uid, foodDelta, canDelta };
     } catch (e) {
         if (reversalInserted) await catCanBillColl.deleteOne({ _id: reversalId });
-        if (batchInserted) await catCanBatchColl.deleteOne({ originalBillId: _id, adjustment: 'reversal' } as any);
         if (poolUpdated) await catCanPoolColl.updateOne({ _id: 'main' }, { $inc: {
             reserveFood: -reserveDelta, feesBurned: -feeDelta,
             userFoodTotal: -foodDelta, circulatingCans: -canDelta,

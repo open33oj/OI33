@@ -1,7 +1,6 @@
 import { db, ObjectId } from 'hydrooj';
 import { userColl } from './user';
 
-export const catCanBatchColl = db.collection('oi33_cat_can_batch');
 export const catCanBillColl = db.collection('oi33_cat_can_bill');
 export const catCanPoolColl = db.collection('oi33_cat_can_pool');
 export const catCanPriceColl = db.collection('oi33_cat_can_price');
@@ -170,7 +169,6 @@ export async function ensureCurrentCatCanPrice(now = new Date()) {
 
 export async function ensureCatCanIndexes() {
     await Promise.all([
-        catCanBatchColl.createIndex({ uid: 1, remaining: 1, purchasedAt: 1 }),
         catCanBillColl.createIndex({ uid: 1, createdAt: -1 }),
         catCanPriceColl.createIndex({ createdAt: -1 }),
     ]);
@@ -303,12 +301,14 @@ export async function buyCatCans(uid: number, quantity: number, now = new Date()
         await rollbackUserTrade(uid, nextTradeAt, previousCooldown, { food: total, cans: -quantity });
         throw new Error('市场可用猫罐头不足，请等待下一次价格调整。');
     }
-    const batch = {
-        _id: new ObjectId(), uid, quantity, remaining: quantity,
-        unitPrice: quote.buyPrice, purchasedAt: now,
-    };
     try {
-        await catCanBatchColl.insertOne(batch);
+        const user: any = await userColl.findOne({ _id: uid });
+        await catCanBillColl.insertOne({
+            _id: new ObjectId(), uid, action: 'buy', quantity,
+            unitPrice: quote.buyPrice, tradeAmount: cost, fee, catFoodDelta: -total,
+            balanceAfter: user?.cat_food ?? 0, inventoryAfter: user?.cat_can ?? quantity,
+            createdAt: now,
+        });
     } catch (e) {
         await Promise.all([
             rollbackUserTrade(uid, nextTradeAt, previousCooldown, { food: total, cans: -quantity }),
@@ -319,14 +319,6 @@ export async function buyCatCans(uid: number, quantity: number, now = new Date()
         ]);
         throw e;
     }
-    const user: any = await userColl.findOne({ _id: uid });
-    await catCanBillColl.insertOne({
-        _id: new ObjectId(), uid, action: 'buy', quantity,
-        unitPrice: quote.buyPrice, tradeAmount: cost, fee, catFoodDelta: -total,
-        batchId: batch._id,
-        balanceAfter: user?.cat_food ?? 0, inventoryAfter: user?.cat_can ?? quantity,
-        createdAt: now,
-    });
     return { quantity, price: quote.buyPrice, amount: cost, fee, total, nextTradeAt };
 }
 
@@ -336,11 +328,6 @@ export async function sellCatCans(uid: number, quantity: number, now = new Date(
     const previousUser: any = await userColl.findOne({ _id: uid });
     assertTradeCooldown(previousUser, now);
     if ((Number(previousUser?.cat_can) || 0) < quantity) throw new Error('猫罐头库存不足。');
-    const batches = await catCanBatchColl.find({ uid, remaining: { $gt: 0 } })
-        .sort({ purchasedAt: 1 }).toArray();
-    if (batches.reduce((sum, b) => sum + (Number(b.remaining) || 0), 0) < quantity) {
-        throw new Error('猫罐头库存不足。');
-    }
     const revenue = quote.sellPrice * quantity;
     const fee = calculateFee(revenue);
     const received = Math.max(0, revenue - fee);
@@ -355,27 +342,6 @@ export async function sellCatCans(uid: number, quantity: number, now = new Date(
         },
     );
     if (!updated.modifiedCount) return await throwTradeUpdateFailure(uid, now, '猫罐头库存不足。');
-    let left = quantity;
-    const consumed: Array<{ _id: any; amount: number }> = [];
-    try {
-        for (const batch of batches) {
-            if (!left) break;
-            const amount = Math.min(left, Number(batch.remaining) || 0);
-            const result = await catCanBatchColl.updateOne(
-                { _id: batch._id, remaining: { $gte: amount } },
-                { $inc: { remaining: -amount } },
-            );
-            if (!result.modifiedCount) throw new Error('库存正在变化，请刷新后重试。');
-            consumed.push({ _id: batch._id, amount });
-            left -= amount;
-        }
-    } catch (e) {
-        await Promise.all([
-            ...consumed.map((item) => catCanBatchColl.updateOne({ _id: item._id }, { $inc: { remaining: item.amount } })),
-            rollbackUserTrade(uid, nextTradeAt, previousCooldown, { food: -received, cans: quantity }),
-        ]);
-        throw e;
-    }
     const poolUpdated = await catCanPoolColl.updateOne(
         { _id: 'main', reserveFood: { $gte: revenue } },
         { $inc: {
@@ -384,19 +350,27 @@ export async function sellCatCans(uid: number, quantity: number, now = new Date(
         }, $set: { updatedAt: now } },
     );
     if (!poolUpdated.modifiedCount) {
-        await Promise.all([
-            ...consumed.map((item) => catCanBatchColl.updateOne({ _id: item._id }, { $inc: { remaining: item.amount } })),
-            rollbackUserTrade(uid, nextTradeAt, previousCooldown, { food: -received, cans: quantity }),
-        ]);
+        await rollbackUserTrade(uid, nextTradeAt, previousCooldown, { food: -received, cans: quantity });
         throw new Error('市场储备不足，当前无法完成这笔卖出。');
     }
-    const user: any = await userColl.findOne({ _id: uid });
-    await catCanBillColl.insertOne({
-        _id: new ObjectId(), uid, action: 'sell', quantity: -quantity,
-        unitPrice: quote.sellPrice, tradeAmount: revenue, fee, catFoodDelta: received,
-        balanceAfter: user?.cat_food ?? received, inventoryAfter: user?.cat_can ?? 0,
-        createdAt: now,
-    });
+    try {
+        const user: any = await userColl.findOne({ _id: uid });
+        await catCanBillColl.insertOne({
+            _id: new ObjectId(), uid, action: 'sell', quantity: -quantity,
+            unitPrice: quote.sellPrice, tradeAmount: revenue, fee, catFoodDelta: received,
+            balanceAfter: user?.cat_food ?? received, inventoryAfter: user?.cat_can ?? 0,
+            createdAt: now,
+        });
+    } catch (e) {
+        await Promise.all([
+            rollbackUserTrade(uid, nextTradeAt, previousCooldown, { food: -received, cans: quantity }),
+            catCanPoolColl.updateOne({ _id: 'main' }, { $inc: {
+                reserveFood: revenue, feesBurned: -fee,
+                userFoodTotal: -received, circulatingCans: quantity,
+            } }),
+        ]);
+        throw e;
+    }
     return { quantity, price: quote.sellPrice, amount: revenue, fee, received, nextTradeAt };
 }
 

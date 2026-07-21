@@ -53,19 +53,6 @@ export interface Oi33User {
     codeforces_updated_at?: string;
 }
 
-export interface Oi33CatCanBatch {
-    _id: ObjectId;
-    uid: number;
-    quantity: number;
-    remaining: number;
-    unitPrice: number;
-    purchasedAt: Date;
-    expiresAt?: Date;
-    expiredAt?: Date;
-    adjustment?: 'reversal';
-    originalBillId?: ObjectId;
-}
-
 export interface Oi33CatCanBill {
     _id: ObjectId;
     uid: number;
@@ -77,7 +64,6 @@ export interface Oi33CatCanBill {
     tradeAmount?: number;
     fee?: number;
     catFoodDelta: number;
-    batchId?: ObjectId;
     expiresAt?: Date;
     balanceAfter?: number;
     inventoryAfter?: number;
@@ -137,6 +123,7 @@ export interface Oi33CatMapPlayer {
     updatedAt: Date;
     movedAt?: Date;
     availableAt?: Date;
+    freeColorAvailable?: boolean;
     movementLock?: ObjectId;
     movementLockAt?: Date;
 }

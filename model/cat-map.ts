@@ -1,13 +1,13 @@
 import { randomInt } from 'crypto';
 import { db, ObjectId } from 'hydrooj';
-import { catCanBatchColl, catCanPoolColl } from './cat-can';
+import { catCanPoolColl } from './cat-can';
 import { logColl } from './log';
 import { userColl } from './user';
 
 export const CAT_MAP_WIDTH = 640;
 export const CAT_MAP_HEIGHT = 480;
 export const CAT_MAP_MOVE_FOOD_COST = 33;
-export const CAT_MAP_TELEPORT_CAN_COST = 1;
+export const CAT_MAP_TELEPORT_CAN_COST = 3;
 export const CAT_MAP_MIN_COOLDOWN_MINUTES = 50;
 export const CAT_MAP_BASE_COOLDOWN_MINUTES = 120;
 
@@ -148,6 +148,7 @@ export async function joinCatMapPlayer(uid: number, x: number, y: number, now = 
         food: Math.max(0, Number(user.cat_food) || 0),
         cans: Math.max(0, Math.floor(Number(user.cat_can) || 0)),
         availableAt: null,
+        freeColorAvailable: false,
     };
 }
 
@@ -205,7 +206,6 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
 
     let foodDeducted = false;
     let canDeducted = false;
-    let batchConsumed: any = null;
     let poolUpdated = false;
     let movementLogged = false;
     const movementLogId = new ObjectId();
@@ -227,14 +227,8 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
                 { _id: uid, realname_flag: { $gte: 1 }, cat_can: { $gte: canCost } },
                 { $inc: { cat_can: -canCost } },
             );
-            if (!result.modifiedCount) throw new Error('猫罐头不足，本次传送需要 1 个猫罐头。');
+            if (!result.modifiedCount) throw new Error(`猫罐头不足，本次传送需要 ${canCost} 个猫罐头。`);
             canDeducted = true;
-            batchConsumed = await catCanBatchColl.findOneAndUpdate(
-                { uid, remaining: { $gte: canCost } },
-                { $inc: { remaining: -canCost } },
-                { sort: { purchasedAt: 1 }, returnDocument: 'before' },
-            );
-            if (!batchConsumed) throw new Error('猫罐头库存批次不足，无法完成传送。');
         }
         const increments: any = {};
         if (foodCost) increments.userFoodTotal = -foodCost;
@@ -256,10 +250,18 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
             reason: `从 (${player.y}, ${player.x}) 到 (${targetY}, ${targetX})（行,列）`,
         } as any);
         movementLogged = true;
+        const playerPatch: any = {
+            x: targetX,
+            y: targetY,
+            movedAt: now,
+            availableAt,
+            freeColorAvailable: true,
+            updatedAt: now,
+        };
         const moved = await catMapPlayerColl.updateOne(
             { _id: uid, movementLock: lock } as any,
             {
-                $set: { x: targetX, y: targetY, movedAt: now, availableAt, updatedAt: now },
+                $set: playerPatch,
                 $unset: { movementLock: '', movementLockAt: '', stackable: '' },
             },
         );
@@ -267,7 +269,6 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     } catch (e) {
         if (movementLogged) await logColl.deleteOne({ _id: movementLogId });
         if (foodDeducted) await userColl.updateOne({ _id: uid }, { $inc: { cat_food: foodCost } });
-        if (batchConsumed) await catCanBatchColl.updateOne({ _id: batchConsumed._id }, { $inc: { remaining: canCost } });
         if (canDeducted) await userColl.updateOne({ _id: uid }, { $inc: { cat_can: canCost } });
         if (poolUpdated) {
             const increments: any = {};
@@ -290,6 +291,7 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
         cans: Math.max(0, Number(updatedUser?.cat_can) || 0),
         food: Math.max(0, Number(updatedUser?.cat_food) || 0),
         cooldownMinutes: minutes, availableAt,
+        freeColorAvailable: true,
     };
 }
 
@@ -313,11 +315,18 @@ export async function setCatMapCellColor(
         x,
         y,
         $and: [
-            { $or: [{ availableAt: { $exists: false } }, { availableAt: { $lte: now } }] },
+            {
+                $or: [
+                    { freeColorAvailable: true },
+                    { availableAt: { $exists: false } },
+                    { availableAt: { $lte: now } },
+                ],
+            },
             { $or: [{ movementLock: { $exists: false } }, { movementLockAt: { $lt: staleLockAt } }] },
         ],
     } as any, {
         $set: { movementLock: lock, movementLockAt: now, availableAt, updatedAt: now },
+        $unset: { freeColorAvailable: '', stackable: '' },
     });
     if (!claimed.modifiedCount) throw new Error('操作冷却中，暂时不能更换颜色。');
 
@@ -355,13 +364,26 @@ export async function setCatMapCellColor(
             if (previous) await catMapCellColl.replaceOne({ _id: id } as any, previous);
             else await catMapCellColl.deleteOne({ _id: id } as any);
         }
-        const rollback: any = { $unset: { movementLock: '', movementLockAt: '' } };
-        if (player.availableAt) rollback.$set = { availableAt: player.availableAt };
+        const rollback: any = { $unset: { movementLock: '', movementLockAt: '' }, $set: {} };
+        if (player.availableAt) rollback.$set.availableAt = player.availableAt;
         else rollback.$unset.availableAt = '';
+        if (player.freeColorAvailable) rollback.$set.freeColorAvailable = true;
+        else rollback.$unset.freeColorAvailable = '';
+        if (!Object.keys(rollback.$set).length) delete rollback.$set;
         await catMapPlayerColl.updateOne({ _id: operator, movementLock: lock } as any, rollback);
         throw e;
     }
-    return { _id: id, x, y, color, updatedBy: operator, updatedAt: now, cooldownMinutes: minutes, availableAt };
+    return {
+        _id: id,
+        x,
+        y,
+        color,
+        updatedBy: operator,
+        updatedAt: now,
+        cooldownMinutes: minutes,
+        availableAt,
+        freeColorAvailable: false,
+    };
 }
 
 export async function adminPaintCatMap(
@@ -532,6 +554,7 @@ export async function adminRelocateCatMapPlayer(
         y: destination.y,
         cans: Math.max(0, Math.floor(Number(target.cat_can) || 0)),
         availableAt: player.availableAt || null,
+        freeColorAvailable: !!player.freeColorAvailable,
     };
 }
 

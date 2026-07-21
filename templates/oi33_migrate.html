@@ -30,6 +30,9 @@
               {% if result.oauthLogsDeleted %}
               <tr><td>{{ _('OAuth logs deleted') }}：</td><td><strong>{{ result.oauthLogsDeleted }}</strong></td></tr>
               {% endif %}
+              {% if result.legacyCatCanBatchCollectionDropped %}
+              <tr><td>{{ _('Legacy cat-can batches deleted') }}：</td><td><strong>{{ result.legacyCatCanBatchesDeleted }}</strong></td></tr>
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">
@@ -78,6 +81,12 @@
             <tr>
               <td style="padding:0.5rem 0;">{{ _('OAuth logs to delete') }}：</td>
               <td><strong>{{ preview.oauthLogCount }}</strong></td>
+            </tr>
+            {% endif %}
+            {% if preview.legacyCatCanBatchCount %}
+            <tr>
+              <td style="padding:0.5rem 0;">{{ _('Legacy cat-can batches to delete') }}：</td>
+              <td><strong>{{ preview.legacyCatCanBatchCount }}</strong></td>
             </tr>
             {% endif %}
           </table>

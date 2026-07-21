@@ -8,6 +8,7 @@ export async function previewMigration() {
         birthdayCount,
         userCount,
         oauthLogCount,
+        legacyCatCanBatchCount,
         catFoodPreview,
     ] = await Promise.all([
         db.collection('coin').countDocuments(),
@@ -23,10 +24,11 @@ export async function previewMigration() {
             ],
         }),
         db.collection('oi33_log').countDocuments({ type: 'oauth' }),
+        db.collection('oi33_cat_can_batch').countDocuments(),
         previewCatFoodBackfill(),
     ]);
     return {
-        billCount, pasteCount, birthdayCount, userCount, oauthLogCount,
+        billCount, pasteCount, birthdayCount, userCount, oauthLogCount, legacyCatCanBatchCount,
         catFoodUsers: catFoodPreview.users,
         catFoodAmount: catFoodPreview.amount,
     };
@@ -39,6 +41,8 @@ export async function migrate() {
         users: 0,
         logs: 0,
         oauthLogsDeleted: 0,
+        legacyCatCanBatchesDeleted: 0,
+        legacyCatCanBatchCollectionDropped: false,
         catFoodUsers: 0,
         catFoodAmount: 0,
         errors: [] as string[],
@@ -221,6 +225,20 @@ export async function migrate() {
         result.catFoodAmount = backfill.amount;
     } catch (e: any) {
         result.errors.push(`Step 7 (cat food backfill): ${e.message}`);
+    }
+
+    try {
+        // Step 8: Remove the obsolete lot-based cat-can inventory. oi33_user.cat_can is authoritative.
+        const legacyBatchColl = db.collection('oi33_cat_can_batch');
+        result.legacyCatCanBatchesDeleted = await legacyBatchColl.countDocuments();
+        try {
+            await legacyBatchColl.drop();
+            result.legacyCatCanBatchCollectionDropped = true;
+        } catch (e: any) {
+            if (e?.code !== 26 && e?.codeName !== 'NamespaceNotFound') throw e;
+        }
+    } catch (e: any) {
+        result.errors.push(`Step 8 (drop legacy cat-can batches): ${e.message}`);
     }
 
     return result;
