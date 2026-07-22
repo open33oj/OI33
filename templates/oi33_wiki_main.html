@@ -11,8 +11,17 @@
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
-      <div class="section__body">
-        <div class="typo richmedia">{{ bulletin.content|markdown|safe }}</div>
+      <div class="section__body" data-content-toc>
+        <div class="oi33-content-toc-controls" data-content-toc-controls hidden>
+          <label class="oi33-content-toc-toggle"><input type="checkbox" role="switch" data-content-toc-toggle> 显示目录</label>
+        </div>
+        <div class="oi33-content-layout" data-content-toc-layout>
+          <div class="oi33-content-main typo richmedia" data-content-toc-source>{{ bulletin.content|markdown|safe }}</div>
+          <aside class="oi33-content-toc" data-content-toc-aside hidden aria-label="文章目录">
+            <div class="oi33-content-toc__title">目录</div>
+            <ol class="oi33-content-toc__list" data-content-toc-list></ol>
+          </aside>
+        </div>
       </div>
     </div>
   </div>
