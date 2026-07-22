@@ -2,6 +2,7 @@ import {
     addPage, NamedPage, Notification, request, Socket,
 } from '@hydrooj/ui-default';
 import './cat-can-arena.css';
+import { CAT_FRAMES, CAT_PIXEL_COLORS } from './cat-sprites';
 
 const MAP_WIDTH = 640;
 const MAP_HEIGHT = 480;
@@ -10,6 +11,7 @@ const MIN_VIEW_SCALE = 0.25;
 const MAX_VIEW_SCALE = 110;
 const MIN_GRID_SPACING = 4;
 const MIN_CAT_SIZE = 8;
+const MIN_CAT_RENDER_SCALE = 6;
 const PLAYER_BUCKET_SIZE = 16;
 const CAT_IDLE_FRAME_MS = 3200;
 const LABEL_BUCKET_WIDTH = 80;
@@ -268,10 +270,6 @@ function mountMap() {
     const fullscreenButton = document.querySelector<HTMLButtonElement>('[data-map-fullscreen]');
     const actionDialog = document.querySelector<HTMLDialogElement>('[data-map-action-dialog]');
     const colorDialog = document.querySelector<HTMLDialogElement>('[data-map-color-dialog]');
-    const sprite = new Image();
-    const spriteSheet = document.createElement('canvas');
-    spriteSheet.width = 100;
-    spriteSheet.height = 100;
 
     let state: MapState = { width: MAP_WIDTH, height: MAP_HEIGHT, players: [], cells: [], me: null, canJoin: false, serverTime: Date.now() };
     const players = new Map<number, MapPlayer>();
@@ -309,14 +307,10 @@ function mountMap() {
     let renderDirty = true;
     let lastIdleFrame = -1;
     let lastStatusSecond = -1;
+    let devicePixelRatio = window.devicePixelRatio || 1;
 
     const now = () => Date.now() + clockOffset;
     const invalidate = () => { renderDirty = true; };
-    sprite.addEventListener('load', () => {
-        spriteSheet.getContext('2d')?.drawImage(sprite, 0, 0, 100, 100);
-        invalidate();
-    });
-    sprite.src = viewport.dataset.spriteUrl || '/oi33-cat-sprites.svg';
     const cellKey = (x: number, y: number) => `${x}:${y}`;
     const bucketKey = (x: number, y: number) => `${Math.floor(x / PLAYER_BUCKET_SIZE)}:${Math.floor(y / PLAYER_BUCKET_SIZE)}`;
     const removePlayerFromIndex = (player: MapPlayer) => {
@@ -408,6 +402,7 @@ function mountMap() {
     };
     const resize = () => {
         const ratio = window.devicePixelRatio || 1;
+        devicePixelRatio = ratio;
         const rect = viewport.getBoundingClientRect();
         canvas.width = Math.max(1, Math.round(rect.width * ratio));
         canvas.height = Math.max(1, Math.round(rect.height * ratio));
@@ -431,7 +426,7 @@ function mountMap() {
             ? `冷却 ${String(Math.floor(totalSeconds / 3600)).padStart(2, '0')}:${String(Math.floor(totalSeconds / 60) % 60).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
             : '现在可操作';
         const freeColor = state.me.freeColorAvailable ? ' · 免冷却染色 1 次' : '';
-        const text = `我的猫粮 ${state.me.food}g · 🥫${state.me.cans} · ${cooldown}${freeColor}`;
+        const text = `猫粮余额 ${state.me.food}g · 猫罐头余额 ${state.me.cans} 个 · ${cooldown}${freeColor}`;
         if (meStatus.textContent !== text) meStatus.textContent = text;
     };
 
@@ -451,12 +446,19 @@ function mountMap() {
         context.beginPath();
         context.ellipse(px + viewScale / 2, py + viewScale - Math.max(2, viewScale * .05), catSize * .36, catSize * .11, 0, 0, Math.PI * 2);
         context.fill();
-        if (sprite.complete && sprite.naturalWidth) {
-            context.imageSmoothingEnabled = false;
-            context.drawImage(spriteSheet, frameX * 50, frameY * 50, 50, 50, catX, catY, catSize, catSize);
-        } else {
-            context.font = `${catSize * .8}px sans-serif`;
-            context.fillText('🐈', catX, catY + catSize * .8);
+        const frame = CAT_FRAMES[frameY * 2 + frameX];
+        for (let row = 0; row < 8; row++) {
+            const top = Math.round((catY + row * catSize / 8) * devicePixelRatio) / devicePixelRatio;
+            const bottom = Math.round((catY + (row + 1) * catSize / 8) * devicePixelRatio) / devicePixelRatio;
+            for (let column = 0; column < 8; column++) {
+                const color = frame[row][column];
+                const fillStyle = CAT_PIXEL_COLORS[color];
+                if (!fillStyle) continue;
+                const left = Math.round((catX + column * catSize / 8) * devicePixelRatio) / devicePixelRatio;
+                const right = Math.round((catX + (column + 1) * catSize / 8) * devicePixelRatio) / devicePixelRatio;
+                context.fillStyle = fillStyle;
+                context.fillRect(left, top, right - left, bottom - top);
+            }
         }
         context.restore();
     };
@@ -490,8 +492,14 @@ function mountMap() {
         context.fillStyle = paletteColor(238);
         context.fillRect(0, 0, width, height);
         const origin = viewOrigin();
-        const mapWidth = MAP_WIDTH * viewScale;
-        const mapHeight = MAP_HEIGHT * viewScale;
+        // All layers share the same device-pixel aligned geometry.  Without
+        // this, the scaled bitmap and 1px grid lines can land on different
+        // physical pixels (especially on DPR 1.25/1.5 displays).
+        const snap = (value: number) => Math.round(value * devicePixelRatio) / devicePixelRatio;
+        origin.x = snap(origin.x);
+        origin.y = snap(origin.y);
+        const mapWidth = snap(MAP_WIDTH * viewScale);
+        const mapHeight = snap(MAP_HEIGHT * viewScale);
         context.imageSmoothingEnabled = false;
         context.drawImage(overviewLayer, origin.x, origin.y, mapWidth, mapHeight);
         if (showGrid) {
@@ -504,12 +512,12 @@ function mountMap() {
             const lastRow = Math.min(MAP_HEIGHT, Math.ceil((height - origin.y) / viewScale));
             context.beginPath();
             for (let column = firstColumn; column <= lastColumn; column += gridStep) {
-                const x = Math.round(origin.x + column * viewScale) + .5;
+                const x = snap(origin.x + column * viewScale) + 0.5 / devicePixelRatio;
                 context.moveTo(x, Math.max(0, origin.y));
                 context.lineTo(x, Math.min(height, origin.y + mapHeight));
             }
             for (let row = firstRow; row <= lastRow; row += gridStep) {
-                const y = Math.round(origin.y + row * viewScale) + .5;
+                const y = snap(origin.y + row * viewScale) + 0.5 / devicePixelRatio;
                 context.moveTo(Math.max(0, origin.x), y);
                 context.lineTo(Math.min(width, origin.x + mapWidth), y);
             }
@@ -517,7 +525,8 @@ function mountMap() {
         }
         context.strokeStyle = showGrid ? 'rgba(0,0,0,.72)' : 'rgba(255,255,255,.12)';
         context.strokeRect(origin.x + .5, origin.y + .5, mapWidth - 1, mapHeight - 1);
-        if (!showCats && !showNames) return;
+        const renderCats = showCats && viewScale >= MIN_CAT_RENDER_SCALE;
+        if (!renderCats && !showNames) return;
         const firstX = Math.max(0, Math.floor(-origin.x / viewScale));
         const firstY = Math.max(0, Math.floor(-origin.y / viewScale));
         const lastX = Math.min(MAP_WIDTH - 1, Math.ceil((width - origin.x) / viewScale));
@@ -533,7 +542,7 @@ function mountMap() {
             if (animation) {
                 const elapsed = currentTime - animation.start;
                 if (animation.teleport) {
-                    if (elapsed < 700 && showCats) {
+                    if (elapsed < 700 && renderCats) {
                         context.save();
                         context.strokeStyle = `rgba(118,220,255,${1 - elapsed / 700})`;
                         context.lineWidth = 4;
@@ -551,7 +560,7 @@ function mountMap() {
             }
             const px = origin.x + drawX * viewScale;
             const py = origin.y + drawY * viewScale;
-            if (showCats) drawCat(player, px, py, walking);
+            if (renderCats) drawCat(player, px, py, walking);
             if (showNames) labelCandidates.push({ player, px, py });
         });
         if (viewScale >= MAX_VIEW_SCALE - .01) {
@@ -717,12 +726,12 @@ function mountMap() {
         const message = actionDialog.querySelector<HTMLElement>('[data-action-message]');
         const confirm = actionDialog.querySelector<HTMLButtonElement>('[data-action-confirm]');
         const cooling = !!me && me.availableAt > now();
-        const lacksResource = !!me && (adjacent ? me.food < 33 : me.cans < 3);
+        const lacksResource = !!me && (adjacent ? me.food < 3 : me.cans < 3);
         if (title) title.textContent = joining ? '加入猫猫广场' : adjacent ? '移动到相邻格' : '传送到目标格';
         if (message) {
             if (joining) message.textContent = `是否免费选择（行 ${y}, 列 ${x}）作为小猫的初始位置？首次加入不消耗资源，也不触发冷却。`;
             else if (cooling) message.textContent = `目标（行 ${y}, 列 ${x}）。所有操作共享冷却，可用时间：${new Date(me!.availableAt).toLocaleString('zh-CN')}。`;
-            else if (adjacent) message.textContent = `是否使用 33g 猫粮移动到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。`;
+            else if (adjacent) message.textContent = `是否使用 3g 猫粮移动到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。`;
             else message.textContent = `是否使用 3 个猫罐头传送到（行 ${y}, 列 ${x}）？当前持有 ${me!.cans} 个猫罐头。`;
         }
         if (confirm) confirm.disabled = cooling || lacksResource;
@@ -953,7 +962,7 @@ function mountMap() {
             Notification.success(result.action === 'join'
                 ? '加入成功，首次选择位置免费且没有触发冷却。'
                 : result.action === 'move'
-                    ? '移动成功，已销毁 33g 猫粮，并获得 1 次免冷却染色。'
+                    ? '移动成功，已销毁 3g 猫粮，并获得 1 次免冷却染色。'
                     : '传送成功，3 个猫罐头已回到虚拟储备池，并获得 1 次免冷却染色。');
             actionDialog.close();
         } catch (e: any) {

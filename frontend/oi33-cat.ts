@@ -27,7 +27,7 @@ function mountCat(stage: HTMLElement) {
     const message = stage.parentElement?.querySelector<HTMLElement>('.oi33-cat-message');
     if (!actor || !sprite) return;
 
-    const spriteUrl = stage.dataset.spriteUrl || '/oi33-cat-sprites.svg';
+    const spriteUrl = stage.dataset.spriteUrl || '/oi33-cat-sprites.png';
     sprite.style.backgroundImage = `url("${spriteUrl.replace(/"/g, '%22')}")`;
 
     const random = seededRandom(mixSeed(uid, Date.now() & 0xffff));

@@ -1,22 +1,26 @@
 .oi33-map-shell { overflow: hidden; }
 .oi33-map-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.oi33-map-subtitle { margin: 4px 0 0; color: #778579; font-size: 13px; }
 .oi33-map-header .section__tools { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
-.oi33-map-stat { padding: 6px 10px; border-radius: 999px; color: #55675a; background: rgba(74,128,82,.11); white-space: nowrap; }
+.oi33-map-stat { color: #55675a; white-space: nowrap; }
 .oi33-map-stat strong { color: #267044; }
 .oi33-map-body { padding: 0 !important; }
 .oi33-map-toolbar { display: flex; min-height: 52px; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 12px; border-bottom: 1px solid rgba(128,128,128,.16); background: rgba(248,250,247,.92); }
 .oi33-map-navigation { display: flex; min-height: 48px; align-items: center; flex-wrap: wrap; gap: 9px; padding: 7px 12px; border-bottom: 1px solid rgba(128,128,128,.16); background: rgba(242,246,242,.95); }
+.oi33-map-status-left, .oi33-map-status-right, .oi33-map-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.oi33-map-status-right { margin-left: auto; }
+.oi33-map-actions { min-width: 0; }
 .oi33-map-toggles { display: flex; overflow: hidden; border: 1px solid rgba(69,102,76,.22); border-radius: 8px; }
+.oi33-map-navigation > .oi33-map-toggles { margin-left: auto; }
 .oi33-map-toggles button { padding: 7px 11px; border: 0; color: inherit; cursor: pointer; background: transparent; }
 .oi33-map-toggles button.is-active { color: #fff; background: #39774d; }
-.oi33-map-coordinate { margin-left: auto; color: #607065; font-variant-numeric: tabular-nums; }
+.oi33-map-coordinate { color: #607065; font-variant-numeric: tabular-nums; }
 .oi33-map-jump { display: flex; align-items: center; gap: 5px; }
 .oi33-map-jump label { display: flex; min-width: 0; align-items: center; gap: 3px; margin: 0; color: #607065; font-size: 12px; white-space: nowrap; }
 .oi33-map-jump input { box-sizing: border-box; width: 74px; height: 32px; margin: 0; padding: 4px 6px; }
-.oi33-map-navigation > .button, .oi33-map-jump > .button { display: inline-flex; box-sizing: border-box; height: 32px; align-items: center; justify-content: center; margin: 0; }
-.oi33-map-fullscreen { margin-left: auto !important; white-space: nowrap; }
-.oi33-map-me { min-width: 220px; flex: 1 1 280px; color: #53665a; font-size: 12px; white-space: nowrap; }
+.oi33-map-actions > .button, .oi33-map-jump > .button { display: inline-flex; box-sizing: border-box; height: 32px; align-items: center; justify-content: center; margin: 0; }
+.oi33-map-fullscreen { white-space: nowrap; }
+.oi33-map-costs { color: #607065; font-size: 12px; white-space: nowrap; }
+.oi33-map-me { color: #53665a; font-size: 12px; white-space: nowrap; }
 .oi33-map-live { display: inline-flex; align-items: center; gap: 5px; color: #8a6d3b; font-size: 12px; white-space: nowrap; }
 .oi33-map-live::before { width: 7px; height: 7px; border-radius: 50%; content: ''; background: currentColor; }
 .oi33-map-live.is-online { color: #2e814c; }
@@ -31,7 +35,7 @@
 .oi33-map-body:-webkit-full-screen .oi33-map-toolbar { flex: 0 0 auto; }
 .oi33-map-body:-webkit-full-screen .oi33-map-navigation { flex: 0 0 auto; }
 .oi33-map-body:-webkit-full-screen .oi33-map-viewport { height: auto; min-height: 0; flex: 1 1 auto; }
-.oi33-map-canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.oi33-map-canvas { display: block; width: 100%; height: 100%; }
 .oi33-map-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #e8f1e9; background: rgba(20,33,25,.84); transition: opacity .2s; }
 .oi33-map-loading.is-hidden { visibility: hidden; opacity: 0; }
 .oi33-map-hint { position: absolute; right: 12px; bottom: 12px; padding: 7px 10px; border: 1px solid rgba(255,255,255,.16); border-radius: 7px; color: rgba(255,255,255,.86); font-size: 12px; pointer-events: none; background: rgba(16,28,20,.72); backdrop-filter: blur(5px); }
@@ -55,27 +59,26 @@
 .oi33-admin-paint-map canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 .theme--dark .oi33-map-toolbar { background: rgba(28,33,29,.94); }
 .theme--dark .oi33-map-navigation { background: rgba(24,29,25,.96); }
-.theme--dark .oi33-map-subtitle, .theme--dark .oi33-map-coordinate, .theme--dark .oi33-map-me { color: #a5b2a7; }
+.theme--dark .oi33-map-coordinate, .theme--dark .oi33-map-me, .theme--dark .oi33-map-costs { color: #a5b2a7; }
 .theme--dark .oi33-map-stat { color: #b7c5b9; background: rgba(102,163,108,.12); }
 .theme--dark .oi33-map-stat strong { color: #76bd87; }
 .theme--dark .oi33-map-dialog { color: #ddd; background: #252825; }
 .theme--dark .oi33-map-viewport::after { border-color: rgba(255,255,255,.32); }
 @media (max-width: 760px) {
   .oi33-map-header { align-items: flex-start; flex-direction: column; }
-  .oi33-map-toolbar { align-items: stretch; flex-wrap: wrap; }
-  .oi33-map-navigation { align-items: stretch; flex-wrap: wrap; }
-  .oi33-map-toggles { width: 100%; }
+  .oi33-map-toolbar, .oi33-map-navigation { align-items: stretch; }
+  .oi33-map-status-left, .oi33-map-status-right { width: 100%; }
+  .oi33-map-status-right { margin-left: 0; justify-content: space-between; }
+  .oi33-map-actions { width: 100%; }
+  .oi33-map-navigation > .oi33-map-toggles { width: 100%; margin-left: 0; }
   .oi33-map-toggles button { flex: 1; }
-  .oi33-map-coordinate { margin-left: 0; }
   .oi33-map-me { min-width: 0; white-space: normal; }
   .oi33-map-jump { width: 100%; }
   .oi33-map-jump label { flex: 1; }
   .oi33-map-jump input { width: 100%; }
-  .oi33-map-live { margin-left: auto; }
-  .oi33-map-fullscreen { margin-left: 0 !important; }
-  .oi33-map-navigation > [data-map-find-me] { order: 1; flex: 1; }
-  .oi33-map-navigation > [data-map-fullscreen] { order: 2; flex: 1; }
-  .oi33-map-navigation > .oi33-map-jump { order: 3; }
+  .oi33-map-fullscreen { margin-left: 0; }
+  .oi33-map-actions > [data-map-find-me], .oi33-map-actions > [data-map-fullscreen] { flex: 1; }
+  .oi33-map-actions > .oi33-map-jump { order: 3; }
   .oi33-map-viewport { height: 65vh; min-height: 410px; }
   .oi33-map-hint { display: none; }
   .oi33-map-palette { grid-template-columns: repeat(16, minmax(17px,1fr)); }

@@ -8,33 +8,39 @@
       <div class="section__header oi33-map-header">
         <div>
           <h1 class="section__title">猫猫广场</h1>
-          <p class="oi33-map-subtitle">640 × 480 个格子的实时公共世界</p>
         </div>
         <div class="section__tools">
-          <span class="oi33-map-stat"><strong data-map-cat-count>—</strong> 只小猫</span>
           {% if loggedIn %}<a href="{{ url('oi33_cat_can') }}" class="rounded button">猫罐头市场</a>{% endif %}
           {% if canPaint %}<a href="{{ url('oi33_cat_map_admin') }}" class="rounded button">绘图后台</a>{% endif %}
         </div>
       </div>
       <div class="section__body oi33-map-body">
         <div class="oi33-map-toolbar">
+          <div class="oi33-map-status-left">
+            <span class="oi33-map-me" data-map-me-status>{% if loggedIn %}正在读取我的状态…{% else %}登录后可参与{% endif %}</span>
+            <span class="oi33-map-costs">移动消耗 3g，传送消耗 3 个罐头</span>
+          </div>
+          <div class="oi33-map-status-right">
+            <span class="oi33-map-coordinate" data-map-coordinate>格子：—</span>
+            <span class="oi33-map-stat"><strong data-map-cat-count>—</strong> 只小猫</span>
+            <span class="oi33-map-live" data-map-live>正在连接…</span>
+          </div>
+        </div>
+        <div class="oi33-map-navigation" aria-label="地图导航工具">
+          <div class="oi33-map-actions">
+            <button type="button" class="rounded button" data-map-find-me {% if not loggedIn %}disabled{% endif %}>定位我的小猫</button>
+            <div class="oi33-map-jump" aria-label="按坐标跳转">
+              <label>行 <input type="number" min="0" max="479" placeholder="0～479" data-map-jump-row></label>
+              <label>列 <input type="number" min="0" max="639" placeholder="0～639" data-map-jump-column></label>
+              <button type="button" class="rounded button" data-map-jump>跳转</button>
+            </div>
+            <button type="button" class="oi33-map-fullscreen rounded button" data-map-fullscreen aria-pressed="false">全屏</button>
+          </div>
           <div class="oi33-map-toggles" role="group" aria-label="地图显示选项">
             <button type="button" data-map-layer="grid" aria-pressed="false">格线</button>
             <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫</button>
             <button type="button" data-map-layer="names" class="is-active" aria-pressed="true">名字</button>
           </div>
-          <span class="oi33-map-me" data-map-me-status>{% if loggedIn %}正在读取我的状态…{% else %}登录后可参与{% endif %}</span>
-          <span class="oi33-map-coordinate" data-map-coordinate>格子：—</span>
-          <span class="oi33-map-live" data-map-live>正在连接…</span>
-        </div>
-        <div class="oi33-map-navigation" aria-label="地图导航工具">
-          <button type="button" class="rounded button" data-map-find-me {% if not loggedIn %}disabled{% endif %}>定位我的小猫</button>
-          <div class="oi33-map-jump" aria-label="按坐标跳转">
-            <label>行 <input type="number" min="0" max="479" placeholder="0～479" data-map-jump-row></label>
-            <label>列 <input type="number" min="0" max="639" placeholder="0～639" data-map-jump-column></label>
-            <button type="button" class="rounded button" data-map-jump>跳转</button>
-          </div>
-          <button type="button" class="oi33-map-fullscreen rounded button" data-map-fullscreen aria-pressed="false">全屏</button>
         </div>
         <div class="oi33-map-viewport"
              data-state-url="{{ url('oi33_cat_map_state') }}"
@@ -42,7 +48,6 @@
              data-move-url="{{ url('oi33_cat_map_move') }}"
              data-color-url="{{ url('oi33_cat_map_color') }}"
              data-conn-url="/oi33/arena/conn"
-             data-sprite-url="{{ UiContext.cdn_prefix }}oi33-cat-sprites.svg"
              data-user-id="{{ handler.user._id or 0 }}"
              data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
           <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>

@@ -6,7 +6,7 @@ import { userColl } from './user';
 
 export const CAT_MAP_WIDTH = 640;
 export const CAT_MAP_HEIGHT = 480;
-export const CAT_MAP_MOVE_FOOD_COST = 33;
+export const CAT_MAP_MOVE_FOOD_COST = 3;
 export const CAT_MAP_TELEPORT_CAN_COST = 3;
 export const CAT_MAP_MIN_COOLDOWN_MINUTES = 50;
 export const CAT_MAP_BASE_COOLDOWN_MINUTES = 120;
