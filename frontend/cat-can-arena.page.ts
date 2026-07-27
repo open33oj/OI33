@@ -339,7 +339,7 @@ function mountMap() {
     const playersAtCell = (x: number, y: number) => Array.from(playersByCell.get(cellKey(x, y)) || [])
         .map((uid) => players.get(uid))
         .filter((player): player is MapPlayer => !!player)
-        .sort((a, b) => b.food - a.food || a.uid - b.uid);
+        .sort((a, b) => b.cans - a.cans || a.uid - b.uid);
     const deletePlayer = (uid: number) => {
         const player = players.get(uid);
         if (player) removePlayerFromIndex(player);
@@ -473,7 +473,7 @@ function mountMap() {
     };
 
     const catLabelRect = (player: MapPlayer, px: number, py: number) => {
-        const label = `${player.uname}🍚${player.food}`;
+        const label = `${player.uname}🥫${player.cans}`;
         let metrics = labelMetrics.get(player.uid);
         if (!metrics || metrics.text !== label) {
             context.font = 'bold 11px sans-serif';
@@ -546,7 +546,7 @@ function mountMap() {
         playersInView(firstX - 2, firstY - 2, lastX + 2, lastY + 2).forEach((player) => {
             const key = cellKey(player.x, player.y);
             const current = visibleByCell.get(key);
-            if (!current || player.food > current.food || (player.food === current.food && player.uid < current.uid)) {
+            if (!current || player.cans > current.cans || (player.cans === current.cans && player.uid < current.uid)) {
                 visibleByCell.set(key, player);
             }
         });
@@ -585,7 +585,7 @@ function mountMap() {
             return;
         }
         const labelBuckets = new Map<string, Array<{ x: number; y: number; width: number; height: number }>>();
-        labelCandidates.sort((a, b) => b.player.food - a.player.food || a.player.uid - b.player.uid).forEach((candidate) => {
+        labelCandidates.sort((a, b) => b.player.cans - a.player.cans || a.player.uid - b.player.uid).forEach((candidate) => {
             const rect = catLabelRect(candidate.player, candidate.px, candidate.py);
             const firstBucketX = Math.floor(rect.x / LABEL_BUCKET_WIDTH);
             const lastBucketX = Math.floor((rect.x + rect.width) / LABEL_BUCKET_WIDTH);
@@ -767,7 +767,7 @@ function mountMap() {
         const color = cellDialog.querySelector<HTMLButtonElement>('[data-cell-color]');
         if (title) title.textContent = `格子（行 ${y}，列 ${x}）`;
         if (summary) summary.textContent = occupants.length
-            ? `这里有 ${occupants.length} 只小猫；地图显示猫粮最多的 ${occupants[0].uname}。`
+            ? `这里有 ${occupants.length} 只小猫；地图显示猫罐头最多的 ${occupants[0].uname}。`
             : '这里暂时没有小猫。';
         if (list) {
             list.replaceChildren();

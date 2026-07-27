@@ -121,7 +121,13 @@ class CatMapJoinHandler extends Handler {
             const payload = {
                 type: 'player',
                 player: {
-                    ...result,
+                    uid: result.uid,
+                    x: result.x,
+                    y: result.y,
+                    cans: result.cans,
+                    food: result.food,
+                    availableAt: result.availableAt,
+                    freeColorAvailable: result.freeColorAvailable,
                     uname: this.user.uname || `UID ${this.user._id}`,
                 },
             };
