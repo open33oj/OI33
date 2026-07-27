@@ -34,46 +34,6 @@ function cooldownMinutes(cans: number) {
     ));
 }
 
-async function repairDuplicatePositions() {
-    const players: any[] = await catMapPlayerColl.find().sort({ _id: 1 }).toArray();
-    const used = new Set<string>();
-    for (const player of players) {
-        let key = cellId(player.x, player.y);
-        if (!used.has(key)) {
-            used.add(key);
-            continue;
-        }
-        let x = 0;
-        let y = 0;
-        let found = false;
-        for (let attempt = 0; attempt < 256; attempt++) {
-            x = randomInt(CAT_MAP_WIDTH);
-            y = randomInt(CAT_MAP_HEIGHT);
-            if (!used.has(cellId(x, y))) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            outer: for (y = 0; y < CAT_MAP_HEIGHT; y++) {
-                for (x = 0; x < CAT_MAP_WIDTH; x++) {
-                    if (!used.has(cellId(x, y))) {
-                        found = true;
-                        break outer;
-                    }
-                }
-            }
-        }
-        if (!found) throw new Error('猫咪地图已经没有空位了。');
-        key = cellId(x, y);
-        used.add(key);
-        await catMapPlayerColl.updateOne(
-            { _id: player._id },
-            { $set: { x, y, updatedAt: new Date() }, $unset: { stackable: '' } },
-        );
-    }
-}
-
 export async function ensureCatMapIndexes() {
     // Remove untouched positions created by the previous automatic random-placement behavior.
     await catMapPlayerColl.deleteMany({
@@ -81,7 +41,7 @@ export async function ensureCatMapIndexes() {
         movedAt: { $exists: false },
         availableAt: { $exists: false },
     } as any);
-    // Unverified users must not keep invisible positions that block otherwise empty cells.
+    // Unverified users must not keep invisible positions on the public map.
     const eligibleUsers = await userColl.find({ realname_flag: { $gte: 1 } }).project({ _id: 1 }).toArray();
     await catMapPlayerColl.deleteMany({ _id: { $nin: eligibleUsers.map((user) => user._id) } } as any);
     try {
@@ -89,10 +49,9 @@ export async function ensureCatMapIndexes() {
     } catch (e: any) {
         if (![26, 27].includes(e?.code)) throw e;
     }
-    await repairDuplicatePositions();
     await catMapPlayerColl.updateMany({}, { $unset: { stackable: '' } });
     await Promise.all([
-        catMapPlayerColl.createIndex({ x: 1, y: 1 }, { unique: true }),
+        catMapPlayerColl.createIndex({ x: 1, y: 1 }),
         catMapPlayerColl.createIndex({ updatedAt: -1 }),
         catMapCellColl.createIndex({ x: 1, y: 1 }, { unique: true }),
         catMapCellColl.createIndex({ updatedAt: -1 }),
@@ -118,7 +77,7 @@ export async function joinCatMapPlayer(uid: number, x: number, y: number, now = 
     } catch (e: any) {
         if (e?.code !== 11000) throw e;
         if (await catMapPlayerColl.findOne({ _id: uid })) throw new Error('你的小猫已经加入猫猫广场了。');
-        throw new Error('这个格子刚刚被其他小猫占用了，请选择其他位置。');
+        throw e;
     }
     if (!await getEligibleUser(uid)) {
         await catMapPlayerColl.deleteOne({ _id: uid, x, y } as any);
@@ -172,7 +131,7 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     const user: any = await getEligibleUser(uid);
     if (!user) throw new Error('只有已认证用户可以进入猫咪地图。');
     const player: any = await catMapPlayerColl.findOne({ _id: uid });
-    if (!player) throw new Error('请先在地图上免费选择一个空位加入猫猫广场。');
+    if (!player) throw new Error('请先在地图上免费选择一个位置加入猫猫广场。');
     if (player.x === targetX && player.y === targetY) throw new Error('小猫已经在这个格子里。');
     if (player.availableAt && new Date(player.availableAt).getTime() > now.getTime()) {
         throw new Error(`操作冷却中，请在 ${new Date(player.availableAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })} 后再试。`);
@@ -187,21 +146,15 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     const availableAt = new Date(now.getTime() + minutes * 60 * 1000);
     const lock = new ObjectId();
     const staleLockAt = new Date(now.getTime() - 30_000);
-    let claimed;
-    try {
-        claimed = await catMapPlayerColl.updateOne({
-            _id: uid,
-            x: player.x,
-            y: player.y,
-            $and: [
-                { $or: [{ availableAt: { $exists: false } }, { availableAt: { $lte: now } }] },
-                { $or: [{ movementLock: { $exists: false } }, { movementLockAt: { $lt: staleLockAt } }] },
-            ],
-        } as any, { $set: { movementLock: lock, movementLockAt: now }, $unset: { stackable: '' } });
-    } catch (e: any) {
-        if (e?.code === 11000) throw new Error('当前位置与其他小猫重叠，请刷新地图后重试。');
-        throw e;
-    }
+    const claimed = await catMapPlayerColl.updateOne({
+        _id: uid,
+        x: player.x,
+        y: player.y,
+        $and: [
+            { $or: [{ availableAt: { $exists: false } }, { availableAt: { $lte: now } }] },
+            { $or: [{ movementLock: { $exists: false } }, { movementLockAt: { $lt: staleLockAt } }] },
+        ],
+    } as any, { $set: { movementLock: lock, movementLockAt: now }, $unset: { stackable: '' } });
     if (!claimed.modifiedCount) throw new Error('小猫的位置或冷却状态刚刚发生了变化，请重试。');
 
     let foodDeducted = false;
@@ -210,10 +163,6 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     let movementLogged = false;
     const movementLogId = new ObjectId();
     try {
-        const occupied = await catMapPlayerColl.findOne({
-            _id: { $ne: uid }, x: targetX, y: targetY,
-        } as any);
-        if (occupied) throw new Error('目标格子已经有小猫了。');
         if (foodCost) {
             const result = await userColl.updateOne(
                 { _id: uid, realname_flag: { $gte: 1 }, cat_food: { $gte: foodCost } },
@@ -280,7 +229,6 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
             { _id: uid, movementLock: lock } as any,
             { $unset: { movementLock: '', movementLockAt: '' } },
         );
-        if ((e as any)?.code === 11000) throw new Error('目标格子刚刚被另一只小猫占用了。');
         throw e;
     }
 
@@ -471,56 +419,22 @@ export async function adminRelocateCatMapPlayer(
     });
     if (!claimed.modifiedCount) throw new Error('目标小猫正在执行其他操作，请稍后重试。');
 
-    let destination: { x: number; y: number } | null = null;
+    let x = randomInt(CAT_MAP_WIDTH);
+    let y = randomInt(CAT_MAP_HEIGHT);
+    while (x === player.x && y === player.y) {
+        x = randomInt(CAT_MAP_WIDTH);
+        y = randomInt(CAT_MAP_HEIGHT);
+    }
+    const destination = { x, y };
     try {
-        for (let attempt = 0; attempt < 256; attempt++) {
-            const x = randomInt(CAT_MAP_WIDTH);
-            const y = randomInt(CAT_MAP_HEIGHT);
-            if (x === player.x && y === player.y) continue;
-            try {
-                const moved = await catMapPlayerColl.updateOne(
-                    { _id: uid, movementLock: lock } as any,
-                    {
-                        $set: { x, y, movedAt: now, updatedAt: now },
-                        $unset: { movementLock: '', movementLockAt: '', stackable: '' },
-                    },
-                );
-                if (!moved.modifiedCount) throw new Error('管理员迁移锁已失效，请重试。');
-                destination = { x, y };
-                break;
-            } catch (e: any) {
-                if (e?.code !== 11000) throw e;
-            }
-        }
-        if (!destination) {
-            const occupiedRows: any[] = await catMapPlayerColl.find({ _id: { $ne: uid } } as any)
-                .project({ x: 1, y: 1 }).toArray();
-            const occupied = new Set(occupiedRows.map((row) => cellId(row.x, row.y)));
-            const start = randomInt(CAT_MAP_WIDTH * CAT_MAP_HEIGHT);
-            for (let offset = 0; offset < CAT_MAP_WIDTH * CAT_MAP_HEIGHT; offset++) {
-                const index = (start + offset) % (CAT_MAP_WIDTH * CAT_MAP_HEIGHT);
-                const x = index % CAT_MAP_WIDTH;
-                const y = Math.floor(index / CAT_MAP_WIDTH);
-                const key = cellId(x, y);
-                if ((x === player.x && y === player.y) || occupied.has(key)) continue;
-                try {
-                    const moved = await catMapPlayerColl.updateOne(
-                        { _id: uid, movementLock: lock } as any,
-                        {
-                            $set: { x, y, movedAt: now, updatedAt: now },
-                            $unset: { movementLock: '', movementLockAt: '', stackable: '' },
-                        },
-                    );
-                    if (!moved.modifiedCount) throw new Error('管理员迁移锁已失效，请重试。');
-                    destination = { x, y };
-                    break;
-                } catch (e: any) {
-                    if (e?.code !== 11000) throw e;
-                    occupied.add(key);
-                }
-            }
-        }
-        if (!destination) throw new Error('猫猫广场已经没有可用空位。');
+        const moved = await catMapPlayerColl.updateOne(
+            { _id: uid, movementLock: lock } as any,
+            {
+                $set: { x, y, movedAt: now, updatedAt: now },
+                $unset: { movementLock: '', movementLockAt: '', stackable: '' },
+            },
+        );
+        if (!moved.modifiedCount) throw new Error('管理员迁移锁已失效，请重试。');
     } catch (e) {
         await catMapPlayerColl.updateOne(
             { _id: uid, movementLock: lock } as any,

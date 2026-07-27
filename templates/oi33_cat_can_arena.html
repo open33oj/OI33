@@ -52,13 +52,26 @@
              data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
           <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
           <div class="oi33-map-loading">正在生成猫咪世界…</div>
-          <div class="oi33-map-hint">格线、小猫和名字可独立显示 · 全屏后可用方向键浏览 · 拖动、滚轮或双指缩放 · 点击自己的小猫改色</div>
+          <div class="oi33-map-hint">同格显示猫粮最多的小猫 · 点击格子查看全部小猫和操作 · 全屏后可用方向键浏览 · 拖动、滚轮或双指缩放</div>
         </div>
       </div>
     </div>
 
   </div>
 </div>
+
+<dialog class="oi33-map-dialog" data-map-cell-dialog>
+  <form method="dialog">
+    <h2 data-cell-title>格子详情</h2>
+    <p data-cell-summary></p>
+    <ul class="oi33-map-cell-players" data-cell-players></ul>
+    <div class="oi33-map-dialog-actions">
+      <button value="cancel" class="rounded button">关闭</button>
+      <button type="button" class="rounded button" data-cell-color hidden>设置格子颜色</button>
+      <button type="button" class="primary rounded button" data-cell-action hidden>移动到这里</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog class="oi33-map-dialog" data-map-action-dialog>
   <form method="dialog">

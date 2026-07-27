@@ -56,7 +56,7 @@ async function buildCatMapState(viewerUid = 0) {
             x: player.x,
             y: player.y,
             cans: balance.cans,
-            food: player._id === viewerUid ? balance.food : 0,
+            food: balance.food,
             availableAt: player.availableAt ? new Date(player.availableAt).getTime() : 0,
             freeColorAvailable: !!player.freeColorAvailable,
         };
@@ -96,6 +96,7 @@ class CatMapMoveHandler extends Handler {
                     x: result.x,
                     y: result.y,
                     cans: result.cans,
+                    food: result.food,
                     foodCost: result.foodCost,
                     canCost: result.canCost,
                     availableAt: result.availableAt,

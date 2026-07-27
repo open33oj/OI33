@@ -268,13 +268,14 @@ function mountMap() {
     const meStatus = document.querySelector<HTMLElement>('[data-map-me-status]');
     const fullscreenRoot = viewport.closest<HTMLElement>('.oi33-map-body');
     const fullscreenButton = document.querySelector<HTMLButtonElement>('[data-map-fullscreen]');
+    const cellDialog = document.querySelector<HTMLDialogElement>('[data-map-cell-dialog]');
     const actionDialog = document.querySelector<HTMLDialogElement>('[data-map-action-dialog]');
     const colorDialog = document.querySelector<HTMLDialogElement>('[data-map-color-dialog]');
 
     let state: MapState = { width: MAP_WIDTH, height: MAP_HEIGHT, players: [], cells: [], me: null, canJoin: false, serverTime: Date.now() };
     const players = new Map<number, MapPlayer>();
     const playerBuckets = new Map<string, Set<number>>();
-    const playerByCell = new Map<string, number>();
+    const playersByCell = new Map<string, Set<number>>();
     const labelMetrics = new Map<number, { text: string; width: number }>();
     const cellColors = new Int16Array(MAP_WIDTH * MAP_HEIGHT);
     cellColors.fill(-1);
@@ -318,7 +319,9 @@ function mountMap() {
         const bucket = playerBuckets.get(key);
         bucket?.delete(player.uid);
         if (!bucket?.size) playerBuckets.delete(key);
-        if (playerByCell.get(cellKey(player.x, player.y)) === player.uid) playerByCell.delete(cellKey(player.x, player.y));
+        const cell = playersByCell.get(cellKey(player.x, player.y));
+        cell?.delete(player.uid);
+        if (!cell?.size) playersByCell.delete(cellKey(player.x, player.y));
     };
     const storePlayer = (player: MapPlayer) => {
         const previous = players.get(player.uid);
@@ -328,9 +331,15 @@ function mountMap() {
         const bucket = playerBuckets.get(key) || new Set<number>();
         bucket.add(player.uid);
         playerBuckets.set(key, bucket);
-        playerByCell.set(cellKey(player.x, player.y), player.uid);
+        const cell = playersByCell.get(cellKey(player.x, player.y)) || new Set<number>();
+        cell.add(player.uid);
+        playersByCell.set(cellKey(player.x, player.y), cell);
         invalidate();
     };
+    const playersAtCell = (x: number, y: number) => Array.from(playersByCell.get(cellKey(x, y)) || [])
+        .map((uid) => players.get(uid))
+        .filter((player): player is MapPlayer => !!player)
+        .sort((a, b) => b.food - a.food || a.uid - b.uid);
     const deletePlayer = (uid: number) => {
         const player = players.get(uid);
         if (player) removePlayerFromIndex(player);
@@ -417,7 +426,7 @@ function mountMap() {
     const updateMeStatus = () => {
         if (!meStatus || !userId) return;
         if (!state.me) {
-            meStatus.textContent = state.canJoin ? '点击任意空格免费加入' : '完成认证后可参与';
+            meStatus.textContent = state.canJoin ? '点击任意格免费加入' : '完成认证后可参与';
             return;
         }
         const remaining = Math.max(0, state.me.availableAt - now());
@@ -464,7 +473,7 @@ function mountMap() {
     };
 
     const catLabelRect = (player: MapPlayer, px: number, py: number) => {
-        const label = `${player.uname}🥫${player.cans}`;
+        const label = `${player.uname}🍚${player.food}`;
         let metrics = labelMetrics.get(player.uid);
         if (!metrics || metrics.text !== label) {
             context.font = 'bold 11px sans-serif';
@@ -533,7 +542,15 @@ function mountMap() {
         const lastY = Math.min(MAP_HEIGHT - 1, Math.ceil((height - origin.y) / viewScale));
         const currentTime = performance.now();
         const labelCandidates: Array<{ player: MapPlayer; px: number; py: number }> = [];
-        const visiblePlayers = playersInView(firstX - 2, firstY - 2, lastX + 2, lastY + 2);
+        const visibleByCell = new Map<string, MapPlayer>();
+        playersInView(firstX - 2, firstY - 2, lastX + 2, lastY + 2).forEach((player) => {
+            const key = cellKey(player.x, player.y);
+            const current = visibleByCell.get(key);
+            if (!current || player.food > current.food || (player.food === current.food && player.uid < current.uid)) {
+                visibleByCell.set(key, player);
+            }
+        });
+        const visiblePlayers = Array.from(visibleByCell.values());
         visiblePlayers.forEach((player) => {
             let drawX = player.x;
             let drawY = player.y;
@@ -568,7 +585,7 @@ function mountMap() {
             return;
         }
         const labelBuckets = new Map<string, Array<{ x: number; y: number; width: number; height: number }>>();
-        labelCandidates.sort((a, b) => b.player.cans - a.player.cans || a.player.uid - b.player.uid).forEach((candidate) => {
+        labelCandidates.sort((a, b) => b.player.food - a.player.food || a.player.uid - b.player.uid).forEach((candidate) => {
             const rect = catLabelRect(candidate.player, candidate.px, candidate.py);
             const firstBucketX = Math.floor(rect.x / LABEL_BUCKET_WIDTH);
             const lastBucketX = Math.floor((rect.x + rect.width) / LABEL_BUCKET_WIDTH);
@@ -603,7 +620,8 @@ function mountMap() {
         const frameAt = performance.now();
         const elapsed = Math.min(.05, Math.max(0, (frameAt - lastRenderAt) / 1000));
         lastRenderAt = frameAt;
-        const keyboardActive = document.fullscreenElement === fullscreenRoot && !actionDialog?.open && !colorDialog?.open;
+        const keyboardActive = document.fullscreenElement === fullscreenRoot
+            && !cellDialog?.open && !actionDialog?.open && !colorDialog?.open;
         const directionX = keyboardActive
             ? Number(heldKeys.has('ArrowRight')) - Number(heldKeys.has('ArrowLeft'))
             : 0;
@@ -738,28 +756,49 @@ function mountMap() {
         actionDialog.showModal();
     };
 
+    const openCellDialog = (x: number, y: number) => {
+        if (!cellDialog) return;
+        selectedTarget = { x, y };
+        const occupants = playersAtCell(x, y);
+        const title = cellDialog.querySelector<HTMLElement>('[data-cell-title]');
+        const summary = cellDialog.querySelector<HTMLElement>('[data-cell-summary]');
+        const list = cellDialog.querySelector<HTMLElement>('[data-cell-players]');
+        const action = cellDialog.querySelector<HTMLButtonElement>('[data-cell-action]');
+        const color = cellDialog.querySelector<HTMLButtonElement>('[data-cell-color]');
+        if (title) title.textContent = `格子（行 ${y}，列 ${x}）`;
+        if (summary) summary.textContent = occupants.length
+            ? `这里有 ${occupants.length} 只小猫；地图显示猫粮最多的 ${occupants[0].uname}。`
+            : '这里暂时没有小猫。';
+        if (list) {
+            list.replaceChildren();
+            occupants.forEach((player, index) => {
+                const item = document.createElement('li');
+                const name = document.createElement('strong');
+                name.textContent = `${player.uname}（UID ${player.uid}）`;
+                const balance = document.createElement('span');
+                balance.textContent = `猫粮 ${player.food}g · 猫罐头 ${player.cans} 个${index === 0 ? ' · 当前显示' : ''}`;
+                item.append(name, balance);
+                list.append(item);
+            });
+        }
+        const me = state.me;
+        const sameCell = !!me && me.x === x && me.y === y;
+        if (color) color.hidden = !sameCell;
+        if (action) {
+            const joining = !me && state.canJoin;
+            const canAct = !!me || joining;
+            const distance = me ? Math.abs(me.x - x) + Math.abs(me.y - y) : 0;
+            const adjacent = distance === 1;
+            action.hidden = !canAct || sameCell;
+            action.textContent = joining ? '免费加入这里' : adjacent ? '移动到这里（3g）' : '传送到这里（3 个罐头）';
+            action.disabled = false;
+        }
+        cellDialog.showModal();
+    };
+
     const clickCell = (x: number, y: number) => {
         if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return;
-        const occupantUid = playerByCell.get(cellKey(x, y));
-        const occupant = occupantUid === undefined ? undefined : players.get(occupantUid);
-        const own = occupant?.uid === userId ? occupant : undefined;
-        if (own) {
-            openColorDialog(x, y);
-            return;
-        }
-        if (!userId) {
-            Notification.error('登录并完成认证后，才能加入猫猫广场。');
-            return;
-        }
-        if (occupant) {
-            Notification.error(`格子（行 ${y}, 列 ${x}）已经有 ${occupant.uname} 的小猫了。`);
-            return;
-        }
-        if (!state.me && !state.canJoin) {
-            Notification.error('只有已认证用户才能加入猫猫广场。');
-            return;
-        }
-        openActionDialog(x, y);
+        openCellDialog(x, y);
     };
 
     const pointToCell = (clientX: number, clientY: number) => {
@@ -924,7 +963,7 @@ function mountMap() {
     }
     document.addEventListener('keydown', (event) => {
         if (!canvas.isConnected || document.fullscreenElement !== fullscreenRoot || event.defaultPrevented) return;
-        if (event.altKey || event.ctrlKey || event.metaKey || actionDialog?.open || colorDialog?.open) return;
+        if (event.altKey || event.ctrlKey || event.metaKey || cellDialog?.open || actionDialog?.open || colorDialog?.open) return;
         const target = event.target as HTMLElement | null;
         if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift'].includes(event.key)) return;
@@ -949,6 +988,18 @@ function mountMap() {
         }
         centerAt(column, row);
         if (coordinate) coordinate.textContent = `格子：（行 ${row}, 列 ${column}）`;
+    });
+    cellDialog?.querySelector<HTMLButtonElement>('[data-cell-action]')?.addEventListener('click', () => {
+        if (!selectedTarget) return;
+        const { x, y } = selectedTarget;
+        cellDialog.close();
+        openActionDialog(x, y);
+    });
+    cellDialog?.querySelector<HTMLButtonElement>('[data-cell-color]')?.addEventListener('click', () => {
+        if (!selectedTarget) return;
+        const { x, y } = selectedTarget;
+        cellDialog.close();
+        openColorDialog(x, y);
     });
     actionDialog?.querySelector<HTMLButtonElement>('[data-action-confirm]')?.addEventListener('click', async (event) => {
         const button = event.currentTarget as HTMLButtonElement;
@@ -1036,7 +1087,7 @@ function mountMap() {
         clockOffset = incoming.serverTime - Date.now();
         players.clear();
         playerBuckets.clear();
-        playerByCell.clear();
+        playersByCell.clear();
         labelMetrics.clear();
         incoming.players.forEach((player) => storePlayer({
             ...player,
