@@ -49,6 +49,11 @@ import {
     moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
     getCatMapCooldownMinutes,
 } from './cat-map';
+import {
+    ensureSchoolCatIndexes, searchSchools, listSchools, getSchool,
+    getBigCatWorldState, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
+    setSchoolCatPosition, schoolCatSize, schoolDisplay, schoolUrl, removeSchoolCatBinding,
+} from './school-cat';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -64,6 +69,7 @@ export { logColl } from './log';
 export { catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
 export { catFoodBatchPreviewColl } from './cat-account';
 export { catMapPlayerColl, catMapCellColl } from './cat-map';
+export { schoolColl, schoolCatColl, schoolFeedHistoryColl } from './school-cat';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -84,6 +90,9 @@ const oi33Model = {
     ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
     moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
     getCatMapCooldownMinutes,
+    ensureSchoolCatIndexes, searchSchools, listSchools, getSchool,
+    getBigCatWorldState, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
+    setSchoolCatPosition, schoolCatSize, schoolDisplay, schoolUrl, removeSchoolCatBinding,
     submitRequest, directUpdate, approveRequest, rejectRequest,
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,
@@ -120,6 +129,9 @@ declare module 'hydrooj' {
         oi33_cat_food_batch_preview: import('./types').Oi33CatFoodBatchPreview;
         oi33_cat_map_player: import('./types').Oi33CatMapPlayer;
         oi33_cat_map_cell: import('./types').Oi33CatMapCell;
+        oi33_school: import('./types').Oi33School;
+        oi33_school_cat: import('./types').Oi33SchoolCat;
+        oi33_school_feed_history: import('./types').Oi33SchoolFeedHistory;
     }
 }
 

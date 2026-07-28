@@ -51,6 +51,10 @@ export interface Oi33User {
     codeforces_rating?: number;
     atcoder_updated_at?: string;
     codeforces_updated_at?: string;
+    school_cat?: number;
+    school_cat_food?: number;
+    school_cat_month?: string;
+    school_cat_feed_at?: Date;
 }
 
 export interface Oi33CatCanBill {
@@ -135,6 +139,31 @@ export interface Oi33CatMapCell {
     color: number;
     updatedBy: number;
     updatedAt: Date;
+}
+
+export interface Oi33School {
+    _id: number;
+    prov: string;
+    abbr: string;
+}
+
+export interface Oi33SchoolCat {
+    _id: number;
+    currentWeight: number;
+    historyWeight: number;
+    x?: number;
+    y?: number;
+    positionAt?: Date;
+    spawnedAt: Date;
+    updatedAt: Date;
+}
+
+export interface Oi33SchoolFeedHistory {
+    _id: ObjectId;
+    uid: number;
+    schoolId: number;
+    amount: number;
+    createdAt: Date;
 }
 
 export interface Oi33CoinBill {
@@ -240,7 +269,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat';
     sender?: number;
     receiver?: number;
     amount?: number;

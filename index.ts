@@ -11,10 +11,12 @@ import { apply as applyPermissions } from './handler/permissions';
 import { apply as applyOAuth } from './handler/oauth';
 import { apply as applyCatCan } from './handler/cat-can';
 import { apply as applyCatAccount } from './handler/cat-account';
+import { apply as applySchoolCat } from './handler/school-cat';
 import { backfillAllCatFood } from './model/user';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
 import { ensureCatAccountIndexes } from './model/cat-account';
 import { ensureCatMapIndexes } from './model/cat-map';
+import { ensureSchoolCatIndexes } from './model/school-cat';
 
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
@@ -42,6 +44,7 @@ export async function apply(ctx: Context) {
     await applyOAuth(ctx);
     await applyCatCan(ctx);
     await applyCatAccount(ctx);
+    await applySchoolCat(ctx);
     if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0') {
         ctx.on('app/started', async () => {
             try {
@@ -56,6 +59,7 @@ export async function apply(ctx: Context) {
                 await ensureCatCanIndexes();
                 await ensureCatAccountIndexes();
                 await ensureCatMapIndexes();
+                await ensureSchoolCatIndexes();
                 await maintainCatCanMarket();
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {

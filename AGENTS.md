@@ -20,6 +20,8 @@ oi33/
 │   ├── cat-can.ts        # Reserve-backed cat-can AMM, price history, balances and trades
 │   ├── cat-account.ts    # Unified food/can ledger, charts, grants, previews and reversals
 │   ├── cat-map.ts        # 640x480 positions, persistent colors, movement costs/cooldowns
+│   ├── school-cat.ts     # Big cat world: school import, binding, feeding, leaderboards, NPC movement tick
+│   ├── school-cat-data.json # Generated school list (code/province/pinyin-initials) imported into oi33_school
 │   └── log.ts            # Activity log (audit trail)
 ├── handler/
 │   ├── patches.ts        # Monkey-patches (UserModel.getList, HomeHandler.getCheckin / getCountdown)
@@ -34,11 +36,15 @@ oi33/
 │   ├── wiki.ts           # Wiki pages + categories + import/export
 │   ├── cat-can.ts        # Cat-can market and realtime pixel-map routes/connections
 │   ├── cat-account.ts    # Unified account, grant, batch preview and reversal routes
+│   ├── school-cat.ts     # Big cat world routes (state, school list/search, bind, feed, detail)
 │   └── permissions.ts    # Permission matrix reference page
 ├── scripts/
-│   └── export-hydro-data.ts
+│   ├── export-hydro-data.ts
+│   ├── school.txt        # OIerDB school list source (province,city,official name,aliases)
+│   └── build-school-cat-data.py # Regenerates model/school-cat-data.json (needs pypinyin)
 ├── frontend/
-│   └── foo.page.ts       # Client-side UserSelectAutoComplete init
+│   ├── foo.page.ts       # Client-side UserSelectAutoComplete init
+│   └── cat-big-arena.page.ts # Big cat world canvas, tabs, picker, feeding and leaderboards
 ├── locales/
 │   └── zh.yaml           # Chinese i18n strings
 ├── public/               # Static assets (favicons, logo)
@@ -60,7 +66,7 @@ oi33/
 
 | Collection | Key fields |
 |------------|-----------|
-| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/管理员/行政管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_can`, `cat_can_trade_available_at`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `atcoder`, `codeforces`, rating fields |
+| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/管理员/行政管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_can`, `cat_can_trade_available_at`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `school_cat`, `school_cat_food`, `school_cat_month`, `school_cat_feed_at`, `atcoder`, `codeforces`, rating fields |
 | `oi33_coin_bill` | `_id` (ObjectId), `userId`, `rootId`, `amount`, `text` |
 | `oi33_paste` | `_id` (random string), `updateAt`, `title`, `owner`, `content`, `isprivate` |
 | `oi33_wiki` | `_id` (random slug: 8 hex bytes + base36 timestamp), `title`, `content`, `category`, `order`, `createdAt`, `updatedAt` |
@@ -78,6 +84,9 @@ oi33/
 | `oi33_cat_food_batch_preview` | expiring, single-use bulk cat-food grant previews |
 | `oi33_cat_map_player` | globally unique per-user positions, shared action cooldown, non-stacking `freeColorAvailable` credit and transient lock |
 | `oi33_cat_map_cell` | persistent 8-bit colors keyed by `x:y` |
+| `oi33_school` | OIerDB schools imported at startup (`_id` = OIerDB code, `prov`, `abbr`; `_id: 'meta'` tracks import count) |
+| `oi33_school_cat` | one doc per fed school (`_id` = school code): `currentWeight`, `historyWeight`, optional pinned position `x`/`y`/`positionAt` |
+| `oi33_school_feed_history` | archived per-user feeding totals moved out of 当前投喂 on rebind (`uid`, `schoolId`, `amount`) |
 
 Core profile/content write operations also insert into `oi33_log`. `oi33_user.cat_can` is the single source of truth for cat-can inventory, while trades use the immutable `oi33_cat_can_bill` ledger. Normal runtime no longer reads or writes the legacy `oi33_cat_can_batch` collection; `/oi33/migrate` previews and idempotently drops it.
 
@@ -116,6 +125,18 @@ Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymiz
 Cat-map participation also requires `realname_flag >= 1`. Downgrading a user below that level deletes their map-player position immediately so an invisible player cannot continue occupying a cell; re-verification requires joining the arena again.
 
 Adjacent cat-map movement costs 33g cat food, while teleporting costs 3 cat cans. Every successful move or teleport sets `freeColorAvailable` to `true`; the next color change may bypass the current shared cooldown and atomically consumes that credit. The boolean credit never accumulates: moving or teleporting again before coloring still leaves exactly one free color change.
+
+### Big cat world (大猫世界)
+
+The arena page (`/oi33/arena`) has two tab panels: 小猫世界 (the original drawing map) and 大猫世界. Each big cat represents an OIerDB school; the public label is `<拼音缩写>#<OIerDB编号>` (e.g. `CSSYLZX#0`), the province code only appears as a tag in the school picker, and the label links to `https://oier.baoshuo.dev/school/<编号>`. School codes are `(1-based line number in scripts/school.txt) - 4`; blank placeholder lines (`,,`) are skipped so codes stay aligned.
+
+- Participation requires `realname_flag >= 1` (same as the small-cat map). Downgrading a user below that level also unbinds their school cat (`removeSchoolCatBinding`), moving the current contribution into that cat's 历史投喂.
+- Users bind one school cat; the first bind is free, afterwards the binding may change once per calendar month (Asia/Shanghai, tracked by `school_cat_month`). On rebind the user's accumulated contribution moves from the old cat's `currentWeight` into its `historyWeight` and a `oi33_school_feed_history` row.
+- Feeding burns cat food (`userFoodTotal` decreases), increments the cat's `currentWeight` and the user's `school_cat_food`, and logs a `cat_account`/`school_feed` entry so it appears in the unified cat account. Feeding has a fixed 2-hour cooldown (`school_cat_feed_at`).
+- A cat appears on the map at `currentWeight >= 1024` with size 8×8 cells; every doubling (2048, 4096, …) adds +8 to the side length. Below 1024 the cat stays in the DB but is hidden.
+- Big cats have no movement simulation: the canvas is display-only. The #1 contributor on a cat's 当前投喂榜 may pin its top-left cell (`x`/`y`/`positionAt` on `oi33_school_cat`) once every 2 hours; unpinned cats are laid out client-side at seeded pseudo-random, non-overlapping positions. Idle sit/tail-up frames come from the shared sprite sheet. Weight/position changes broadcast as `type: 'bigcat'` over the shared `/oi33/arena/conn` socket and trigger a client state refresh.
+- Both leaderboards (当前投喂榜 from live `school_cat_food` bindings, 历史投喂榜 from the history collection) are served per school by `/oi33/arena/big/cat/:schoolId`.
+- School data is regenerated with `python scripts/build-school-cat-data.py` (requires `pypinyin`) and imported into `oi33_school` at startup when the meta count differs.
 
 Authentication visibility and real-name visibility are separate: flag >= 1 restores the public username/avatar, but `realname_name` and the `[realname]username` rendering are visible only to viewers with OI33 flag >= 2.
 
@@ -159,6 +180,12 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/at-cf-rating` | RatingShowHandler | public |
 | `/oi33/cat-can` | CatCanMarketHandler | PRIV_USER_PROFILE |
 | `/oi33/arena` | CatCanArenaHandler | public (verified users only) |
+| `/oi33/arena/big/state` | SchoolCatStateHandler | public |
+| `/oi33/arena/big/schools` | SchoolCatSchoolsHandler (list/search) | PRIV_USER_PROFILE + verified |
+| `/oi33/arena/big/bind` | SchoolCatBindHandler (POST) | PRIV_USER_PROFILE + verified |
+| `/oi33/arena/big/feed` | SchoolCatFeedHandler (POST, 2h cooldown) | PRIV_USER_PROFILE + verified |
+| `/oi33/arena/big/cat/:schoolId/position` | SchoolCatPositionHandler (POST, top feeder only, 2h cooldown) | PRIV_USER_PROFILE + verified |
+| `/oi33/arena/big/cat/:schoolId` | SchoolCatDetailHandler | public |
 | `/oi33/arena/state` | CatMapStateHandler | public |
 | `/oi33/arena/join` | CatMapJoinHandler (POST) | PRIV_USER_PROFILE + verified; first placement is free |
 | `/oi33/arena/move` | CatMapMoveHandler (POST) | PRIV_USER_PROFILE + verified |
