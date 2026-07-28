@@ -3,6 +3,7 @@ import {
 } from '@hydrooj/ui-default';
 import './cat-can-arena.css';
 import { CAT_FRAMES, CAT_PIXEL_COLORS } from './cat-sprites';
+import { mountBigCatLayer } from './cat-big-arena.page';
 
 const MAP_WIDTH = 640;
 const MAP_HEIGHT = 480;
@@ -288,6 +289,7 @@ function mountMap() {
     const animations = new Map<number, { fromX: number; fromY: number; toX: number; toY: number; start: number; teleport: boolean }>();
     let showGrid = false;
     let showCats = true;
+    let showBigCats = true;
     let showNames = true;
     let viewScale = DEFAULT_GRID_SCALE;
     let viewCenterX = MAP_WIDTH / 2;
@@ -423,6 +425,8 @@ function mountMap() {
     const updateStats = () => {
         if (catCount) catCount.textContent = String(players.size);
     };
+    // 大猫图层：绘制在底层画布之上、小猫之下，共享同一画布与视图变换。
+    const bigCats = mountBigCatLayer({ centerAt, invalidate });
     const updateMeStatus = () => {
         if (!meStatus || !userId) return;
         if (!state.me) {
@@ -535,6 +539,9 @@ function mountMap() {
         }
         context.strokeStyle = showGrid ? 'rgba(0,0,0,.72)' : 'rgba(255,255,255,.12)';
         context.strokeRect(origin.x + .5, origin.y + .5, mapWidth - 1, mapHeight - 1);
+        // 三图层顺序：底层画布（上方已绘制）→ 大猫 → 小猫。
+        // 大猫名字同时受“大猫”和“名字”开关控制。
+        if (showBigCats) bigCats?.draw(context, devicePixelRatio, origin, viewScale, width, height, showNames);
         const renderCats = showCats && viewScale >= MIN_CAT_RENDER_SCALE;
         if (!renderCats && !showNames) return;
         const firstX = Math.max(0, Math.floor(-origin.x / viewScale));
@@ -622,7 +629,7 @@ function mountMap() {
         const elapsed = Math.min(.05, Math.max(0, (frameAt - lastRenderAt) / 1000));
         lastRenderAt = frameAt;
         const keyboardActive = document.fullscreenElement === fullscreenRoot
-            && !cellDialog?.open && !actionDialog?.open && !colorDialog?.open;
+            && !cellDialog?.open && !actionDialog?.open && !colorDialog?.open && !bigCats?.isDialogOpen();
         const directionX = keyboardActive
             ? Number(heldKeys.has('ArrowRight')) - Number(heldKeys.has('ArrowLeft'))
             : 0;
@@ -656,7 +663,8 @@ function mountMap() {
         const shouldDraw = renderDirty
             || keyboardMoving
             || (animationActive && (showCats || showNames))
-            || (showCats && idleFrame !== lastIdleFrame);
+            // 大小猫都按这个节拍切换待机动画帧。
+            || idleFrame !== lastIdleFrame;
         if (shouldDraw) {
             const { width, height } = viewSize();
             context.clearRect(0, 0, width, height);
@@ -905,6 +913,7 @@ function mountMap() {
         gestureMoved = false;
         viewport.classList.remove('is-dragging');
         if (!wasDrag && !cancelled) {
+            // 大猫只是展示，点击统一按格子处理，方便小猫移动到大猫所在格。
             const cell = pointToCell(event.clientX, event.clientY);
             clickCell(cell.x, cell.y);
         }
@@ -930,8 +939,12 @@ function mountMap() {
         const layer = button.dataset.mapLayer;
         if (layer === 'grid') showGrid = !showGrid;
         if (layer === 'cats') showCats = !showCats;
+        if (layer === 'bigcats') showBigCats = !showBigCats;
         if (layer === 'names') showNames = !showNames;
-        const active = layer === 'grid' ? showGrid : layer === 'cats' ? showCats : showNames;
+        const active = layer === 'grid' ? showGrid
+            : layer === 'cats' ? showCats
+                : layer === 'bigcats' ? showBigCats
+                    : showNames;
         button.classList.toggle('is-active', active);
         button.setAttribute('aria-pressed', String(active));
         invalidate();
@@ -964,7 +977,7 @@ function mountMap() {
     }
     document.addEventListener('keydown', (event) => {
         if (!canvas.isConnected || document.fullscreenElement !== fullscreenRoot || event.defaultPrevented) return;
-        if (event.altKey || event.ctrlKey || event.metaKey || cellDialog?.open || actionDialog?.open || colorDialog?.open) return;
+        if (event.altKey || event.ctrlKey || event.metaKey || cellDialog?.open || actionDialog?.open || colorDialog?.open || bigCats?.isDialogOpen()) return;
         const target = event.target as HTMLElement | null;
         if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift'].includes(event.key)) return;
@@ -977,18 +990,6 @@ function mountMap() {
     document.querySelector<HTMLButtonElement>('[data-map-find-me]')?.addEventListener('click', () => {
         if (!state.me) return Notification.error('当前账号还没有可定位的小猫。');
         centerAt(state.me.x, state.me.y);
-    });
-    document.querySelector<HTMLButtonElement>('[data-map-jump]')?.addEventListener('click', () => {
-        const rowInput = document.querySelector<HTMLInputElement>('[data-map-jump-row]');
-        const columnInput = document.querySelector<HTMLInputElement>('[data-map-jump-column]');
-        const row = Number(rowInput?.value);
-        const column = Number(columnInput?.value);
-        if (!rowInput?.value || !columnInput?.value || !Number.isInteger(row) || row < 0 || row >= MAP_HEIGHT || !Number.isInteger(column) || column < 0 || column >= MAP_WIDTH) {
-            Notification.error('请输入有效坐标：行 0～479，列 0～639。');
-            return;
-        }
-        centerAt(column, row);
-        if (coordinate) coordinate.textContent = `格子：（行 ${row}, 列 ${column}）`;
     });
     cellDialog?.querySelector<HTMLButtonElement>('[data-cell-action]')?.addEventListener('click', () => {
         if (!selectedTarget) return;
@@ -1073,6 +1074,7 @@ function mountMap() {
             updateMeStatus();
         }
         if (payload.type === 'cell' && Array.isArray(payload.cell)) setCell(payload.cell[0], payload.cell[1], payload.cell[2]);
+        if (payload.type === 'bigcat') bigCats?.handleSocketMessage(payload);
         if (payload.type === 'rect' && Array.isArray(payload.rect)) {
             setRect(payload.rect[0], payload.rect[1], payload.rect[2], payload.rect[3], payload.rect[4]);
         }

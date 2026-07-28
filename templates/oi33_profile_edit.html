@@ -12,6 +12,11 @@
   </blockquote>
   {% endif %}
 {% endmacro %}
+{% macro locked_notice() %}
+  <blockquote class="note typo">
+    <p>该信息已设置，不可自行更改；如需修改请发邮件至 <a href="mailto:{{ lockEmail }}">{{ lockEmail }}</a> 说明情况。</p>
+  </blockquote>
+{% endmacro %}
 {% block content %}
 <div class="row">
   <div class="medium-9 columns">
@@ -40,6 +45,10 @@
       </div>
       <div class="section__body">
         {{ pending_notice('birthday') }}
+        {% if lockedMap and lockedMap['birthday'] %}
+        <p>当前生日：{{ oi33Doc.birthday_date }}</p>
+        {{ locked_notice() }}
+        {% else %}
         <form method="post">
           <input type="hidden" name="kind" value="birthday">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -51,6 +60,7 @@
           }) }}
           <div class="row"><div class="columns">{{ submit_button() }}</div></div>
         </form>
+        {% endif %}
       </div>
     </div>
 
@@ -61,7 +71,10 @@
       </div>
       <div class="section__body">
         {{ pending_notice('realname') }}
-        {% if canEditRealname %}
+        {% if lockedMap and lockedMap['realname'] %}
+        <p>当前认证：{% if oi33Doc.realname_flag == 3 %}{{ _('Admin') }}{% elif oi33Doc.realname_flag == 2 %}{{ _('Teacher') }}{% elif oi33Doc.realname_flag == 1 %}{{ _('Verified') }}{% else %}{{ _('Unverified') }}{% endif %}{% if oi33Doc.realname_name %}（{{ oi33Doc.realname_name }}）{% endif %}</p>
+        {{ locked_notice() }}
+        {% elif canEditRealname %}
         {% if maxRealnameFlag >= 3 %}
           {% set realnameFlagOptions = {'0': _('Unverified'), '1': _('Verified'), '2': _('Teacher'), '3': _('Admin')} %}
         {% elif maxRealnameFlag >= 2 %}
@@ -98,6 +111,10 @@
       </div>
       <div class="section__body">
         {{ pending_notice('badge') }}
+        {% if lockedMap and lockedMap['badge'] %}
+        <p>当前徽章：<span class="user-profile-badge" style="background-color:#{{ oi33Doc.badge_color }};color:#{{ oi33Doc.badge_textColor or 'fff' }};">{{ oi33Doc.badge_text }}</span></p>
+        {{ locked_notice() }}
+        {% else %}
         <form method="post">
           <input type="hidden" name="kind" value="badge">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -120,6 +137,7 @@
           }) }}
           <div class="row"><div class="columns">{{ submit_button() }}</div></div>
         </form>
+        {% endif %}
       </div>
     </div>
 
@@ -130,6 +148,10 @@
       </div>
       <div class="section__body">
         {{ pending_notice('atcoder') }}
+        {% if lockedMap and lockedMap['atcoder'] %}
+        <p>当前 AtCoder：{{ oi33Doc.atcoder }}</p>
+        {{ locked_notice() }}
+        {% else %}
         <form method="post">
           <input type="hidden" name="kind" value="atcoder">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -140,6 +162,7 @@
           }) }}
           <div class="row"><div class="columns">{{ submit_button() }}</div></div>
         </form>
+        {% endif %}
       </div>
     </div>
 
@@ -150,6 +173,10 @@
       </div>
       <div class="section__body">
         {{ pending_notice('codeforces') }}
+        {% if lockedMap and lockedMap['codeforces'] %}
+        <p>当前 Codeforces：{{ oi33Doc.codeforces }}</p>
+        {{ locked_notice() }}
+        {% else %}
         <form method="post">
           <input type="hidden" name="kind" value="codeforces">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -160,6 +187,7 @@
           }) }}
           <div class="row"><div class="columns">{{ submit_button() }}</div></div>
         </form>
+        {% endif %}
       </div>
     </div>
   </div>

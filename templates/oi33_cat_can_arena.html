@@ -14,79 +14,40 @@
           {% if canPaint %}<a href="{{ url('oi33_cat_map_admin') }}" class="rounded button">绘图后台</a>{% endif %}
         </div>
       </div>
-      <div class="oi33-map-tabs" role="tablist" aria-label="猫猫广场面板">
-        <button type="button" class="oi33-map-tab is-active" role="tab" aria-selected="true" data-panel-tab="small">小猫世界</button>
-        <button type="button" class="oi33-map-tab" role="tab" aria-selected="false" data-panel-tab="big">大猫世界</button>
-      </div>
-      <div class="section__body oi33-map-body" data-panel="small">
+      <div class="section__body oi33-map-body">
         <div class="oi33-map-toolbar">
           <div class="oi33-map-status-left">
             <span class="oi33-map-me" data-map-me-status>{% if loggedIn %}正在读取我的状态…{% else %}登录后可参与{% endif %}</span>
-            <span class="oi33-map-costs">移动消耗 3g，传送消耗 3 个罐头</span>
           </div>
           <div class="oi33-map-status-right">
             <span class="oi33-map-coordinate" data-map-coordinate>格子：—</span>
-            <span class="oi33-map-stat"><strong data-map-cat-count>—</strong> 只小猫</span>
+            <span class="oi33-map-stat"><strong data-map-cat-count>—</strong> 只小猫 · <strong data-bigcat-count>—</strong> 只大猫</span>
             <span class="oi33-map-live" data-map-live>正在连接…</span>
           </div>
         </div>
         <div class="oi33-map-navigation" aria-label="地图导航工具">
           <div class="oi33-map-actions">
             <button type="button" class="rounded button" data-map-find-me {% if not loggedIn %}disabled{% endif %}>定位我的小猫</button>
-            <div class="oi33-map-jump" aria-label="按坐标跳转">
-              <label>行 <input type="number" min="0" max="479" placeholder="0～479" data-map-jump-row></label>
-              <label>列 <input type="number" min="0" max="639" placeholder="0～639" data-map-jump-column></label>
-              <button type="button" class="rounded button" data-map-jump>跳转</button>
-            </div>
-            <button type="button" class="oi33-map-fullscreen rounded button" data-map-fullscreen aria-pressed="false">全屏</button>
-          </div>
-          <div class="oi33-map-toggles" role="group" aria-label="地图显示选项">
-            <button type="button" data-map-layer="grid" aria-pressed="false">格线</button>
-            <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫</button>
-            <button type="button" data-map-layer="names" class="is-active" aria-pressed="true">名字</button>
-          </div>
-        </div>
-        <div class="oi33-map-viewport"
-             data-state-url="{{ url('oi33_cat_map_state') }}"
-             data-join-url="{{ url('oi33_cat_map_join') }}"
-             data-move-url="{{ url('oi33_cat_map_move') }}"
-             data-color-url="{{ url('oi33_cat_map_color') }}"
-             data-conn-url="/oi33/arena/conn"
-             data-user-id="{{ handler.user._id or 0 }}"
-             data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
-          <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
-          <div class="oi33-map-loading">正在生成猫咪世界…</div>
-          <div class="oi33-map-hint">同格显示猫罐头最多的小猫 · 点击格子查看全部小猫和操作 · 全屏后可用方向键浏览 · 拖动、滚轮或双指缩放</div>
-        </div>
-      </div>
-      <div class="section__body oi33-map-body oi33-bigcat-body" data-panel="big" hidden>
-        <div class="oi33-map-toolbar">
-          <div class="oi33-map-status-left">
-            <span class="oi33-map-me" data-bigcat-me-status>{% if loggedIn %}正在读取我的状态…{% else %}登录后可绑定并投喂大猫{% endif %}</span>
-          </div>
-          <div class="oi33-map-status-right">
-            <span class="oi33-map-coordinate" data-bigcat-coordinate>格子：—</span>
-            <span class="oi33-map-stat"><strong data-bigcat-count>—</strong> 只大猫</span>
-            <span class="oi33-map-live" data-bigcat-live>正在连接…</span>
-          </div>
-        </div>
-        <div class="oi33-map-navigation" aria-label="大猫世界工具">
-          <div class="oi33-map-actions">
             {% if loggedIn %}
             <button type="button" class="rounded button" data-bigcat-bind>绑定大猫</button>
             <button type="button" class="rounded button" data-bigcat-find>投喂我的大猫</button>
             {% endif %}
-            <button type="button" class="oi33-map-fullscreen rounded button" data-bigcat-fullscreen aria-pressed="false">全屏</button>
+            <button type="button" class="oi33-map-fullscreen rounded button" data-map-fullscreen aria-pressed="false">全屏</button>
           </div>
-          <div class="oi33-map-toggles" role="group" aria-label="大猫世界显示选项">
-            <button type="button" data-bigcat-layer="grid" aria-pressed="false">格线</button>
-            <button type="button" data-bigcat-layer="names" class="is-active" aria-pressed="true">名字</button>
+          <div class="oi33-map-toggles" role="group" aria-label="地图显示选项">
+            <button type="button" data-map-layer="grid" aria-pressed="false">格线</button>
+            <button type="button" data-map-layer="bigcats" class="is-active" aria-pressed="true">大猫</button>
+            <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫</button>
+            <button type="button" data-map-layer="names" class="is-active" aria-pressed="true">名字</button>
           </div>
         </div>
         <div class="oi33-bigcat-main">
-          <div class="oi33-map-viewport oi33-bigcat-viewport"
-               data-state-url="{{ url('oi33_school_cat_state') }}"
-               data-cells-url="{{ url('oi33_cat_map_state') }}"
+          <div class="oi33-map-viewport"
+               data-state-url="{{ url('oi33_cat_map_state') }}"
+               data-join-url="{{ url('oi33_cat_map_join') }}"
+               data-move-url="{{ url('oi33_cat_map_move') }}"
+               data-color-url="{{ url('oi33_cat_map_color') }}"
+               data-big-state-url="{{ url('oi33_school_cat_state') }}"
                data-schools-url="{{ url('oi33_school_cat_schools') }}"
                data-bind-url="{{ url('oi33_school_cat_bind') }}"
                data-feed-url="{{ url('oi33_school_cat_feed') }}"
@@ -94,9 +55,9 @@
                data-conn-url="/oi33/arena/conn"
                data-user-id="{{ handler.user._id or 0 }}"
                data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
-            <canvas class="oi33-map-canvas oi33-bigcat-canvas" aria-label="大猫世界"></canvas>
-            <div class="oi33-map-loading">正在生成大猫世界…</div>
-            <div class="oi33-map-hint">体重达 1024g 的大猫才会出现 · 体重每翻倍体型 +8 格 · 投喂冷却固定 2 小时 · 点击大猫查看榜单与投喂</div>
+            <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
+            <div class="oi33-map-loading">正在生成猫咪世界…</div>
+            <div class="oi33-map-hint">同格显示猫罐头最多的小猫 · 点击格子查看小猫和操作 · 大猫只是展示，通过右侧榜单或上方按钮互动 · 全屏后可用方向键浏览 · 拖动、滚轮或双指缩放</div>
           </div>
           <aside class="oi33-bigcat-side">
             <h2>大猫体重榜</h2>
@@ -181,8 +142,8 @@
 
 <dialog class="oi33-map-dialog oi33-bigcat-dialog" data-bigcat-picker-dialog>
   <form method="dialog">
-    <h2>选择要投喂的大猫</h2>
-    <p data-bigcat-picker-hint>每个月只能修改一次绑定关系；改绑后之前的投喂会进入原大猫的历史投喂，重新绑定回去时会恢复为当前投喂。</p>
+    <h2>绑定大猫</h2>
+    <p data-bigcat-picker-hint>尚未绑定大猫</p>
     <div class="oi33-bigcat-picker-search">
       <input type="text" placeholder="拼音缩写（JJSD）· 省份#缩写（JX#JJSDYZX）· 编号" data-bigcat-picker-q>
       <button type="button" class="rounded button" data-bigcat-picker-search>搜索</button>

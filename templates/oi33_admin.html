@@ -224,6 +224,9 @@
               {% if a.action == 'cat_map_move' or a.action == 'cat_map_teleport' %}
                 <span class="oi33-timeline__note">{% if a.action == 'cat_map_move' %}移动小猫{% else %}传送小猫{% endif %}</span>
                 <span class="oi33-timeline__amount-neg">{{ catFood.amount(a.amount, true) }}</span>
+              {% elif a.action == 'school_feed' %}
+                <span class="oi33-timeline__note">投喂大猫</span>
+                <span class="oi33-timeline__amount-neg">{{ catFood.amount(a.amount, true) }}</span>
               {% elif a.action == 'deduct' %}
                 <span class="oi33-timeline__note">从</span>
                 {{ userLink(a.userId) }}
@@ -322,6 +325,19 @@
                 {% else %}{{ a.oauthAction }}{% endif %}
               </span>
               {% if a.oauthClientId %}<span class="oi33-timeline__note">· 应用 {{ a.oauthClientId }}</span>{% endif %}
+
+            {% else %}
+              {# 兜底：未知或旧版日志类型也要显示内容，不允许出现空白条目。 #}
+              <span class="oi33-timeline__tag">{{ a.type or 'log' }}</span>
+              {% if a.userId %}{{ userLink(a.userId) }}
+              {% elif a.uid %}{{ userLink(a.uid) }}
+              {% elif a.sender %}{{ userLink(a.sender) }}
+              {% elif a.owner %}{{ userLink(a.owner) }}
+              {% elif a.requester %}{{ userLink(a.requester) }}
+              {% endif %}
+              {% if a.action %}<span class="oi33-timeline__note">{{ a.action }}</span>{% endif %}
+              {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
+              {% if a.title %}「{{ a.title }}」{% endif %}
 
             {% endif %}
           </div>

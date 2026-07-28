@@ -6,6 +6,19 @@ import { oi33Model, Oi33RequestPayload, Oi33RequestKind } from '../model';
 
 const COLOR_RE = /(^#?[0-9A-Fa-f]{6}$)|(^#?[0-9A-Fa-f]{3}$)/;
 const KINDS: Oi33RequestKind[] = ['birthday', 'realname', 'badge', 'atcoder', 'codeforces'];
+const LOCK_EMAIL = 'daijianshan@33dai.cn';
+const LOCK_MESSAGE = `该信息已设置，不可自行更改；如需修改请发邮件至 ${LOCK_EMAIL} 说明情况。`;
+
+// 已设置的字段不允许普通用户自行更改（管理员直接编辑不受限）。
+function lockedKinds(oi33Doc: any): Record<Oi33RequestKind, boolean> {
+    return {
+        birthday: !!oi33Doc?.birthday_date,
+        realname: (oi33Doc?.realname_flag ?? 0) >= 1 || !!oi33Doc?.realname_name,
+        badge: !!oi33Doc?.badge_text,
+        atcoder: !!oi33Doc?.atcoder,
+        codeforces: !!oi33Doc?.codeforces,
+    };
+}
 
 async function getIdentityRole(uid: number) {
     const doc = (await oi33Model.getUserDataByUids([uid]))[uid];
@@ -74,13 +87,16 @@ class ProfileEditHandler extends Handler {
             ? 3
             : editorRole === 2 && uid === this.user._id ? 2 : editorRole === 2 ? 1 : 2;
         if (udoc.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);
+        const canDirect = isHydroSuperAdmin || editorRole >= 2;
         this.response.template = 'oi33_profile_edit.html';
         this.response.body = {
             udoc, oi33Doc, pendingMap,
             isSelf: uid === this.user._id,
-            canDirect: isHydroSuperAdmin || editorRole >= 2,
+            canDirect,
             canEditRealname,
             maxRealnameFlag,
+            lockedMap: canDirect ? {} : lockedKinds(oi33Doc),
+            lockEmail: LOCK_EMAIL,
         };
     }
 
@@ -133,6 +149,8 @@ class ProfileEditHandler extends Handler {
                 (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'remove', uid });
             }
         } else {
+            const current: any = (await oi33Model.getUserDataByUids([uid]))[uid] || {};
+            if (lockedKinds(current)[kind as Oi33RequestKind]) throw new ForbiddenError(LOCK_MESSAGE);
             await oi33Model.submitRequest(uid, kind as Oi33RequestKind, this.user._id, payload);
         }
         this.response.redirect = this.url('oi33_profile_edit', { uid });
