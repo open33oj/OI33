@@ -11,10 +11,11 @@ export async function getRecentActivities(limit = 40) {
     return await logColl.find().sort({ createdAt: -1, _id: -1 }).limit(limit).toArray();
 }
 
-export async function getRecentActivitiesPaginated(page: number, pageSize = 30) {
-    const total = await logColl.countDocuments();
+export async function getRecentActivitiesPaginated(page: number, pageSize = 30, type = '') {
+    const filter = type ? { type } : {};
+    const total = await logColl.countDocuments(filter as any);
     const tpcount = Math.ceil(total / pageSize);
-    const activities = await logColl.find()
+    const activities = await logColl.find(filter as any)
         .sort({ createdAt: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).toArray();
     return { activities, tpcount };
 }

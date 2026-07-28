@@ -482,7 +482,8 @@ function mountMap() {
         }
         const showEveryName = viewScale >= MAX_VIEW_SCALE - .01;
         const labelWidth = showEveryName ? Math.min(metrics.width, Math.max(24, viewScale - 4)) : metrics.width;
-        return { label, x: px + viewScale / 2 - labelWidth / 2, y: py - 7, width: labelWidth, height: 16 };
+        // 名字写在小猫脚下，不遮住小猫。
+        return { label, x: px + viewScale / 2 - labelWidth / 2, y: py + viewScale + 2, width: labelWidth, height: 16 };
     };
 
     const drawCatLabel = (player: MapPlayer, px: number, py: number) => {
@@ -493,7 +494,7 @@ function mountMap() {
         context.fillStyle = '#fff';
         context.font = 'bold 11px sans-serif';
         context.textAlign = 'center';
-        context.fillText(rect.label, rect.x + rect.width / 2, py + 5, rect.width - 5);
+        context.fillText(rect.label, rect.x + rect.width / 2, rect.y + 12, rect.width - 5);
         context.restore();
     };
 

@@ -119,15 +119,32 @@ export function applyPatches(_ctx: Context) {
 
     // Keep user-detail JSON/template data anonymous. The original username/avatar
     // are stored as non-enumerable fields for the OI33 manager template exception.
-    _ctx.on('handler/after/UserDetailHandler', (h: any) => {
+    _ctx.on('handler/after/UserDetail', (h: any) => {
         const udoc = h.response?.body?.udoc;
         if (udoc?.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);
+    });
+
+    // /domain/user builds its user list with a raw aggregation on domain.user,
+    // bypassing the patched UserModel.getList. Without oi33 fields the overridden
+    // user.html macro renders everyone as "UID xxx". Hydrate identity fields here.
+    // (Event names strip the "Handler" suffix: DomainUserHandler -> DomainUser.)
+    _ctx.on('handler/after/DomainUser', async (h: any) => {
+        const rudocs = h.response?.body?.rudocs;
+        if (!rudocs || typeof rudocs !== 'object') return;
+        const udocs: any[] = Object.values(rudocs).flat()
+            .filter((udoc: any) => udoc && Number.isFinite(Number(udoc._id)));
+        if (!udocs.length) return;
+        const oi33Dict = await oi33Model.getUserDataByUids(udocs.map((udoc) => Number(udoc._id)));
+        for (const udoc of udocs) {
+            oi33Model.mergeOi33Fields(udoc, oi33Dict[Number(udoc._id)], ['realname']);
+            oi33Model.anonymizeOi33Identity(udoc);
+        }
     });
 
     // RecordListHandler and its WebSocket connection render rows through
     // different code paths. Normalize the HTTP response explicitly so the
     // first paint cannot expose a username before the socket replaces a row.
-    _ctx.on('handler/after/RecordListHandler', async (h: any) => {
+    _ctx.on('handler/after/RecordList', async (h: any) => {
         const udict = h.response?.body?.udict;
         if (!udict || typeof udict !== 'object') return;
         const viewerUid = Number(h.user?._id) || 0;

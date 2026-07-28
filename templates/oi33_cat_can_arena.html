@@ -166,14 +166,12 @@
       <span class="oi33-bigcat-tip" data-bigcat-move-tip>当前投喂榜第一名可以选择大猫左上角所在格子，每 2 小时可以改变一次。</span>
     </div>
     <div class="oi33-bigcat-boards">
-      <div>
-        <h3>当前投喂榜</h3>
-        <ol class="oi33-bigcat-board" data-bigcat-board-current></ol>
+      <div class="oi33-bigcat-board-tabs" role="tablist" aria-label="投喂榜切换">
+        <button type="button" class="is-active" role="tab" aria-selected="true" data-bigcat-board-tab="current">当前投喂榜</button>
+        <button type="button" role="tab" aria-selected="false" data-bigcat-board-tab="history">历史投喂榜</button>
       </div>
-      <div>
-        <h3>历史投喂榜</h3>
-        <ol class="oi33-bigcat-board" data-bigcat-board-history></ol>
-      </div>
+      <ol class="oi33-bigcat-board" data-bigcat-board-current></ol>
+      <ol class="oi33-bigcat-board" data-bigcat-board-history hidden></ol>
     </div>
     <div class="oi33-map-dialog-actions">
       <button value="cancel" class="rounded button">关闭</button>
@@ -184,7 +182,7 @@
 <dialog class="oi33-map-dialog oi33-bigcat-dialog" data-bigcat-picker-dialog>
   <form method="dialog">
     <h2>选择要投喂的大猫</h2>
-    <p data-bigcat-picker-hint>每个月只能修改一次绑定关系；改绑后之前的投喂会进入原大猫的历史投喂。</p>
+    <p data-bigcat-picker-hint>每个月只能修改一次绑定关系；改绑后之前的投喂会进入原大猫的历史投喂，重新绑定回去时会恢复为当前投喂。</p>
     <div class="oi33-bigcat-picker-search">
       <input type="text" placeholder="拼音缩写（JJSD）· 省份#缩写（JX#JJSDYZX）· 编号" data-bigcat-picker-q>
       <button type="button" class="rounded button" data-bigcat-picker-search>搜索</button>

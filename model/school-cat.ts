@@ -249,13 +249,28 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
             createdAt: now,
         } as any);
     }
+    // 绑定回以前投喂过的大猫时，把历史投喂恢复为当前投喂。
+    const historyRows = await schoolFeedHistoryColl.find({ schoolId, uid }).toArray();
+    const restored = historyRows.reduce((sum, row: any) => sum + Math.max(0, Math.floor(Number(row.amount) || 0)), 0);
+    if (restored > 0) {
+        await schoolFeedHistoryColl.deleteMany({ schoolId, uid });
+        await schoolCatColl.updateOne(
+            { _id: schoolId } as any,
+            {
+                $inc: { currentWeight: restored, historyWeight: -restored },
+                $set: { updatedAt: now },
+                $setOnInsert: { spawnedAt: now },
+            } as any,
+            { upsert: true },
+        );
+    }
     await userColl.updateOne(
         { _id: uid },
         {
             $set: previousId === null
                 // 首次绑定不占每月一次的修改额度，只有改绑才记录月份。
-                ? { school_cat: schoolId, school_cat_food: 0 }
-                : { school_cat: schoolId, school_cat_food: 0, school_cat_month: monthKey },
+                ? { school_cat: schoolId, school_cat_food: restored }
+                : { school_cat: schoolId, school_cat_food: restored, school_cat_month: monthKey },
         },
     );
     try {
@@ -265,8 +280,8 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
             sender: uid,
             action: previousId === null ? 'bind' : 'rebind',
             reason: previousId === null
-                ? `绑定大猫 ${schoolDisplay(school)}`
-                : `从 #${previousId} 改绑 ${schoolDisplay(school)}，${contribution}g 转入历史投喂`,
+                ? `绑定大猫 ${schoolDisplay(school)}${restored ? `，恢复历史投喂 ${restored}g` : ''}`
+                : `从 #${previousId} 改绑 ${schoolDisplay(school)}，${contribution}g 转入历史投喂${restored ? `，恢复历史投喂 ${restored}g` : ''}`,
         } as any);
     } catch (e) {
         console.error('[oi33] failed to log school cat bind:', e);
@@ -276,6 +291,7 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
         boundDisplay: schoolDisplay(school),
         boundUrl: schoolUrl(schoolId),
         movedToHistory: previousId === null ? 0 : contribution,
+        restoredFromHistory: restored,
         canChange: previousId === null,
     };
 }

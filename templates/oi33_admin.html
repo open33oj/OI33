@@ -119,6 +119,25 @@
 
         <!-- Activity Timeline -->
         <h3 style="margin-bottom:1rem;">{{ _('OI33 Recent Activities') }}</h3>
+        <form method="get" action="{{ url('oi33_admin') }}" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+          <select name="type" class="select" style="max-width:220px;">
+            <option value="" {% if not logType %}selected{% endif %}>全部类型</option>
+            <option value="coin" {% if logType == 'coin' %}selected{% endif %}>{{ _('activity_tag_coin') }}</option>
+            <option value="birthday" {% if logType == 'birthday' %}selected{% endif %}>{{ _('activity_tag_birthday') }}</option>
+            <option value="badge" {% if logType == 'badge' %}selected{% endif %}>{{ _('activity_tag_badge') }}</option>
+            <option value="realname" {% if logType == 'realname' %}selected{% endif %}>{{ _('activity_tag_realname') }}</option>
+            <option value="checkin" {% if logType == 'checkin' %}selected{% endif %}>{{ _('activity_tag_checkin') }}</option>
+            <option value="cat_account" {% if logType == 'cat_account' %}selected{% endif %}>猫粮</option>
+            <option value="cat_map" {% if logType == 'cat_map' %}selected{% endif %}>猫咪地图</option>
+            <option value="school_cat" {% if logType == 'school_cat' %}selected{% endif %}>大猫</option>
+            <option value="paste" {% if logType == 'paste' %}selected{% endif %}>{{ _('activity_tag_paste') }}</option>
+            <option value="request" {% if logType == 'request' %}selected{% endif %}>{{ _('activity_tag_request') }}</option>
+            <option value="wiki" {% if logType == 'wiki' %}selected{% endif %}>{{ _('activity_tag_wiki') }}</option>
+            <option value="oauth" {% if logType == 'oauth' %}selected{% endif %}>OAuth</option>
+          </select>
+          <button type="submit" class="rounded button">筛选</button>
+          {% if logType %}<a href="{{ url('oi33_admin') }}" class="rounded button">查看全部</a>{% endif %}
+        </form>
         {% if activities.length %}
         <div class="oi33-timeline">
           {% for a in activities %}
@@ -284,6 +303,26 @@
                 「{{ a.title }}」
               {% endif %}
 
+            {% elif a.type == 'school_cat' %}
+              <span class="oi33-timeline__tag">大猫</span>
+              {{ userLink(a.userId) }}
+              {% if a.reason %}<span class="oi33-timeline__note">{{ a.reason }}</span>{% endif %}
+
+            {% elif a.type == 'oauth' %}
+              <span class="oi33-timeline__tag">OAuth</span>
+              {% if a.uid %}{{ userLink(a.uid) }}{% endif %}
+              <span class="oi33-timeline__note">
+                {% if a.oauthAction == 'client_create' %}创建了 OAuth 应用
+                {% elif a.oauthAction == 'client_delete' %}删除了 OAuth 应用
+                {% elif a.oauthAction == 'authorize' %}授权了应用
+                {% elif a.oauthAction == 'token' %}签发了访问令牌
+                {% elif a.oauthAction == 'refresh' %}刷新了访问令牌
+                {% elif a.oauthAction == 'revoke' %}吊销了令牌
+                {% elif a.oauthAction == 'deny' %}拒绝了授权
+                {% else %}{{ a.oauthAction }}{% endif %}
+              </span>
+              {% if a.oauthClientId %}<span class="oi33-timeline__note">· 应用 {{ a.oauthClientId }}</span>{% endif %}
+
             {% endif %}
           </div>
           {% endfor %}
@@ -291,7 +330,11 @@
         {% else %}
         {{ nothing.render(_('No activities yet.')) }}
         {% endif %}
+        {% if logType %}
+        {{ paginator.render(page, tpcount, 'type=' + logType) }}
+        {% else %}
         {{ paginator.render(page, tpcount) }}
+        {% endif %}
 
       </div>
     </div>

@@ -22,6 +22,7 @@ interface BigCat {
     size: number;
     weight: number;
     historyWeight?: number;
+    positioned?: boolean;
 }
 
 interface BigCatMe {
@@ -120,6 +121,21 @@ function mountBigCatWorld() {
     const detailDialog = document.querySelector<HTMLDialogElement>('[data-bigcat-detail-dialog]');
     const pickerDialog = document.querySelector<HTMLDialogElement>('[data-bigcat-picker-dialog]');
 
+    detailDialog?.querySelectorAll<HTMLButtonElement>('[data-bigcat-board-tab]').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.bigcatBoardTab || 'current';
+            detailDialog.querySelectorAll<HTMLButtonElement>('[data-bigcat-board-tab]').forEach((other) => {
+                const active = other === tab;
+                other.classList.toggle('is-active', active);
+                other.setAttribute('aria-selected', String(active));
+            });
+            const boardCurrent = detailDialog.querySelector<HTMLElement>('[data-bigcat-board-current]');
+            const boardHistory = detailDialog.querySelector<HTMLElement>('[data-bigcat-board-history]');
+            if (boardCurrent) boardCurrent.hidden = target !== 'current';
+            if (boardHistory) boardHistory.hidden = target !== 'history';
+        });
+    });
+
     let me: BigCatMe | null = null;
     const cats = new Map<number, BigCat>();
     const overviewLayer = document.createElement('canvas');
@@ -209,28 +225,55 @@ function mountBigCatWorld() {
     };
     window.setInterval(updateMeStatus, 1000);
 
+    const RANKING_COLLAPSED_COUNT = 32;
+    let rankingExpanded = false;
+    let latestRanking: BigCatState['ranking'] = [];
     const renderRanking = (ranking: BigCatState['ranking']) => {
+        latestRanking = ranking;
         if (!rankingList) return;
         rankingList.replaceChildren();
         if (!ranking.length) {
             const empty = document.createElement('li');
+            empty.className = 'oi33-bigcat-ranking-empty';
             empty.textContent = '还没有体重达标的大猫。';
             rankingList.append(empty);
             return;
         }
-        ranking.forEach((entry) => {
+        const shown = rankingExpanded ? ranking : ranking.slice(0, RANKING_COLLAPSED_COUNT);
+        shown.forEach((entry, index) => {
             const item = document.createElement('li');
+            if (me?.boundId === entry.id) item.classList.add('is-bound');
+            const rank = document.createElement('span');
+            rank.className = 'oi33-bigcat-ranking-rank';
+            rank.textContent = String(index + 1);
             const button = document.createElement('button');
             button.type = 'button';
-            button.textContent = `${entry.display} · ${formatWeight(entry.weight)}`;
+            button.textContent = entry.display;
             button.addEventListener('click', () => {
                 const cat = cats.get(entry.id);
                 if (cat) centerAt(cat.x + cat.size / 2, cat.y + cat.size / 2);
                 openDetail(entry.id);
             });
-            item.append(button);
+            const weight = document.createElement('span');
+            weight.className = 'oi33-bigcat-ranking-weight';
+            weight.textContent = formatWeight(entry.weight);
+            weight.title = `${entry.weight} g`;
+            item.append(rank, button, weight);
             rankingList.append(item);
         });
+        if (ranking.length > RANKING_COLLAPSED_COUNT) {
+            const more = document.createElement('li');
+            more.className = 'oi33-bigcat-ranking-more';
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.textContent = rankingExpanded ? '收起榜单' : `查看完整榜单（共 ${ranking.length} 只）`;
+            toggle.addEventListener('click', () => {
+                rankingExpanded = !rankingExpanded;
+                renderRanking(latestRanking);
+            });
+            more.append(toggle);
+            rankingList.append(more);
+        }
     };
 
     const upsertCat = (incoming: any) => {
@@ -247,6 +290,7 @@ function mountBigCatWorld() {
             size: Math.max(0, Number(incoming.size ?? previous?.size ?? 0)),
             weight: Math.max(0, Number(incoming.weight ?? previous?.weight ?? 0)),
             historyWeight: Math.max(0, Number(incoming.historyWeight ?? previous?.historyWeight ?? 0)),
+            positioned: previous?.positioned ?? false,
         };
         cats.set(id, next);
         if (catCount) catCount.textContent = String(cats.size);
@@ -255,31 +299,41 @@ function mountBigCatWorld() {
 
     // 大猫位置只是画板上的展示：榜一玩家摆过的用固定位置，
     // 其余的按编号播种生成伪随机位置，尽量互不重叠。
+    // 已摆好的大猫在位置仍然有效（在界内且不重叠）时保持不动，
+    // 避免每次投喂广播刷新后所有大猫重新随机、突然跳到视野中央。
     const layoutCats = () => {
         const placed: Array<{ x: number; y: number; size: number }> = [];
         const ordered = Array.from(cats.values())
             .filter((cat) => cat.size > 0)
             .sort((a, b) => b.size - a.size || a.id - b.id);
+        const overlaps = (x: number, y: number, size: number) => placed.some((other) => x < other.x + other.size && other.x < x + size
+            && y < other.y + other.size && other.y < y + size);
         ordered.forEach((cat) => {
             if (cat.fx === null || cat.fy === null) return;
             cat.x = Math.max(0, Math.min(MAP_WIDTH - cat.size, cat.fx));
             cat.y = Math.max(0, Math.min(MAP_HEIGHT - cat.size, cat.fy));
+            cat.positioned = true;
             placed.push({ x: cat.x, y: cat.y, size: cat.size });
         });
         ordered.forEach((cat) => {
             if (cat.fx !== null && cat.fy !== null) return;
-            const rand = seededRandom(cat.id + 1);
-            let fallback: { x: number; y: number } | null = null;
-            for (let attempt = 0; attempt < 80; attempt++) {
-                const x = Math.floor(rand() * (MAP_WIDTH - cat.size + 1));
-                const y = Math.floor(rand() * (MAP_HEIGHT - cat.size + 1));
-                fallback = { x, y };
-                const blocked = placed.some((other) => x < other.x + other.size && other.x < x + cat.size
-                    && y < other.y + other.size && other.y < y + cat.size);
-                if (!blocked) break;
+            const keep = cat.positioned
+                && cat.x >= 0 && cat.y >= 0
+                && cat.x + cat.size <= MAP_WIDTH && cat.y + cat.size <= MAP_HEIGHT
+                && !overlaps(cat.x, cat.y, cat.size);
+            if (!keep) {
+                const rand = seededRandom(cat.id + 1);
+                let fallback: { x: number; y: number } | null = null;
+                for (let attempt = 0; attempt < 80; attempt++) {
+                    const x = Math.floor(rand() * (MAP_WIDTH - cat.size + 1));
+                    const y = Math.floor(rand() * (MAP_HEIGHT - cat.size + 1));
+                    fallback = { x, y };
+                    if (!overlaps(x, y, cat.size)) break;
+                }
+                cat.x = fallback!.x;
+                cat.y = fallback!.y;
             }
-            cat.x = fallback!.x;
-            cat.y = fallback!.y;
+            cat.positioned = true;
             placed.push({ x: cat.x, y: cat.y, size: cat.size });
         });
         invalidate();
@@ -359,7 +413,8 @@ function mountBigCatWorld() {
                 context.font = `bold ${Math.max(10, Math.min(14, sizePx / 8))}px sans-serif`;
                 const labelWidth = Math.min(220, context.measureText(label).width + 9);
                 const labelX = Math.max(0, Math.min(width - labelWidth, px + sizePx / 2 - labelWidth / 2));
-                const labelY = Math.max(0, py - 8);
+                // 名字写在大猫脚下，不遮住大猫。
+                const labelY = Math.max(0, Math.min(height - 16, py + sizePx + 2));
                 context.fillStyle = cat.id === me?.boundId ? 'rgba(111,75,9,.9)' : 'rgba(13,27,18,.82)';
                 context.fillRect(labelX, labelY, labelWidth, 16);
                 context.fillStyle = '#fff';
@@ -392,20 +447,58 @@ function mountBigCatWorld() {
             && mapY >= cat.y && mapY < cat.y + cat.size) || null;
     };
 
-    const renderBoard = (element: HTMLElement | null, rows: Array<{ uid: number; uname: string; amount: number }>) => {
+    const BOARD_COLLAPSED_COUNT = 32;
+    const renderBoard = (element: HTMLElement | null, rows: Array<{
+        uid: number; uname: string; avatarUrl?: string; amount: number;
+    }>) => {
         if (!element) return;
         element.replaceChildren();
         if (!rows.length) {
             const empty = document.createElement('li');
+            empty.className = 'oi33-bigcat-board-empty';
             empty.textContent = '暂无记录。';
             element.append(empty);
             return;
         }
-        rows.forEach((row) => {
+        rows.forEach((row, index) => {
             const item = document.createElement('li');
-            item.textContent = `${row.uname} — ${formatWeight(row.amount)}`;
+            if (index >= BOARD_COLLAPSED_COUNT) item.hidden = true;
+            const rank = document.createElement('span');
+            rank.className = 'oi33-bigcat-board-rank';
+            rank.textContent = String(index + 1);
+            const img = document.createElement('img');
+            img.className = 'oi33-bigcat-board-avatar';
+            img.src = row.avatarUrl || '/img/avatar.png';
+            img.width = 24;
+            img.height = 24;
+            img.loading = 'lazy';
+            img.alt = '';
+            const link = document.createElement('a');
+            link.href = `/user/${row.uid}`;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = row.uname;
+            const amount = document.createElement('span');
+            amount.className = 'oi33-bigcat-board-amount';
+            amount.textContent = formatWeight(row.amount);
+            amount.title = `${row.amount} g`;
+            item.append(rank, img, link, amount);
             element.append(item);
         });
+        if (rows.length > BOARD_COLLAPSED_COUNT) {
+            const more = document.createElement('li');
+            more.className = 'oi33-bigcat-board-empty oi33-bigcat-board-more';
+            const link = document.createElement('a');
+            link.href = '#';
+            link.textContent = `查看完整榜单（共 ${rows.length} 人）`;
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                element.querySelectorAll<HTMLElement>('li[hidden]').forEach((item) => { item.hidden = false; });
+                more.remove();
+            });
+            more.append(link);
+            element.append(more);
+        }
     };
 
     const feedBoundCat = async (amount: number, button: HTMLButtonElement) => {
@@ -511,14 +604,33 @@ function mountBigCatWorld() {
             const detail = await request.get(`${detailBaseUrl}/${schoolId}`);
             if (name) name.textContent = detail.school.display;
             if (link) link.href = detail.school.url;
-            const parts = [
-                `当前体重 ${formatWeight(detail.weight)}`,
-                `历史投喂 ${formatWeight(detail.historyWeight)}`,
+            const exact = (label: string, grams: number) => {
+                const span = document.createElement('span');
+                span.className = 'oi33-bigcat-exact';
+                span.textContent = `${label} ${formatWeight(grams)}`;
+                span.title = `${grams} g`;
+                return span;
+            };
+            const parts: Array<Node | string> = [
+                exact('当前体重', detail.weight),
+                exact('历史投喂', detail.historyWeight),
             ];
             if (detail.visible) parts.push(`体型 ${detail.size}×${detail.size} 格`);
             else parts.push(`再投喂 ${formatWeight(Math.max(0, 1024 - detail.weight))} 即可出现在大猫世界`);
-            if (detail.mine) parts.push(`我的当前投喂 ${formatWeight(detail.mine.current)} · 历史投喂 ${formatWeight(detail.mine.history)}`);
-            if (summary) summary.textContent = parts.join(' · ');
+            if (detail.mine) {
+                // 当前投喂与历史投喂互斥（绑定恢复后历史即清零），只显示适用的那一项。
+                if (detail.mine.bound) parts.push(exact('我的当前投喂', detail.mine.current));
+                else if (detail.mine.history > 0) {
+                    parts.push(exact('我的历史投喂', detail.mine.history), '重新绑定后可恢复');
+                }
+            }
+            if (summary) {
+                summary.replaceChildren();
+                parts.forEach((part, index) => {
+                    if (index) summary.append(document.createTextNode(' · '));
+                    summary.append(typeof part === 'string' ? document.createTextNode(part) : part);
+                });
+            }
             if (moveBox) {
                 moveBox.hidden = !detail.canMove;
                 if (detail.canMove) {
@@ -578,19 +690,21 @@ function mountBigCatWorld() {
                 bind.disabled = true;
                 try {
                     const result = await request.post(bindUrl, { schoolId: school.id });
+                    const restored = Math.max(0, Number(result.restoredFromHistory) || 0);
                     me = {
                         food: me?.food || 0,
                         boundId: result.boundId,
                         boundDisplay: result.boundDisplay,
                         boundUrl: result.boundUrl,
-                        contribution: 0,
+                        contribution: restored,
                         canChange: result.canChange !== false,
                         nextFeedAt: me?.nextFeedAt || 0,
                     };
                     updateMeStatus();
+                    const restoredNote = restored ? `，历史投喂 ${formatWeight(restored)} 已恢复为当前投喂` : '';
                     Notification.success(result.movedToHistory
-                        ? `已改绑 ${result.boundDisplay}，原大猫的 ${formatWeight(result.movedToHistory)} 投喂已转入历史投喂。`
-                        : `已绑定 ${result.boundDisplay}，现在可以投喂了。`);
+                        ? `已改绑 ${result.boundDisplay}，原大猫的 ${formatWeight(result.movedToHistory)} 投喂已转入历史投喂${restoredNote}。`
+                        : `已绑定 ${result.boundDisplay}${restoredNote}，现在可以投喂了。`);
                     pickerDialog?.close();
                 } catch (e: any) {
                     Notification.error(e.message || String(e));
@@ -627,9 +741,9 @@ function mountBigCatWorld() {
         if (hint) {
             hint.textContent = me?.boundId !== null && me?.boundId !== undefined
                 ? me.canChange
-                    ? '改绑后，之前对大猫的投喂会进入原大猫的历史投喂；每个月只能修改一次绑定。'
+                    ? '改绑后，之前对大猫的投喂会进入原大猫的历史投喂；重新绑定回去时会恢复为当前投喂。每个月只能修改一次绑定。'
                     : '本月已经修改过绑定，下个月才能改绑；仍可查看学校列表。'
-                : '首次绑定随时可以进行；之后每个月只能修改一次绑定。';
+                : '首次绑定随时可以进行；之后每个月只能修改一次绑定，绑定回以前投喂过的大猫会恢复历史投喂。';
         }
         pickerDialog.showModal();
         loadPicker();
@@ -841,7 +955,11 @@ function mountBigCatWorld() {
 
     const refreshState = () => request.get(stateUrl).then((incoming: BigCatState) => {
         clockOffset = incoming.serverTime - Date.now();
-        cats.clear();
+        // 不清空重建，保留已有大猫的摆放位置，只有消失的大猫才移除。
+        const incomingIds = new Set((incoming.cats || []).map((cat) => Number(cat.id)));
+        Array.from(cats.keys()).forEach((id) => {
+            if (!incomingIds.has(id)) cats.delete(id);
+        });
         incoming.cats.forEach((cat) => upsertCat(cat));
         layoutCats();
         me = incoming.me;

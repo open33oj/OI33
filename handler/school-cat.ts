@@ -1,5 +1,5 @@
 import {
-    Context, ForbiddenError, Handler, PRIV, Types, UserModel, param, query,
+    avatar, Context, ForbiddenError, Handler, PRIV, Types, UserModel, param, query,
 } from 'hydrooj';
 import { oi33Model } from '../model';
 
@@ -12,6 +12,8 @@ async function resolveUsernames(entries: Array<{ uid: number; amount: number }>)
         return {
             uid: entry.uid,
             uname: verified && udoc?.uname ? udoc.uname : `UID ${entry.uid}`,
+            // 未认证用户不暴露头像，统一用默认头像占位。
+            avatarUrl: avatar(verified ? (udoc?.avatar || '') : '', 64),
             amount: entry.amount,
         };
     });

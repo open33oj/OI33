@@ -3,7 +3,6 @@ import { Oi33Request, Oi33RequestKind, Oi33RequestPayload, Oi33RequestStatus } f
 import { addLog, logColl } from './log';
 import { userColl } from './user';
 import { removeCatMapPlayer } from './cat-map';
-import { removeSchoolCatBinding } from './school-cat';
 
 export const requestColl = db.collection('oi33_request');
 
@@ -52,8 +51,9 @@ export async function applyRequestPayload(uid: number, payload: Oi33RequestPaylo
     if (!Object.keys(update).length) return true;
     await userColl.updateOne({ _id: uid }, update, { upsert: true });
     if (payload.realname_flag !== undefined && payload.realname_flag < 1) {
+        // 小猫地图取消认证即移除；大猫的绑定与投喂不受影响，
+        // 未认证期间只是不能再投喂/改绑，恢复认证后继续。
         await removeCatMapPlayer(uid);
-        await removeSchoolCatBinding(uid);
     }
     return true;
 }

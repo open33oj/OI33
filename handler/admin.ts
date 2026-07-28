@@ -10,10 +10,11 @@ import { checkOi33Admin } from './utils';
 
 class Oi33AdminHandler extends Handler {
     @query('page', Types.PositiveInt, true)
-    async get(domainId: string, page = 1) {
+    @query('type', Types.String, true)
+    async get(domainId: string, page = 1, type = '') {
         await checkOi33Admin(this.user._id);
         await oi33Model.compactRequestLogs();
-        const { activities, tpcount } = await oi33Model.getRecentActivitiesPaginated(page);
+        const { activities, tpcount } = await oi33Model.getRecentActivitiesPaginated(page, 30, type);
         const pendingCount = await oi33Model.getPendingRequestCount();
         const uidSet = new Set<number>();
         const reqIdSet = new Set<string>();
@@ -32,7 +33,9 @@ class Oi33AdminHandler extends Handler {
             oi33Model.getRequestsByIds(Array.from(reqIdSet)),
         ]);
         this.response.template = 'oi33_admin.html';
-        this.response.body = { activities, pendingCount, page, tpcount, udict, reqDict };
+        this.response.body = {
+            activities, pendingCount, page, tpcount, udict, reqDict, logType: type,
+        };
     }
 }
 
