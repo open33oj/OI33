@@ -3,7 +3,6 @@ import { CAT_FRAMES, CAT_PIXEL_COLORS } from './cat-sprites';
 
 const MAP_WIDTH = 640;
 const MAP_HEIGHT = 480;
-const CAT_IDLE_FRAME_MS = 3200;
 
 interface BigCat {
     id: number;
@@ -228,10 +227,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         context: CanvasRenderingContext2D, ratio: number,
         cat: BigCat, px: number, py: number, sizePx: number,
     ) => {
-        const phase = Math.floor(now() / CAT_IDLE_FRAME_MS + cat.id) % 3;
-        const frameX = phase === 1 ? 1 : 0;
-        const frameY = phase === 2 ? 1 : 0;
-        const frame = CAT_FRAMES[frameY * 2 + frameX];
+        // 大猫固定为尾巴竖起的坐姿（sit-tail，CAT_FRAMES[1]），不播放待机动画。
+        const frame = CAT_FRAMES[1];
         context.save();
         context.fillStyle = 'rgba(0,0,0,.2)';
         context.beginPath();
