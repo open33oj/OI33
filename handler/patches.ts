@@ -5,12 +5,36 @@ import { RecordMainConnectionHandler } from 'hydrooj/src/handler/record';
 import { oi33Model } from '../model';
 
 export function applyPatches(_ctx: Context) {
+    // OI33 fields merged by mergeOi33Fields that should survive Hydro's JSON
+    // serialization. Hydro's framework serializer calls User.serialize(), which
+    // picks only getFields() (base fields + _publicFields), silently dropping
+    // every oi33 field from noTemplate JSON responses (e.g. /user/:uid via API
+    // token). Registering them on the clone's _publicFields makes serialize()
+    // include them; templates already read them directly and are unaffected.
+    const OI33_SERIALIZE_FIELDS = [
+        'oi33_profile_hidden',
+        'coin_now', 'coin_all',
+        'cat_food', 'cat_can',
+        'birthday_date',
+        'realname_flag', 'realname_name',
+        'badge',
+        'atcoder', 'atcoder_rating', 'atcoder_updated_at',
+        'codeforces', 'codeforces_rating', 'codeforces_updated_at',
+    ];
+
     function cloneUserForDisplay<T>(udoc: T): T {
         if (!udoc || typeof udoc !== 'object') return udoc;
-        return Object.create(
+        const clone: T = Object.create(
             Object.getPrototypeOf(udoc),
             Object.getOwnPropertyDescriptors(udoc),
         );
+        const fields = (clone as any)._publicFields;
+        if (Array.isArray(fields)) {
+            (clone as any)._publicFields = fields.concat(
+                OI33_SERIALIZE_FIELDS.filter((f) => !fields.includes(f)),
+            );
+        }
+        return clone;
     }
 
     // (a) UserModel.getList — merge oi33_user fields into udoc
@@ -208,8 +232,7 @@ export function applyPatches(_ctx: Context) {
     // Regex allows exact match or prefix match (trailing / or end-of-string).
     const READONLY_ROUTE_PATTERNS = [
         /^\/record(\/|$)/,
-        /^\/problem(\/|$)/,
-        /^\/p\//,
+        /^\/p(\/|$)/,
         /^\/contest(\/|$)/,
         /^\/homework(\/|$)/,
         /^\/user\//,

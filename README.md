@@ -534,7 +534,7 @@ OI33 内置 Wiki 百科，支持 Markdown 页面 CRUD、多级分类目录和 JS
 Authorization: Bearer 33tok_xxxxxxxx...
 ```
 
-令牌认证通过 `handler/before` 事件钩子拦截，在 Hydro v5 的 handler 生命周期中（`prepare()` 之后、`get()`/`post()` 之前）执行。认证成功后，请求将以令牌所属用户的身份执行，但写操作会被强制拦截。
+令牌认证通过 `handler/create` 事件钩子拦截，在 Hydro v5 的 handler 生命周期中最早执行（早于 `handler/create/http` 的 `PERM_VIEW` 闸门、路由级 `checkPriv`/`checkPerm` 以及 `prepare()`），因此在游客无查看权限的私有域中也能正常注入令牌用户，而不会被先重定向到登录页。认证成功后，请求将以令牌所属用户的身份执行，但写操作会被强制拦截。
 
 ### 管理入口
 
@@ -553,7 +553,7 @@ Token 仅允许访问以下路由（精确匹配或前缀匹配）：
 
 **Hydro 核心**
 - `/record/*` — 提交记录、代码下载
-- `/problem/*`, `/p/*` — 题目
+- `/p`, `/p/*` — 题目（列表路由是 `/p`，不是 `/problem`）
 - `/contest/*`, `/homework/*` — 比赛、作业
 - `/user/*`, `/ranking` — 用户、排名
 - `/discuss/*`, `/training/*` — 讨论、训练
@@ -579,7 +579,7 @@ Token 仅允许访问以下路由（精确匹配或前缀匹配）：
 
 ### 只读保证
 
-1. **HTTP 方法拦截**：`POST` / `PUT` / `DELETE` / `PATCH` 在 `handler/before` 阶段直接抛出 `Read-only token cannot perform write operations`
+1. **HTTP 方法拦截**：`POST` / `PUT` / `DELETE` / `PATCH` 在 `handler/create` 阶段直接抛出 `Read-only token cannot perform write operations`
 2. **路由白名单拦截**：不在白名单中的路径抛出 `This route is not available via token`
 3. 双重拦截均在 handler 方法体执行之前，不会触及任何数据库写操作
 

@@ -260,7 +260,7 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 - **Client registration** at `/oi33/oauth/clients` (admin only). Confidential clients get a `client_secret` (shown once, stored as SHA-256). Public clients (SPAs/mobile) use PKCE with no secret.
 - **Scope**: only `profile` — returns `sub` (stable user ID string) and `uname` (username). No email or oi33 business data is exposed.
 - Access tokens are `33oat_…` (hashed at rest); refresh tokens are `33ojrt_…`. Auth codes live 10 min, single-use.
-- The `handler/before` bearer-token hook in `patches.ts` **skips** `/oi33/oauth/*` paths so the OAuth handlers manage their own Bearer auth against `oi33_oauth_token` (separate from the `oi33_token` API-token system).
+- The `handler/create` bearer-token hook in `patches.ts` **skips** `/oi33/oauth/*` paths so the OAuth handlers manage their own Bearer auth against `oi33_oauth_token` (separate from the `oi33_token` API-token system).
 - All OAuth write ops (authorize/deny/token/refresh/revoke/client_create/client_delete) log via `oi33_log` with `type: 'oauth'`.
 
 ## Monkey-patches ([handler/patches.ts](handler/patches.ts))
@@ -269,7 +269,7 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 3. **HomeHandler.getCheckin** — injects `payload.oi33_checkin` for the checkin partial
 4. **HomeHandler.getCountdown** — injects `payload.dates` for the countdown partial
 
-5. **handler/before Bearer-token auth** — verifies `Authorization: Bearer 33tok_…` against `oi33_token`, enforces read-only method + route whitelist. **Skips** `/oi33/oauth/*` paths so the OAuth provider handlers manage their own Bearer auth against `oi33_oauth_token`.
+5. **handler/create Bearer-token auth** — verifies `Authorization: Bearer 33tok_…` against `oi33_token`, injects the token user before Hydro's `handler/create/http` PERM_VIEW gate, and enforces read-only method + route whitelist. **Skips** `/oi33/oauth/*` paths so the OAuth provider handlers manage their own Bearer auth against `oi33_oauth_token`.
 
 Patches are wrapped in `applyPatches(ctx)` and called from the top-level `apply()` in [index.ts](index.ts), not import-time side effects.
 

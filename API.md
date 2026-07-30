@@ -2,7 +2,7 @@
 
 本文档供 MCP Server 开发者、AI Agent 集成者参考，说明如何通过 **Bearer Token** 程序化访问 33OJ 的全部数据。
 
-> **只读保证**：Token 认证的用户只能执行 `GET` / `HEAD` / `OPTIONS` 请求。任何 `POST` / `PUT` / `DELETE` / `PATCH` 请求均会在 `handler/before` 阶段被拦截，抛出 `Read-only token cannot perform write operations` 错误。Token 不会、也无法修改任何数据。
+> **只读保证**：Token 认证的用户只能执行 `GET` / `HEAD` / `OPTIONS` 请求。任何 `POST` / `PUT` / `DELETE` / `PATCH` 请求均会在 `handler/create` 阶段被拦截，抛出 `Read-only token cannot perform write operations` 错误。Token 不会、也无法修改任何数据。
 
 ---
 
@@ -74,16 +74,18 @@ curl -H "Authorization: Bearer 33tok_xxx" \
 
 | 端点 | 说明 |
 |------|------|
-| `GET /problem?all=true&noTemplate=1` | 题目列表 |
-| `GET /problem?pid=<pid>&noTemplate=1` | 按题目编号查 |
+| `GET /p?noTemplate=1` | 题目列表（`page`、`q`、`limit` 可选） |
+| `GET /p?q=<关键词>&noTemplate=1` | 搜索题目（支持 Hydro 查询语法） |
 | `GET /p/<pid>?noTemplate=1` | 题目详情页 |
 | `GET /p/<pid>/data?noTemplate=1` | 题目测试数据信息 |
 | `GET /p/<pid>/solution?noTemplate=1` | 题解 |
 
+> 注意：题目列表路由是 `/p`，不是 `/problem`——后者不存在，会返回 404 `NotFoundError`。
+
 ```bash
 # 题目列表
 curl -H "Authorization: Bearer 33tok_xxx" \
-     "https://oj-domain/problem?all=true&noTemplate=1"
+     "https://oj-domain/p?noTemplate=1"
 
 # 题目详情（pid 为展示编号，如 D0672）
 curl -H "Authorization: Bearer 33tok_xxx" \
@@ -118,6 +120,8 @@ curl -H "Authorization: Bearer 33tok_xxx" \
 curl -H "Authorization: Bearer 33tok_xxx" \
      "https://oj-domain/user/2?noTemplate=1"
 ```
+
+> **udoc 中的 OI33 字段**：用户对象的 JSON 序列化已扩展，除 Hydro 标准字段外还包含 OI33 插件字段：`oi33_profile_hidden`、`coin_now`、`coin_all`、`cat_food`、`cat_can`、`birthday_date`、`realname_flag`、`realname_name`、`badge`、`atcoder`、`atcoder_rating`、`codeforces`、`codeforces_rating` 等。`oi33_profile_hidden` 为 `true` 的用户（未认证）会以 `UID <id>` 匿名化显示，实名相关字段为空。
 
 ### 1.5 讨论（Discussion）
 
@@ -267,8 +271,7 @@ if (!READONLY_METHODS.has(h.request.method)) {
 ```typescript
 const READONLY_ROUTE_PATTERNS = [
     /^\/record(\/|$)/,
-    /^\/problem(\/|$)/,
-    /^\/p\//,
+    /^\/p(\/|$)/,
     /^\/contest(\/|$)/,
     /^\/homework(\/|$)/,
     /^\/user\//,
@@ -305,7 +308,7 @@ if (!READONLY_ROUTE_PATTERNS.some((re) => re.test(h.request.path))) {
 | 分类 | 状态 | 说明 |
 |------|------|------|
 | `/record/*` | ✅ 允许 | 提交记录查询、代码下载 |
-| `/problem/*`, `/p/*` | ✅ 允许 | 题目列表与详情 |
+| `/p`, `/p/*` | ✅ 允许 | 题目列表与详情 |
 | `/contest/*`, `/homework/*` | ✅ 允许 | 比赛、作业 |
 | `/user/*`, `/ranking` | ✅ 允许 | 用户信息、排行榜 |
 | `/discuss/*`, `/training/*` | ✅ 允许 | 讨论、训练 |
@@ -331,7 +334,10 @@ if (!READONLY_ROUTE_PATTERNS.some((re) => re.test(h.request.path))) {
 |------|------|
 | `200 OK` + JSON | 请求成功，`?noTemplate=1` 生效 |
 | `200 OK` + HTML | 请求成功，但返回了 HTML 页面（未加 `?noTemplate=1`） |
-| `403` / `Error: Invalid or expired token` | Token 无效、过期或域名不匹配 |
-| `403` / `Error: Read-only token cannot perform write operations` | 尝试用 Token 执行 POST/PUT/DELETE/PATCH |
-| `403` / `Error: This route is not available via token` | 请求的 URL 不在 Token 白名单中 |
+| `404` / `NotFoundError` | 路径不是有效路由（如把题目列表误写成 `/problem`，正确为 `/p`）。能收到 404 说明 Token 验证和白名单均已通过 |
+| `500` / `Error: Invalid or expired token` | Token 无效、过期或域名不匹配 |
+| `500` / `Error: Read-only token cannot perform write operations` | 尝试用 Token 执行 POST/PUT/DELETE/PATCH |
+| `500` / `Error: This route is not available via token` | 请求的 URL 不在 Token 白名单中 |
 | `500` / `Serialize failure` | JSON 序列化失败（通常数据量过大） |
+
+> Token 拦截抛出的是普通 `Error`，Hydro 统一按 500 返回；这是预期行为，不代表服务器故障。
