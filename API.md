@@ -239,13 +239,15 @@ Token 本身的路由也需要认证：
 
 ### 4.1 双重拦截机制
 
-Token 认证在 Hydro v5 handler 生命周期的 **`handler/before` 事件钩子** 中执行，采用 **方法限制 + 路由白名单** 双重拦截：
+Token 认证在 Hydro v5 handler 生命周期的 **`handler/create` 事件钩子** 中执行（早于 `handler/create/http` 的 `PERM_VIEW` 闸门、路由级 `checkPriv`/`checkPerm` 以及 `prepare()`），采用 **方法限制 + 路由白名单** 双重拦截：
 
 ```
-init → prepare → handler/before → [TOKEN CHECK] → get()/post() → after → finish
-                                    ├─ 方法检查: 非 GET/HEAD/OPTIONS → 拦截
-                                    └─ 路由检查: 不在白名单 → 拦截
+init → handler/create → [TOKEN CHECK: 注入 token 用户 + 方法/白名单检查]
+     → handler/create/http (PERM_VIEW 闸门) → 路由 checker → prepare
+     → handler/before → get()/post() → after → finish
 ```
+
+> 早期版本在 `handler/before` 才注入 token 用户，导致请求先以游客身份撞上 `PERM_VIEW` 闸门——在游客无查看权限的域里会被直接重定向到登录页。现已修复为 `handler/create` 注入。
 
 ### 4.2 第一层：HTTP 方法限制
 
@@ -282,6 +284,7 @@ const READONLY_ROUTE_PATTERNS = [
     /^\/oi33\/paste\/manage(\/|$)/,
     /^\/oi33\/paste\/all(\/|$)/,
     /^\/oi33\/coin\/bill\//,
+    /^\/oi33\/cat-food\/bill\//,
     /^\/oi33\/admin(\/|$)/,
     /^\/oi33\/requests(\/|$)/,
     /^\/oi33\/tokens(\/|$)/,

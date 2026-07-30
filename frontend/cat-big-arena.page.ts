@@ -601,7 +601,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     });
 
     document.querySelector<HTMLButtonElement>('[data-bigcat-find]')?.addEventListener('click', () => {
-        if (!me?.boundId) {
+        if (me?.boundId === null || me?.boundId === undefined) {
             pickerDialog?.showModal();
             loadPicker();
             return;

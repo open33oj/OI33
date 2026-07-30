@@ -274,8 +274,13 @@ class OAuthUserInfoHandler extends OAuthApiHandler {
             oauthJsonError(this, 401, 'invalid_token', 'User not found');
             return;
         }
+        const oi33Data = await oi33Model.getUserDataByUids([tdoc.uid]);
         this.response.type = 'application/json';
-        this.response.body = { sub: String(tdoc.uid), uname: udoc.uname };
+        this.response.body = {
+            sub: String(tdoc.uid),
+            uname: udoc.uname,
+            realname_flag: oi33Data?.[tdoc.uid]?.realname_flag ?? 0,
+        };
     }
 }
 

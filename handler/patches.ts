@@ -248,14 +248,23 @@ export function applyPatches(_ctx: Context) {
         return doc;
     }
 
-    _ctx.on('handler/before', async (h: any) => {
-        if (h.user?._id) {
-            const oi33 = (await oi33Model.getUserDataByUids([h.user._id]))[h.user._id];
-            oi33Model.mergeOi33Fields(h.user, oi33);
-        }
+    // Token user injection MUST happen at 'handler/create', not 'handler/before'.
+    // Hydro's own gates run before 'handler/before' and would see a guest:
+    //   handler/create/http -> PERM_VIEW gate (rejects guests on private domains,
+    //                          redirecting to /login before the token is even read)
+    //   route checker       -> route-level checkPriv/checkPerm
+    //   prepare()           -> per-handler permission checks
+    // That ordering made tokens work on the main domain (guests can view) but
+    // fail on any domain where guests lack PERM_VIEW.
+    _ctx.on('handler/create', async (h: any, type?: string) => {
+        if (type && type !== 'http') return;
 
         const auth = h.request.headers.authorization;
         if (!auth || !auth.startsWith('Bearer ')) return;
+        const rawToken = auth.slice(7).trim();
+        // Only intercept OI33 API tokens; other Bearer values (e.g. Hydro
+        // session ids) are handled by Hydro's own auth machinery.
+        if (!rawToken.startsWith('33tok_')) return;
 
         // OAuth provider endpoints manage their own Bearer auth (access tokens
         // live in oi33_oauth_token, not oi33_token). Skip the API-token check
@@ -264,10 +273,14 @@ export function applyPatches(_ctx: Context) {
             return;
         }
 
-        const tokenDoc = await verifyBearerToken(auth, h.domain?._id || h.domainId || '');
+        const domainId = h.context?.HydroContext?.domain?._id
+            || h.domain?._id || h.args?.domainId || 'system';
+        const tokenDoc = await verifyBearerToken(auth, domainId);
         if (!tokenDoc) throw new Error('Invalid or expired token');
 
-        const udoc = await UserModel.getById('', tokenDoc.uid);
+        // Load the token owner with the REAL domain id, otherwise dudoc/perm
+        // come from domain '' and domain-level checkPerm/domain_join breaks.
+        const udoc = await UserModel.getById(domainId, tokenDoc.uid);
         if (!udoc) throw new Error('Invalid token user');
 
         h.user = udoc;
@@ -279,6 +292,13 @@ export function applyPatches(_ctx: Context) {
         }
         if (!isReadonlyRoute(h.request.path)) {
             throw new Error('This route is not available via token');
+        }
+    });
+
+    _ctx.on('handler/before', async (h: any) => {
+        if (h.user?._id) {
+            const oi33 = (await oi33Model.getUserDataByUids([h.user._id]))[h.user._id];
+            oi33Model.mergeOi33Fields(h.user, oi33);
         }
     });
 
