@@ -122,6 +122,8 @@ curl -H "Authorization: Bearer 33tok_xxx" \
 ```
 
 > **udoc 中的 OI33 字段**：用户对象的 JSON 序列化已扩展，除 Hydro 标准字段外还包含 OI33 插件字段：`oi33_profile_hidden`、`coin_now`、`coin_all`、`cat_food`、`cat_can`、`birthday_date`、`realname_flag`、`realname_name`、`badge`、`atcoder`、`atcoder_rating`、`codeforces`、`codeforces_rating` 等。`oi33_profile_hidden` 为 `true` 的用户（未认证）会以 `UID <id>` 匿名化显示，实名相关字段为空。
+>
+> **`realname_name` 鉴权**：与页面模板同一规则——仅当**查看者**（token 所属用户）的 OI33 身份 ≥ 2（管理员/行政管理员）时才会出现在 JSON 中，其他查看者一律不返回该字段。
 
 ### 1.5 讨论（Discussion）
 

@@ -34,6 +34,19 @@ export function applyPatches(_ctx: Context) {
                 OI33_SERIALIZE_FIELDS.filter((f) => !fields.includes(f)),
             );
         }
+        // realname_name is sensitive: templates only render it to viewers with
+        // OI33 flag >= 2. Apply the same rule to JSON serialization, otherwise
+        // registering it in _publicFields above would leak real names to anyone.
+        const origSerialize = (clone as any).serialize;
+        if (typeof origSerialize === 'function') {
+            (clone as any).serialize = function serialize(h?: any) {
+                const result = origSerialize.call(this, h);
+                if (result && (Number(h?.user?.realname_flag) || 0) < 2) {
+                    delete result.realname_name;
+                }
+                return result;
+            };
+        }
         return clone;
     }
 
@@ -71,6 +84,11 @@ export function applyPatches(_ctx: Context) {
             udict[uid] = u;
             oi33Model.mergeOi33Fields(u, oi33);
             oi33Model.anonymizeOi33Identity(u);
+            // This path has no viewer context and its consumers (contest/training
+            // scoreboards etc.) can be serialized as-is via ?noTemplate=1, so the
+            // sensitive real name must never leave the model layer here. No
+            // template renders realname_name from getListForRender results.
+            u.realname_name = '';
         }
         return udict;
     };
@@ -158,9 +176,14 @@ export function applyPatches(_ctx: Context) {
         const udocs: any[] = Object.values(rudocs).flat()
             .filter((udoc: any) => udoc && Number.isFinite(Number(udoc._id)));
         if (!udocs.length) return;
+        // rudocs are plain objects: ?noTemplate=1 serializes them verbatim, so
+        // only viewers with OI33 flag >= 2 may receive real names (same rule
+        // as the user.html macro).
+        const viewerIsAdmin = (Number(h.user?.realname_flag) || 0) >= 2;
         const oi33Dict = await oi33Model.getUserDataByUids(udocs.map((udoc) => Number(udoc._id)));
         for (const udoc of udocs) {
             oi33Model.mergeOi33Fields(udoc, oi33Dict[Number(udoc._id)], ['realname']);
+            if (!viewerIsAdmin) udoc.realname_name = '';
             oi33Model.anonymizeOi33Identity(udoc);
         }
     });
