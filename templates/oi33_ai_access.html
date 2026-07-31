@@ -1,0 +1,128 @@
+{% set page_name = "oi33_ai_access" %}
+{% extends "layout/basic.html" %}
+{% import "components/form.html" as form with context %}
+{% import "components/user.html" as user with context %}
+{% block content %}
+
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('AI Access Management') }}</h1>
+      </div>
+      <div class="section__body">
+        {% if (handler.user.realname_flag or 0) >= 2 %}
+          <p><a href="/oi33/ai/admin">&laquo; {{ _('Back to Admin') }}</a></p>
+        {% endif %}
+        <p class="ai33-desc">{{ _('ai_access_help') }}</p>
+
+        <h3 style="margin-bottom:1rem;">{{ _('Add / Update User') }}</h3>
+        <form method="post" style="margin-bottom:2rem;">
+          <input type="hidden" name="action" value="upsert">
+          <div class="row">
+            <div class="medium-4 columns">
+              {{ form.form_text({
+                  label: _('User UID or Username'),
+                  name: 'uidOrName',
+                  autofocus: true,
+                  required: true
+              }) }}
+            </div>
+            <div class="medium-4 columns">
+              {{ form.form_text({
+                  label: _('Granted Quota (CNY)'),
+                  name: 'granted',
+                  value: '10',
+                  required: true
+              }) }}
+            </div>
+            <div class="medium-4 columns">
+              <div class="form__item">
+                <label class="checkbox">
+                  <input type="checkbox" name="unlimited" value="true">
+                  {{ _('Unlimited (no charge)') }}
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="row"><div class="columns">
+            <button type="submit" class="rounded primary button">{{ _('Save') }}</button>
+          </div></div>
+        </form>
+
+        <h3 style="margin-bottom:1rem;">{{ _('Allowed Users') }}{% if total %}<span class="ai33-subtitle">（{{ total }}）</span>{% endif %}</h3>
+        {% if list.length %}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ _('User') }}</th>
+              <th>{{ _('Granted Quota (CNY)') }}</th>
+              <th>{{ _('Used (CNY)') }}</th>
+              <th>{{ _('Balance (CNY)') }}</th>
+              <th>{{ _('Unlimited') }}</th>
+              <th>{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in list %}
+            <tr>
+              <td>{% if udict[a._id] %}{{ user.render_inline(udict[a._id]) }}{% else %}UID {{ a._id }}{% endif %}</td>
+              <td>
+                <form method="post" class="ai33-grant-form">
+                  <input type="hidden" name="action" value="upsert">
+                  <input type="hidden" name="uid" value="{{ a._id }}">
+                  {% if a.unlimited %}<input type="hidden" name="unlimited" value="true">{% endif %}
+                  <input type="text" name="granted" class="textbox ai33-grant-input" value="{{ a.granted | round(4) }}" required>
+                  <button type="submit" class="rounded button">{{ _('Save') }}</button>
+                </form>
+                <form method="post" class="ai33-grant-form" style="margin-top:4px;">
+                  <input type="hidden" name="action" value="add_quota">
+                  <input type="hidden" name="uid" value="{{ a._id }}">
+                  <input type="text" name="amount" class="textbox ai33-grant-input" placeholder="{{ _('Add Quota (CNY)') }}" required>
+                  <button type="submit" class="rounded button">{{ _('Add') }}</button>
+                </form>
+              </td>
+              <td>{{ formatMoney(a.used) }}</td>
+              <td>{{ formatMoney(a.balance or 0) }}</td>
+              <td>{{ _('Yes') if a.unlimited else _('No') }}</td>
+              <td>
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="uid" value="{{ a._id }}">
+                  <button type="submit" class="rounded button ai33-btn-danger">{{ _('Remove') }}</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if pageCount > 1 %}
+        <ul class="pager">
+          {% if page > 1 %}
+          <li><a class="pager__item link" href="?page={{ page - 1 }}">{{ _('pager_previous') }}</a></li>
+          {% endif %}
+          <li><span class="pager__item">{{ page }} / {{ pageCount }}</span></li>
+          {% if page < pageCount %}
+          <li><a class="pager__item next link" href="?page={{ page + 1 }}">{{ _('pager_next') }}</a></li>
+          {% endif %}
+        </ul>
+        {% endif %}
+        {% else %}
+        <p>{{ _('No users yet.') }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.ai33-desc { color: #666; margin-bottom: 1rem; }
+.theme--dark .ai33-desc, [data-mantine-color-scheme=dark] .ai33-desc { color: #aaa; }
+.ai33-subtitle { font-size: 0.7em; color: #888; font-weight: normal; margin-left: 0.5rem; }
+.theme--dark .ai33-subtitle, [data-mantine-color-scheme=dark] .ai33-subtitle { color: #999; }
+.ai33-btn-danger { color: #c00; }
+.theme--dark .ai33-btn-danger, [data-mantine-color-scheme=dark] .ai33-btn-danger { color: #ff6b6b; }
+.ai33-grant-form { display: flex; gap: 6px; align-items: center; }
+.ai33-grant-input { width: 7rem; }
+</style>
+{% endblock %}

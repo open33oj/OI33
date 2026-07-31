@@ -1,15 +1,46 @@
 .oi33-file-io-tag {
-  padding: 5px 11px !important;
-  border: 1px solid #e63252 !important;
-  border-radius: 999px;
-  color: #fff !important;
-  font-weight: 700;
-  letter-spacing: .02em;
-  background: linear-gradient(135deg, #ff3d67 0%, #ff6a23 100%) !important;
-  box-shadow: 0 3px 10px rgba(230, 50, 82, .3);
+  padding: 0 10px !important;
+  border: 1px solid rgba(214, 60, 42, .4) !important;
+  border-radius: 2px;
+  color: #c23927 !important;
+  font-weight: 600;
+  background: rgba(230, 85, 60, .1) !important;
+  box-shadow: none;
 }
 
-.oi33-file-io-tag::before { color: #fff !important; }
+.oi33-file-io-tag::before { color: #c23927 !important; }
+
+.theme--dark .oi33-file-io-tag {
+  border-color: rgba(255, 110, 85, .4) !important;
+  color: #ff9a85 !important;
+  background: rgba(255, 110, 85, .14) !important;
+}
+
+.theme--dark .oi33-file-io-tag::before { color: #ff9a85 !important; }
+
+/* Hydro's typography renders headings at font-weight 300–500, so from h3 on
+   they are thinner than body text. Restore a clear hierarchy: bold headings,
+   a darker green-tinted color, and a GitHub-style underline for h1/h2. */
+.typo h1, .typo h2, .typo h3, .typo h4, .typo h5, .typo h6 {
+  font-weight: 600 !important;
+  line-height: 1.35;
+  color: #23402e;
+}
+
+.typo h1, .typo h2 {
+  font-weight: 700 !important;
+  padding-bottom: .25em;
+  border-bottom: 1px solid rgba(67, 108, 78, .2);
+}
+
+.theme--dark .typo h1, .theme--dark .typo h2, .theme--dark .typo h3,
+.theme--dark .typo h4, .theme--dark .typo h5, .theme--dark .typo h6 {
+  color: #cfe3d2;
+}
+
+.theme--dark .typo h1, .theme--dark .typo h2 {
+  border-bottom-color: rgba(137, 181, 145, .22);
+}
 
 .oi33-content-toc-controls {
   display: flex;

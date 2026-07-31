@@ -1,0 +1,161 @@
+{% set page_name = "oi33_ai_models" %}
+{% extends "layout/basic.html" %}
+{% import "components/form.html" as form with context %}
+{% block content %}
+
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('AI Model Management') }}</h1>
+      </div>
+      <div class="section__body">
+        {% if (handler.user.realname_flag or 0) >= 2 %}
+          <p><a href="/oi33/ai/admin">&laquo; {{ _('Back to Admin') }}</a></p>
+        {% endif %}
+        <p class="ai33-desc">{{ _('ai_models_help') }}</p>
+
+        <h3 style="margin-bottom:1rem;">{{ _('Default Models') }}</h3>
+        {% set allModels = [] %}
+        {% for p in providers %}{% for m in p.models %}{% set _ = allModels.push(m.name) %}{% endfor %}{% endfor %}
+        <form method="post" style="margin-bottom:2rem;">
+          <input type="hidden" name="action" value="set_defaults">
+          {% for key, label in [['student_model', _('Student Model')], ['teacher_model', _('Teacher Model')], ['summary_model', _('Summary Model')]] %}
+          <div class="row">
+            <div class="columns">
+              <div class="form__item">
+                <label>{{ label }}</label>
+                <input type="text" name="{{ key }}" class="textbox" value="{{ config[key] }}" list="ai33-model-list" required>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+          <datalist id="ai33-model-list">
+            {% for name in allModels %}<option value="{{ name }}">{% endfor %}
+          </datalist>
+          <div class="row"><div class="columns">
+            <button type="submit" class="rounded primary button">{{ _('Save Config') }}</button>
+          </div></div>
+        </form>
+
+        <h3 style="margin-bottom:1rem;">{{ _('Add Provider') }}</h3>
+        <form method="post" style="margin-bottom:2rem;">
+          <input type="hidden" name="action" value="save_provider">
+          <div class="row">
+            <div class="columns">
+              {{ form.form_text({ label: _('Provider Name'), name: 'provider', placeholder: 'deepseek', required: true }) }}
+            </div>
+          </div>
+          <div class="row">
+            <div class="columns">
+              {{ form.form_text({ label: 'Base URL', name: 'base_url', value: 'https://api.deepseek.com', required: true }) }}
+            </div>
+          </div>
+          <div class="row">
+            <div class="columns">
+              {{ form.form_text({ label: 'API Key', name: 'api_key', placeholder: _('Leave empty to keep unchanged') }) }}
+            </div>
+          </div>
+          <div class="row"><div class="columns">
+            <button type="submit" class="rounded primary button">{{ _('Save') }}</button>
+          </div></div>
+        </form>
+
+        {% for p in providers %}
+        <div class="ai33-provider">
+          <h3 style="margin-bottom:0.5rem;">
+            {{ p._id }}
+            <span class="ai33-subtitle">{{ p.baseUrl }}</span>
+            {% if p.apiKey %}
+              <span class="ai33-subtitle">API Key: {{ _('Configured') }}</span>
+            {% else %}
+              <span class="ai33-subtitle ai33-text-error">API Key: {{ _('Not configured') }}</span>
+            {% endif %}
+          </h3>
+          <form method="post" style="display:inline;margin-bottom:1rem;">
+            <input type="hidden" name="action" value="delete_provider">
+            <input type="hidden" name="provider" value="{{ p._id }}">
+            <button type="submit" class="rounded button ai33-btn-danger" onclick="return confirm('{{ _('Delete this provider?') }}')">{{ _('Delete Provider') }}</button>
+          </form>
+
+          {% if p.models and p.models.length %}
+          <table class="data-table" style="margin-top:1rem;">
+            <thead>
+              <tr>
+                <th>{{ _('Model') }}</th>
+                <th>{{ _('Input Price (per 1M, cache miss)') }}</th>
+                <th>{{ _('Input Price (per 1M, cache hit)') }}</th>
+                <th>{{ _('Output Price (per 1M)') }}</th>
+                <th>{{ _('Actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in p.models %}
+              <tr>
+                <td><code>{{ m.name }}</code></td>
+                <td>{{ m.input }}</td>
+                <td>{{ m.inputCached }}</td>
+                <td>{{ m.output }}</td>
+                <td>
+                  <form method="post" style="display:inline;">
+                    <input type="hidden" name="action" value="delete_model">
+                    <input type="hidden" name="provider" value="{{ p._id }}">
+                    <input type="hidden" name="model" value="{{ m.name }}">
+                    <button type="submit" class="rounded button ai33-btn-danger">{{ _('Delete') }}</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p style="margin-top:1rem;">{{ _('No models yet.') }}</p>
+          {% endif %}
+
+          <form method="post" style="margin-top:1rem;">
+            <input type="hidden" name="action" value="save_model">
+            <input type="hidden" name="provider" value="{{ p._id }}">
+            <div class="row">
+              <div class="columns">
+                {{ form.form_text({ label: _('Model'), name: 'model', placeholder: 'deepseek-v4-flash', required: true }) }}
+              </div>
+            </div>
+            <div class="row">
+              <div class="columns">
+                {{ form.form_text({ label: _('Input (cache miss)'), name: 'input', value: '2', required: true }) }}
+              </div>
+            </div>
+            <div class="row">
+              <div class="columns">
+                {{ form.form_text({ label: _('Input (cache hit)'), name: 'input_cached', value: '0.5', required: true }) }}
+              </div>
+            </div>
+            <div class="row">
+              <div class="columns">
+                {{ form.form_text({ label: _('Output'), name: 'output', value: '8', required: true }) }}
+              </div>
+            </div>
+            <div class="row"><div class="columns">
+              <button type="submit" class="rounded button">{{ _('Add / Update Model') }}</button>
+            </div></div>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.ai33-desc { color: #666; margin-bottom: 1rem; }
+.theme--dark .ai33-desc, [data-mantine-color-scheme=dark] .ai33-desc { color: #aaa; }
+.ai33-subtitle { font-size: 0.7em; color: #888; font-weight: normal; margin-left: 0.5rem; }
+.theme--dark .ai33-subtitle, [data-mantine-color-scheme=dark] .ai33-subtitle { color: #999; }
+.ai33-btn-danger { color: #c00; }
+.theme--dark .ai33-btn-danger, [data-mantine-color-scheme=dark] .ai33-btn-danger { color: #ff6b6b; }
+.ai33-text-error { color: #c00; }
+.theme--dark .ai33-text-error, [data-mantine-color-scheme=dark] .ai33-text-error { color: #ff6b6b; }
+.ai33-provider { border-top: 1px solid #e0e0e0; padding-top: 1rem; margin-top: 1.5rem; }
+.theme--dark .ai33-provider, [data-mantine-color-scheme=dark] .ai33-provider { border-top-color: #444; }
+</style>
+{% endblock %}

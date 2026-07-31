@@ -305,3 +305,71 @@ export interface Oi33Log {
     rowEnd?: number;
     columnEnd?: number;
 }
+
+export interface Oi33AiAnalysis {
+    _id: string;
+    rid: string;
+    userId: number;
+    problem: string;
+    results: string;
+    code: string;
+    language: string;
+    suggestion: string;
+    createdAt: Date;
+}
+
+export interface Oi33AiConfig {
+    _id: string;
+    // Model names resolved against ai33_provider entries.
+    student_model: string;
+    teacher_model: string;
+    summary_model: string;
+}
+
+export interface Oi33AiProblemSummary {
+    _id: string; // `${domainId}:${pid}`
+    domainId: string;
+    pid: number;
+    content: string;
+    model: string;
+    createdAt: Date;
+}
+
+export interface Oi33AiProviderModel {
+    name: string;
+    input: number; // price per 1M tokens (cache miss)
+    inputCached: number; // price per 1M tokens (cache hit)
+    output: number; // price per 1M tokens
+}
+
+export interface Oi33AiProvider {
+    _id: string; // provider name
+    baseUrl: string;
+    apiKey: string;
+    models: Oi33AiProviderModel[];
+}
+
+export interface Oi33AiAccess {
+    _id: number; // uid
+    balance: number;
+    granted?: number; // total quota ever granted; balance = granted - used
+    unlimited: boolean;
+    createdAt: Date;
+}
+
+export interface Oi33AiUsage {
+    _id: ObjectId;
+    uid: number; // 0 = system (e.g. summary generation)
+    type: 'analysis' | 'summary';
+    rid?: string;
+    domainId?: string;
+    pid?: number;
+    provider: string;
+    model: string;
+    promptTokens: number;
+    completionTokens: number;
+    cacheHitTokens: number;
+    cost: number;
+    deducted: boolean; // whether cost was charged to a user balance
+    createdAt: Date;
+}

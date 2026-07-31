@@ -1,0 +1,72 @@
+{% set page_name = "oi33_ai_admin" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('AI33 Admin') }}</h1>
+      </div>
+      <div class="section__body">
+
+        <div style="margin-bottom:2rem;">
+          <h3 style="margin-bottom:1rem;">{{ _('Quick Links') }}</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+            <a href="/oi33/ai/access" class="primary rounded button">{{ _('AI Access Management') }}</a>
+            <a href="/oi33/ai/models" class="rounded button">{{ _('AI Model Management') }}</a>
+          </div>
+        </div>
+
+        <h3 style="margin-bottom:1rem;">{{ _('Current Config') }}</h3>
+        <table class="data-table" style="margin-bottom:2rem;">
+          <tbody>
+            <tr><td>{{ _('Student Model') }}</td><td><code>{{ config.student_model }}</code></td></tr>
+            <tr><td>{{ _('Teacher Model') }}</td><td><code>{{ config.teacher_model }}</code></td></tr>
+            <tr><td>{{ _('Summary Model') }}</td><td><code>{{ config.summary_model }}</code></td></tr>
+            <tr><td>{{ _('Allowed Users') }}</td><td>{{ accessCount }}</td></tr>
+            <tr><td>{{ _('Providers') }}</td><td>{% for p in providers %}<code>{{ p._id }}</code> {% endfor %}</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin-bottom:1rem;">{{ _('Usage Statistics') }}</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ _('Type') }}</th>
+              <th>{{ _('Count') }}</th>
+              <th>{{ _('Prompt Tokens') }}</th>
+              <th>{{ _('Completion Tokens') }}</th>
+              <th>{{ _('Cost') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{{ _('Summary generation (global)') }}</td>
+              <td>{{ stats.summary.count }}</td>
+              <td>{{ stats.summary.promptTokens }}</td>
+              <td>{{ stats.summary.completionTokens }}</td>
+              <td>{{ formatMoney(stats.summary.cost) }}</td>
+            </tr>
+            <tr>
+              <td>{{ _('Analysis (charged)') }}</td>
+              <td>{{ stats.analysisCharged.count }}</td>
+              <td>{{ stats.analysisCharged.promptTokens }}</td>
+              <td>{{ stats.analysisCharged.completionTokens }}</td>
+              <td>{{ formatMoney(stats.analysisCharged.cost) }}</td>
+            </tr>
+            <tr>
+              <td>{{ _('Analysis (teacher / unlimited, not charged)') }}</td>
+              <td>{{ stats.analysisFree.count }}</td>
+              <td>{{ stats.analysisFree.promptTokens }}</td>
+              <td>{{ stats.analysisFree.completionTokens }}</td>
+              <td>{{ formatMoney(stats.analysisFree.cost) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

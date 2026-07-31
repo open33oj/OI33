@@ -260,8 +260,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             if (px + sizePx < 0 || py + sizePx < 0 || px > width || py > height) return;
             drawBigCat(context, ratio, cat, px, py, sizePx);
             if (showNames) {
-                // 地图上只显示学校名；体重等更多信息看右侧榜单。
-                const label = cat.display;
+                // 地图上只显示校名拼音（abbr），不带编号和体重；更多信息看右侧榜单。
+                const label = cat.display.replace(/#\d+$/, '');
                 context.save();
                 context.font = `bold ${Math.max(10, Math.min(14, sizePx / 8))}px sans-serif`;
                 const labelWidth = Math.min(220, context.measureText(label).width + 9);

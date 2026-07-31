@@ -86,9 +86,15 @@ export function applyPatches(_ctx: Context) {
             oi33Model.anonymizeOi33Identity(u);
             // This path has no viewer context and its consumers (contest/training
             // scoreboards etc.) can be serialized as-is via ?noTemplate=1, so the
-            // sensitive real name must never leave the model layer here. No
-            // template renders realname_name from getListForRender results.
-            u.realname_name = '';
+            // sensitive real name must not be enumerable: keep it readable by
+            // templates (the user macro gates on the viewer's flag) but hidden
+            // from JSON.stringify — the same trick as oi33_original_uname.
+            Object.defineProperty(u, 'realname_name', {
+                configurable: true,
+                enumerable: false,
+                writable: true,
+                value: u.realname_name || '',
+            });
         }
         return udict;
     };

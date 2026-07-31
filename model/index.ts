@@ -54,6 +54,16 @@ import {
     getBigCatWorldState, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
     setSchoolCatPosition, schoolCatSize, schoolDisplay, schoolUrl, removeSchoolCatBinding,
 } from './school-cat';
+import {
+    aiGetRecordDetail, aiIsContestRecord,
+    aiGetAnalysis, aiSaveAnalysis, aiDeleteAnalysis,
+    aiGetProblemSummary, aiSaveProblemSummary,
+    aiGetAccess, aiGetAccessList, aiSetAccess, aiAddQuota, aiRemoveAccess, aiDeductBalance,
+    aiGetProviders, aiSaveProvider, aiDeleteProvider,
+    aiUpsertProviderModel, aiDeleteProviderModel, aiResolveModel,
+    aiAddUsage, aiGetUsageStats, aiGetUsedMap,
+    aiGetConfig, aiSaveConfig,
+} from './ai';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -70,6 +80,10 @@ export { catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
 export { catFoodBatchPreviewColl } from './cat-account';
 export { catMapPlayerColl, catMapCellColl } from './cat-map';
 export { schoolColl, schoolCatColl, schoolFeedHistoryColl } from './school-cat';
+export {
+    aiAnalysisColl, aiConfigColl, aiProblemSummaryColl,
+    aiProviderColl, aiAccessColl, aiUsageColl,
+} from './ai';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -104,6 +118,14 @@ const oi33Model = {
     wikiAdd, wikiImport, wikiEdit, wikiGet, wikiGetApproved, wikiGetOrCreateIndex,
     wikiDelete,
     wikiCatGetAll, wikiCatAdd, wikiCatEdit, wikiCatDelete,
+    aiGetRecordDetail, aiIsContestRecord,
+    aiGetAnalysis, aiSaveAnalysis, aiDeleteAnalysis,
+    aiGetProblemSummary, aiSaveProblemSummary,
+    aiGetAccess, aiGetAccessList, aiSetAccess, aiAddQuota, aiRemoveAccess, aiDeductBalance,
+    aiGetProviders, aiSaveProvider, aiDeleteProvider,
+    aiUpsertProviderModel, aiDeleteProviderModel, aiResolveModel,
+    aiAddUsage, aiGetUsageStats, aiGetUsedMap,
+    aiGetConfig, aiSaveConfig,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -132,6 +154,12 @@ declare module 'hydrooj' {
         oi33_school: import('./types').Oi33School;
         oi33_school_cat: import('./types').Oi33SchoolCat;
         oi33_school_feed_history: import('./types').Oi33SchoolFeedHistory;
+        oi33_ai_analysis: import('./types').Oi33AiAnalysis;
+        oi33_ai_config: import('./types').Oi33AiConfig;
+        oi33_ai_problem_summary: import('./types').Oi33AiProblemSummary;
+        oi33_ai_provider: import('./types').Oi33AiProvider;
+        oi33_ai_access: import('./types').Oi33AiAccess;
+        oi33_ai_usage: import('./types').Oi33AiUsage;
     }
 }
 

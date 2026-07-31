@@ -1,0 +1,262 @@
+{% set page_name = "oi33_ai_analyze" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+
+<div class="row">
+  <div class="medium-12 columns">
+
+{% if error == 'contest' %}
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('AI Analysis') }}</h1>
+      </div>
+      <div class="section__body">
+        <div class="typo ai33-text-error">
+          <p>{{ contestMessage or _('ai_contest_not_supported') }}</p>
+        </div>
+        <p><a href="/record/{{ rid }}">&laquo; {{ _('Back to Record') }}</a></p>
+      </div>
+    </div>
+
+{% elif error == 'no_access' %}
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('AI Analysis') }}</h1>
+      </div>
+      <div class="section__body">
+        <div class="ai33-text-error">
+          <p>{{ _('ai_no_access') }}</p>
+        </div>
+        <p style="margin-top:1rem;"><a href="/record/{{ rid }}">&laquo; {{ _('Back to Record') }}</a></p>
+      </div>
+    </div>
+
+{% elif error == 'no_balance' %}
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('AI Analysis') }}</h1>
+      </div>
+      <div class="section__body">
+        <div class="ai33-text-error">
+          <p>{{ _('ai_balance_insufficient') }}（{{ _('Balance') }}: {{ balanceText }}）</p>
+        </div>
+        <p style="margin-top:1rem;"><a href="/record/{{ rid }}">&laquo; {{ _('Back to Record') }}</a></p>
+      </div>
+    </div>
+
+{% else %}
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">AI 刷题建议
+          <span class="ai33-subtitle">
+          {% if isTeacher %}
+            ({{ _('Teacher, unlimited quota') }})
+          {% elif unlimited %}
+            ({{ _('Unlimited balance') }})
+          {% else %}
+            ({{ _('Balance') }}: {{ balanceText }})
+          {% endif %}
+          </span>
+        </h1>
+      </div>
+      <div class="section__body">
+
+{% if existingAnalysis %}
+        <div id="ai33-result" style="margin-bottom:1.5rem;">
+          <div id="ai33-result-text" class="ai33-result-box richmedia"></div>
+          {% if isTeacher %}
+          <div style="margin-top:0.8rem;display:flex;gap:8px;">
+            <button id="ai33-retry-btn" class="rounded button"{% if not directAnalysisEnabled %} disabled{% endif %}>重新分析</button>
+            <button id="ai33-clear-btn" class="rounded button ai33-btn-danger">清除分析</button>
+          </div>
+          {% else %}
+          <p class="ai33-note">如需重新分析，请联系老师清除本次分析结果。</p>
+          {% endif %}
+        </div>
+{% endif %}
+
+        <div id="ai33-actions" style="margin-bottom:1.5rem;{% if existingAnalysis %}display:none;{% endif %}">
+          <div class="ai33-action-row">
+            <button id="ai33-analyze-btn" class="rounded primary button"{% if not directAnalysisEnabled %} disabled{% endif %}>开始分析</button>
+            <a class="rounded button" href="https://chat.deepseek.com/" target="_blank" rel="noopener noreferrer">打开 deepseek</a>
+            {% if isTeacher %}
+            <a class="rounded button" href="/oi33/ai/summary?domainId={{ domainId }}&pid={{ pid }}">{{ _('AI Problem Summary') }}</a>
+            {% endif %}
+          </div>
+          <p class="ai33-balance-line">{{ _('Balance') }}:
+            <strong id="ai33-balance">{% if isTeacher %}{{ _('Teacher, unlimited quota') }}{% elif unlimited %}{{ _('Unlimited balance') }}{% else %}{{ balanceText }}{% endif %}</strong>
+          </p>
+        </div>
+
+        <div id="ai33-loading" class="ai33-loading" style="display:none;">
+          <span class="ai33-spinner"></span> {{ _('Analyzing...') }}
+        </div>
+
+        <div id="ai33-error" class="ai33-text-error" style="display:none;"></div>
+
+{% if aiPrompt and isTeacher %}
+        <div>
+          <h3 style="margin:0;margin-bottom:6px;">复制给 AI 的完整内容</h3>
+          <pre id="ai33-prompt-block" class="ai33-prompt-block"><code>{{ aiPrompt }}</code></pre>
+        </div>
+{% endif %}
+
+      </div>
+    </div>
+{% endif %}
+
+  </div>
+</div>
+
+<style>
+@keyframes ai33-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.ai33-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid;
+    border-color: #e0e0e0;
+    border-top-color: #5a9cf8;
+    border-radius: 50%;
+    animation: ai33-spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+.theme--dark .ai33-spinner, [data-mantine-color-scheme=dark] .ai33-spinner {
+    border-color: #444;
+}
+
+.ai33-subtitle {
+    font-size: 0.7em;
+    color: #888;
+    font-weight: normal;
+}
+.theme--dark .ai33-subtitle, [data-mantine-color-scheme=dark] .ai33-subtitle {
+    color: #999;
+}
+
+.ai33-text-error {
+    color: #c00;
+    margin-bottom: 1rem;
+}
+.theme--dark .ai33-text-error, [data-mantine-color-scheme=dark] .ai33-text-error {
+    color: #ff6b6b;
+}
+
+.ai33-loading {
+    margin-bottom: 1.5rem;
+    text-align: center;
+    color: #666;
+}
+.theme--dark .ai33-loading, [data-mantine-color-scheme=dark] .ai33-loading {
+    color: #999;
+}
+
+.ai33-btn-danger {
+    color: #c00;
+}
+.theme--dark .ai33-btn-danger, [data-mantine-color-scheme=dark] .ai33-btn-danger {
+    color: #ff6b6b;
+}
+
+.ai33-action-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.ai33-direct-tip {
+    margin: 8px 0 0;
+    color: #666;
+}
+.theme--dark .ai33-direct-tip, [data-mantine-color-scheme=dark] .ai33-direct-tip {
+    color: #aaa;
+}
+
+.ai33-balance-line {
+    margin: 8px 0 0;
+    color: #666;
+}
+.theme--dark .ai33-balance-line, [data-mantine-color-scheme=dark] .ai33-balance-line {
+    color: #aaa;
+}
+
+.ai33-note {
+    margin: 8px 0 0;
+    color: #888;
+    font-size: 0.9em;
+}
+.theme--dark .ai33-note, [data-mantine-color-scheme=dark] .ai33-note {
+    color: #999;
+}
+
+.ai33-result-box {
+    line-height: 1.7;
+    padding: 12px;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+.theme--dark .ai33-result-box, [data-mantine-color-scheme=dark] .ai33-result-box {
+    background: #1e1e1e;
+    border-color: #444;
+}
+
+.ai33-prompt-block {
+    background: #f8f8f8;
+    padding: 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow-x: auto;
+    max-height: 600px;
+    line-height: 1.5;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+.theme--dark .ai33-prompt-block, [data-mantine-color-scheme=dark] .ai33-prompt-block {
+    background: #1a1a2e;
+    border-color: #444;
+}
+
+#ai33-result-text h2 { font-size: 1.1em; margin: 8px 0 4px; }
+#ai33-result-text h3 { font-size: 1em; margin: 6px 0 4px; }
+#ai33-result-text ul, #ai33-result-text ol { padding-left: 20px; margin: 4px 0; }
+#ai33-result-text pre {
+    background: #f5f5f5;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+#ai33-result-text code {
+    background: #f0f0f0;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+#ai33-result-text pre code {
+    background: none;
+    padding: 0;
+}
+.theme--dark #ai33-result-text pre, [data-mantine-color-scheme=dark] #ai33-result-text pre {
+    background: #252525;
+}
+.theme--dark #ai33-result-text code, [data-mantine-color-scheme=dark] #ai33-result-text code {
+    background: #333;
+}
+</style>
+
+<script>
+window._ai33_rid = "{{ rid }}";
+window._ai33_csrf = "{{ handler.csrfToken }}";
+window._ai33_is_teacher = {{ isTeacher | default(false) | dump | safe }};
+window._ai33_direct_enabled = {{ directAnalysisEnabled | default(false) | dump | safe }};
+{% if existingAnalysis %}
+window._ai33_existing = {{ existingAnalysis | dump | safe }};
+{% endif %}
+</script>
+{% endblock %}
