@@ -33,6 +33,12 @@
               {% if result.legacyCatCanBatchCollectionDropped %}
               <tr><td>{{ _('Legacy cat-can batches deleted') }}：</td><td><strong>{{ result.legacyCatCanBatchesDeleted }}</strong></td></tr>
               {% endif %}
+              {% if result.legacyAi33CollectionsDropped %}
+              <tr><td>{{ _('Legacy ai33 collections dropped') }}：</td><td><strong>{{ result.legacyAi33CollectionsDropped }}</strong></td></tr>
+              {% endif %}
+              {% if result.meowCollectionsRenamed %}
+              <tr><td>{{ _('Stream collections renamed to meow') }}：</td><td><strong>{{ result.meowCollectionsRenamed }}</strong></td></tr>
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">

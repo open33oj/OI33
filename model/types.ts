@@ -269,7 +269,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow';
     sender?: number;
     receiver?: number;
     amount?: number;
@@ -285,6 +285,7 @@ export interface Oi33Log {
     title?: string;
     pasteId?: string;
     wikiId?: string;
+    postId?: string;
     action?: string;
     rejectReason?: string;
     requester?: number;
@@ -357,6 +358,52 @@ export interface Oi33ModerationTarget {
     did?: ObjectId;
     drid?: ObjectId;
     drrid?: ObjectId;
+}
+
+// --- 喵喵 (犇犇-style short blog) ---
+
+export type Oi33MeowStatus = 'pending' | 'approved' | 'rejected';
+
+// One short post. `status` is the single source of truth for visibility
+// (only 'approved' posts ever appear in feeds). Rules/AI verdict fields are
+// filled in by the background moderation pass (same engine as discussions).
+// A forward (转发) references another post via `ref` (its author cached in
+// `refUid`), forming a chain rendered as `内容 || @user : 内容 || ...`.
+export interface Oi33MeowPost {
+    _id: ObjectId;
+    uid: number;
+    content: string;
+    // Asia/Shanghai 'YYYY-MM-DD' of submission, for the admin "今日" stats.
+    dateKey: string;
+    status: Oi33MeowStatus;
+    likeCount: number;
+    verdict?: Oi33ModerationVerdict;
+    verdictSource?: Oi33ModerationSource;
+    category?: string;
+    aiReason?: string;
+    model?: string;
+    cost?: number;
+    createdAt: Date;
+    handledAt?: Date;
+    handler?: number;
+    // Forward chain: this post forwards `ref` (author cached as `refUid`).
+    ref?: ObjectId;
+    refUid?: number;
+}
+
+// One-way follow relationship (Twitter-style): `follower` follows `following`.
+export interface Oi33MeowFollow {
+    _id: ObjectId;
+    follower: number;
+    following: number;
+    createdAt: Date;
+}
+
+export interface Oi33MeowLike {
+    _id: ObjectId;
+    uid: number;
+    postId: ObjectId;
+    createdAt: Date;
 }
 
 export interface Oi33AiModeration {

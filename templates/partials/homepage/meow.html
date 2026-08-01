@@ -1,0 +1,19 @@
+{% import "components/meow_post.html" as spost with context %}
+<div class="section side">
+  <div class="section__header">
+    <h1 class="section__title">{{ _('Meow') }}</h1>
+  </div>
+  <div class="section__body">
+    {% if payload.posts.length %}
+      {% for p in payload.posts %}
+        {{ spost.render(p, payload.udict, payload.likedMap) }}
+      {% endfor %}
+    {% else %}
+      <p>暂无信息。</p>
+    {% endif %}
+    <p style="margin:1rem 0 0;">
+      <a href="{{ url('oi33_meow_main') }}" class="expanded rounded button">{{ _('View All') }}</a>
+    </p>
+  </div>
+</div>
+{% include 'partials/meow_style.html' %}

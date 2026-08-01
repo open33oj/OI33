@@ -1,0 +1,88 @@
+﻿{% set page_name = "oi33_meow_main" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% import "components/meow_post.html" as spost with context %}
+{% import "components/paginator.html" as paginator with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-8 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">喵喵时间线</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_meow_following') }}" class="rounded button">关注</a>
+          <a href="{{ url('oi33_meow_followers') }}" class="rounded button">粉丝</a>
+          {% if (handler.user.realname_flag or 0) >= 2 %}
+          <a href="{{ url('oi33_meow_admin') }}" class="rounded button">{{ _('Meow Review') }}</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="section__body">
+        {% if cooldownText %}
+          <div class="meow-compose meow-compose--used">
+            <p class="meow-compose__notice">发布冷却中，{{ cooldownText }}后可再次发布喵喵信息。</p>
+            {% if lastPost and lastPost.status != 'approved' %}
+              {{ spost.render(lastPost, selfDict, likedMap, true, false) }}
+            {% endif %}
+          </div>
+        {% else %}
+          <form method="post" action="{{ url('oi33_meow_post') }}" class="meow-compose">
+            {% if lastPostRejected %}<p class="meow-compose__notice">上一条喵喵信息未通过审核，已退还猫罐头，可以重新发布。</p>{% endif %}
+            {% if myCans < 1 %}<p class="meow-compose__notice">猫罐头不足，发布喵喵信息需要 1 个猫罐头。</p>{% endif %}
+            {% if forwardPid %}
+            <div class="meow-forward-target">转发 <b>@{{ forwardUname }}</b> 的信息<a href="{{ url('oi33_meow_main') }}" class="meow-action" style="margin-left:0.6rem;">（取消转发）</a></div>
+            {% endif %}
+            <textarea name="content" id="meow-content" class="textbox" maxlength="{{ 256 + (forwardChain.length if forwardPid else 0) }}" rows="3" placeholder="{{ _('Meow placeholder') }}">{{ forwardChain }}</textarea>
+            <div class="meow-compose__footer">
+              <span class="meow-count"><span id="meow-count-num">0</span>/<span id="meow-count-max">{{ 256 + (forwardChain.length if forwardPid else 0) }}</span></span>
+              <span class="meow-compose__cost">（花费 1 个猫罐头 · 当前 猫粮 {{ model.oi33.formatCatFood(myFood) }} / 猫罐头 {{ myCans }} 个）</span>
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <button type="submit" class="rounded primary button">{{ _('Post') }}</button>
+            </div>
+          </form>
+        {% endif %}
+
+        {% if posts.length %}
+          {% for p in posts %}
+            {{ spost.render(p, udict, likedMap) }}
+          {% endfor %}
+          {{ paginator.render(page, upcount) }}
+        {% else %}
+          <p class="meow-empty">{{ _('No meow posts yet.') }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="medium-4 columns">
+    <div class="section">
+      <div class="section__body">
+        <div style="margin-top:0.75rem;">{{ user.render_inline(handler.user) }}</div>
+        <p style="margin-top:0.75rem;">
+          <a href="{{ url('oi33_meow_following') }}">关注: {{ followingCount }}</a>
+          &nbsp;/&nbsp;
+          <a href="{{ url('oi33_meow_followers') }}">粉丝: {{ followerCount }}</a>
+        </p>
+        <p style="margin-top:0.5rem;">
+          <a href="{{ url('oi33_meow_user', uid=handler.user._id) }}">{{ _('My Meow Posts') }}</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% include 'partials/meow_style.html' %}
+<script>
+  (function () {
+    var ta = document.getElementById('meow-content');
+    var count = document.getElementById('meow-count-num');
+    var max = document.getElementById('meow-count-max');
+    if (!ta || !count || !max) return;
+    var update = function () {
+      var n = Array.from(ta.value).length;
+      count.textContent = n;
+      if (n > ta.maxLength) ta.value = Array.from(ta.value).slice(0, ta.maxLength).join('');
+    };
+    update();
+    ta.addEventListener('input', update);
+  })();
+</script>
+{% endblock %}

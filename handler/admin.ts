@@ -35,6 +35,7 @@ class Oi33AdminHandler extends Handler {
         this.response.template = 'oi33_admin.html';
         this.response.body = {
             activities, pendingCount, page, tpcount, udict, reqDict, logType: type,
+            meowPendingCount: await oi33Model.meowListPending().then((l) => l.length),
         };
     }
 }

@@ -12,7 +12,14 @@ export async function getRecentActivities(limit = 40) {
 }
 
 export async function getRecentActivitiesPaginated(page: number, pageSize = 30, type = '') {
-    const filter = type ? { type } : {};
+    const filter: any = type ? { type } : {};
+    // 喵喵 posts that are still pending review are not surfaced — only
+    // approved/rejected outcomes (plus follow/unfollow/approve/reject) appear.
+    filter.$or = [
+        { type: { $ne: 'meow' } },
+        { status: { $ne: 'pending' } },
+        { status: { $exists: false } },
+    ];
     const total = await logColl.countDocuments(filter as any);
     const tpcount = Math.ceil(total / pageSize);
     const activities = await logColl.find(filter as any)

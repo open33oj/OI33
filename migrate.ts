@@ -1,5 +1,11 @@
 import { db, ObjectId } from 'hydrooj';
 import { backfillAllCatFood, previewCatFoodBackfill } from './model/user';
+import { dropLegacyAi33Collections } from './model/ai';
+
+// hydrooj's `db` export is a Proxy over MongoService, which only exposes
+// `collection()` etc. — the raw mongodb Db (with listCollections / admin) is
+// reachable through any collection handle.
+const rawDb = db.collection('oi33_log').db as any;
 
 export async function previewMigration() {
     const [
@@ -43,6 +49,8 @@ export async function migrate() {
         oauthLogsDeleted: 0,
         legacyCatCanBatchesDeleted: 0,
         legacyCatCanBatchCollectionDropped: false,
+        legacyAi33CollectionsDropped: 0,
+        meowCollectionsRenamed: 0,
         catFoodUsers: 0,
         catFoodAmount: 0,
         errors: [] as string[],
@@ -239,6 +247,56 @@ export async function migrate() {
         }
     } catch (e: any) {
         result.errors.push(`Step 8 (drop legacy cat-can batches): ${e.message}`);
+    }
+
+    try {
+        // Step 9: Drop legacy ai33_* collections (superseded by oi33_ai_*).
+        // Deliberately NOT run at startup — admins opt in via /oi33/migrate.
+        const legacyNames = [
+            'ai33_analysis', 'ai33_config', 'ai33_problem_summary',
+            'ai33_provider', 'ai33_access', 'ai33_usage',
+        ];
+        const present = (await Promise.all(legacyNames.map(async (name) => {
+            try { return (await rawDb.listCollections({ name }).toArray()).length > 0; }
+            catch { return false; }
+        }))).filter(Boolean).length;
+        result.legacyAi33CollectionsDropped = present;
+        await dropLegacyAi33Collections();
+    } catch (e: any) {
+        result.errors.push(`Step 9 (drop legacy ai33 collections): ${e.message}`);
+    }
+
+    try {
+        // Step 10: Rename oi33_stream_* collections → oi33_meow_* (the 喵喵
+        // feature was renamed from "stream"). Safe to re-run: collections that
+        // are already gone or already renamed are skipped.
+        const renames = [
+            ['oi33_stream_post', 'oi33_meow_post'],
+            ['oi33_stream_follow', 'oi33_meow_follow'],
+            ['oi33_stream_like', 'oi33_meow_like'],
+        ];
+        for (const [from, to] of renames) {
+            const exists = (await rawDb.listCollections({ name: from }).toArray()).length > 0;
+            if (!exists) continue;
+            try {
+                await rawDb.admin().command({ renameCollection: `${rawDb.databaseName}.${from}`, to: `${rawDb.databaseName}.${to}` });
+                result.meowCollectionsRenamed++;
+            } catch (e: any) {
+                // Already renamed / target exists → skip silently.
+                if (e?.codeName === 'NamespaceNotFound') continue;
+                if (e?.codeName === 'NamespaceExists') continue;
+                throw e;
+            }
+        }
+        // Rewrite legacy log entries created under the old "stream" naming.
+        await db.collection('oi33_log').updateMany(
+            { type: 'stream' }, { $set: { type: 'meow' } },
+        );
+        await db.collection('oi33_log').updateMany(
+            { type: 'cat_account', action: 'stream_post' }, { $set: { action: 'meow_post' } },
+        );
+    } catch (e: any) {
+        result.errors.push(`Step 10 (rename stream → meow collections): ${e.message}`);
     }
 
     return result;

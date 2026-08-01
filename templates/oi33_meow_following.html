@@ -1,0 +1,41 @@
+{% set page_name = "oi33_meow_following" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-8 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">关注列表{% if not isSelfList %}（{{ _('Meow') }}）{% endif %}</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_meow_followers', query={uid: listOwner}) }}" class="rounded button">粉丝</a>
+          <a href="{{ url('oi33_meow_main') }}" class="rounded button">{{ _('Back to Meow') }}</a>
+        </div>
+      </div>
+      <div class="section__body">
+        {% if uids.length %}
+          {% for uid in uids %}
+          <div class="meow-list-row">
+            <div class="meow-list-row__inner">
+              <span>
+                {% if udict[uid] %}{{ user.render_inline(udict[uid]) }}{% else %}UID {{ uid }}{% endif %}
+                {% if mutualMap[uid] %}<span class="meow-mutual">{{ _('Mutual') }}</span>{% endif %}
+              </span>
+              {% if handler.user._id and uid != handler.user._id %}
+              <form method="post" action="{{ url('oi33_meow_unfollow' if buttonMap[uid] else 'oi33_meow_follow', uid=uid) }}">
+                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                <button type="submit" class="rounded button">{{ _('Unfollow') if buttonMap[uid] else _('Follow') }}</button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="meow-empty">{{ _('Not following anyone yet.') }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% include 'partials/meow_style.html' %}
+{% endblock %}

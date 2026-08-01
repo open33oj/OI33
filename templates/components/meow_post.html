@@ -1,0 +1,43 @@
+{% import "components/user.html" as user with context %}
+{% macro render(p, udict, likedMap, showStatus=false, showAuthor=true, readonly=false) %}
+<div class="meow-card" data-pid="{{ p.pid }}">
+  <div class="meow-card__head">
+    {% if showAuthor %}
+      {% if udict[p.uid] %}
+        {{ user.render_inline(udict[p.uid]) }}
+        <span class="meow-balance">{ {{- model.oi33.formatCatFood(udict[p.uid].cat_food or 0) -}}, {{ udict[p.uid].cat_can or 0 -}}🥫}</span>
+      {% else %}UID {{ p.uid }}{% endif %}
+    {% endif %}
+    <span class="meow-card__time">{{ datetimeSpan(p.createdAt)|safe }}</span>
+  </div>
+  <div class="meow-card__body">
+    {{ p.html | safe if p.html else p.content }}
+    {% if p.chain and p.chain.length > 1 %}
+    <span class="meow-forward"> || {% for item in p.chain %}{% if loop.index > 1 %}{% if loop.index > 2 %} || {% endif %}@{% if udict[item.uid] %}{{ udict[item.uid].uname }}{% else %}UID {{ item.uid }}{% endif %} : {{ item.content }}{% endif %}{% endfor %}</span>
+    {% endif %}
+  </div>
+  <div class="meow-card__foot">
+    {% if readonly %}
+      <span class="meow-readonly-counts">
+        <span class="meow-action">👍 赞 {{ p.likeCount }}</span>
+        <span class="meow-action">🔁 转发 {{ p.forwardCount or 0 }}</span>
+      </span>
+    {% else %}
+      <form method="post" action="{{ url('oi33_meow_like', postId=p.pid) }}" style="display:inline;">
+        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+        <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" class="meow-action {{ 'meow-like--on' if likedMap[p.pid] else '' }}">👍 赞 ({{ p.likeCount }})</a>
+      </form>
+      {% if handler.user._id %}
+      <a href="{{ url('oi33_meow_main', query={forward: p.pid}) }}" class="meow-action meow-forward-btn">🔁 转发</a>
+      {% endif %}
+    {% endif %}
+    {% if showStatus %}
+    <span class="meow-status meow-status--{{ p.status }}">
+      {% if p.status == 'approved' %}{{ _('Approved') }}
+      {% elif p.status == 'rejected' %}{{ _('Rejected') }}
+      {% else %}{{ _('Meow Pending') }}{% endif %}
+    </span>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}

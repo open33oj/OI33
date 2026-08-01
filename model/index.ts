@@ -68,6 +68,18 @@ import {
     ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
     modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
 } from './moderate';
+import {
+    ensureMeowIndexes, meowDateKey,
+    meowGetPost, meowLastPost, meowCooldownAnchorPost, meowCooldownRemaining, meowCooldownText, meowRefundCan,
+    meowPostAdd, meowFeed, meowUserPosts,
+    meowResolveVerdict, meowForwardCount, meowListPending, meowListRecent, meowTodayStats, meowSetStatus,
+    meowFollow, meowUnfollow, meowIsFollowing,
+    meowFollowingList, meowFollowerList, meowFollowingCount, meowFollowerCount,
+    meowFollowingMap, meowFollowedByMap,
+    meowToggleLike, meowLikedMap,
+    setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
+    MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
+} from './meow';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -89,6 +101,7 @@ export {
     aiProviderColl, aiAccessColl, aiUsageColl,
 } from './ai';
 export { moderationColl } from './moderate';
+export { meowPostColl, meowFollowColl, meowLikeColl } from './meow';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -133,6 +146,16 @@ const oi33Model = {
     aiGetConfig, aiSaveConfig,
     ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
     modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
+    ensureMeowIndexes, meowDateKey,
+    meowGetPost, meowLastPost, meowCooldownAnchorPost, meowCooldownRemaining, meowCooldownText, meowRefundCan,
+    meowPostAdd, meowFeed, meowUserPosts,
+    meowResolveVerdict, meowForwardCount, meowListPending, meowListRecent, meowTodayStats, meowSetStatus,
+    meowFollow, meowUnfollow, meowIsFollowing,
+    meowFollowingList, meowFollowerList, meowFollowingCount, meowFollowerCount,
+    meowFollowingMap, meowFollowedByMap,
+    meowToggleLike, meowLikedMap,
+    setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
+    MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -168,6 +191,9 @@ declare module 'hydrooj' {
         oi33_ai_access: import('./types').Oi33AiAccess;
         oi33_ai_usage: import('./types').Oi33AiUsage;
         oi33_ai_moderation: import('./types').Oi33AiModeration;
+        oi33_meow_post: import('./types').Oi33MeowPost;
+        oi33_meow_follow: import('./types').Oi33MeowFollow;
+        oi33_meow_like: import('./types').Oi33MeowLike;
     }
 }
 

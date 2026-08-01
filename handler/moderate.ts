@@ -44,7 +44,7 @@ const DEFAULT_MODERATION_PROMPT = [
 
 // --- Rule layer (deterministic, free) ---
 
-function normalizeText(text: string): string {
+export function normalizeText(text: string): string {
     return text
         .normalize('NFKC')
         // Zero-width and directional-override chars used to defeat keyword filters.
@@ -63,7 +63,7 @@ interface RuleHit {
 // human queue instead of being hard-blocked).
 const REVIEW_WORD_CATEGORY = '待审';
 
-function checkRules(normalized: string, words: string[], reviewWords: string[] = []): RuleHit | null {
+export function checkRules(normalized: string, words: string[], reviewWords: string[] = []): RuleHit | null {
     for (const w of words) {
         if (w && normalized.includes(w)) return { verdict: 'block', category: '违禁词', word: w };
     }
@@ -93,15 +93,15 @@ function blockError(category: string): ValidationError {
     return new ValidationError(`内容未通过社区规范审核（${category}），请修改后再发布。`);
 }
 
-function configWords(cfg: any): string[] {
+export function configWords(cfg: any): string[] {
     return (cfg.moderation_words || '').split('\n').map((w: string) => normalizeText(w.trim())).filter(Boolean);
 }
 
-function configReviewWords(cfg: any): string[] {
+export function configReviewWords(cfg: any): string[] {
     return (cfg.moderation_review_words || '').split('\n').map((w: string) => normalizeText(w.trim())).filter(Boolean);
 }
 
-function hashOf(normalized: string): string {
+export function hashOf(normalized: string): string {
     return crypto.createHash('sha256').update(normalized).digest('hex');
 }
 
@@ -213,7 +213,7 @@ interface AiVerdict {
     cost?: number;
 }
 
-async function runAiVerdict(uid: number, normalized: string, hash: string, cfg: any): Promise<AiVerdict> {
+export async function runAiVerdict(uid: number, normalized: string, hash: string, cfg: any): Promise<AiVerdict> {
     // Cache: identical normalized content reuses a recent final verdict.
     const cached = await oi33Model.modFindCachedVerdict(hash);
     if (cached) return { verdict: cached.verdict, source: 'cache', category: cached.category };

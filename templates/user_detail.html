@@ -1,6 +1,8 @@
 {% import "components/home.html" as home with context %}
 {% import "components/problem.html" as problem with context %}
 {% import "components/cat_food.html" as catFood with context %}
+{% import "components/user.html" as user with context %}
+{% import "components/meow_post.html" as spost with context %}
 {% extends "layout/basic.html" %}
 {%- macro atcolor(r) -%}{% if r >= 2800 %}#FF0000{% elif r >= 2400 %}#FF8000{% elif r >= 2000 %}#C0C000{% elif r >= 1600 %}#0000FF{% elif r >= 1200 %}#00C0C0{% elif r >= 800 %}#008000{% elif r >= 400 %}#804000{% else %}#808080{% endif %}{%- endmacro -%}
 {%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
@@ -75,16 +77,15 @@
               </p>
 
               {% if not _profileHidden %}
-              {% if udoc['coin_all'] > 0 %}
-              <p>
-                当前硬币数量: {{ udoc['coin_now'] }} （累计获取硬币数量：{{ udoc['coin_all'] }}）:
-                <a class="profile-header__contact-item" href="/oi33/coin/bill/{{ udoc['_id'] }}" target="_blank"
-                  data-tooltip="查看硬币明细">
-                  <span class="icon icon-search "></span>
-                </a>
+              {% if udoc.atcoder %}
+              <p style="margin-top:0.5rem;">
+                AtCoder: <a href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener">{{ udoc.atcoder }}</a>{% if udoc.atcoder_rating !== undefined and udoc.atcoder_rating !== null %} ({{ udoc.atcoder_rating }}){% endif %}
               </p>
-              {% else %}
-              <p> 暂未获得硬币 </p>
+              {% endif %}
+              {% if udoc.codeforces %}
+              <p>
+                CodeForces: <a href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener">{{ udoc.codeforces }}</a>{% if udoc.codeforces_rating !== undefined and udoc.codeforces_rating !== null %} ({{ udoc.codeforces_rating }}){% endif %}
+              </p>
               {% endif %}
 
               <hr />
@@ -171,56 +172,82 @@
       {% if not _profileHidden %}<div class="profile-content">
         <div class="section__tab-container immersive">
           <ul class="section__tabs">
+            {% set _udmods = findSubModule('partials/user_detail/') %}
+            {% if oi33MeowPanel %}
             <li class="section__tab-item">
-              <h1 class="section__tab-title">{{ _('Bio') }}</h1>
+              <h1 class="section__tab-title">喵喵</h1>
               <div class="section__tab-main">
                 <div class="typo section__body no-media">
-                  <dl class="large horizontal">
-                    <dt>{{ _('Flag') }}</dt>
-                    <dd>
-                      {% if udoc.realname_flag == 1 %}{{ _('Verified') }}
-                      {% elif udoc.realname_flag == 2 %}{{ _('Teacher') }}
-                      {% elif udoc.realname_flag == 3 %}{{ _('Admin') }}
-                      {% elif udoc.realname_flag == 0 %}{{ _('Unverified') }}
-                      {% else %}-{% endif %}
-                    </dd>
-                    {% if (handler.user.realname_flag or 0) >= 2 or isSelfProfile %}
-                    <dt>{{ _('Birthday') }}</dt>
-                    <dd>{{ udoc.birthday_date or _('Not Set') }}</dd>
+                  <div class="oi33-meow-panelbar">
+                    {% if not oi33MeowPanel.isSelf and handler.user._id %}
+                      {% if oi33MeowPanel.viewerFollows %}
+                      <form method="post" action="{{ url('oi33_meow_unfollow', uid=udoc._id) }}" style="display:inline;">
+                        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                        <button type="submit" class="rounded button">{{ _('Unfollow') }}</button>
+                      </form>
+                      {% else %}
+                      <form method="post" action="{{ url('oi33_meow_follow', uid=udoc._id) }}" style="display:inline;">
+                        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                        <button type="submit" class="rounded primary button">{{ _('Follow') }}</button>
+                      </form>
+                      {% endif %}
                     {% endif %}
-                    {% if (handler.user.realname_flag or 0) >= 2 %}
-                    <dt>{{ _('Realname Name') }}</dt>
-                    <dd>{{ udoc.realname_name or _('Not Set') }}</dd>
-                    {% endif %}
-                    <dt>{{ _('Badge') }}</dt>
-                    <dd>
-                      {% if udoc.badge %}
-                        {% set _badge = udoc.badge.split('#') %}
-                        <span class="user-profile-badge v-center" style="background-color:#{{ _badge[1] }}{% if _badge[2] %};color:#{{ _badge[2] }}{% endif %}">{{ _badge[0] }}</span>
-                      {% else %}{{ _('Not Set') }}{% endif %}
-                    </dd>
-                    <dt>AtCoder</dt>
-                    <dd>
-                      {% if udoc.atcoder %}
-                        <a href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener">{{ udoc.atcoder }}</a>
-                        {% if udoc.atcoder_rating !== undefined and udoc.atcoder_rating !== null %}
-                          <span style="color:{{ atcolor(udoc.atcoder_rating) }};font-weight:600;">({{ udoc.atcoder_rating }})</span>
-                        {% endif %}
-                      {% else %}{{ _('Not Set') }}{% endif %}
-                    </dd>
-                    <dt>Codeforces</dt>
-                    <dd>
-                      {% if udoc.codeforces %}
-                        <a href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener">{{ udoc.codeforces }}</a>
-                        {% if udoc.codeforces_rating !== undefined and udoc.codeforces_rating !== null %}
-                          <span style="color:{{ cfcolor(udoc.codeforces_rating) }};font-weight:600;">({{ udoc.codeforces_rating }})</span>
-                        {% endif %}
-                      {% else %}{{ _('Not Set') }}{% endif %}
-                    </dd>
-                  </dl>
+                    <a href="{{ url('oi33_meow_user', uid=udoc._id) }}" class="rounded button" style="margin-left:auto;">进入喵喵</a>
+                  </div>
+                  {% if oi33MeowPanel.posts.length %}
+                    {% for p in oi33MeowPanel.posts %}
+                      {{ spost.render(p, oi33MeowPanel.udict, oi33MeowPanel.likedMap, oi33MeowPanel.isSelf, false, true) }}
+                    {% endfor %}
+                  {% elif oi33MeowPanel.isSelf %}
+                    <p>{{ _('No meow posts yet.') }}</p>
+                  {% else %}
+                    <p>{{ _('Meow posts hidden') }}</p>
+                  {% endif %}
                 </div>
               </div>
             </li>
+            <li class="section__tab-item">
+              <h1 class="section__tab-title">关注（{{ oi33MeowPanel.followingCount }}）</h1>
+              <div class="section__tab-main">
+                <div class="typo section__body no-media">
+                  {% if oi33MeowPanel.followingUids.length %}
+                  <div class="oi33-meow-panellist">
+                    {% for uid in oi33MeowPanel.followingUids %}
+                    <div class="oi33-meow-panellist__row">
+                      {% if oi33MeowPanel.followingDict[uid] %}{{ user.render_inline(oi33MeowPanel.followingDict[uid]) }}{% else %}UID {{ uid }}{% endif %}
+                      {% if oi33MeowPanel.mutualFollowing[uid] %}<span class="meow-mutual">{{ _('Mutual') }}</span>{% endif %}
+                    </div>
+                    {% endfor %}
+                  </div>
+                  <p><a href="{{ url('oi33_meow_following', query={uid: udoc._id}) }}">{{ _('View All') }}</a></p>
+                  {% else %}
+                  <p>{{ _('Not following anyone yet.') }}</p>
+                  {% endif %}
+                </div>
+              </div>
+            </li>
+            <li class="section__tab-item">
+              <h1 class="section__tab-title">粉丝（{{ oi33MeowPanel.followerCount }}）</h1>
+              <div class="section__tab-main">
+                <div class="typo section__body no-media">
+                  {% if oi33MeowPanel.followerUids.length %}
+                  <div class="oi33-meow-panellist">
+                    {% for uid in oi33MeowPanel.followerUids %}
+                    <div class="oi33-meow-panellist__row">
+                      {% if oi33MeowPanel.followerDict[uid] %}{{ user.render_inline(oi33MeowPanel.followerDict[uid]) }}{% else %}UID {{ uid }}{% endif %}
+                      {% if oi33MeowPanel.mutualFollowers[uid] %}<span class="meow-mutual">{{ _('Mutual') }}</span>{% endif %}
+                    </div>
+                    {% endfor %}
+                  </div>
+                  <p><a href="{{ url('oi33_meow_followers', query={uid: udoc._id}) }}">{{ _('View All') }}</a></p>
+                  {% else %}
+                  <p>{{ _('No followers yet.') }}</p>
+                  {% endif %}
+                </div>
+              </div>
+            </li>
+            {% endif %}
+            {% for page in _udmods %}{% if 'activity.html' in page %}{% include page %}{% endif %}{% endfor %}
             {% if pdocs.length %}
             <li class="section__tab-item">
               <h1 class="section__tab-title">{{ _('Accepted Problems') }}</h1>
@@ -246,7 +273,7 @@
               </div>
             </li>
             {% endif %}
-            {% for page in findSubModule('partials/user_detail/') %}{% include page %}{% endfor %}
+            {% for page in _udmods %}{% if 'solution.html' in page %}{% include page %}{% endif %}{% endfor %}
           </ul>
         </div>
       </div>{% endif %}
@@ -345,4 +372,11 @@
     {% endif %}
   </div>
 </div>
+{% include 'partials/meow_style.html' %}
+<style>
+  .oi33-meow-panelbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+  .oi33-meow-panelbar form { margin: 0; }
+  .oi33-meow-paneltitle { margin: 1.25rem 0 0.5rem !important; font-size: 1.05em; }
+  .oi33-meow-panellist__row { padding: 0.3rem 0; }
+</style>
 {% endblock %}

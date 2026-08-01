@@ -14,13 +14,14 @@ import { apply as applyCatAccount } from './handler/cat-account';
 import { apply as applySchoolCat } from './handler/school-cat';
 import { apply as applyAi } from './handler/ai';
 import { apply as applyModerate } from './handler/moderate';
+import { apply as applyMeow } from './handler/meow';
 import { backfillAllCatFood } from './model/user';
-import { dropLegacyAi33Collections } from './model/ai';
 import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
 import { ensureCatAccountIndexes } from './model/cat-account';
 import { ensureCatMapIndexes } from './model/cat-map';
 import { ensureSchoolCatIndexes } from './model/school-cat';
+import { ensureMeowIndexes } from './model/meow';
 
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
@@ -51,6 +52,7 @@ export async function apply(ctx: Context) {
     await applySchoolCat(ctx);
     await applyAi(ctx);
     await applyModerate(ctx);
+    await applyMeow(ctx);
     if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0') {
         ctx.on('app/started', async () => {
             try {
@@ -62,16 +64,12 @@ export async function apply(ctx: Context) {
                 console.error('[oi33] cat food backfill failed:', e);
             }
             try {
-                await dropLegacyAi33Collections();
-            } catch (e) {
-                console.error('[oi33] legacy ai33 cleanup failed:', e);
-            }
-            try {
                 await ensureCatCanIndexes();
                 await ensureCatAccountIndexes();
                 await ensureCatMapIndexes();
                 await ensureSchoolCatIndexes();
                 await ensureModerationIndexes();
+                await ensureMeowIndexes();
                 await maintainCatCanMarket();
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {
