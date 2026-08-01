@@ -442,9 +442,10 @@ class MeowAdminHandler extends Handler {
 
 // --- Homepage module ---
 
-// Adds a 喵喵 section to the Hydro homepage showing the latest timeline 信息.
-// Works without touching the admin-configured homepage YAML: the module is
-// appended as its own row (unless already configured by the admin as `meow`).
+// The 喵喵 homepage module renders only when manually configured in the
+// `hydrooj.homepage` YAML (`meow: <limit>`). `getMeow` is registered on the
+// HomeHandler so Hydro's config-driven module loader calls it; nothing is
+// auto-injected into the homepage.
 function registerHomeMeowModule(ctx: Context) {
     HomeHandler.prototype.getMeow = async function (domainId: string, limit: any) {
         const n = Math.max(1, Math.min(50, Number(limit) || HOME_FEED_LIMIT));
@@ -452,27 +453,6 @@ function registerHomeMeowModule(ctx: Context) {
         const rawPosts = await oi33Model.meowHomeFeed(viewerUid, n);
         const { posts, udict, likedMap } = await prepareMeowPosts(domainId, rawPosts, viewerUid);
         return { posts, udict, likedMap, total: rawPosts.length };
-    };
-    const origHomeGet = HomeHandler.prototype.get;
-    HomeHandler.prototype.get = async function (args: any) {
-        const result = await origHomeGet.call(this, args);
-        try {
-            const body = this.response?.body;
-            if (body?.contents) {
-                const already = body.contents.some(
-                    (col: any) => (col.sections || []).some((s: any) => s[0] === 'meow'),
-                );
-                if (!already) {
-                    const payload = await this.getMeow(args.domainId, HOME_FEED_LIMIT);
-                    // Append as its own row so it is always clearly visible at
-                    // the bottom of the homepage.
-                    body.contents.push({ width: 9, sections: [['meow', payload]] });
-                }
-            }
-        } catch (e) {
-            console.error('[oi33] homepage meow module failed:', e);
-        }
-        return result;
     };
 }
 
