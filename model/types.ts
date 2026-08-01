@@ -324,6 +324,12 @@ export interface Oi33AiConfig {
     student_model: string;
     teacher_model: string;
     summary_model: string;
+    // Optional system-prompt overrides; empty/missing → built-in defaults.
+    student_prompt?: string;
+    teacher_prompt?: string;
+    summary_prompt?: string;
+    // DeepSeek thinking-mode effort for analyses: low / high / max.
+    analysis_effort?: string;
 }
 
 export interface Oi33AiProblemSummary {

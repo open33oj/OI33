@@ -33,6 +33,33 @@
           <datalist id="ai33-model-list">
             {% for name in allModels %}<option value="{{ name }}">{% endfor %}
           </datalist>
+          <div class="row">
+            <div class="columns">
+              <div class="form__item">
+                <label>{{ _('Reasoning Effort') }}</label>
+                <input type="text" name="analysis_effort" class="textbox" value="{{ config.analysis_effort or '' }}" list="ai33-effort-list" placeholder="high">
+                <datalist id="ai33-effort-list">
+                  <option value="low">
+                  <option value="high">
+                  <option value="max">
+                </datalist>
+                <p class="ai33-desc" style="margin-top:0.3rem;">{{ _('ai_effort_help') }}</p>
+              </div>
+            </div>
+          </div>
+
+          <h3 style="margin:1.5rem 0 0.5rem;">{{ _('System Prompts') }}</h3>
+          <p class="ai33-desc">{{ _('ai_prompts_help') }}</p>
+          {% for key, defKey, label in [['student_prompt', 'student', _('Student Prompt')], ['teacher_prompt', 'teacher', _('Teacher Prompt')], ['summary_prompt', 'summary', _('Summary Prompt')]] %}
+          <div class="row">
+            <div class="columns">
+              <div class="form__item">
+                <label>{{ label }}</label>
+                <textarea name="{{ key }}" class="textbox ai33-prompt" rows="10">{{ config[key] or defaultPrompts[defKey] }}</textarea>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
           <div class="row"><div class="columns">
             <button type="submit" class="rounded primary button">{{ _('Save Config') }}</button>
           </div></div>
@@ -149,6 +176,7 @@
 <style>
 .ai33-desc { color: #666; margin-bottom: 1rem; }
 .theme--dark .ai33-desc, [data-mantine-color-scheme=dark] .ai33-desc { color: #aaa; }
+.ai33-prompt { width: 100%; font-family: monospace; font-size: 0.85em; white-space: pre; }
 .ai33-subtitle { font-size: 0.7em; color: #888; font-weight: normal; margin-left: 0.5rem; }
 .theme--dark .ai33-subtitle, [data-mantine-color-scheme=dark] .ai33-subtitle { color: #999; }
 .ai33-btn-danger { color: #c00; }

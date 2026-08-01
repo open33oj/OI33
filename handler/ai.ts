@@ -35,6 +35,7 @@ const DEFAULT_STUDENT_SYSTEM_PROMPT = [
     '2. 只引导不给答案：用提问和提示代替直接陈述，禁止给出完整代码或题解。',
     '3. 结合测试点汇总说明问题（如大量 TLE 说明复杂度过高）。',
     '4. 语气鼓励，控制在 300 字以内。',
+    '5. 全程使用中文，包括内部推理（reasoning）过程；思考简明扼要、直击关键，禁止长篇推理。',
 ].join('\n');
 
 const DEFAULT_TEACHER_SYSTEM_PROMPT = [
@@ -45,6 +46,7 @@ const DEFAULT_TEACHER_SYSTEM_PROMPT = [
     '2. 再定位：具体行号、变量、错误原因，结合测试点汇总佐证。',
     '3. 给出修改方向，但不要重写完整代码。',
     '4. 控制在 500 字以内。',
+    '5. 全程使用中文，包括内部推理（reasoning）过程；思考简明扼要、直击关键，禁止长篇推理。',
 ].join('\n');
 
 const SUMMARY_SYSTEM_PROMPT = [
@@ -153,7 +155,7 @@ function formatMoney(v: number): string {
 
 async function callChatCompletion(config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 1024) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
+    const timer = setTimeout(() => controller.abort(), 120000);
     try {
         const resp = await fetch(`${config.baseUrl}/v1/chat/completions`, {
             method: 'POST',
@@ -168,7 +170,6 @@ async function callChatCompletion(config: ChatConfig, systemPrompt: string, user
                     { role: 'user', content: userPrompt },
                 ],
                 max_tokens: maxTokens,
-                temperature: 0.3,
             }),
             signal: controller.signal,
         });
@@ -194,9 +195,10 @@ async function generateProblemSummary(
 ): Promise<string> {
     const config = await resolveChatConfig(modelName);
     if (!config.apiKey) return '';
+    const systemPrompt = (await oi33Model.aiGetConfig()).summary_prompt || SUMMARY_SYSTEM_PROMPT;
     // Generous budget: reasoning-style models burn completion tokens on
     // thinking, and LaTeX-heavy summaries are token-dense.
-    const { content, usage, finishReason } = await callChatCompletion(config, SUMMARY_SYSTEM_PROMPT, fullText, 4096);
+    const { content, usage, finishReason } = await callChatCompletion(config, systemPrompt, fullText, 8192);
     if (!content) return '';
     // Never cache a truncated summary.
     if (finishReason === 'length') return '';
@@ -217,10 +219,15 @@ async function generateProblemSummary(
     return content;
 }
 
-function buildPrompts(rdoc: any, brief: string, isTeacher: boolean, langDisplay: string) {
+function buildPrompts(
+    rdoc: any, brief: string, isTeacher: boolean, langDisplay: string,
+    overrides?: { student_prompt?: string; teacher_prompt?: string },
+) {
     const statusName = STATUS_NAMES[rdoc.status] || `Status ${rdoc.status}`;
     const resultsText = formatTestResults(rdoc.testCases || [], rdoc.status, rdoc.score);
-    const systemPrompt = isTeacher ? DEFAULT_TEACHER_SYSTEM_PROMPT : DEFAULT_STUDENT_SYSTEM_PROMPT;
+    const systemPrompt = (isTeacher
+        ? overrides?.teacher_prompt || DEFAULT_TEACHER_SYSTEM_PROMPT
+        : overrides?.student_prompt || DEFAULT_STUDENT_SYSTEM_PROMPT);
     const userPrompt = [
         '## 题意',
         brief,
@@ -358,7 +365,15 @@ class Ai33ModelsHandler extends Handler {
             oi33Model.aiGetConfig(),
         ]);
         this.response.template = 'oi33_ai_models.html';
-        this.response.body = { providers, config };
+        this.response.body = {
+            providers,
+            config,
+            defaultPrompts: {
+                student: DEFAULT_STUDENT_SYSTEM_PROMPT,
+                teacher: DEFAULT_TEACHER_SYSTEM_PROMPT,
+                summary: SUMMARY_SYSTEM_PROMPT,
+            },
+        };
     }
 
     @param('action', Types.String)
@@ -372,11 +387,17 @@ class Ai33ModelsHandler extends Handler {
     @param('student_model', Types.String, true)
     @param('teacher_model', Types.String, true)
     @param('summary_model', Types.String, true)
+    @param('student_prompt', Types.String, true)
+    @param('teacher_prompt', Types.String, true)
+    @param('summary_prompt', Types.String, true)
+    @param('analysis_effort', Types.String, true)
     async post(
         _domainId: string, action: string,
         provider?: string, base_url?: string, api_key?: string,
         model?: string, input = 0, input_cached = 0, output = 0,
         student_model?: string, teacher_model?: string, summary_model?: string,
+        student_prompt?: string, teacher_prompt?: string, summary_prompt?: string,
+        analysis_effort?: string,
     ) {
         await checkOi33Admin(this.user._id);
         if (action === 'save_provider' && provider) {
@@ -397,6 +418,15 @@ class Ai33ModelsHandler extends Handler {
                 student_model: student_model || 'deepseek-v4-flash',
                 teacher_model: teacher_model || 'deepseek-v4-pro',
                 summary_model: summary_model || 'deepseek-v4-flash',
+                // Empty prompt = fall back to the built-in default.
+                student_prompt: (student_prompt || '').trim(),
+                teacher_prompt: (teacher_prompt || '').trim(),
+                summary_prompt: (summary_prompt || '').trim(),
+                // Only the values DeepSeek's thinking mode accepts;
+                // empty = provider default (high), param omitted from requests.
+                analysis_effort: ['low', 'high', 'max'].includes(analysis_effort || '')
+                    ? analysis_effort
+                    : '',
             });
         }
         this.response.redirect = this.url('oi33_ai_models');
@@ -468,10 +498,11 @@ class Ai33AnalyzePageHandler extends Handler {
             return;
         }
 
-        const [pdoc, existingAnalysis, summary] = await Promise.all([
+        const [pdoc, existingAnalysis, summary, aiCfg] = await Promise.all([
             global.Hydro.model.problem.get(rdoc.domainId, rdoc.pid).catch(() => null),
             oi33Model.aiGetAnalysis(rid),
             oi33Model.aiGetProblemSummary(rdoc.domainId, rdoc.pid),
+            oi33Model.aiGetConfig(),
         ]);
 
         const langConfig = (global.Hydro as any).model?.setting?.langs?.[rdoc.lang]
@@ -480,7 +511,7 @@ class Ai33AnalyzePageHandler extends Handler {
 
         const brief = summary?.content
             || (pdoc ? [`# ${pdoc.title || ''}`, '', optimizeProblemContent(pdoc.content || '')].join('\n') : '(题目信息无法获取)');
-        const { systemPrompt, userPrompt } = buildPrompts(rdoc, brief, access.isTeacher, languageName);
+        const { systemPrompt, userPrompt } = buildPrompts(rdoc, brief, access.isTeacher, languageName, aiCfg);
         const aiPrompt = `【System Prompt】\n${systemPrompt}\n\n【User Prompt】\n${userPrompt}`;
 
         this.response.template = 'oi33_ai_analyze.html';
@@ -700,13 +731,15 @@ class Ai33AnalyzeStreamHandler extends ConnectionHandler {
         }
         if (!brief) brief = '(题目信息无法获取)';
 
-        const { resultsText, systemPrompt, userPrompt } = buildPrompts(rdoc, brief, access.isTeacher, rdoc.lang || '未知');
+        const { resultsText, systemPrompt, userPrompt } = buildPrompts(rdoc, brief, access.isTeacher, rdoc.lang || '未知', cfg);
 
         const acquired = await acquireAnalysisSlot(this);
         if (!acquired) return; // disconnected while queued
 
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 90000);
+        // Generous window: reasoning models may think for minutes on hard
+        // problems before the first content token arrives.
+        const timer = setTimeout(() => controller.abort(), 180000);
         let fullText = '';
         let usage: any = null;
 
@@ -729,10 +762,13 @@ class Ai33AnalyzeStreamHandler extends ConnectionHandler {
                     stream: true,
                     // DeepSeek only reports token usage on streams when asked.
                     stream_options: { include_usage: true },
+                    // DeepSeek thinking mode defaults to effort=high; admins
+                    // can lower it via /oi33/ai/models. Omitted unless set.
+                    ...(cfg.analysis_effort ? { reasoning_effort: cfg.analysis_effort } : {}),
                     // Reasoning-style models burn completion tokens on
-                    // thinking; keep the cap well above the ~500-char answer.
-                    max_tokens: 8192,
-                    temperature: 0.7,
+                    // thinking; keep the cap well above the ~500-char answer
+                    // so long reasoning on hard problems isn't truncated.
+                    max_tokens: 16384,
                 }),
                 signal: controller.signal,
             });
