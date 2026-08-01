@@ -32,6 +32,7 @@
 | MCP / Agent API 令牌 | 供外部 MCP 工具或 AI Agent 调用的只读 Bearer Token，可限定域和过期时间 | `/oi33/tokens` |
 | OAuth2 登录 | 33OJ 作为 OAuth2 身份提供方，让其他网站实现「使用 33OJ 登录」 | `/oi33/oauth/*` |
 | 评测机监控 | 每 5 分钟检查心跳，离线/恢复时通过企业微信 Webhook 推送通知 | `/oi33/judge-monitor` |
+| AI 代码分析 | DeepSeek 思考模型流式点评提交代码，学生引导/教师诊断双 prompt，精简题意缓存，按 token 计费 | `/oi33/ai/*` |
 | 权限速查表 | 按角色列出各功能权限矩阵 | `/oi33/permissions` |
 
 ## 数据库
@@ -58,6 +59,12 @@
 | `oi33_cat_food_batch_preview` | 行政管理员批量发放猫粮的 30 分钟预览（确认一次后失效） |
 | `oi33_cat_map_player` | 已认证用户的小猫坐标、移动冷却、免冷却染色额度和并发移动锁 |
 | `oi33_cat_map_cell` | 公共地图中已设置的持久化 8-bit 格子颜色 |
+| `oi33_ai_access` | AI 分析白名单：发放额度、是否不限（教师不受限） |
+| `oi33_ai_analysis` | 已保存的 AI 分析结果（按提交 rid 一份，学生侧锁定） |
+| `oi33_ai_config` | AI 全局配置：各角色默认模型、prompt 覆盖、思考强度 |
+| `oi33_ai_problem_summary` | 题目精简题意缓存（首次分析时后台生成） |
+| `oi33_ai_provider` | AI 提供商（Base URL、API Key）及各模型 token 单价 |
+| `oi33_ai_usage` | AI 用量流水（分析与精简题意，含 token 数、缓存命中、费用） |
 
 ## 权限配置
 
@@ -104,6 +111,14 @@
 | `/oi33/wiki/categories` | OI33 身份 ≥ 2 | 管理 Wiki 分类 |
 | `/oi33/wiki/:id/delete` | OI33 身份 ≥ 2 | 删除 Wiki 页面 |
 | `/oi33/judge-monitor` | OI33 身份 ≥ 2 | 评测机监控面板 |
+| `/oi33/ai/analyze/:rid` | `PRIV_USER_PROFILE` + 已开通额度（教师不限） | AI 分析页面（仅本人提交；教师可分析任何人，含比赛提交） |
+| `/oi33/ai/analyze-stream/:rid` | 同上 | AI 流式分析（WebSocket，最多 3 并发，超出排队） |
+| `/oi33/ai/can-analyze`、`/oi33/ai/balance`、`/oi33/ai/analysis/:rid` | `PRIV_USER_PROFILE` | 查询分析权限、余额与已保存分析 |
+| `/oi33/ai/analysis/:rid/delete` | OI33 身份 ≥ 2 | 清除已保存分析（解锁学生重新分析） |
+| `/oi33/ai/admin` | OI33 身份 ≥ 2 | AI 用量与费用统计 |
+| `/oi33/ai/access` | OI33 身份 ≥ 2 | AI 白名单与额度管理 |
+| `/oi33/ai/models` | OI33 身份 ≥ 2 | Provider / 模型价格 / 默认模型 / prompt / 思考强度配置 |
+| `/oi33/ai/summary` | OI33 身份 ≥ 2 | 精简题意查看与重新生成 |
 | `/oi33/permissions` | OI33 身份 ≥ 2 | 权限速查表 |
 | `/oi33/coin/inc` | OI33 身份 ≥ 2 | 发放硬币 |
 | `/oi33/badge/manage` | OI33 身份 ≥ 2 | 管理徽章 |
@@ -421,6 +436,44 @@ hydrooj addon remove frontend-33oj
   ]
 }
 ```
+
+## AI 代码分析
+
+在提交记录页面对单份代码调用 DeepSeek 思考模型进行流式点评。学生看到引导式分析（只提问和提示，不给完整答案），教师（OI33 身份 ≥ 2）看到诊断式分析（结论 + 定位 + 修改方向），两套 prompt 均要求模型全程使用中文且思考简明扼要。
+
+### 使用规则
+
+- 学生只能分析自己的提交，且需在 `/oi33/ai/access` 白名单内并有余额；教师不受限、不计费（仍记录用量），可分析任何人的提交。
+- 比赛/作业提交仅教师可分析（比赛结束后学生也不可）。
+- 分析完成后结果对学生锁定；教师在分析页清除结果后，学生才能重新分析。
+- 全站最多 3 个并发分析，超出的连接排队并实时显示队列位置。
+
+### 精简题意缓存
+
+- 某题首次分析时，后台自动生成「精简题意」（压缩题面，保留定义/格式/数据范围/特判）并缓存到 `oi33_ai_problem_summary`，后续分析直接复用以降低成本。
+- 缓存未就绪时不阻塞分析：本次先用完整题面，缓存生成供下次使用。
+- 管理员可在 `/oi33/ai/summary` 查看任意题的精简题意，或用 `deepseek-v4-pro` 手动重新生成；生成费用计入全局统计，不扣用户余额。
+
+### 计费
+
+- 按各模型在 `/oi33/ai/models` 配置的 token 单价（区分缓存命中/未命中的输入价与输出价）× 实际用量扣费。
+- 学生在白名单内的「发放额度 − 已用」即余额；余额不足无法发起分析。教师与勾选「不限」的账户不扣费。
+- 每次分析与精简题意生成都记录到 `oi33_ai_usage`，`/oi33/ai/admin` 汇总展示 token 用量与费用。
+
+### 模型与 prompt 配置（`/oi33/ai/models`）
+
+| 配置项 | 说明 |
+|--------|------|
+| Provider | Base URL + API Key（API Key 留空表示不修改）；未配置时回退到环境变量 `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` |
+| 模型价格 | 每个模型的输入（缓存未命中/命中）与输出单价（元 / 1M token） |
+| 默认模型 | 学生、教师、精简题意三个角色各自的模型（默认 `deepseek-v4-flash` / `deepseek-v4-pro` / `deepseek-v4-flash`） |
+| 思考强度 | DeepSeek 思考模式的 `reasoning_effort`：留空用官方默认 high，可填 low（更快、省 token）或 max；仅对代码分析生效 |
+| System Prompts | 学生、教师、精简题意三个 prompt 的查看与修改；清空保存即恢复内置默认 |
+
+### 请求预算
+
+- 流式分析：`max_tokens 16384`，超时 180 秒（思考模型会把 completion 额度消耗在思维链上，避免难题思考被截断）。
+- 精简题意：`max_tokens 8192`，超时 120 秒；被长度截断的结果不会写入缓存。
 
 ## 身份标签（`realname_flag`）
 
