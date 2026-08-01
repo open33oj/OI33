@@ -64,6 +64,10 @@ import {
     aiAddUsage, aiGetUsageStats, aiGetUsedMap,
     aiGetConfig, aiSaveConfig,
 } from './ai';
+import {
+    ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
+    modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
+} from './moderate';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -84,6 +88,7 @@ export {
     aiAnalysisColl, aiConfigColl, aiProblemSummaryColl,
     aiProviderColl, aiAccessColl, aiUsageColl,
 } from './ai';
+export { moderationColl } from './moderate';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -126,6 +131,8 @@ const oi33Model = {
     aiUpsertProviderModel, aiDeleteProviderModel, aiResolveModel,
     aiAddUsage, aiGetUsageStats, aiGetUsedMap,
     aiGetConfig, aiSaveConfig,
+    ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
+    modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -160,6 +167,7 @@ declare module 'hydrooj' {
         oi33_ai_provider: import('./types').Oi33AiProvider;
         oi33_ai_access: import('./types').Oi33AiAccess;
         oi33_ai_usage: import('./types').Oi33AiUsage;
+        oi33_ai_moderation: import('./types').Oi33AiModeration;
     }
 }
 

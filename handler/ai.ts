@@ -129,7 +129,7 @@ interface ChatConfig {
 
 // Resolve a model name against the provider list; fall back to env/legacy
 // defaults (no pricing → cost recorded as 0) so a bare env-key setup still works.
-async function resolveChatConfig(modelName: string): Promise<ChatConfig> {
+export async function resolveChatConfig(modelName: string): Promise<ChatConfig> {
     const resolved = await oi33Model.aiResolveModel(modelName);
     if (resolved) return { ...resolved, model: modelName };
     return {
@@ -141,7 +141,7 @@ async function resolveChatConfig(modelName: string): Promise<ChatConfig> {
     };
 }
 
-function calcCost(usage: any, price: Oi33AiProviderModel | null): number {
+export function calcCost(usage: any, price: Oi33AiProviderModel | null): number {
     if (!usage || !price) return 0;
     const hit = usage.prompt_cache_hit_tokens || 0;
     const miss = usage.prompt_cache_miss_tokens ?? Math.max(0, (usage.prompt_tokens || 0) - hit);
@@ -153,7 +153,9 @@ function formatMoney(v: number): string {
     return `¥${v.toFixed(4)}`;
 }
 
-async function callChatCompletion(config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 1024) {
+export async function callChatCompletion(
+    config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 1024, json = false,
+) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120000);
     try {
@@ -170,6 +172,7 @@ async function callChatCompletion(config: ChatConfig, systemPrompt: string, user
                     { role: 'user', content: userPrompt },
                 ],
                 max_tokens: maxTokens,
+                ...(json ? { response_format: { type: 'json_object' } } : {}),
             }),
             signal: controller.signal,
         });

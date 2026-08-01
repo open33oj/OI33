@@ -33,6 +33,7 @@
 | OAuth2 登录 | 33OJ 作为 OAuth2 身份提供方，让其他网站实现「使用 33OJ 登录」 | `/oi33/oauth/*` |
 | 评测机监控 | 每 5 分钟检查心跳，离线/恢复时通过企业微信 Webhook 推送通知 | `/oi33/judge-monitor` |
 | AI 代码分析 | DeepSeek 思考模型流式点评提交代码，学生引导/教师诊断双 prompt，精简题意缓存，按 token 计费 | `/oi33/ai/*` |
+| AI 讨论审核 | 讨论区仅实名用户可用；规则层 + AI 双层审核（结构化裁决、fail-closed），存疑进人工队列 | `/oi33/ai/moderation` |
 | 权限速查表 | 按角色列出各功能权限矩阵 | `/oi33/permissions` |
 
 ## 数据库
@@ -65,6 +66,7 @@
 | `oi33_ai_problem_summary` | 题目精简题意缓存（首次分析时后台生成） |
 | `oi33_ai_provider` | AI 提供商（Base URL、API Key）及各模型 token 单价 |
 | `oi33_ai_usage` | AI 用量流水（分析与精简题意，含 token 数、缓存命中、费用） |
+| `oi33_ai_moderation` | 讨论审核记录：内容 hash、裁决、来源、待人工队列（含回放所需的原始参数） |
 
 ## 权限配置
 
@@ -119,6 +121,7 @@
 | `/oi33/ai/access` | OI33 身份 ≥ 2 | AI 白名单与额度管理 |
 | `/oi33/ai/models` | OI33 身份 ≥ 2 | Provider / 模型价格 / 默认模型 / prompt / 思考强度配置 |
 | `/oi33/ai/summary` | OI33 身份 ≥ 2 | 精简题意查看与重新生成 |
+| `/oi33/ai/moderation` | OI33 身份 ≥ 2 | 讨论审核队列（人工通过/拒绝）与审核设置（模型、prompt、违禁词、预算、限流） |
 | `/oi33/permissions` | OI33 身份 ≥ 2 | 权限速查表 |
 | `/oi33/coin/inc` | OI33 身份 ≥ 2 | 发放硬币 |
 | `/oi33/badge/manage` | OI33 身份 ≥ 2 | 管理徽章 |
@@ -474,6 +477,35 @@ hydrooj addon remove frontend-33oj
 
 - 流式分析：`max_tokens 16384`，超时 180 秒（思考模型会把 completion 额度消耗在思维链上，避免难题思考被截断）。
 - 精简题意：`max_tokens 8192`，超时 120 秒；被长度截断的结果不会写入缓存。
+
+## AI 讨论审核
+
+讨论区重新开放后仅对 **实名认证用户（`realname_flag ≥ 1`）** 可写；学生的主题、回复、评论及其编辑在写入数据库前先过两层审核，教师及以上免审。
+
+### 审核管线
+
+1. **实名门禁**：未认证用户直接被拒（即使拥有 Hydro 的讨论权限）。
+2. **内容归一化**：NFKC + 去零宽/方向控制字符 + 小写化，防变形绕过；对归一化内容做 sha256，30 天内相同内容直接复用最终裁决（缓存命中不再调 AI）。
+3. **限流**：单用户每日送审次数上限（默认 50，可配置），超限直接拒绝。
+4. **规则层（免费）**：违禁词表（管理员可维护）与手机号、QQ/微信引流正则命中即拦截；外链不拦截但会标记。
+5. **预算熔断**：当日审核 AI 花费超过预算（可配置，0 为不限）后，全部转人工审核。
+6. **AI 层**：`response_format: json_object` 强制结构化输出 `{verdict, category, reason}`；**AI 只有"投票权"没有"执行权"**，发布动作始终在服务端代码中。超时、报错、JSON 解析失败、verdict 非法一律 fail-closed 转人工。规则层标记（如外链）但 AI 判通过的分歧情况也转人工。
+
+### 裁决结果
+
+- **通过**：正常发布。
+- **拦截**：用户只看到固定类别提示（如「内容未通过社区规范审核（广告引流）」），不展示 AI 原文理由——既防提示注入探测，也防 AI 输出被污染后渲染给用户。
+- **存疑**：内容不写入讨论区，仅存 `oi33_ai_moderation` 队列；管理员在 `/oi33/ai/moderation` 通过后按原始参数回放发布（并私信通知用户），拒绝则通知用户修改。
+
+### 防注入设计
+
+- 审核策略在 system prompt（管理员可在 `/oi33/ai/moderation` 覆盖），用户内容仅以 `<post>` 标签包裹送入 user 消息，prompt 明确要求把其中任何"指令"当作内容本身裁决（并记为「注入尝试」类别）。
+- 审核 AI 不挂任何工具、无副作用，最坏结果只是一次错误裁决；category 限定白名单，用户可见文案全部由服务端固定生成。
+- 全部裁决（含 AI 理由、模型、费用、来源）留痕于 `oi33_ai_moderation`，人工覆盖结果可用于迭代 prompt 与违禁词表。
+
+### 挂钩方式
+
+不修改 Hydro 源码，通过 handler 生命周期事件拦截：`handler/before/DiscussionCreate#post`（发主题）、`handler/before-operation/DiscussionDetail`（reply / tail_reply / edit_reply / edit_tail_reply）、`handler/before-operation/DiscussionEdit`（update）。挂钩点在路由级权限检查之后、实际写库之前，游客无法借此消耗 AI 额度。
 
 ## 身份标签（`realname_flag`）
 

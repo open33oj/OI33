@@ -13,8 +13,10 @@ import { apply as applyCatCan } from './handler/cat-can';
 import { apply as applyCatAccount } from './handler/cat-account';
 import { apply as applySchoolCat } from './handler/school-cat';
 import { apply as applyAi } from './handler/ai';
+import { apply as applyModerate } from './handler/moderate';
 import { backfillAllCatFood } from './model/user';
 import { dropLegacyAi33Collections } from './model/ai';
+import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
 import { ensureCatAccountIndexes } from './model/cat-account';
 import { ensureCatMapIndexes } from './model/cat-map';
@@ -48,6 +50,7 @@ export async function apply(ctx: Context) {
     await applyCatAccount(ctx);
     await applySchoolCat(ctx);
     await applyAi(ctx);
+    await applyModerate(ctx);
     if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0') {
         ctx.on('app/started', async () => {
             try {
@@ -68,6 +71,7 @@ export async function apply(ctx: Context) {
                 await ensureCatAccountIndexes();
                 await ensureCatMapIndexes();
                 await ensureSchoolCatIndexes();
+                await ensureModerationIndexes();
                 await maintainCatCanMarket();
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {

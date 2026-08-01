@@ -330,6 +330,54 @@ export interface Oi33AiConfig {
     summary_prompt?: string;
     // DeepSeek thinking-mode effort for analyses: low / high / max.
     analysis_effort?: string;
+    // Discussion moderation: '1' = on, anything else = off.
+    moderation_enabled?: string;
+    moderation_model?: string;
+    // System-prompt override; empty → built-in default.
+    moderation_prompt?: string;
+    // Newline-separated blocked words (rule layer, matched after normalization).
+    moderation_words?: string;
+    // Newline-separated words that go to the human review queue instead of
+    // being hard-blocked (e.g. political leader names).
+    moderation_review_words?: string;
+    // Daily AI cost cap for moderation in CNY; 0/empty = unlimited.
+    moderation_daily_budget?: number;
+    // Per-user moderated posts per day; 0/empty = default (50).
+    moderation_rate_limit?: number;
+}
+
+export type Oi33ModerationKind = 'topic' | 'reply' | 'tailreply' | 'topic_edit' | 'reply_edit' | 'tailreply_edit';
+export type Oi33ModerationVerdict = 'pass' | 'block' | 'review';
+export type Oi33ModerationSource = 'rules' | 'ai' | 'cache' | 'fuse' | 'ratelimit' | 'error';
+export type Oi33ModerationStatus = 'done' | 'pending' | 'approved' | 'rejected';
+
+// Where a moderation entry points to; used to hide / unhide / delete the content.
+export interface Oi33ModerationTarget {
+    domainId: string;
+    did?: ObjectId;
+    drid?: ObjectId;
+    drrid?: ObjectId;
+}
+
+export interface Oi33AiModeration {
+    _id: ObjectId;
+    uid: number;
+    kind: Oi33ModerationKind;
+    contentHash: string;
+    preview: string; // first ~120 chars of the normalized content
+    content: string; // full content; needed to execute a pending entry on approve
+    target?: Oi33ModerationTarget;
+    verdict: Oi33ModerationVerdict;
+    source: Oi33ModerationSource;
+    category: string;
+    // AI's free-text reason; admin-only, never shown to the poster.
+    aiReason?: string;
+    model?: string;
+    cost?: number;
+    status: Oi33ModerationStatus;
+    createdAt: Date;
+    handledAt?: Date;
+    handler?: number;
 }
 
 export interface Oi33AiProblemSummary {
@@ -366,7 +414,7 @@ export interface Oi33AiAccess {
 export interface Oi33AiUsage {
     _id: ObjectId;
     uid: number; // 0 = system (e.g. summary generation)
-    type: 'analysis' | 'summary';
+    type: 'analysis' | 'summary' | 'moderation';
     rid?: string;
     domainId?: string;
     pid?: number;

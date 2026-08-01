@@ -274,12 +274,14 @@ export async function aiGetUsageStats() {
         cost: 0, count: 0, promptTokens: 0, completionTokens: 0,
     });
     const stats = {
-        summary: empty(), analysisCharged: empty(), analysisFree: empty(),
+        summary: empty(), analysisCharged: empty(), analysisFree: empty(), moderation: empty(),
     };
     for (const row of rows) {
         const target = row._id.type === 'summary'
             ? stats.summary
-            : (row._id.deducted ? stats.analysisCharged : stats.analysisFree);
+            : row._id.type === 'moderation'
+                ? stats.moderation
+                : (row._id.deducted ? stats.analysisCharged : stats.analysisFree);
         target.cost += row.cost;
         target.count += row.count;
         target.promptTokens += row.promptTokens;

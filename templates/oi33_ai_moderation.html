@@ -1,0 +1,212 @@
+{% set page_name = "oi33_ai_moderation" %}
+{% extends "layout/basic.html" %}
+{% import "components/form.html" as form with context %}
+{% import "components/user.html" as user with context %}
+{% block content %}
+
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('AI Moderation') }}</h1>
+      </div>
+      <div class="section__body">
+        {% if (handler.user.realname_flag or 0) >= 2 %}
+          <p><a href="/oi33/ai/admin">&laquo; {{ _('Back to Admin') }}</a></p>
+        {% endif %}
+        <p class="ai33-desc">{{ _('ai_moderation_help') }}</p>
+
+        <h3 style="margin-bottom:1rem;">{{ _('Today') }}</h3>
+        <p>
+          <span class="ai33-stat">{{ _('Pending') }}: <b>{{ stats.pending }}</b></span>
+          <span class="ai33-stat">{{ _('Auto Passed') }}: <b>{{ stats.pass }}</b></span>
+          <span class="ai33-stat">{{ _('Auto Blocked') }}: <b>{{ stats.block }}</b></span>
+          <span class="ai33-stat">{{ _('Handled') }}: <b>{{ stats.handled }}</b></span>
+          <span class="ai33-stat">{{ _('AI Cost') }}: <b>¥{{ todayCost }}</b></span>
+        </p>
+
+        <h3 style="margin:1.5rem 0 1rem;">{{ _('Pending Queue') }}{% if pending.length %}<span class="ai33-subtitle">（{{ pending.length }}）</span>{% endif %}</h3>
+        {% if pending.length %}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ _('Time') }}</th>
+              <th>{{ _('User') }}</th>
+              <th>{{ _('Kind') }}</th>
+              <th>{{ _('Category') }}</th>
+              <th>{{ _('Content') }}</th>
+              <th>{{ _('AI Reason') }}</th>
+              <th>{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in pending %}
+            <tr>
+              <td style="white-space:nowrap;">{{ datetimeSpan(e.createdAt)|safe }}</td>
+              <td>{% if udict[e.uid] %}{{ user.render_inline(udict[e.uid]) }}{% else %}UID {{ e.uid }}{% endif %}</td>
+              <td>{{ kindLabels[e.kind] or e.kind }}</td>
+              <td>{{ e.category }}<span class="ai33-subtitle">{{ e.source }}</span></td>
+              <td class="ai33-content-cell">
+                <details>
+                  <summary>{{ e.preview }}</summary>
+                  <div class="ai33-full-scroll"><pre class="ai33-full-content">{{ e.content }}</pre></div>
+                </details>
+              </td>
+              <td class="ai33-content-cell">
+                {% if e.aiReason %}<div class="ai33-reason">{{ e.aiReason }}</div>{% endif %}
+              </td>
+              <td style="white-space:nowrap;">
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="action" value="approve">
+                  <input type="hidden" name="id" value="{{ e._id }}">
+                  <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
+                </form>
+                <span style="opacity:0.3;">/</span>
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="action" value="reject">
+                  <input type="hidden" name="id" value="{{ e._id }}">
+                  <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p>{{ _('Nothing pending.') }}</p>
+        {% endif %}
+
+        <h3 style="margin:1.5rem 0 1rem;">{{ _('Moderation Settings') }}</h3>
+        <form method="post" style="margin-bottom:2rem;">
+          <input type="hidden" name="action" value="save_settings">
+          <div class="row">
+            <div class="columns">
+              <div class="form__item">
+                <label class="checkbox">
+                  <input type="checkbox" name="moderation_enabled" value="1"{% if config.moderation_enabled !== '' %} checked{% endif %}>
+                  {{ _('Enable AI moderation for discussions') }}
+                </label>
+                <p class="ai33-desc" style="margin-top:0.3rem;">{{ _('ai_moderation_enable_help') }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="medium-6 columns">
+              <div class="form__item">
+                <label>{{ _('Moderation Model') }}</label>
+                <input type="text" name="moderation_model" class="textbox" value="{{ config.moderation_model or 'deepseek-v4-flash' }}">
+              </div>
+            </div>
+            <div class="medium-3 columns">
+              <div class="form__item">
+                <label>{{ _('Daily Budget (CNY, 0 = unlimited)') }}</label>
+                <input type="text" name="moderation_daily_budget" class="textbox" value="{{ config.moderation_daily_budget or 0 }}">
+              </div>
+            </div>
+            <div class="medium-3 columns">
+              <div class="form__item">
+                <label>{{ _('Per-user Daily Limit (0 = default 50)') }}</label>
+                <input type="text" name="moderation_rate_limit" class="textbox" value="{{ config.moderation_rate_limit or 0 }}">
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="columns">
+              <div class="form__item">
+                <label>{{ _('Blocked Words (one per line)') }}</label>
+                <textarea name="moderation_words" class="textbox ai33-prompt" rows="6" placeholder="{{ _('ai_moderation_words_placeholder') }}">{{ config.moderation_words or '' }}</textarea>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="columns">
+              <div class="form__item">
+                <label>{{ _('Review Words (one per line)') }}</label>
+                <textarea name="moderation_review_words" class="textbox ai33-prompt" rows="6" placeholder="{{ _('ai_moderation_review_words_placeholder') }}">{{ config.moderation_review_words or '' }}</textarea>
+                <p class="ai33-desc" style="margin-top:0.3rem;">{{ _('ai_moderation_review_words_help') }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="columns">
+              <div class="form__item">
+                <label>{{ _('Moderation Prompt') }}</label>
+                <textarea name="moderation_prompt" class="textbox ai33-prompt" rows="12">{{ config.moderation_prompt or defaultPrompt }}</textarea>
+                <p class="ai33-desc" style="margin-top:0.3rem;">{{ _('ai_moderation_prompt_help') }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="row"><div class="columns">
+            <button type="submit" class="rounded primary button">{{ _('Save Config') }}</button>
+          </div></div>
+        </form>
+
+        <h3 style="margin:1.5rem 0 1rem;">{{ _('Recent Log') }}</h3>
+        {% if recent.length %}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ _('Time') }}</th>
+              <th>{{ _('User') }}</th>
+              <th>{{ _('Kind') }}</th>
+              <th>{{ _('Verdict') }}</th>
+              <th>{{ _('Content') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in recent %}
+            <tr>
+              <td style="white-space:nowrap;">{{ datetimeSpan(e.createdAt)|safe }}</td>
+              <td>{% if udict[e.uid] %}{{ user.render_inline(udict[e.uid]) }}{% else %}UID {{ e.uid }}{% endif %}</td>
+              <td>{{ kindLabels[e.kind] or e.kind }}<span class="ai33-subtitle">{{ e.category }}</span></td>
+              <td>
+                {% if e.verdict === 'pass' %}<span class="ai33-ok">{{ _('Pass') }}</span>
+                {% elif e.verdict === 'block' %}<span class="ai33-bad">{{ _('Block') }}</span>
+                {% else %}<span class="ai33-warn">{{ _('Review') }}</span>{% endif %}
+                <span class="ai33-subtitle">{{ e.source }}</span>
+                {% if e.status === 'approved' %}<span class="ai33-status-ok">{{ _('Approved') }}</span>
+                {% elif e.status === 'rejected' %}<span class="ai33-status-bad">{{ _('Rejected') }}</span>{% endif %}
+              </td>
+              <td class="ai33-content-cell ai33-content-cell-wide">
+                <details>
+                  <summary>{{ e.preview }}</summary>
+                  <div class="ai33-full-scroll">
+                    <pre class="ai33-full-content">{{ e.content }}</pre>
+                    {% if e.aiReason %}<p class="ai33-reason">{{ _('Reason') }}：{{ e.aiReason }}</p>{% endif %}
+                  </div>
+                </details>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p>{{ _('No records yet.') }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.ai33-desc { color: #666; margin-bottom: 1rem; }
+.theme--dark .ai33-desc, [data-mantine-color-scheme=dark] .ai33-desc { color: #aaa; }
+.ai33-prompt { width: 100%; font-family: monospace; font-size: 0.85em; white-space: pre; }
+.ai33-subtitle { font-size: 0.7em; color: #888; font-weight: normal; margin-left: 0.5rem; }
+.theme--dark .ai33-subtitle, [data-mantine-color-scheme=dark] .ai33-subtitle { color: #999; }
+.ai33-reason { white-space: pre-wrap; word-break: break-all; margin: 0.5rem 0 0; }
+.ai33-stat { margin-right: 1.2rem; }
+.ai33-ok { color: #2a7d2a; }
+.ai33-bad { color: #c00; }
+.ai33-warn { color: #b8860b; }
+.ai33-status-ok { color: #2a7d2a; margin-left: 0.5rem; font-size: 0.85em; }
+.ai33-status-bad { color: #c00; margin-left: 0.5rem; font-size: 0.85em; }
+.ai33-content-cell { max-width: 22rem; }
+.ai33-content-cell-wide { max-width: 36rem; }
+.ai33-content-cell summary { cursor: pointer; word-break: break-all; }
+.ai33-full-content { white-space: pre-wrap; word-break: break-all; font-size: 0.85em; background: rgba(127,127,127,0.08); padding: 0.5rem; border-radius: 4px; }
+/* Content + reason scroll together inside one container, so nothing is ever
+   clipped below the fold without a way to reach it. */
+.ai33-full-scroll { max-height: 20rem; overflow-y: auto; }
+</style>
+{% endblock %}
