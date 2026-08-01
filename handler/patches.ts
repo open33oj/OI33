@@ -112,6 +112,29 @@ export function applyPatches(_ctx: Context) {
         return udoc;
     };
 
+    // (b3) User.prototype.private — the userLayer loads the session user through
+    // getById and then rebuilds it with private(), which constructs a fresh User
+    // from raw _udoc and therefore drops every OI33 field. The nav's admin gate
+    // (`handler.user.realname_flag >= 2`) only works because handler/before
+    // re-merges the fields later — but any page rendered as an error before
+    // handler/before runs (route checker, prepare, pendingError) shows the
+    // dropdown without the OI33 admin button. Merging here keeps the fields on
+    // HydroContext.user from the start so every render path (including error
+    // pages) sees them. The handler/before merge stays as an idempotent fallback
+    // for objects that are replaced after creation (e.g. token users, record rows).
+    const origPrivate = (UserModel as any).User?.prototype?.private;
+    if (typeof origPrivate === 'function') {
+        (UserModel as any).User.prototype.private = async function () {
+            const user = await origPrivate.call(this);
+            const uid = (this as any)._id;
+            if (Number.isFinite(Number(uid))) {
+                const oi33 = (await oi33Model.getUserDataByUids([Number(uid)]))[Number(uid)];
+                oi33Model.mergeOi33Fields(user, oi33);
+            }
+            return user;
+        };
+    }
+
     // (c) HomeHandler.prototype.getCheckin — inject checkin data into homepage
     HomeHandler.prototype.getCheckin = async function (domainId: string, payload: any) {
         const today = moment().format('YYYY-MM-DD');
