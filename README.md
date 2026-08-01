@@ -34,6 +34,7 @@
 | 评测机监控 | 每 5 分钟检查心跳，离线/恢复时通过企业微信 Webhook 推送通知 | `/oi33/judge-monitor` |
 | AI 代码分析 | DeepSeek 思考模型流式点评提交代码，学生引导/教师诊断双 prompt，精简题意缓存，按 token 计费 | `/oi33/ai/*` |
 | AI 讨论审核 | 讨论区仅实名用户可用；规则层 + AI 双层审核（结构化裁决、fail-closed），存疑进人工队列 | `/oi33/ai/moderation` |
+| 喵喵时间线 | 犇犇式短博客：仅实名用户可发，每条消耗 1 猫罐头、上一条后 2 小时冷却；单向关注/粉丝、点赞、纯文字转发、AI+人工审核，首页模块 | `/oi33/meow/*` |
 | 权限速查表 | 按角色列出各功能权限矩阵 | `/oi33/permissions` |
 
 ## 数据库
@@ -67,6 +68,9 @@
 | `oi33_ai_provider` | AI 提供商（Base URL、API Key）及各模型 token 单价 |
 | `oi33_ai_usage` | AI 用量流水（分析与精简题意，含 token 数、缓存命中、费用） |
 | `oi33_ai_moderation` | 讨论审核记录：内容 hash、裁决、来源、待人工队列（含回放所需的原始参数） |
+| `oi33_meow_post` | 喵喵信息：内容（纯文字，≤256 字）、审核状态、点赞数、转发路径文本、AI 裁决字段 |
+| `oi33_meow_follow` | 单向关注关系（`follower` → `following`，唯一索引） |
+| `oi33_meow_like` | 点赞记录（`uid` + `postId` 唯一索引） |
 
 ## 权限配置
 
@@ -122,6 +126,13 @@
 | `/oi33/ai/models` | OI33 身份 ≥ 2 | Provider / 模型价格 / 默认模型 / prompt / 思考强度配置 |
 | `/oi33/ai/summary` | OI33 身份 ≥ 2 | 精简题意查看与重新生成 |
 | `/oi33/ai/moderation` | OI33 身份 ≥ 2 | 讨论审核队列（人工通过/拒绝）与审核设置（模型、prompt、违禁词、预算、限流） |
+| `/oi33/meow` | `PRIV_USER_PROFILE`（已认证） | 喵喵时间线（自己 + 关注 + 管理员的信息） |
+| `/oi33/meow/post` | `PRIV_USER_PROFILE` + 已认证 | 发布喵喵（消耗 1 猫罐头，上一条后 2 小时冷却）（POST） |
+| `/oi33/meow/user/:uid` | `PRIV_USER_PROFILE` | 查看某用户的喵喵（本人见全部含状态，粉丝/管理员见已通过） |
+| `/oi33/meow/follow/:uid`、`/oi33/meow/unfollow/:uid` | `PRIV_USER_PROFILE` | 关注 / 取消关注（POST） |
+| `/oi33/meow/like/:postId` | `PRIV_USER_PROFILE` | 点赞 / 取消点赞（POST） |
+| `/oi33/meow/following`、`/oi33/meow/followers` | `PRIV_USER_PROFILE` | 关注列表 / 粉丝列表（可带 `?uid=` 查看他人） |
+| `/oi33/meow/admin` | OI33 身份 ≥ 2 | 喵喵审核队列（人工通过/驳回，驳回退还猫罐头） |
 | `/oi33/permissions` | OI33 身份 ≥ 2 | 权限速查表 |
 | `/oi33/coin/inc` | OI33 身份 ≥ 2 | 发放硬币 |
 | `/oi33/badge/manage` | OI33 身份 ≥ 2 | 管理徽章 |
@@ -506,6 +517,32 @@ hydrooj addon remove frontend-33oj
 ### 挂钩方式
 
 不修改 Hydro 源码，通过 handler 生命周期事件拦截：`handler/before/DiscussionCreate#post`（发主题）、`handler/before-operation/DiscussionDetail`（reply / tail_reply / edit_reply / edit_tail_reply）、`handler/before-operation/DiscussionEdit`（update）。挂钩点在路由级权限检查之后、实际写库之前，游客无法借此消耗 AI 额度。
+
+## 喵喵时间线
+
+犇犇式短博客，主页面 `/oi33/meow`（标题「喵喵时间线」）。每条信息为**纯文字**（≤ 256 字），未认证用户（`realname_flag < 1`）不能发布、点赞或转发。
+
+### 发布规则
+
+- **仅已认证用户可发送**（`realname_flag ≥ 1`）；教师及以上免审核直接展示。
+- **每条消耗 1 个猫罐头**，从 `oi33_user.cat_can` 原子扣除并写入统一猫粮账户流水。
+- **冷却**：上一条信息（任意状态）之后 2 小时才可再发，页面实时显示剩余时间。
+- **审核**：学生发布先经规则层 + AI 双层审核（复用讨论区同一套引擎）：通过自动展示；拦截则**退还猫罐头并重置冷却**（可立即重发）；存疑进入 `/oi33/meow/admin` 人工队列，人工驳回同样退还。
+- 时间线 = 自己 + 关注的人 + 所有管理员/行政管理员的信息；首页自动追加「喵喵」模块展示最近 10 条。
+
+### 转发
+
+转发是**纯文字**：点击卡片上的「🔁 转发」→ 跳到时间线，发布框自动填充转发路径（如 ` || @billtun : 666 || @L_Merengues : ...`），在 `||` 前写自己的话后直接发布即可，内容按原样保存，无结构化的转发关系。
+
+### 关注与点赞
+
+- 单向关注（Twitter 式）：关注后对方已通过的信息进入你的时间线；关注/粉丝列表页（`?uid=` 可看他人）带互相关注标识。
+- 点赞为切换式，信息卡以 `👍 赞`、`🔁 转发` 链接展示；用户详情页的喵喵面板只读展示「赞 / 转发」数量。
+- 内容中 `@用户名` 会渲染为对应用户主页的链接。
+
+### 活动日志
+
+管理后台「最近动态」中，喵喵只记录**已通过 / 已驳回**的最终结果（以及关注、取关、审核操作），待审批的过程不出现。
 
 ## 身份标签（`realname_flag`）
 
