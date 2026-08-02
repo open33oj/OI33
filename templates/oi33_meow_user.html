@@ -20,10 +20,10 @@
           {% for p in posts %}
             {{ spost.render(p, udict, likedMap, isSelf, true) }}
           {% endfor %}
-        {% elif isSelf %}
-          <p class="meow-empty">{{ _('No meow posts yet.') }}</p>
-        {% else %}
+        {% elif not canSee %}
           <p class="meow-empty">{{ _('Meow posts hidden') }}</p>
+        {% else %}
+          <p class="meow-empty">{{ _('No meow posts yet.') }}</p>
         {% endif %}
       </div>
     </div>

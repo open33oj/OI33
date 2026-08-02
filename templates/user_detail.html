@@ -198,10 +198,10 @@
                     {% for p in oi33MeowPanel.posts %}
                       {{ spost.render(p, oi33MeowPanel.udict, oi33MeowPanel.likedMap, oi33MeowPanel.isSelf, false, true) }}
                     {% endfor %}
-                  {% elif oi33MeowPanel.isSelf %}
-                    <p>{{ _('No meow posts yet.') }}</p>
-                  {% else %}
+                  {% elif not oi33MeowPanel.canSeePosts %}
                     <p>{{ _('Meow posts hidden') }}</p>
+                  {% else %}
+                    <p>{{ _('No meow posts yet.') }}</p>
                   {% endif %}
                 </div>
               </div>
