@@ -65,7 +65,6 @@ class CatFoodGrantHandler extends Handler {
             || await UserModel.getByUname(domainId, lookup)
             || await UserModel.getByEmail(domainId, lookup);
         if (!udoc) throw new NotFoundError(lookup);
-        if (udoc._id === this.user._id) throw new ForbiddenError('不能给自己发放猫粮。');
         let result: Awaited<ReturnType<typeof oi33Model.grantCatFood>>;
         try {
             result = await oi33Model.grantCatFood(
@@ -94,7 +93,6 @@ class CatFoodBulkGrantHandler extends Handler {
         const role = await checkOi33Admin(this.user._id);
         if (role < 3) throw new ForbiddenError('仅行政管理员可以批量发放猫粮。');
         const items = parseBatchJson(jsonText);
-        if (items.some((item) => item.uid === this.user._id)) throw new ForbiddenError('批量发放名单不能包含自己。');
         const uids = items.map((item) => item.uid);
         const udict = await UserModel.getList(domainId, uids);
         const missing = uids.filter((uid) => !udict[uid]);
