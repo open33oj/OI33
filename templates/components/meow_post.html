@@ -23,12 +23,18 @@
         <span class="meow-action">🔁 转发 {{ p.forwardCount or 0 }}</span>
       </span>
     {% else %}
-      <form method="post" action="{{ url('oi33_meow_like', postId=p.pid) }}" style="display:inline;">
+      <form method="post" action="{{ url('oi33_meow_like', postId=p.pid) }}" style="display:inline;" data-meow-like>
         <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-        <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" class="meow-action {{ 'meow-like--on' if likedMap[p.pid] else '' }}">👍 赞 ({{ p.likeCount }})</a>
+        <button type="submit" class="meow-action meow-like-btn {{ 'meow-like--on' if likedMap[p.pid] else '' }}">👍 赞 ({{ p.likeCount }})</button>
       </form>
       {% if handler.user._id %}
       <a href="{{ url('oi33_meow_main', query={forward: p.pid}) }}" class="meow-action meow-forward-btn">🔁 转发</a>
+      {% endif %}
+      {% if (handler.user.realname_flag or 0) >= 2 %}
+      <form method="post" action="{{ url('oi33_meow_admin_delete', postId=p.pid) }}" style="display:inline;" data-meow-delete>
+        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+        <button type="submit" class="meow-action meow-delete-btn" onclick="return confirm('{{ _('Delete this meow?') }}')">🗑 {{ _('Delete') }}</button>
+      </form>
       {% endif %}
     {% endif %}
     {% if showStatus %}
@@ -41,3 +47,36 @@
   </div>
 </div>
 {% endmacro %}
+
+<script>
+(function () {
+  if (window.__oi33MeowLikeBound) return;
+  window.__oi33MeowLikeBound = true;
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || form.nodeName !== 'FORM' || !form.hasAttribute('data-meow-like')) return;
+    e.preventDefault();
+    var btn = form.querySelector('.meow-like-btn');
+    var csrf = form.querySelector('input[name="csrfToken"]');
+    var body = new URLSearchParams();
+    body.set('csrfToken', csrf ? csrf.value : '');
+    fetch(form.getAttribute('action'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
+      body: body,
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (!data || typeof data.liked !== 'boolean') throw new Error('bad response');
+      if (btn) {
+        btn.classList.toggle('meow-like--on', !!data.liked);
+        btn.textContent = '👍 赞 (' + data.likeCount + ')';
+      }
+    }).catch(function () {
+      form.submit();
+    });
+  });
+})();
+</script>

@@ -293,11 +293,21 @@ class MeowLikeHandler extends Handler {
         if (post.status !== 'approved' && post.uid !== this.user._id) {
             throw new NotFoundError(postId);
         }
-        await oi33Model.meowToggleLike(this.user._id, postId);
+        const { liked } = await oi33Model.meowToggleLike(this.user._id, postId);
+        const likeCount = Math.max(0, post.likeCount + (liked ? 1 : -1));
+        // AJAX request (the like button posts via fetch) → return JSON so the
+        // page stays exactly where it is. A forward is its own post; liking it
+        // must never navigate away.
+        const accept = String(this.request.headers.accept || '');
+        if (this.request.headers['x-requested-with'] === 'fetch' || accept.includes('application/json')) {
+            this.response.type = 'application/json';
+            this.response.body = { liked, likeCount };
+            return;
+        }
+        // No-JS fallback: go back to the exact page the like happened on rather
+        // than yanking the user to their own meow timeline.
         const referer = this.request.headers.referer || '';
-        this.response.redirect = referer.startsWith('/oi33/meow')
-            ? referer
-            : this.url('oi33_meow_main');
+        this.response.redirect = referer || this.url('oi33_meow_main');
     }
 }
 
@@ -405,22 +415,31 @@ class MeowFollowersHandler extends Handler {
 // --- Admin queue ---
 
 class MeowAdminHandler extends Handler {
-    async get() {
+    @query('page', Types.PositiveInt, true)
+    @query('status', Types.String, true)
+    async get(domainId: string, page = 1, status = 'all') {
         await checkOi33Admin(this.user._id);
-        const [pending, recent, todayStats] = await Promise.all([
+        const [pending, all, todayStats] = await Promise.all([
             oi33Model.meowListPending(),
-            oi33Model.meowListRecent(50),
+            oi33Model.meowListAll(page, FEED_PAGE_SIZE, status),
             oi33Model.meowTodayStats(),
         ]);
-        const uids = [...new Set([...pending, ...recent].map((p) => p.uid))];
-        const udict = uids.length ? await UserModel.getList('', uids) : {};
-        const oi33Data = await oi33Model.getUserDataByUids(uids);
-        for (const uid of uids) {
-            if (!udict[uid]) continue;
-            oi33Model.mergeOi33Fields(udict[uid], oi33Data[uid]);
+        const { posts, udict, likedMap } = await prepareMeowPosts('', all.docs, this.user._id);
+        const pendingUids = pending.map((p) => p.uid).filter((u) => !udict[u]);
+        if (pendingUids.length) {
+            const extra = await UserModel.getList('', pendingUids);
+            const oi33Extra = await oi33Model.getUserDataByUids(pendingUids);
+            for (const u of pendingUids) {
+                if (!extra[u]) continue;
+                oi33Model.mergeOi33Fields(extra[u], oi33Extra[u]);
+                udict[u] = extra[u];
+            }
         }
         this.response.template = 'oi33_meow_admin.html';
-        this.response.body = { pending, recent, udict, todayStats };
+        this.response.body = {
+            pending, posts, udict, likedMap, todayStats,
+            page, status, count: all.count, upcount: all.upcount,
+        };
     }
 
     @param('action', Types.String)
@@ -437,6 +456,20 @@ class MeowAdminHandler extends Handler {
             status: action === 'approve' ? 'approved' : 'rejected',
         });
         this.response.redirect = this.url('oi33_meow_admin');
+    }
+}
+
+// Permanently delete a meow post (admins only). Forwards of the post survive as
+// independent posts; their dangling reference is detached. Deletion is logged.
+class MeowAdminDeleteHandler extends Handler {
+    @param('postId', Types.ObjectId)
+    async post(domainId: string, postId: ObjectId) {
+        await checkOi33Admin(this.user._id);
+        if (!(await oi33Model.meowDelete(postId, this.user._id))) {
+            throw new NotFoundError(postId);
+        }
+        const referer = this.request.headers.referer || '';
+        this.response.redirect = referer || this.url('oi33_meow_admin');
     }
 }
 
@@ -466,6 +499,7 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_meow_following', '/oi33/meow/following', MeowFollowingHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_meow_followers', '/oi33/meow/followers', MeowFollowersHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_meow_admin', '/oi33/meow/admin', MeowAdminHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_meow_admin_delete', '/oi33/meow/admin/:postId/delete', MeowAdminDeleteHandler, PRIV.PRIV_USER_PROFILE);
     // model/meow.ts (meowPostAdd) calls this kicker to run the rules+AI verdict.
     oi33Model.setMeowReviewKicker((uid, postId) => {
         moderateMeowAsync(uid, postId)

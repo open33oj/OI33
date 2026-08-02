@@ -130,9 +130,10 @@
 | `/oi33/meow/post` | `PRIV_USER_PROFILE` + 已认证 | 发布喵喵（消耗 1 猫罐头，上一条后 2 小时冷却）（POST） |
 | `/oi33/meow/user/:uid` | `PRIV_USER_PROFILE` | 查看某用户的喵喵（本人见全部含状态，粉丝/管理员见已通过） |
 | `/oi33/meow/follow/:uid`、`/oi33/meow/unfollow/:uid` | `PRIV_USER_PROFILE` | 关注 / 取消关注（POST） |
-| `/oi33/meow/like/:postId` | `PRIV_USER_PROFILE` | 点赞 / 取消点赞（POST） |
+| `/oi33/meow/like/:postId` | `PRIV_USER_PROFILE` | 点赞 / 取消点赞（POST，前端 AJAX 保持停留在原页面） |
 | `/oi33/meow/following`、`/oi33/meow/followers` | `PRIV_USER_PROFILE` | 关注列表 / 粉丝列表（可带 `?uid=` 查看他人） |
-| `/oi33/meow/admin` | OI33 身份 ≥ 2 | 喵喵审核队列（人工通过/驳回，驳回退还猫罐头） |
+| `/oi33/meow/admin` | OI33 身份 ≥ 2 | 喵喵审核（今日统计 / 待审队列 / 全部喵喵列表，可按状态筛选、分页） |
+| `/oi33/meow/admin/:postId/delete` | OI33 身份 ≥ 2 | 删除喵喵（POST；管理员在信息卡上看到删除按钮） |
 | `/oi33/permissions` | OI33 身份 ≥ 2 | 权限速查表 |
 | `/oi33/coin/inc` | OI33 身份 ≥ 2 | 发放硬币 |
 | `/oi33/badge/manage` | OI33 身份 ≥ 2 | 管理徽章 |

@@ -346,6 +346,36 @@ export async function meowSetStatus(id: ObjectId, status: 'approved' | 'rejected
     return true;
 }
 
+// Paginated listing of every meow post, optionally filtered by status. Used by
+// the admin "全部喵喵" page.
+export async function meowListAll(
+    page: number, pageSize = 20, status = 'all',
+): Promise<{ docs: Oi33MeowPost[]; count: number; upcount: number }> {
+    if (!['pending', 'approved', 'rejected'].includes(status)) status = 'all';
+    const filter = status === 'all' ? {} : { status };
+    const count = await meowPostColl.countDocuments(filter);
+    const docs = await meowPostColl.find(filter)
+        .sort({ createdAt: -1, _id: -1 })
+        .skip((page - 1) * pageSize).limit(pageSize).toArray();
+    return { docs, count, upcount: Math.max(1, Math.ceil(count / pageSize)) };
+}
+
+// Delete a meow post outright (admin action). Removes its likes and detaches any
+// forwards so they survive as independent posts, then logs the deletion. The
+// cat can spent on the post is NOT refunded — deletion is a moderation removal.
+export async function meowDelete(postId: ObjectId, operatorUid: number): Promise<boolean> {
+    const post = await meowPostColl.findOne({ _id: postId });
+    if (!post) return false;
+    await meowPostColl.deleteOne({ _id: postId });
+    await meowLikeColl.deleteMany({ postId });
+    await meowPostColl.updateMany({ ref: postId }, { $unset: { ref: '', refUid: '' } });
+    await addLog({
+        type: 'meow', userId: post.uid, action: 'delete',
+        postId: postId.toHexString(), operator: operatorUid,
+    });
+    return true;
+}
+
 // --- Follows ---
 
 export async function meowFollow(follower: number, following: number): Promise<boolean> {

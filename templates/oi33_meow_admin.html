@@ -1,6 +1,7 @@
 {% set page_name = "oi33_meow_admin" %}
 {% extends "layout/basic.html" %}
 {% import "components/user.html" as user with context %}
+{% import "components/meow_post.html" as spost with context %}
 {% block content %}
 <div class="row">
   <div class="medium-12 columns">
@@ -71,32 +72,30 @@
         <p>{{ _('Nothing pending.') }}</p>
         {% endif %}
 
-        <h3 style="margin:1.5rem 0 1rem;">{{ _('Recent Log') }}</h3>
-        {% if recent.length %}
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ _('Time') }}</th>
-              <th>{{ _('User') }}</th>
-              <th>{{ _('Verdict') }}</th>
-              <th>{{ _('Content') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for p in recent %}
-            <tr>
-              <td style="white-space:nowrap;">{{ datetimeSpan(p.createdAt)|safe }}</td>
-              <td>{% if udict[p.uid] %}{{ user.render_inline(udict[p.uid]) }}{% else %}UID {{ p.uid }}{% endif %}</td>
-              <td>
-                {% if p.status == 'approved' %}<span class="meow-admin-ok">{{ _('Approved') }}</span>
-                {% else %}<span class="meow-admin-bad">{{ _('Rejected') }}</span>{% endif %}
-                <span class="meow-admin-subtitle">{{ p.verdictSource }}{% if p.category %} / {{ p.category }}{% endif %}</span>
-              </td>
-              <td class="meow-admin-content"><pre class="meow-admin-content__pre">{{ p.content }}</pre></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <h3 style="margin:1.5rem 0 1rem;">{{ _('All Meows') }} <span class="meow-admin-subtitle">{{ _('Total') }}: {{ count }}</span></h3>
+        <p class="meow-admin-filter">
+          <a class="{{ 'meow-admin-filter--on' if status == 'all' }}" href="{{ url('oi33_meow_admin') }}">{{ _('All') }}</a>
+          <a class="{{ 'meow-admin-filter--on' if status == 'pending' }}" href="{{ url('oi33_meow_admin', query={status: 'pending'}) }}">{{ _('Meow Pending') }}</a>
+          <a class="{{ 'meow-admin-filter--on' if status == 'approved' }}" href="{{ url('oi33_meow_admin', query={status: 'approved'}) }}">{{ _('Approved') }}</a>
+          <a class="{{ 'meow-admin-filter--on' if status == 'rejected' }}" href="{{ url('oi33_meow_admin', query={status: 'rejected'}) }}">{{ _('Rejected') }}</a>
+        </p>
+        {% if posts.length %}
+        <div class="meow-admin-list">
+          {% for p in posts %}
+            {{ spost.render(p, udict, likedMap, true, true, false) }}
+          {% endfor %}
+        </div>
+        {% if upcount > 1 %}
+        <p class="meow-admin-pager">
+          {% if page > 1 %}
+          <a class="rounded button" href="{{ url('oi33_meow_admin', query={page: page - 1, status: status}) }}">{{ _('Prev') }}</a>
+          {% endif %}
+          <span class="meow-admin-subtitle">{{ page }} / {{ upcount }}</span>
+          {% if page < upcount %}
+          <a class="rounded button" href="{{ url('oi33_meow_admin', query={page: page + 1, status: status}) }}">{{ _('Next') }}</a>
+          {% endif %}
+        </p>
+        {% endif %}
         {% else %}
         <p>{{ _('No records yet.') }}</p>
         {% endif %}
@@ -114,5 +113,11 @@
 .meow-admin-bad { color: #c00; }
 .meow-admin-content { max-width: 28rem; }
 .meow-admin-content__pre { white-space: pre-wrap; word-break: break-all; font-size: 0.85em; background: rgba(127,127,127,0.08); padding: 0.5rem; border-radius: 4px; max-height: 12rem; overflow-y: auto; margin: 0; }
+.meow-admin-filter { margin: 0.25rem 0 0.75rem; }
+.meow-admin-filter a { display: inline-block; margin-right: 0.75rem; padding: 0.15rem 0.75rem; border-radius: 6px; color: #555; font-size: 0.85em; text-decoration: none; }
+.theme--dark .meow-admin-filter a, [data-mantine-color-scheme=dark] .meow-admin-filter a { color: #bbb; }
+.meow-admin-filter a.meow-admin-filter--on { background: rgba(85,182,226,0.15); color: var(--accent-color, #55b6e2); font-weight: 600; }
+.meow-admin-list { border: 1px solid rgba(127,127,127,0.15); border-radius: 8px; }
+.meow-admin-pager { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 1rem; }
 </style>
 {% endblock %}
