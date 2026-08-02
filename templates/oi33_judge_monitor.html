@@ -1,6 +1,20 @@
 {% set page_name = "oi33_judge_monitor" %}
 {% extends "layout/basic.html" %}
 {% block content %}
+<style>
+  :root {
+    --oi33-ok: #2e7d32;
+    --oi33-bad: #c62828;
+    --oi33-info: #1976d2;
+    --oi33-warn: #f29b3d;
+  }
+  :root.theme--dark, :root[data-mantine-color-scheme=dark] {
+    --oi33-ok: #6fcf76;
+    --oi33-bad: #ef6c6c;
+    --oi33-info: #64b5f6;
+    --oi33-warn: #ffb74d;
+  }
+</style>
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
@@ -15,28 +29,28 @@
 
         {% if sendResult %}
           {% if sendResult.ok %}
-          <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid #2e7d32;">
-            <strong style="color:#2e7d32;">✓ {{ _('Webhook send succeeded.') }}</strong>
+          <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid var(--oi33-ok);">
+            <strong style="color:var(--oi33-ok);">✓ {{ _('Webhook send succeeded.') }}</strong>
           </blockquote>
           {% else %}
-          <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid #c62828;">
-            <strong style="color:#c62828;">✗ {{ _('Webhook send failed:') }}</strong>
+          <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid var(--oi33-bad);">
+            <strong style="color:var(--oi33-bad);">✗ {{ _('Webhook send failed:') }}</strong>
             <code>{{ sendResult.error }}</code>
           </blockquote>
           {% endif %}
         {% endif %}
 
         {% if checkResult %}
-        <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid #1976d2;">
-          <strong style="color:#1976d2;">✓ {{ _('Manual check completed.') }}</strong>
+        <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid var(--oi33-info);">
+          <strong style="color:var(--oi33-info);">✓ {{ _('Manual check completed.') }}</strong>
           {% if checkResult.pushedKind %}
             {{ _('Notification pushed:') }}
             {% if checkResult.pushedKind == 'offline' %}
-              <span style="color:#c62828;">{{ _('All judges offline') }}</span>
+              <span style="color:var(--oi33-bad);">{{ _('All judges offline') }}</span>
             {% elif checkResult.pushedKind == 'delta' %}
-              <span style="color:#1976d2;">{{ _('Judge status changed') }}</span>
+              <span style="color:var(--oi33-info);">{{ _('Judge status changed') }}</span>
             {% else %}
-              <span style="color:#2e7d32;">{{ _('At least one judge online') }}</span>
+              <span style="color:var(--oi33-ok);">{{ _('At least one judge online') }}</span>
             {% endif %}
           {% else %}
             <span style="opacity:0.7;">{{ _('No state transition, no notification sent.') }}</span>
@@ -45,8 +59,8 @@
         {% endif %}
 
         {% if not enabled %}
-        <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid #f29b3d;">
-          <strong style="color:#f29b3d;">⚠ {{ _('Judge monitor is disabled.') }}</strong>
+        <blockquote class="note typo" style="padding:0.8rem 1rem;margin-bottom:1.5rem;border-left:3px solid var(--oi33-warn);">
+          <strong style="color:var(--oi33-warn);">⚠ {{ _('Judge monitor is disabled.') }}</strong>
           {{ _('Enable it in the configuration below to receive scheduled webhooks.') }}
         </blockquote>
         {% endif %}
@@ -54,14 +68,14 @@
         <!-- Live status -->
         <h3 style="margin-bottom:0.8rem;">{{ _('Live Status') }}</h3>
         <div style="padding:1rem 1.2rem;margin-bottom:2rem;border-radius:6px;
-          {% if liveState == 'offline' %}background:rgba(198,40,40,0.08);border-left:3px solid #c62828;
-          {% elif liveState == 'online' %}background:rgba(46,125,50,0.08);border-left:3px solid #2e7d32;
+          {% if liveState == 'offline' %}background:rgba(198,40,40,0.08);border-left:3px solid var(--oi33-bad);
+          {% elif liveState == 'online' %}background:rgba(46,125,50,0.08);border-left:3px solid var(--oi33-ok);
           {% else %}background:rgba(128,128,128,0.08);border-left:3px solid #888;{% endif %}">
           <div style="font-size:1.1rem;font-weight:600;margin-bottom:0.3rem;">
             {% if liveState == 'offline' %}
-              <span style="color:#c62828;">● {{ _('All judges offline') }}</span>
+              <span style="color:var(--oi33-bad);">● {{ _('All judges offline') }}</span>
             {% elif liveState == 'online' %}
-              <span style="color:#2e7d32;">● {{ _('At least one judge online') }}</span>
+              <span style="color:var(--oi33-ok);">● {{ _('At least one judge online') }}</span>
             {% else %}
               <span style="opacity:0.7;">○ {{ _('No judge machines have reported status.') }}</span>
             {% endif %}
@@ -72,7 +86,7 @@
             {{ _('Offline threshold') }}：judge {{ judgeThresholdMinutes }} / server {{ serverThresholdMinutes }} {{ _('minutes') }}
             <span style="opacity:0.5;margin:0 0.4rem;">·</span>
             {% if includeServer %}
-              <span style="color:#1976d2;">{{ _('Server included') }}</span>
+              <span style="color:var(--oi33-info);">{{ _('Server included') }}</span>
             {% else %}
               <span style="opacity:0.7;">{{ _('Server excluded') }}</span>
             {% endif %}
@@ -159,9 +173,9 @@
             <td style="padding:0.3rem 1rem 0.3rem 0;opacity:0.7;">{{ _('Notify state') }}</td>
             <td>
               {% if lastState == 'offline' %}
-                <span style="color:#c62828;font-weight:600;">{{ _('All judges offline') }}</span>
+                <span style="color:var(--oi33-bad);font-weight:600;">{{ _('All judges offline') }}</span>
               {% elif lastState == 'online' %}
-                <span style="color:#2e7d32;font-weight:600;">{{ _('At least one judge online') }}</span>
+                <span style="color:var(--oi33-ok);font-weight:600;">{{ _('At least one judge online') }}</span>
               {% else %}
                 <span style="opacity:0.6;">{{ _('Not checked yet') }}</span>
               {% endif %}
@@ -172,11 +186,11 @@
             <td>
               {% if lastNotifyAt %}
                 {% if lastNotifyKind == 'offline' %}
-                  <span style="color:#c62828;">{{ _('Offline alert') }}</span>
+                  <span style="color:var(--oi33-bad);">{{ _('Offline alert') }}</span>
                 {% elif lastNotifyKind == 'recovery' %}
-                  <span style="color:#2e7d32;">{{ _('Recovery notice') }}</span>
+                  <span style="color:var(--oi33-ok);">{{ _('Recovery notice') }}</span>
                 {% elif lastNotifyKind == 'delta' %}
-                  <span style="color:#1976d2;">{{ _('Status change') }}</span>
+                  <span style="color:var(--oi33-info);">{{ _('Status change') }}</span>
                 {% endif %}
                 — {{ datetimeSpan(lastNotifyAt)|safe }}
               {% else %}
@@ -213,9 +227,9 @@
               <td><code>{{ s.type }}</code></td>
               <td>
                 {% if s.online %}
-                <span style="color:#2e7d32;font-weight:600;">● {{ _('Online') }}</span>
+                <span style="color:var(--oi33-ok);font-weight:600;">● {{ _('Online') }}</span>
                 {% else %}
-                <span style="color:#c62828;font-weight:600;">● {{ _('Offline') }}</span>
+                <span style="color:var(--oi33-bad);font-weight:600;">● {{ _('Offline') }}</span>
                 {% endif %}
               </td>
               <td>{{ datetimeSpan(s.updateAt)|safe }}</td>

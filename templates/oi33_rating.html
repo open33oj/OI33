@@ -3,9 +3,33 @@
 {% import "components/paginator.html" as paginator with context %}
 {% extends "layout/basic.html" %}
 {% import "components/oi33_user.html" as user with context %}
-{%- macro atcolor(r) -%}{% if r >= 2800 %}#FF0000{% elif r >= 2400 %}#FF8000{% elif r >= 2000 %}#C0C000{% elif r >= 1600 %}#0000FF{% elif r >= 1200 %}#00C0C0{% elif r >= 800 %}#008000{% elif r >= 400 %}#804000{% else %}#808080{% endif %}{%- endmacro -%}
-{%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
+{%- macro atcolor(r) -%}{% if r >= 2800 %}at-r2800{% elif r >= 2400 %}at-r2400{% elif r >= 2000 %}at-r2000{% elif r >= 1600 %}at-r1600{% elif r >= 1200 %}at-r1200{% elif r >= 800 %}at-r800{% elif r >= 400 %}at-r400{% else %}at-r0{% endif %}{%- endmacro -%}
+{%- macro cfcolor(r) -%}{% if r >= 3000 %}cf-r3000{% elif r >= 2400 %}cf-r2400{% elif r >= 2100 %}cf-r2100{% elif r >= 1900 %}cf-r1900{% elif r >= 1600 %}cf-r1600{% elif r >= 1400 %}cf-r1400{% elif r >= 1200 %}cf-r1200{% else %}cf-r0{% endif %}{%- endmacro -%}
 {% block content %}
+<style>
+  .oi33-rating-t { font-variant-numeric: tabular-nums; }
+  .oi33-rating-t.at-r2800, .oi33-rating-t.cf-r3000, .oi33-rating-t.cf-r2400 { color:#FF0000; }
+  .oi33-rating-t.at-r2400 { color:#FF8000; }
+  .oi33-rating-t.cf-r2100 { color:#FF8C00; }
+  .oi33-rating-t.at-r2000 { color:#C0C000; }
+  .oi33-rating-t.cf-r1900 { color:#AA00AA; }
+  .oi33-rating-t.at-r1600, .oi33-rating-t.cf-r1600 { color:#0000FF; }
+  .oi33-rating-t.at-r1200 { color:#00C0C0; }
+  .oi33-rating-t.cf-r1400 { color:#03A89E; }
+  .oi33-rating-t.at-r800, .oi33-rating-t.cf-r1200 { color:#008000; }
+  .oi33-rating-t.at-r400 { color:#804000; }
+  .oi33-rating-t.at-r0, .oi33-rating-t.cf-r0 { color:#808080; }
+  .theme--dark .oi33-rating-t.cf-r3000, [data-mantine-color-scheme=dark] .oi33-rating-t.cf-r3000 { color:#ff5c5c; }
+  .theme--dark .oi33-rating-t.cf-r1900, [data-mantine-color-scheme=dark] .oi33-rating-t.cf-r1900 { color:#d07bd0; }
+  .theme--dark .oi33-rating-t.at-r1600, [data-mantine-color-scheme=dark] .oi33-rating-t.at-r1600,
+  .theme--dark .oi33-rating-t.cf-r1600, [data-mantine-color-scheme=dark] .oi33-rating-t.cf-r1600 { color:#6b9bff; }
+  .theme--dark .oi33-rating-t.cf-r1400, [data-mantine-color-scheme=dark] .oi33-rating-t.cf-r1400 { color:#4fd4c8; }
+  .theme--dark .oi33-rating-t.at-r800, [data-mantine-color-scheme=dark] .oi33-rating-t.at-r800,
+  .theme--dark .oi33-rating-t.cf-r1200, [data-mantine-color-scheme=dark] .oi33-rating-t.cf-r1200 { color:#3ddc5a; }
+  .theme--dark .oi33-rating-t.at-r400, [data-mantine-color-scheme=dark] .oi33-rating-t.at-r400 { color:#d68a3c; }
+  .theme--dark .oi33-rating-t.at-r0, [data-mantine-color-scheme=dark] .oi33-rating-t.at-r0,
+  .theme--dark .oi33-rating-t.cf-r0, [data-mantine-color-scheme=dark] .oi33-rating-t.cf-r0 { color:#a0a0a0; }
+</style>
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
@@ -44,7 +68,7 @@
                 {%- if udoc.atcoder -%}
                   <a href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener">{{ udoc.atcoder }}</a>
                   {%- if udoc.atcoder_rating !== undefined and udoc.atcoder_rating !== null %}
-                  <span style="color:{{ atcolor(udoc.atcoder_rating) }};font-weight:600;">({{ udoc.atcoder_rating }})</span>
+                  <span class="oi33-rating-t {{ atcolor(udoc.atcoder_rating) }}" style="font-weight:600;">({{ udoc.atcoder_rating }})</span>
                   {%- endif -%}
                 {%- else -%}
                   -
@@ -54,7 +78,7 @@
                 {%- if udoc.codeforces -%}
                   <a href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener">{{ udoc.codeforces }}</a>
                   {%- if udoc.codeforces_rating !== undefined and udoc.codeforces_rating !== null %}
-                  <span style="color:{{ cfcolor(udoc.codeforces_rating) }};font-weight:600;">({{ udoc.codeforces_rating }})</span>
+                  <span class="oi33-rating-t {{ cfcolor(udoc.codeforces_rating) }}" style="font-weight:600;">({{ udoc.codeforces_rating }})</span>
                   {%- endif -%}
                 {%- else -%}
                   -

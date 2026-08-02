@@ -11,7 +11,7 @@
   margin-bottom: 0.4rem;
 }
 .meow-card__time { font-size: 0.75em; color: #888; }
-.meow-balance { font-size: 0.8em; font-weight: 700; color: #000; font-family: monospace; white-space: nowrap; }
+.meow-balance { font-size: 0.8em; font-weight: 700; color: #000; font-family: 'Consolas', 'Menlo', 'Monaco', 'Courier New', monospace; white-space: nowrap; }
 .theme--dark .meow-balance, [data-mantine-color-scheme=dark] .meow-balance { color: #fff; }
 .meow-card__body {
   white-space: pre-wrap;
@@ -43,6 +43,8 @@
 .meow-status--approved { color: #2a7d2a; }
 .meow-status--rejected { color: #c00; }
 .meow-status--pending { color: #b8860b; }
+.theme--dark .meow-status--approved, [data-mantine-color-scheme=dark] .meow-status--approved { color: #6fcf76; }
+.theme--dark .meow-status--rejected, [data-mantine-color-scheme=dark] .meow-status--rejected { color: #ff6b6b; }
 .meow-compose { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(127,127,127,0.15); }
 .meow-forward-target { font-size: 0.85em; color: #555; margin-bottom: 0.5rem; }
 .theme--dark .meow-forward-target, [data-mantine-color-scheme=dark] .meow-forward-target { color: #bbb; }
@@ -54,6 +56,7 @@
 .meow-compose__notice { color: #b8860b; margin-bottom: 0.5rem; }
 .meow-empty { padding: 2rem 1.25rem; color: #888; }
 .meow-mutual { font-size: 0.7em; color: #2a7d2a; margin-left: 0.5rem; }
+.theme--dark .meow-mutual, [data-mantine-color-scheme=dark] .meow-mutual { color: #6fcf76; }
 .meow-list-row { padding: 0.6rem 1.25rem; border-bottom: 1px solid rgba(127,127,127,0.1); }
 .meow-list-row:last-child { border-bottom: none; }
 .meow-list-row__inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }

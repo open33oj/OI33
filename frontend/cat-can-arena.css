@@ -72,6 +72,9 @@
 .theme--dark .oi33-map-cell-players li:first-child { color: #76bd87; }
 .theme--dark .oi33-map-cell-players span { color: #a5b2a7; }
 .theme--dark .oi33-map-viewport::after { border-color: rgba(255,255,255,.32); }
+.theme--dark .oi33-admin-paint-toolbar { background: rgba(28,33,29,.96); border-color: rgba(137,181,145,.2); box-shadow: 0 3px 10px rgba(0,0,0,.3); }
+.theme--dark .oi33-admin-paint-toolbar strong { color: #76bd87; }
+.theme--dark .oi33-admin-paint-toolbar span { color: #a5b2a7; }
 @media (max-width: 760px) {
   .oi33-map-header { align-items: flex-start; flex-direction: column; }
   .oi33-map-toolbar, .oi33-map-navigation { align-items: stretch; }

@@ -23,6 +23,7 @@
 .oi33-account-date { font-size: 10px !important; }
 .oi33-account-reason { display: block; margin-top: 2px; opacity: .62; }
 .oi33-account-reversed { display: inline-block; margin-left: 7px; padding: 1px 6px; border-radius: 99px; color: #a33; background: rgba(190,50,50,.1); font-size: .75rem; }
+.theme--dark .oi33-account-reversed, [data-mantine-color-scheme=dark] .oi33-account-reversed { color: #ff8a8a; }
 .oi33-account-reverse-form { display: flex; align-items: center; gap: 6px; min-width: 220px; }
 .oi33-account-reverse-form .textbox { min-width: 130px; margin: 0; }
 .oi33-account-empty { padding: 20px; }

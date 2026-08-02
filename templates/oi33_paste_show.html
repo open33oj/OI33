@@ -2,12 +2,16 @@
 {% extends "layout/basic.html" %}
 {% import "components/oi33_user.html" as user with context %}
 {% block content %}
+<style>
+  .oi33-legacy-warn { background:#fff3cd; color:#856404; }
+  .theme--dark .oi33-legacy-warn, [data-mantine-color-scheme=dark] .oi33-legacy-warn { background:#4a3c10; color:#ffd966; }
+</style>
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
       {% if legacy %}
-      <div class="section__body" style="background:#fff3cd;text-align:center;">
-        <span style="color:#856404;">{{ _('This URL will be deprecated soon. Please update your bookmark to:') }}</span>
+      <div class="section__body oi33-legacy-warn" style="text-align:center;">
+        <span>{{ _('This URL will be deprecated soon. Please update your bookmark to:') }}</span>
         <a href="/oi33/paste/show/{{ doc._id }}">/oi33/paste/show/{{ doc._id }}</a>
       </div>
       {% endif %}

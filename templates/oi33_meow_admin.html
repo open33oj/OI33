@@ -106,18 +106,31 @@
 
 <style>
 .meow-admin-desc { color: #666; margin-bottom: 1rem; }
+.theme--dark .meow-admin-desc, [data-mantine-color-scheme=dark] .meow-admin-desc { color: #aaa; }
 .meow-admin-stat { margin-right: 1.2rem; }
 .meow-admin-subtitle { font-size: 0.7em; color: #888; font-weight: normal; margin-left: 0.5rem; }
+.theme--dark .meow-admin-subtitle, [data-mantine-color-scheme=dark] .meow-admin-subtitle { color: #999; }
 .meow-admin-reason { white-space: pre-wrap; word-break: break-all; margin: 0.5rem 0 0; }
 .meow-admin-ok { color: #2a7d2a; }
+.theme--dark .meow-admin-ok, [data-mantine-color-scheme=dark] .meow-admin-ok { color: #6fcf76; }
 .meow-admin-bad { color: #c00; }
+.theme--dark .meow-admin-bad, [data-mantine-color-scheme=dark] .meow-admin-bad { color: #ff6b6b; }
 .meow-admin-content { max-width: 28rem; }
 .meow-admin-content__pre { white-space: pre-wrap; word-break: break-all; font-size: 0.85em; background: rgba(127,127,127,0.08); padding: 0.5rem; border-radius: 4px; max-height: 12rem; overflow-y: auto; margin: 0; }
 .meow-admin-filter { margin: 0.25rem 0 0.75rem; }
 .meow-admin-filter a { display: inline-block; margin-right: 0.75rem; padding: 0.15rem 0.75rem; border-radius: 6px; color: #555; font-size: 0.85em; text-decoration: none; }
 .theme--dark .meow-admin-filter a, [data-mantine-color-scheme=dark] .meow-admin-filter a { color: #bbb; }
 .meow-admin-filter a.meow-admin-filter--on { background: rgba(85,182,226,0.15); color: var(--accent-color, #55b6e2); font-weight: 600; }
-.meow-admin-list { border: 1px solid rgba(127,127,127,0.15); border-radius: 8px; }
+.meow-admin-list { border: none; }
+.meow-admin-list .meow-card {
+  margin-bottom: 0.75rem;
+  border: 1px solid rgba(127,127,127,0.15);
+  border-radius: 8px;
+}
+.meow-admin-list .meow-card:last-child {
+  margin-bottom: 0;
+  border-bottom: 1px solid rgba(127,127,127,0.15);
+}
 .meow-admin-pager { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 1rem; }
 </style>
 {% endblock %}
