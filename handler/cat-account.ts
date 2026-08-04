@@ -70,6 +70,11 @@ class CatFoodGrantHandler extends Handler {
             result = await oi33Model.grantCatFood(
                 udoc._id, this.user._id, amount, reason.trim(), amount < 0 ? 'deduct' : 'grant',
             );
+            if (amount > 0) {
+                await oi33Model.achievementEvaluateUser(udoc._id, {
+                    ruleTypes: ['cat_food_balance'],
+                }).catch((e) => console.error('[oi33] cat-food achievement evaluation failed:', e));
+            }
         } catch (e: any) {
             throw new ForbiddenError(e?.message || '猫粮调整失败。');
         }
@@ -123,6 +128,11 @@ class CatFoodBulkConfirmHandler extends Handler {
             const missing = uids.filter((uid: number) => !udict[uid]);
             if (missing.length) throw new Error(`以下 UID 已不存在：${missing.join('、')}`);
             const result = await oi33Model.confirmCatFoodBatchPreview(previewId, this.user._id);
+            await Promise.all(uids.map((uid: number) => (
+                oi33Model.achievementEvaluateUser(uid, {
+                    ruleTypes: ['cat_food_balance'],
+                }).catch((e) => console.error('[oi33] bulk cat-food achievement evaluation failed:', e))
+            )));
             const notification = `批量发放完成：${result.users} 位用户，共 ${oi33Model.formatCatFood(result.total)}`;
             this.response.redirect = this.url('oi33_cat_food_bulk', { query: { notification } });
         } catch (e: any) {
@@ -139,6 +149,9 @@ class CatCanReverseHandler extends Handler {
         if (!reason.trim() || reason.trim().length > 100) throw new ForbiddenError('撤销原因不能为空且不能超过 100 字。');
         try {
             const result = await oi33Model.reverseCatCanTransaction(id, this.user._id, reason.trim());
+            await oi33Model.achievementEvaluateUser(result.uid, {
+                ruleTypes: ['cat_food_balance', 'cat_can_balance'],
+            }).catch((e) => console.error('[oi33] reversal achievement evaluation failed:', e));
             const notification = `交易已撤销：猫粮 ${result.foodDelta >= 0 ? '+' : ''}${oi33Model.formatCatFood(result.foodDelta)}，罐头 ${result.canDelta >= 0 ? '+' : ''}${result.canDelta} 个`;
             this.response.redirect = this.url('oi33_cat_account', { uid: result.uid, query: { notification } });
         } catch (e: any) {

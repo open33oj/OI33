@@ -55,6 +55,9 @@ export interface Oi33User {
     school_cat_food?: number;
     school_cat_month?: string;
     school_cat_feed_at?: Date;
+    // Short-lived cross-process lock used to serialize meow submissions.
+    meow_post_lock?: ObjectId;
+    meow_post_lock_at?: Date;
 }
 
 export interface Oi33CatCanBill {
@@ -269,8 +272,9 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'achievement';
     sender?: number;
+    operator?: number;
     receiver?: number;
     amount?: number;
     canAmount?: number;
@@ -305,6 +309,46 @@ export interface Oi33Log {
     columnStart?: number;
     rowEnd?: number;
     columnEnd?: number;
+    achievementId?: string;
+}
+
+// --- Achievements ---
+
+export type Oi33AchievementImageSize = 8 | 16 | 24 | 32;
+export type Oi33AchievementRuleType =
+    | 'manual'
+    | 'accepted_problems'
+    | 'checkin_streak'
+    | 'checkin_total'
+    | 'cat_food_balance'
+    | 'cat_can_balance';
+
+// Definitions are deliberately data-driven. `rule` is a stable, human-readable
+// condition for now; future automatic evaluators can dispatch by `_id` while all
+// awards continue to flow through the same idempotent grant function.
+export interface Oi33Achievement {
+    _id: string;
+    name: string;
+    description: string;
+    rule: string;
+    ruleType: Oi33AchievementRuleType;
+    threshold?: number;
+    imageData: string;
+    imageSize: Oi33AchievementImageSize;
+    order: number;
+    createdAt: Date;
+    updatedAt: Date;
+    createdBy: number;
+}
+
+export interface Oi33UserAchievement {
+    _id: ObjectId;
+    uid: number;
+    achievementId: string;
+    earnedAt: Date;
+    grantedBy: number;
+    source: string;
+    announcementPostId?: ObjectId;
 }
 
 export interface Oi33AiAnalysis {
@@ -389,6 +433,12 @@ export interface Oi33MeowPost {
     // Forward chain: this post forwards `ref` (author cached as `refUid`).
     ref?: ObjectId;
     refUid?: number;
+    // User submissions consume the daily free slot or one can. Achievement
+    // announcements are system posts and affect neither balance nor cooldown.
+    canCost?: number;
+    dailyFree?: boolean;
+    source?: 'achievement';
+    achievementId?: string;
 }
 
 // One-way follow relationship (Twitter-style): `follower` follows `following`.

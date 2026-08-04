@@ -137,12 +137,16 @@ class MeowMainHandler extends Handler {
         ]);
         // Timeline = self + followed users + all managers/executive admins.
         const feedIds = [...new Set([me, ...follows.map((f) => f.following), ...adminUids])];
-        const [{ docs, upcount }, rawLastPost, anchorPost, followingCount, followerCount] = await Promise.all([
+        const [
+            { docs, upcount }, rawLastPost, anchorPost,
+            followingCount, followerCount, dailyFreeAvailable,
+        ] = await Promise.all([
             oi33Model.meowFeed(feedIds, page, FEED_PAGE_SIZE),
             oi33Model.meowLastPost(me),
             oi33Model.meowCooldownAnchorPost(me),
             oi33Model.meowFollowingCount(me),
             oi33Model.meowFollowerCount(me),
+            oi33Model.meowDailyFreeAvailable(me),
         ]);
         const { posts, udict, likedMap } = await prepareMeowPosts(domainId, docs, me);
         let lastPost: any = null;
@@ -190,6 +194,7 @@ class MeowMainHandler extends Handler {
             selfDict: { [me]: this.user },
             myCans: Number(this.user.cat_can) || 0,
             myFood: Number(this.user.cat_food) || 0,
+            dailyFreeAvailable,
             forwardPid, forwardUname, forwardChain,
         };
     }
@@ -219,7 +224,8 @@ class MeowPostHandler extends Handler {
                 throw new ValidationError(`内容未通过社区规范审核（${ruleHit.category}），请修改后再发布。`);
             }
         }
-        // meowPostAdd enforces the 2h cooldown and deducts 1 cat can.
+        // meowPostAdd enforces the 2h cooldown, applies the daily free post,
+        // and deducts a can only after today's free slot has been used.
         const post = await oi33Model.meowPostAdd(this.user._id, text, {
             status: trusted ? 'approved' : 'pending',
         });

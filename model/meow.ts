@@ -1,20 +1,21 @@
 import { db, ObjectId, ValidationError } from 'hydrooj';
 import type {
-    Oi33MeowFollow, Oi33MeowLike, Oi33MeowPost, Oi33MeowStatus,
+    Oi33Achievement, Oi33MeowPost, Oi33MeowStatus,
     Oi33ModerationSource, Oi33ModerationVerdict,
 } from './types';
 import { addLog, logColl } from './log';
 import { userColl } from './user';
 import { catCanPoolColl } from './cat-can';
 
-export const meowPostColl = db.collection<Oi33MeowPost>('oi33_meow_post');
-export const meowFollowColl = db.collection<Oi33MeowFollow>('oi33_meow_follow');
-export const meowLikeColl = db.collection<Oi33MeowLike>('oi33_meow_like');
+export const meowPostColl = db.collection('oi33_meow_post');
+export const meowFollowColl = db.collection('oi33_meow_follow');
+export const meowLikeColl = db.collection('oi33_meow_like');
 
 const TIME_ZONE = 'Asia/Shanghai';
-// Posting a 喵喵信息 costs 1 cat can; the next one may be posted 2h later.
+// The first daily 喵喵 is free; later posts cost 1 cat can. Cooldown is 2h.
 export const MEOW_POST_CAN_COST = 1;
 export const MEOW_POST_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+const MEOW_POST_LOCK_STALE_MS = 30 * 1000;
 
 // Calendar day key in Asia/Shanghai — used for the admin "今日" stats.
 export function meowDateKey(now = new Date()): string {
@@ -36,6 +37,18 @@ export async function ensureMeowIndexes() {
         meowPostColl.createIndex({ status: 1, createdAt: -1 }),
         meowPostColl.createIndex({ createdAt: -1 }),
         meowPostColl.createIndex({ dateKey: 1 }),
+        meowPostColl.createIndex(
+            { uid: 1, dateKey: 1 },
+            {
+                name: 'oi33_meow_daily_free_unique',
+                unique: true,
+                partialFilterExpression: { dailyFree: true },
+            },
+        ),
+        meowPostColl.createIndex(
+            { uid: 1, achievementId: 1 },
+            { unique: true, partialFilterExpression: { source: 'achievement' } },
+        ),
         meowFollowColl.createIndex({ follower: 1, following: 1 }, { unique: true }),
         meowFollowColl.createIndex({ following: 1, createdAt: -1 }),
         meowLikeColl.createIndex({ uid: 1, postId: 1 }, { unique: true }),
@@ -62,7 +75,10 @@ export async function meowGetPost(id: ObjectId): Promise<Oi33MeowPost | null> {
 
 // A user's most recent 喵喵信息 (any status) — used for display only.
 export async function meowLastPost(uid: number): Promise<Oi33MeowPost | null> {
-    return await meowPostColl.findOne({ uid }, { sort: { createdAt: -1, _id: -1 } });
+    return await meowPostColl.findOne(
+        { uid, source: { $ne: 'achievement' } },
+        { sort: { createdAt: -1, _id: -1 } },
+    );
 }
 
 // The post that anchors the 2h cooldown: the most recent NON-rejected post.
@@ -70,8 +86,16 @@ export async function meowLastPost(uid: number): Promise<Oi33MeowPost | null> {
 // locked out — the user can immediately post again after a rejection.
 export async function meowCooldownAnchorPost(uid: number): Promise<Oi33MeowPost | null> {
     return await meowPostColl.findOne(
-        { uid, status: { $ne: 'rejected' } }, { sort: { createdAt: -1, _id: -1 } },
+        { uid, status: { $ne: 'rejected' }, source: { $ne: 'achievement' } },
+        { sort: { createdAt: -1, _id: -1 } },
     );
+}
+
+export async function meowDailyFreeAvailable(uid: number, now = new Date()): Promise<boolean> {
+    return !(await meowPostColl.findOne(
+        { uid, dateKey: meowDateKey(now), dailyFree: true },
+        { projection: { _id: 1 } },
+    ));
 }
 
 // Milliseconds remaining until the user may post again (0 = ready).
@@ -104,99 +128,192 @@ export async function meowRefundCan(uid: number, operator = 0) {
     });
 }
 
-// Create a post. Every 喵喵信息 (including forwards) costs 1 cat can and is
-// gated by a 2-hour cooldown after the previous one. `status` is decided by
-// the handler (teachers/moderation-off → approved; everyone else → pending
-// until the AI verdict). The can is not refunded on later rejection.
+async function acquireMeowPostLock(uid: number) {
+    const token = new ObjectId();
+    const now = new Date();
+    const staleAt = new Date(now.getTime() - MEOW_POST_LOCK_STALE_MS);
+    const result = await userColl.updateOne(
+        {
+            _id: uid,
+            $or: [
+                { meow_post_lock: { $exists: false } },
+                { meow_post_lock_at: { $exists: false } },
+                { meow_post_lock_at: { $lt: staleAt } },
+            ],
+        },
+        { $set: { meow_post_lock: token, meow_post_lock_at: now } },
+    );
+    if (!result.modifiedCount) {
+        throw new ValidationError('另一条喵喵信息正在发布，请稍后再试。');
+    }
+    return token;
+}
+
+async function releaseMeowPostLock(uid: number, token: ObjectId) {
+    await userColl.updateOne(
+        { _id: uid, meow_post_lock: token },
+        { $unset: { meow_post_lock: '', meow_post_lock_at: '' } },
+    );
+}
+
+async function finishMeowPost(doc: Oi33MeowPost) {
+    if (doc.status === 'approved') {
+        await addLog({
+            type: 'meow', userId: doc.uid, action: 'post',
+            postId: doc._id.toHexString(), status: 'approved',
+        });
+    }
+    if (doc.status === 'pending' && meowReviewKicker) {
+        try {
+            meowReviewKicker(doc.uid, doc._id);
+        } catch (e) {
+            console.error('[oi33] meow review kick failed:', e);
+        }
+    }
+    return doc;
+}
+
+// Create a user post. The first non-rejected post of each Asia/Shanghai
+// calendar day is free; later posts cost one cat can. Every user post still
+// shares the two-hour cooldown. A short Mongo-backed lock serializes requests
+// across Hydro workers so two rapid submissions cannot consume the same slot.
 export async function meowPostAdd(
     uid: number, content: string, opts: {
         status: 'approved' | 'pending'; ref?: ObjectId; refUid?: number;
     },
 ): Promise<Oi33MeowPost> {
-    const now = new Date();
-    const last = await meowCooldownAnchorPost(uid);
-    const remaining = meowCooldownRemaining(last, now);
-    if (remaining > 0) {
-        throw new ValidationError(`发布冷却中，${meowCooldownText(remaining)}后可再次发布喵喵信息。`);
-    }
-
-    // Deduct 1 cat can atomically (guard: balance must cover the cost).
-    const costResult = await userColl.updateOne(
-        { _id: uid, cat_can: { $gte: MEOW_POST_CAN_COST } },
-        { $inc: { cat_can: -MEOW_POST_CAN_COST } },
-    );
-    if (!costResult.modifiedCount) {
-        throw new ValidationError(`猫罐头不足，发布喵喵信息需要 ${MEOW_POST_CAN_COST} 个猫罐头。`);
-    }
-
-    // Pool counter + unified cat-account ledger (rollback on any later failure).
-    let poolUpdated = false;
-    let costLogId: ObjectId | null = null;
+    const lock = await acquireMeowPostLock(uid);
     try {
-        const poolResult = await catCanPoolColl.updateOne(
-            { _id: 'main' } as any,
-            { $inc: { circulatingCans: -MEOW_POST_CAN_COST }, $set: { updatedAt: now } } as any,
-        );
-        poolUpdated = !!poolResult.modifiedCount;
-        const logDoc = {
-            _id: new ObjectId(),
-            createdAt: now,
-            type: 'cat_account' as const,
-            userId: uid,
-            sender: uid,
-            action: 'meow_post',
-            amount: 0,
-            canAmount: -MEOW_POST_CAN_COST,
-            reason: '发布喵喵信息',
-        };
-        const inserted = await logColl.insertOne(logDoc as any);
-        costLogId = inserted.insertedId;
-    } catch (e) {
-        await userColl.updateOne({ _id: uid }, { $inc: { cat_can: MEOW_POST_CAN_COST } });
-        if (poolUpdated) {
-            await catCanPoolColl.updateOne(
-                { _id: 'main' } as any, { $inc: { circulatingCans: MEOW_POST_CAN_COST } } as any,
-            );
+        const now = new Date();
+        const last = await meowCooldownAnchorPost(uid);
+        const remaining = meowCooldownRemaining(last, now);
+        if (remaining > 0) {
+            throw new ValidationError(`发布冷却中，${meowCooldownText(remaining)}后可再次发布喵喵信息。`);
         }
-        throw e;
-    }
 
+        const dateKey = meowDateKey(now);
+        const dailyFree = await meowDailyFreeAvailable(uid, now);
+        const doc: Oi33MeowPost = {
+            _id: new ObjectId(),
+            uid,
+            content,
+            dateKey,
+            status: opts.status,
+            likeCount: 0,
+            canCost: dailyFree ? 0 : MEOW_POST_CAN_COST,
+            createdAt: now,
+            ...(dailyFree ? { dailyFree: true } : {}),
+            ...(opts.ref ? { ref: opts.ref, refUid: opts.refUid } : {}),
+        };
+
+        if (dailyFree) {
+            await meowPostColl.insertOne(doc);
+            return await finishMeowPost(doc);
+        }
+
+        // Deduct one cat can atomically (guard: balance must cover the cost).
+        const costResult = await userColl.updateOne(
+            { _id: uid, cat_can: { $gte: MEOW_POST_CAN_COST } },
+            { $inc: { cat_can: -MEOW_POST_CAN_COST } },
+        );
+        if (!costResult.modifiedCount) {
+            throw new ValidationError(`猫罐头不足，今天的免费次数已使用；再次发布需要 ${MEOW_POST_CAN_COST} 个猫罐头。`);
+        }
+
+        // Pool counter + unified cat-account ledger (rollback on later failure).
+        let poolUpdated = false;
+        let costLogId: ObjectId | null = null;
+        try {
+            const poolResult = await catCanPoolColl.updateOne(
+                { _id: 'main' } as any,
+                { $inc: { circulatingCans: -MEOW_POST_CAN_COST }, $set: { updatedAt: now } } as any,
+            );
+            poolUpdated = !!poolResult.modifiedCount;
+            const logDoc = {
+                _id: new ObjectId(),
+                createdAt: now,
+                type: 'cat_account' as const,
+                userId: uid,
+                sender: uid,
+                action: 'meow_post',
+                amount: 0,
+                canAmount: -MEOW_POST_CAN_COST,
+                reason: '发布喵喵信息',
+            };
+            const inserted = await logColl.insertOne(logDoc as any);
+            costLogId = inserted.insertedId;
+        } catch (e) {
+            await userColl.updateOne({ _id: uid }, { $inc: { cat_can: MEOW_POST_CAN_COST } });
+            if (poolUpdated) {
+                await catCanPoolColl.updateOne(
+                    { _id: 'main' } as any,
+                    { $inc: { circulatingCans: MEOW_POST_CAN_COST } } as any,
+                );
+            }
+            throw e;
+        }
+
+        try {
+            await meowPostColl.insertOne(doc);
+        } catch (e) {
+            await userColl.updateOne({ _id: uid }, { $inc: { cat_can: MEOW_POST_CAN_COST } });
+            if (poolUpdated) {
+                await catCanPoolColl.updateOne(
+                    { _id: 'main' } as any,
+                    { $inc: { circulatingCans: MEOW_POST_CAN_COST } } as any,
+                );
+            }
+            if (costLogId) await logColl.deleteOne({ _id: costLogId });
+            throw e;
+        }
+        return await finishMeowPost(doc);
+    } finally {
+        await releaseMeowPostLock(uid, lock);
+    }
+}
+
+// System-generated personal announcement. It is immediately visible, costs no
+// cans, does not use the daily free slot, and is ignored by the user cooldown.
+export async function meowAchievementPostAdd(
+    uid: number,
+    achievement: Pick<Oi33Achievement, '_id' | 'name' | 'description'>,
+): Promise<Oi33MeowPost> {
+    const existing = await meowPostColl.findOne({
+        uid, source: 'achievement', achievementId: achievement._id,
+    });
+    if (existing) return existing;
+    const now = new Date();
+    const fullContent = `🏆 获得成就「${achievement.name}」：${achievement.description}`;
     const doc: Oi33MeowPost = {
         _id: new ObjectId(),
         uid,
-        content,
+        content: [...fullContent].slice(0, 256).join(''),
         dateKey: meowDateKey(now),
-        status: opts.status,
+        status: 'approved',
         likeCount: 0,
+        canCost: 0,
+        source: 'achievement',
+        achievementId: achievement._id,
         createdAt: now,
-        ...(opts.ref ? { ref: opts.ref, refUid: opts.refUid } : {}),
     };
     try {
         await meowPostColl.insertOne(doc);
-    } catch (e) {
-        // Refund the can and drop the cost ledger so a failed insert leaves
-        // no phantom deduction behind.
-        await userColl.updateOne({ _id: uid }, { $inc: { cat_can: MEOW_POST_CAN_COST } });
-        if (poolUpdated) {
-            await catCanPoolColl.updateOne(
-                { _id: 'main' } as any, { $inc: { circulatingCans: MEOW_POST_CAN_COST } } as any,
-            );
-        }
-        if (costLogId) await logColl.deleteOne({ _id: costLogId });
-        throw e;
-    }
-    if (doc.status === 'approved') {
-        await addLog({
-            type: 'meow', userId: uid, action: 'post',
-            postId: doc._id.toHexString(), status: 'approved',
+    } catch (e: any) {
+        if (e?.code !== 11000) throw e;
+        const raced = await meowPostColl.findOne({
+            uid, source: 'achievement', achievementId: achievement._id,
         });
+        if (!raced) throw e;
+        return raced;
     }
-    if (opts.status === 'pending' && meowReviewKicker) {
-        try {
-            meowReviewKicker(uid, doc._id);
-        } catch (e) {
-            console.error('[oi33] meow review kick failed:', e);
-        }
+    try {
+        await addLog({
+            type: 'meow', userId: uid, action: 'achievement',
+            postId: doc._id.toHexString(), status: 'approved',
+            achievementId: achievement._id,
+        });
+    } catch (e) {
+        console.error('[oi33] achievement meow log failed:', e);
     }
     return doc;
 }
@@ -248,7 +365,7 @@ export async function meowForwardCount(postId: ObjectId): Promise<number> {
 
 // Feed: approved posts from the given uids (followed users + self).
 export async function meowFeed(uids: number[], page: number, pageSize = 20) {
-    const filter = { uid: { $in: uids }, status: 'approved' };
+    const filter: any = { uid: { $in: uids }, status: 'approved' };
     const total = await meowPostColl.countDocuments(filter);
     const upcount = Math.max(1, Math.ceil(total / pageSize));
     const docs = await meowPostColl.find(filter)
@@ -290,13 +407,15 @@ export async function meowResolveVerdict(postId: ObjectId, result: {
         status,
     };
     if (status !== 'pending') set.handledAt = new Date();
+    if (status === 'rejected' && post.canCost === 0) set.dailyFree = false;
     if (result.model !== undefined) set.model = result.model;
     if (result.cost !== undefined) set.cost = result.cost;
     // Atomic guard: skip if an admin already handled it.
     const r = await meowPostColl.updateOne({ _id: postId, status: 'pending' }, { $set: set });
     if (!r.matchedCount) return;
-    // AI/human rejection → refund the cat can + reset the cooldown.
-    if (status === 'rejected') await meowRefundCan(post.uid);
+    // Rejection resets the cooldown. Paid posts get their can back; a rejected
+    // free post releases today's free slot instead.
+    if (status === 'rejected' && post.canCost !== 0) await meowRefundCan(post.uid);
     // Only log the final verdict — a pending post is not surfaced in the log.
     if (status !== 'pending') {
         await addLog({
@@ -339,10 +458,19 @@ export async function meowSetStatus(id: ObjectId, status: 'approved' | 'rejected
     if (!post || post.status !== 'pending') return false;
     const r = await meowPostColl.updateOne(
         { _id: id, status: 'pending' },
-        { $set: { status, handledAt: new Date(), handler: handlerUid } },
+        {
+            $set: {
+                status,
+                handledAt: new Date(),
+                handler: handlerUid,
+                ...(status === 'rejected' && post.canCost === 0 ? { dailyFree: false } : {}),
+            },
+        },
     );
     if (!r.matchedCount) return false;
-    if (status === 'rejected') await meowRefundCan(post.uid, handlerUid);
+    if (status === 'rejected' && post.canCost !== 0) {
+        await meowRefundCan(post.uid, handlerUid);
+    }
     return true;
 }
 
@@ -352,7 +480,7 @@ export async function meowListAll(
     page: number, pageSize = 20, status = 'all',
 ): Promise<{ docs: Oi33MeowPost[]; count: number; upcount: number }> {
     if (!['pending', 'approved', 'rejected'].includes(status)) status = 'all';
-    const filter = status === 'all' ? {} : { status };
+    const filter: any = status === 'all' ? {} : { status };
     const count = await meowPostColl.countDocuments(filter);
     const docs = await meowPostColl.find(filter)
         .sort({ createdAt: -1, _id: -1 })

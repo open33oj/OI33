@@ -102,6 +102,7 @@
                 {{ _('Pending Requests') }}{% if pendingCount %} ({{ pendingCount }}){% endif %}
               </a>
               <a href="/oi33/badge/manage" class="rounded button">{{ _('Manage Badges') }}</a>
+              <a href="{{ url('oi33_achievement_manage') }}" class="rounded button">成就管理</a>
             </div>
           </div>
 
@@ -146,6 +147,7 @@
             <option value="wiki" {% if logType == 'wiki' %}selected{% endif %}>{{ _('activity_tag_wiki') }}</option>
             <option value="oauth" {% if logType == 'oauth' %}selected{% endif %}>OAuth</option>
             <option value="meow" {% if logType == 'meow' %}selected{% endif %}>{{ _('activity_tag_meow') }}</option>
+            <option value="achievement" {% if logType == 'achievement' %}selected{% endif %}>成就</option>
           </select>
           <button type="submit" class="rounded button">筛选</button>
           {% if logType %}<a href="{{ url('oi33_admin') }}" class="rounded button">查看全部</a>{% endif %}
@@ -362,7 +364,24 @@
               {% elif a.action == 'reject' %}
                 <span class="oi33-timeline__note">驳回了信息</span>
                 <span class="oi33-timeline__status-rejected">{{ _('Rejected') }}</span>
+              {% elif a.action == 'achievement' %}
+                <span class="oi33-timeline__note">获得成就后自动发布了喵喵</span>
               {% endif %}
+
+            {% elif a.type == 'achievement' %}
+              <span class="oi33-timeline__tag">成就</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">
+                {% if a.action == 'grant' %}获得了成就
+                {% elif a.action == 'revoke' %}被撤销成就
+                {% elif a.action == 'definition_create' %}创建了成就定义
+                {% elif a.action == 'definition_edit' %}修改了成就定义
+                {% elif a.action == 'definition_delete' %}删除了成就定义
+                {% elif a.action == 'config_update' %}修改了成就全局配置（AC 统计域：{{ a.reason or '全部域' }}）
+                {% elif a.action == 'initial_import' %}导入了初始成就定义
+                {% else %}{{ a.action }}{% endif %}
+                {% if a.achievementId %}「{{ a.achievementId }}」{% endif %}
+              </span>
 
             {% else %}
               {# 兜底：未知或旧版日志类型也要显示内容，不允许出现空白条目。 #}

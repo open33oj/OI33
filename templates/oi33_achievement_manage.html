@@ -1,0 +1,255 @@
+{% set page_name = "oi33_achievement_manage" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">成就管理</h1>
+        <div class="section__tools">
+          <form method="post" action="{{ url('oi33_achievement_scan') }}" style="display:inline;margin:0;"
+            onsubmit="return confirm('将逐个扫描现有 OI33 用户并补发成就。扫描补发不会发布喵喵；猫粮按账户明细中的历史最高余额统计。确定开始吗？');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <button type="submit" class="rounded button">扫描现有用户</button>
+          </form>
+          <a href="{{ url('oi33_admin') }}" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <div class="achievement-global-config">
+          <h2>全局自动发放配置</h2>
+          <form method="post" action="{{ url('oi33_achievement_config') }}">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <div class="form__item">
+              <label>“通过题目”参与统计的域</label>
+              <textarea class="textbox" name="acceptedDomains" rows="4" maxlength="6500"
+                placeholder="每行一个 domainId；留空表示统计全部域">{{ acceptedDomainsText }}</textarea>
+            </div>
+            <p class="achievement-help">
+              可用换行、空格或逗号分隔 domainId。留空时统计全部域；无论选择多少个域，
+              `sort` 相同的题目只计为一道题，即使它们位于不同域。
+            </p>
+            <button type="submit" class="rounded primary button">保存全局配置</button>
+          </form>
+        </div>
+
+        <p class="achievement-help">
+          图片仅支持原始尺寸为 8×8、16×16、24×24、32×32 的 PNG；页面统一放大到 96×96，
+          缩放倍率始终为整数。成就 ID 将作为后续自动规则的稳定标识，创建后不可更名。
+        </p>
+        <p class="achievement-help">
+          扫描按用户依次执行，不并发查询；扫描补发只授予成就，不发布个人喵喵。
+          猫粮指标在扫描时使用统一账户明细倒推历史最高余额，实时达成仍在余额变化后立即检查。
+        </p>
+
+        <div class="row">
+          <div class="medium-7 columns">
+            <h2>{{ '编辑成就' if editing else '新建成就' }}</h2>
+            <form method="post" action="{{ url('oi33_achievement_save') }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <div class="row">
+                <div class="medium-6 columns form__item">
+                  <label>成就 ID</label>
+                  <input class="textbox" name="id" maxlength="64" required
+                    value="{{ editing._id if editing else '' }}" {% if editing %}readonly{% endif %}
+                    placeholder="例如 first_ac">
+                </div>
+                <div class="medium-6 columns form__item">
+                  <label>名称</label>
+                  <input class="textbox" name="name" maxlength="50" required
+                    value="{{ editing.name if editing else '' }}" placeholder="第一次 AC">
+                </div>
+              </div>
+              <div class="form__item">
+                <label>描述</label>
+                <textarea class="textbox" name="description" maxlength="500" rows="3"
+                  required placeholder="展示给用户的成就说明">{{ editing.description if editing else '' }}</textarea>
+              </div>
+              {% set currentRuleType = (editing.ruleType or 'manual') if editing else 'manual' %}
+              <div class="row">
+                <div class="medium-8 columns form__item">
+                  <label>发放指标</label>
+                  <select class="select" name="ruleType" id="achievement-rule-type">
+                    {% for option in ruleOptions %}
+                    <option value="{{ option.value }}" {% if currentRuleType == option.value %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="medium-4 columns form__item" id="achievement-threshold-wrap">
+                  <label>阈值 x</label>
+                  <input class="textbox" type="number" min="1" max="1000000000"
+                    name="threshold" id="achievement-threshold"
+                    value="{{ editing.threshold if editing and editing.threshold else 1 }}">
+                </div>
+              </div>
+              <div class="form__item" id="achievement-manual-rule-wrap">
+                <label>手动成就的达成规则</label>
+                <textarea class="textbox" name="rule" id="achievement-manual-rule"
+                  maxlength="500" rows="3"
+                  placeholder="例如：由管理员根据活动结果发放">{{ editing.rule if editing and currentRuleType == 'manual' else '' }}</textarea>
+              </div>
+              <div class="row">
+                <div class="medium-4 columns form__item">
+                  <label>排序</label>
+                  <input class="textbox" type="number" name="order"
+                    value="{{ editing.order if editing else 0 }}">
+                </div>
+                <div class="medium-8 columns form__item">
+                  <label>PNG 像素图{% if editing %}（不选择则保留原图）{% endif %}</label>
+                  <input type="file" name="image" accept="image/png,.png" {% if not editing %}required{% endif %}>
+                </div>
+              </div>
+              {% if editing %}
+              <div class="achievement-edit-preview">
+                <img class="achievement-pixel" src="{{ editing.imageData }}"
+                  width="96" height="96" alt="{{ editing.name }}">
+                <span>原始尺寸：{{ editing.imageSize }}×{{ editing.imageSize }}</span>
+              </div>
+              {% endif %}
+              <button type="submit" class="rounded primary button">{{ '保存修改' if editing else '创建成就' }}</button>
+              {% if editing %}<a href="{{ url('oi33_achievement_manage') }}" class="rounded button">取消编辑</a>{% endif %}
+            </form>
+          </div>
+
+          <div class="medium-5 columns">
+            <h2>授予用户</h2>
+            {% if achievements.length %}
+            <form method="post" action="{{ url('oi33_achievement_grant') }}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <div class="form__item">
+                <label>用户 UID</label>
+                <input class="textbox" type="number" min="1" name="uid" required value="{{ targetUid }}">
+              </div>
+              <div class="form__item">
+                <label>成就</label>
+                <select class="select" name="achievementId" required>
+                  {% for achievement in achievements %}
+                  <option value="{{ achievement._id }}">{{ achievement.name }}（{{ achievement._id }}）</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <p class="achievement-help">授予成功后会自动发布一条公开的个人喵喵，不扣罐头、不占每日免费次数。</p>
+              <button type="submit" class="rounded primary button">授予成就</button>
+            </form>
+            {% else %}
+            <p>请先创建一个成就。</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">成就定义（{{ achievements.length }}）</h2></div>
+      <div class="section__body achievement-definition-grid">
+        {% for achievement in achievements %}
+        <article class="achievement-definition">
+          <img class="achievement-pixel" src="{{ achievement.imageData }}" width="96" height="96"
+            alt="{{ achievement.name }}">
+          <div class="achievement-definition__body">
+            <h3>{{ achievement.name }} <code>{{ achievement._id }}</code></h3>
+            <p>{{ achievement.description }}</p>
+            <p><strong>达成规则：</strong>{{ achievement.rule }}</p>
+            <p class="achievement-meta">
+              {{ '自动发放' if achievement.ruleType and achievement.ruleType != 'manual' else '手动发放' }}
+            </p>
+            <p class="achievement-meta">
+              {{ achievement.imageSize }}×{{ achievement.imageSize }} · 排序 {{ achievement.order }}
+            </p>
+            <a class="rounded button" href="{{ url('oi33_achievement_manage', query={edit:achievement._id}) }}">编辑</a>
+            <form method="post" action="{{ url('oi33_achievement_delete', id=achievement._id) }}"
+              class="achievement-inline-form" onsubmit="return confirm('确定删除这个尚未授予的成就吗？');">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <button type="submit" class="rounded button">删除</button>
+            </form>
+          </div>
+        </article>
+        {% else %}
+        <p>还没有成就定义。</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">最近授予</h2></div>
+      <div class="section__body">
+        {% if recentAwards.length %}
+        <table class="data-table">
+          <thead><tr><th>用户</th><th>成就</th><th>来源</th><th>时间</th><th></th></tr></thead>
+          <tbody>
+          {% for award in recentAwards %}
+            <tr>
+              <td>{% if udict[award.uid] %}{{ user.render_inline(udict[award.uid]) }}{% else %}UID {{ award.uid }}{% endif %}</td>
+              <td>
+                {% if achievementDict[award.achievementId] %}
+                  {{ achievementDict[award.achievementId].name }}
+                {% else %}
+                  {{ award.achievementId }}
+                {% endif %}
+              </td>
+              <td>{{ '手动授予' if award.source == 'manual' else award.source }}</td>
+              <td>{{ datetimeSpan(award.earnedAt)|safe }}</td>
+              <td>
+                <form method="post" action="{{ url('oi33_achievement_revoke') }}"
+                  onsubmit="return confirm('撤销后，对应的自动成就喵喵也会被删除。确定继续吗？');">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="uid" value="{{ award.uid }}">
+                  <input type="hidden" name="achievementId" value="{{ award.achievementId }}">
+                  <button type="submit" class="rounded button">撤销</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p>还没有授予记录。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .achievement-help { color:#777; }
+  .achievement-global-config { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
+  .achievement-global-config h2 { margin-top:0; }
+  .theme--dark .achievement-help, [data-mantine-color-scheme=dark] .achievement-help { color:#aaa; }
+  .achievement-pixel {
+    width:96px; height:96px; object-fit:fill; flex:0 0 96px;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .achievement-edit-preview { display:flex; align-items:center; gap:1rem; margin:0.5rem 0 1rem; }
+  .achievement-definition-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:1rem; }
+  .achievement-definition { display:flex; gap:1rem; border:1px solid rgba(127,127,127,.2); border-radius:8px; padding:1rem; }
+  .achievement-definition__body { min-width:0; }
+  .achievement-definition__body h3 { margin:0 0 .5rem; }
+  .achievement-definition__body p { margin:.35rem 0; white-space:pre-wrap; }
+  .achievement-definition__body code { font-size:.7em; font-weight:normal; }
+  .achievement-meta { color:#888; font-size:.85em; }
+  .achievement-inline-form { display:inline; margin:0; }
+  .data-table form { margin:0; }
+  @media (max-width:600px) {
+    .achievement-definition-grid { grid-template-columns:1fr; }
+  }
+</style>
+<script>
+  (function () {
+    var type = document.getElementById('achievement-rule-type');
+    var thresholdWrap = document.getElementById('achievement-threshold-wrap');
+    var threshold = document.getElementById('achievement-threshold');
+    var manualWrap = document.getElementById('achievement-manual-rule-wrap');
+    var manual = document.getElementById('achievement-manual-rule');
+    if (!type || !thresholdWrap || !threshold || !manualWrap || !manual) return;
+    var update = function () {
+      var isManual = type.value === 'manual';
+      thresholdWrap.style.display = isManual ? 'none' : '';
+      threshold.required = !isManual;
+      manualWrap.style.display = isManual ? '' : 'none';
+      manual.required = isManual;
+    };
+    type.addEventListener('change', update);
+    update();
+  })();
+</script>
+{% endblock %}

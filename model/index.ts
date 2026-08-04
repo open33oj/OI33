@@ -69,9 +69,9 @@ import {
     modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
 } from './moderate';
 import {
-    ensureMeowIndexes, meowDateKey,
+    ensureMeowIndexes, meowDateKey, meowDailyFreeAvailable,
     meowGetPost, meowLastPost, meowCooldownAnchorPost, meowCooldownRemaining, meowCooldownText, meowRefundCan,
-    meowPostAdd, meowFeed, meowUserPosts,
+    meowPostAdd, meowAchievementPostAdd, meowFeed, meowUserPosts,
     meowResolveVerdict, meowForwardCount, meowListPending, meowListRecent, meowListAll, meowDelete, meowTodayStats, meowSetStatus,
     meowFollow, meowUnfollow, meowIsFollowing,
     meowFollowingList, meowFollowerList, meowFollowingCount, meowFollowerCount,
@@ -80,6 +80,13 @@ import {
     setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
     MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
 } from './meow';
+import {
+    ensureAchievementIndexes, achievementGet, achievementList, achievementSave,
+    achievementDelete, achievementGetUserAwards, achievementListRecentAwards,
+    achievementGrant, achievementRevoke, achievementEvaluateUser, achievementEvaluateAll,
+    achievementGetAcceptedDomains, achievementSetAcceptedDomains,
+    achievementAcceptedDomainIncluded, achievementImportInitialDefinitions,
+} from './achievement';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -102,6 +109,7 @@ export {
 } from './ai';
 export { moderationColl } from './moderate';
 export { meowPostColl, meowFollowColl, meowLikeColl } from './meow';
+export { achievementColl, userAchievementColl } from './achievement';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -146,9 +154,9 @@ const oi33Model = {
     aiGetConfig, aiSaveConfig,
     ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
     modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
-    ensureMeowIndexes, meowDateKey,
+    ensureMeowIndexes, meowDateKey, meowDailyFreeAvailable,
     meowGetPost, meowLastPost, meowCooldownAnchorPost, meowCooldownRemaining, meowCooldownText, meowRefundCan,
-    meowPostAdd, meowFeed, meowUserPosts,
+    meowPostAdd, meowAchievementPostAdd, meowFeed, meowUserPosts,
     meowResolveVerdict, meowForwardCount, meowListPending, meowListRecent, meowListAll, meowDelete, meowTodayStats, meowSetStatus,
     meowFollow, meowUnfollow, meowIsFollowing,
     meowFollowingList, meowFollowerList, meowFollowingCount, meowFollowerCount,
@@ -156,6 +164,11 @@ const oi33Model = {
     meowToggleLike, meowLikedMap,
     setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
     MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
+    ensureAchievementIndexes, achievementGet, achievementList, achievementSave,
+    achievementDelete, achievementGetUserAwards, achievementListRecentAwards,
+    achievementGrant, achievementRevoke, achievementEvaluateUser, achievementEvaluateAll,
+    achievementGetAcceptedDomains, achievementSetAcceptedDomains,
+    achievementAcceptedDomainIncluded, achievementImportInitialDefinitions,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -194,6 +207,8 @@ declare module 'hydrooj' {
         oi33_meow_post: import('./types').Oi33MeowPost;
         oi33_meow_follow: import('./types').Oi33MeowFollow;
         oi33_meow_like: import('./types').Oi33MeowLike;
+        oi33_achievement: import('./types').Oi33Achievement;
+        oi33_user_achievement: import('./types').Oi33UserAchievement;
     }
 }
 

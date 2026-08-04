@@ -27,15 +27,24 @@
           </div>
         {% else %}
           <form method="post" action="{{ url('oi33_meow_post') }}" class="meow-compose">
-            {% if lastPostRejected %}<p class="meow-compose__notice">上一条喵喵信息未通过审核，已退还猫罐头，可以重新发布。</p>{% endif %}
-            {% if myCans < 1 %}<p class="meow-compose__notice">猫罐头不足，发布喵喵信息需要 1 个猫罐头。</p>{% endif %}
+            {% if lastPostRejected %}
+              {% if lastPost.canCost == 0 %}
+              <p class="meow-compose__notice">上一条喵喵信息未通过审核，今日免费次数已恢复，可以重新发布。</p>
+              {% else %}
+              <p class="meow-compose__notice">上一条喵喵信息未通过审核，已退还猫罐头，可以重新发布。</p>
+              {% endif %}
+            {% endif %}
+            {% if not dailyFreeAvailable and myCans < 1 %}<p class="meow-compose__notice">猫罐头不足，今日免费次数已使用；再次发布需要 1 个猫罐头。</p>{% endif %}
             {% if forwardPid %}
             <div class="meow-forward-target">转发 <b>@{{ forwardUname }}</b> 的信息<a href="{{ url('oi33_meow_main') }}" class="meow-action" style="margin-left:0.6rem;">（取消转发）</a></div>
             {% endif %}
             <textarea name="content" id="meow-content" class="textbox" maxlength="{{ 256 + (forwardChain.length if forwardPid else 0) }}" rows="3" placeholder="{{ _('Meow placeholder') }}">{{ forwardChain }}</textarea>
             <div class="meow-compose__footer">
               <span class="meow-count"><span id="meow-count-num">0</span>/<span id="meow-count-max">{{ 256 + (forwardChain.length if forwardPid else 0) }}</span></span>
-              <span class="meow-compose__cost">（花费 1 个猫罐头 · 当前 猫粮 {{ model.oi33.formatCatFood(myFood) }} / 猫罐头 {{ myCans }} 个）</span>
+              <span class="meow-compose__cost">
+                （{% if dailyFreeAvailable %}今日第 1 条免费{% else %}花费 1 个猫罐头{% endif %}
+                · 当前 猫粮 {{ model.oi33.formatCatFood(myFood) }} / 猫罐头 {{ myCans }} 个）
+              </span>
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
               <button type="submit" class="rounded primary button">{{ _('Post') }}</button>
             </div>

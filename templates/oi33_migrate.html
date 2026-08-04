@@ -15,6 +15,19 @@
 
       <div class="section__body">
 
+        {% if achievementDone %}
+          <blockquote class="note typo" style="padding:1.2rem 1.5rem;margin-bottom:1.5rem;">
+            <h3 style="margin-top:0;">初始成就导入完成</h3>
+            <p>
+              共处理 <strong>{{ achievementImport.total }}</strong> 项；
+              新增 <strong>{{ achievementImport.inserted }}</strong> 项，
+              已有 <strong>{{ achievementImport.existing }}</strong> 项，
+              实际更新 <strong>{{ achievementImport.modified }}</strong> 项。
+            </p>
+            <p style="margin-bottom:0;">该操作仅导入成就定义，不扫描用户，也不会发布成就喵喵。</p>
+          </blockquote>
+        {% endif %}
+
         {% if done %}
           <!-- Migration completed -->
           <blockquote class="note typo" style="padding:1.2rem 1.5rem;margin-bottom:1.5rem;">
@@ -97,10 +110,18 @@
             {% endif %}
           </table>
 
-          <form method="post">
+          <form method="post" style="display:inline-block;margin-right:.5rem;">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <button type="submit" class="primary rounded button">{{ _('Confirm Migration') }}</button>
           </form>
         {% endif %}
+
+        <form method="post" style="display:inline-block;"
+          onsubmit="return confirm('将使用插件内置的十二档图片，幂等导入 60 项初始成就。空库也可直接导入；该操作不会扫描用户或发布喵喵。确定继续吗？');">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <input type="hidden" name="action" value="import_achievements">
+          <button type="submit" class="rounded button">导入初始成就</button>
+        </form>
 
       </div>
     </div>

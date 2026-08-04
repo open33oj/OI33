@@ -248,6 +248,9 @@ class CatCanBuyHandler extends Handler {
     async post(domainId: string, quantity: number) {
         try {
             const result = await oi33Model.buyCatCans(this.user._id, quantity);
+            await oi33Model.achievementEvaluateUser(this.user._id, {
+                ruleTypes: ['cat_can_balance'],
+            }).catch((e) => console.error('[oi33] cat-can achievement evaluation failed:', e));
             const notification = `成功买入 ${result.quantity} 个猫罐头，含手续费共支付 ${oi33Model.formatCatFood(result.total)}；下次可交易：${formatNextTradeAt(result.nextTradeAt)}`;
             this.response.redirect = this.url('oi33_cat_can', { query: { notification } });
         } catch (e: any) {
@@ -261,6 +264,9 @@ class CatCanSellHandler extends Handler {
     async post(domainId: string, quantity: number) {
         try {
             const result = await oi33Model.sellCatCans(this.user._id, quantity);
+            await oi33Model.achievementEvaluateUser(this.user._id, {
+                ruleTypes: ['cat_food_balance'],
+            }).catch((e) => console.error('[oi33] cat-food achievement evaluation failed:', e));
             const notification = `成功卖出 ${result.quantity} 个猫罐头，实际到账 ${oi33Model.formatCatFood(result.received)}（手续费 ${oi33Model.formatCatFood(result.fee)}）；下次可交易：${formatNextTradeAt(result.nextTradeAt)}`;
             this.response.redirect = this.url('oi33_cat_can', { query: { notification } });
         } catch (e: any) {

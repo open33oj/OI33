@@ -15,6 +15,7 @@ import { apply as applySchoolCat } from './handler/school-cat';
 import { apply as applyAi } from './handler/ai';
 import { apply as applyModerate } from './handler/moderate';
 import { apply as applyMeow } from './handler/meow';
+import { apply as applyAchievement } from './handler/achievement';
 import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
@@ -22,6 +23,7 @@ import { ensureCatAccountIndexes } from './model/cat-account';
 import { ensureCatMapIndexes } from './model/cat-map';
 import { ensureSchoolCatIndexes } from './model/school-cat';
 import { ensureMeowIndexes } from './model/meow';
+import { ensureAchievementIndexes } from './model/achievement';
 
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
@@ -53,6 +55,7 @@ export async function apply(ctx: Context) {
     await applyAi(ctx);
     await applyModerate(ctx);
     await applyMeow(ctx);
+    await applyAchievement(ctx);
     if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0') {
         ctx.on('app/started', async () => {
             try {
@@ -70,6 +73,7 @@ export async function apply(ctx: Context) {
                 await ensureSchoolCatIndexes();
                 await ensureModerationIndexes();
                 await ensureMeowIndexes();
+                await ensureAchievementIndexes();
                 await maintainCatCanMarket();
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {

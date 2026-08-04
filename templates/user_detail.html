@@ -286,6 +286,43 @@
         </div>
       </div>{% endif %}
     </div>
+    {% if oi33AchievementPanel %}
+    <div class="section oi33-achievements">
+      <div class="section__header">
+        <h2 class="section__title">成就（{{ oi33AchievementPanel.awards.length }}）</h2>
+        {% if oi33AchievementPanel.canManage %}
+        <div class="section__tools">
+          <a href="{{ url('oi33_achievement_manage', query={uid:udoc._id}) }}" class="rounded button">管理成就</a>
+        </div>
+        {% endif %}
+      </div>
+      <div class="section__body">
+        {% if oi33AchievementPanel.awards.length %}
+          {% for group in oi33AchievementPanel.groups %}
+          <section class="oi33-achievement-group">
+            <h3 class="oi33-achievement-group__title">{{ group.label }}（{{ group.awards.length }}）</h3>
+            <div class="oi33-achievement-grid">
+              {% for award in group.awards %}
+              <article class="oi33-achievement-card">
+                <img class="oi33-achievement-pixel" src="{{ award.achievement.imageData }}"
+                  width="96" height="96" alt="{{ award.achievement.name }}">
+                <div class="oi33-achievement-card__body">
+                  <h4>{{ award.achievement.name }}</h4>
+                  <p>{{ award.achievement.description }}</p>
+                  <p class="oi33-achievement-rule"><strong>达成条件：</strong>{{ award.achievement.rule }}</p>
+                  <p class="oi33-achievement-time">{{ datetimeSpan(award.earnedAt)|safe }} 获得</p>
+                </div>
+              </article>
+              {% endfor %}
+            </div>
+          </section>
+          {% endfor %}
+        {% else %}
+        <p class="oi33-achievement-empty">还没有获得成就。</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
   </div>
   <div class="medium-3 columns">
     <div class="section side oi33-cat-card">
@@ -386,5 +423,32 @@
   .oi33-meow-panelbar form { margin: 0; }
   .oi33-meow-paneltitle { margin: 1.25rem 0 0.5rem !important; font-size: 1.05em; }
   .oi33-meow-panellist__row { padding: 0.3rem 0; }
+  .oi33-achievement-group + .oi33-achievement-group { margin-top:1.75rem; }
+  .oi33-achievement-group__title { margin:0 0 .75rem; font-size:1.1rem; }
+  .oi33-achievement-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; }
+  .oi33-achievement-card {
+    display:flex; flex-direction:column; align-items:center; min-width:0;
+    padding:.8rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
+  }
+  .oi33-achievement-pixel {
+    width:96px; height:96px; flex:0 0 96px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .oi33-achievement-card__body { min-width:0; width:100%; text-align:center; }
+  .oi33-achievement-card__body h4 { margin:.65rem 0 .35rem; font-size:1rem; }
+  .oi33-achievement-card__body p { margin:.25rem 0; white-space:pre-wrap; }
+  .oi33-achievement-rule, .oi33-achievement-time, .oi33-achievement-empty { color:#777; font-size:.85em; }
+  .theme--dark .oi33-achievement-rule,
+  .theme--dark .oi33-achievement-time,
+  .theme--dark .oi33-achievement-empty,
+  [data-mantine-color-scheme=dark] .oi33-achievement-rule,
+  [data-mantine-color-scheme=dark] .oi33-achievement-time,
+  [data-mantine-color-scheme=dark] .oi33-achievement-empty { color:#aaa; }
+  @media (max-width:900px) {
+    .oi33-achievement-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:500px) {
+    .oi33-achievement-grid { grid-template-columns:1fr; }
+  }
 </style>
 {% endblock %}
