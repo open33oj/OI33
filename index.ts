@@ -40,6 +40,10 @@ async function maintainCatCanMarket() {
 
 export async function apply(ctx: Context) {
     applyPatches(ctx);
+    ctx.injectUI('UserDropdown', 'oi33_admin', {
+        icon: 'crown',
+        displayName: 'oi33_admin',
+    }, (handler: any) => (handler.user.realname_flag || 0) >= 2);
     await applyUser(ctx);
     await applyContent(ctx);
     await applyAdmin(ctx);

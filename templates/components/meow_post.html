@@ -10,11 +10,10 @@
     {% endif %}
     <span class="meow-card__time">{{ datetimeSpan(p.createdAt)|safe }}</span>
   </div>
-  <div class="meow-card__body">
-    {{ p.html | safe if p.html else p.content }}
-    {% if p.chain and p.chain.length > 1 %}
+  <div class="meow-card__body">{{- p.html | safe if p.html else p.content -}}
+    {%- if p.chain and p.chain.length > 1 -%}
     <span class="meow-forward"> || {% for item in p.chain %}{% if loop.index > 1 %}{% if loop.index > 2 %} || {% endif %}@{% if udict[item.uid] %}{{ udict[item.uid].uname }}{% else %}UID {{ item.uid }}{% endif %} : {{ item.content }}{% endif %}{% endfor %}</span>
-    {% endif %}
+    {%- endif -%}
   </div>
   <div class="meow-card__foot">
     {% if readonly %}

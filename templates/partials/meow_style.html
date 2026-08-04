@@ -8,7 +8,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.15rem;
 }
 .meow-card__time { font-size: 0.75em; color: #888; }
 .meow-balance { font-size: 0.8em; font-weight: 700; color: #000; font-family: 'Consolas', 'Menlo', 'Monaco', 'Courier New', monospace; white-space: nowrap; }
@@ -16,8 +16,12 @@
 .meow-card__body {
   white-space: pre-wrap;
   word-break: break-word;
-  margin-bottom: 0.6rem;
+  line-height: 1.65;
+  margin: 0 0 0.55rem;
 }
+.meow-card__body p { margin: 0.35em 0; line-height: inherit; }
+.meow-card__body > :first-child { margin-top: 0; }
+.meow-card__body > :last-child { margin-bottom: 0; }
 .meow-mention { color: var(--accent-color, #55b6e2); text-decoration: none; }
 .meow-mention:hover { text-decoration: underline; }
 .meow-forward { color: #777; font-size: 0.9em; }

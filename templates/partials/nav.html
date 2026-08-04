@@ -112,13 +112,6 @@
               </a>
             </li>
           {% endif %}
-          {% if (handler.user.realname_flag or 0) >= 2 %}
-            <li class="menu__item">
-              <a href="{{ url('oi33_admin') }}" class="menu__link">
-                <span class="icon icon-crown"></span> {{ _('oi33_admin') }}
-              </a>
-            </li>
-          {% endif %}
           {% if ui.getNodes('UserDropdown').length %}
             <li class="menu__seperator"></li>
             {%- for item in ui.getNodes('UserDropdown') -%} {% if item.checker(handler) %}

@@ -244,12 +244,41 @@ function registerAchievementUserPanel(ctx: Context) {
                 oi33Model.achievementGetUserAwards(uid),
                 viewerUid ? checkUserFlag(viewerUid) : Promise.resolve(0),
             ]);
-            const groups = PROFILE_GROUPS.map((group) => ({
+            const categoryGroups = PROFILE_GROUPS.map((group) => ({
                 ...group,
                 awards: awards.filter((award: any) => (
                     (award.achievement.ruleType || 'manual') === group.ruleType
                 )),
             })).filter((group) => group.awards.length);
+            const featuredMap = new Map<string, { award: any; labels: string[] }>();
+            const addFeatured = (award: any, label: string) => {
+                const key = String(award.achievementId);
+                const existing = featuredMap.get(key);
+                if (existing) {
+                    if (!existing.labels.includes(label)) existing.labels.push(label);
+                } else featuredMap.set(key, { award, labels: [label] });
+            };
+            for (const group of categoryGroups) {
+                if (group.ruleType === 'manual') continue;
+                const highest = group.awards.reduce((best: any, award: any) => {
+                    const bestThreshold = Number(best.achievement.threshold) || 0;
+                    const threshold = Number(award.achievement.threshold) || 0;
+                    if (threshold !== bestThreshold) return threshold > bestThreshold ? award : best;
+                    return Number(award.achievement.order) > Number(best.achievement.order)
+                        ? award : best;
+                });
+                addFeatured(highest, `${group.label}最高`);
+            }
+            for (const award of awards as any[]) {
+                if (award.source === 'manual') addFeatured(award, '手动授予');
+            }
+            const featuredAwards = [...featuredMap.values()].map(({ award, labels }) => ({
+                ...award,
+                featureLabel: labels.join(' · '),
+            }));
+            const groups = featuredAwards.length
+                ? [{ label: '代表成就', awards: featuredAwards, featured: true }, ...categoryGroups]
+                : categoryGroups;
             body.oi33AchievementPanel = {
                 awards, groups,
                 canManage: viewerFlag >= 2,
