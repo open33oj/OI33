@@ -458,7 +458,10 @@ export async function achievementGrant(
         return { grant: existing, created: false };
     }
 
-    if (announce) {
+    // Managers (realname_flag >= 2) do not get an automatic meow post.
+    const recipient = await userColl.findOne({ _id: uid }, { projection: { realname_flag: 1 } });
+    const skipAnnounce = (Number(recipient?.realname_flag) || 0) >= 2;
+    if (announce && !skipAnnounce) {
         try {
             const post = await meowAchievementPostAdd(uid, achievement);
             await userAchievementColl.updateOne(

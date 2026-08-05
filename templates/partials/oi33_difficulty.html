@@ -1,0 +1,36 @@
+{# 洛谷难度彩色标志。难度值：0=暂无评定 1=入门 2=普及− 3=普及 4=普及+/提高− 5=提高 6=提高+/省选− 7=省选/NOI− 8=NOI/NOI+/CTS #}
+{% macro style() %}
+<style>
+.oi33-difficulty { display: inline-block; padding: 0 0.35em; border-radius: 0.25em; border: 1px solid transparent; font-size: 0.75rem; line-height: 1.5; white-space: nowrap; }
+.data-table .col--difficulty { width: 7rem; }
+.data-table .oi33-difficulty { box-sizing: border-box; width: 5.2rem; padding: 0; text-align: center; }
+.oi33-difficulty--0 { background: #bfbfbf; border-color: #acacac; color: #111; }
+.oi33-difficulty--1 { background: #fe4c61; border-color: #e94054; color: #fff; }
+.oi33-difficulty--2 { background: #f39c11; border-color: #ca8920; color: #fff; }
+.oi33-difficulty--3 { background: #ffc116; border-color: #e0ab19; color: #fff; }
+.oi33-difficulty--4 { background: #53c41a; border-color: #50a127; color: #fff; }
+.oi33-difficulty--5 { background: #13c2c2; border-color: #219f9f; color: #fff; }
+.oi33-difficulty--6 { background: #3498db; border-color: #3688be; color: #fff; }
+.oi33-difficulty--7 { background: #9c3dcf; border-color: #8a3eb3; color: #fff; }
+.oi33-difficulty--8 { background: #0e1d69; border-color: #152056; color: #fff; }
+/* 题目页 tag 尺寸变体：直接占满 problem__tag-item 的位置，不再叠灰底 */
+.oi33-difficulty--tag { display: inline-flex; align-items: center; padding: 0 10px; border-radius: 2px; font-size: 14px; line-height: 30px; min-height: 30px; margin-left: 0.1875rem; margin-bottom: 0.3125rem; }
+</style>
+{% endmacro %}
+
+{% macro render(value, size='') %}
+{%- set labels = ['暂无评定', '入门', '普及−', '普及', '普及+/提高−', '提高', '提高+/省选−', '省选/NOI−', 'NOI/NOI+/CTS'] -%}
+{%- set level = (value or 0) * 1 -%}
+{%- if level < 1 or level > 8 %}{% set level = 0 %}{% endif -%}
+<span class="oi33-difficulty oi33-difficulty--{{ level }}{% if size %} oi33-difficulty--{{ size }}{% endif %}">{{ labels[level] }}</span>
+{% endmacro %}
+
+{% macro options(value) %}
+{%- set labels = ['暂无评定', '入门', '普及−', '普及', '普及+/提高−', '提高', '提高+/省选−', '省选/NOI−', 'NOI/NOI+/CTS'] -%}
+{%- set level = (value or 0) * 1 -%}
+{%- if level < 1 or level > 8 %}{% set level = 0 %}{% endif -%}
+<option value=""{% if level == 0 %} selected{% endif %}>{{ labels[0] }}</option>
+{%- for i in range(1, 9) %}
+<option value="{{ i }}"{% if level == i %} selected{% endif %}>{{ labels[i] }}</option>
+{%- endfor %}
+{% endmacro %}

@@ -50,13 +50,19 @@ oi33/
 ├── public/               # Static assets (favicons, logo)
 └── templates/            # Nunjucks templates
     ├── oi33_*.html       # Feature pages (including wiki templates)
+    ├── problem_detail.html # Overrides Hydro problem page (Luogu difficulty badge)
+    ├── problem_edit.html # Overrides Hydro problem edit page (difficulty dropdown)
     ├── components/
     │   └── user.html     # Overrides Hydro user badge rendering
     ├── partials/
     │   ├── footer.html
     │   ├── homepage/     # checkin, countdown, sidebar_nav, recent_problems
+    │   ├── oi33_difficulty.html # Luogu difficulty badge/dropdown macros (style/render/options)
+    │   ├── problem_list.html   # Overrides Hydro problem list (Luogu difficulty badge)
+    │   ├── problem-sidebar-information.html # Overrides Hydro problem sidebar (Luogu difficulty badge)
     │   ├── problem_default.md
     │   ├── scoreboard.html
+    │   ├── training_detail.html # Overrides Hydro training detail (Luogu difficulty badge)
     │   └── training_list.html
     └── layout/
         └── html5.html    # Overrides Hydro base layout
@@ -279,6 +285,7 @@ Patches are wrapped in `applyPatches(ctx)` and called from the top-level `apply(
 - Page title uses `_('Back to Admin')` → links to `/oi33/admin`, gated by OI33 `realname_flag >= 2`
 - Use `{{ datetimeSpan(value)|safe }}` for timestamp rendering
 - POST forms must include `<input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">`
+- Problem difficulty always renders through `partials/oi33_difficulty.html` (`render` badge / `options` dropdown). Stored values follow Luogu's 0-8 scale (0/未设置 = 暂无评定, 1 = 入门 … 8 = NOI/NOI+/CTS) with Luogu badge colors; Hydro's automatic `lib.difficulty(nSubmit, nAccept)` fallback is never used. The problem edit/create form posts `difficulty` as `''` (clears to 0) or `1`-`8` because Hydro validates it as optional `PositiveInt`.
 
 ## Installation
 ```bash
