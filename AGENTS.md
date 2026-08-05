@@ -40,6 +40,8 @@ oi33/
 │   └── permissions.ts    # Permission matrix reference page
 ├── scripts/
 │   ├── export-hydro-data.ts
+│   ├── update-ratings.ts
+│   ├── fix-luogu-difficulty.ts # /manage/script: restores raw Luogu difficulty (0-8) from ndjson, undoing hydroac-client remap; args {"path":"","domainId":"luogu","prefix":""}
 │   ├── school.txt        # OIerDB school list source (province,city,official name,aliases)
 │   └── build-school-cat-data.py # Regenerates model/school-cat-data.json (needs pypinyin)
 ├── frontend/

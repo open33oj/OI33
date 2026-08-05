@@ -4,6 +4,7 @@ import { oi33Model } from '../model';
 import { migrate, previewMigration } from '../migrate';
 import { runExport } from '../scripts/export-hydro-data';
 import { runUpdateRatings } from '../scripts/update-ratings';
+import { runFixLuoguDifficulty } from '../scripts/fix-luogu-difficulty';
 import { checkOi33Admin } from './utils';
 
 // --- Admin dashboard ---
@@ -90,5 +91,16 @@ export async function apply(ctx: Context) {
         'Update AtCoder / Codeforces ratings for all users with approved accounts',
         Schema.object({}),
         runUpdateRatings,
+    );
+
+    ctx.addScript(
+        'fixLuoguDifficulty',
+        'Restore raw Luogu difficulty (0-8) from problemset-open ndjson, undoing luogu-import-problem remap',
+        Schema.object({
+            path: Schema.string().default(''),
+            domainId: Schema.string().default('luogu'),
+            prefix: Schema.string().default(''),
+        }),
+        runFixLuoguDifficulty,
     );
 }
