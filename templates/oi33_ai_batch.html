@@ -19,6 +19,9 @@
         <p class="ai33-desc">{{ _('ai_batch_help') }}</p>
 
         <form method="post" class="ai33-batch-form">
+          <label>{{ _('Domain') }}
+            <input name="domainId" type="text" class="textbox" placeholder="system"{% if status and status.running %} disabled{% endif %} value="{{ status.domainId if status and status.domainId else 'system' }}">
+          </label>
           <label>{{ _('Start Sort') }}
             <input name="start" type="text" class="textbox" placeholder="1000 / ABC123A" required{% if status and status.running %} disabled{% endif %}{% if status %} value="{{ status.start }}"{% endif %}>
           </label>
@@ -37,7 +40,7 @@
               {% else %}
                 <span class="ai33-batch-done">{{ _('Batch Finished') }}</span>
               {% endif %}
-              {{ _('Range') }}: {{ status.start }} ~ {{ status.end }} ·
+              {{ _('Range') }}: {{ status.domainId or 'system' }} · {{ status.start }} ~ {{ status.end }} ·
               {{ _('Progress') }}: {{ status.done }} / {{ status.total }}
               {% if status.running and status.currentSort %} · {{ _('Current') }}: {{ status.currentSort }}{% endif %}
             </p>

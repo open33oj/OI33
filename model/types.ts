@@ -494,6 +494,7 @@ export interface Oi33AiProblemSummary {
 export interface Oi33AiBatchStatus {
     _id: string; // always 'current'
     running: boolean;
+    domainId?: string; // target domain, default system
     start: string; // sort range endpoints, e.g. "1000" or "ABC123A"
     end: string;
     total: number;

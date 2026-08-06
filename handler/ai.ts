@@ -704,7 +704,7 @@ function compareSortKeys(a: SortKey, b: SortKey): number {
     return 0;
 }
 
-async function runSummaryBatch(problems: any[]) {
+async function runSummaryBatch(domainId: string, problems: any[]) {
     const counters = {
         done: 0, generated: 0, difficulties: 0, applied: 0, skipped: 0, failed: 0,
     };
@@ -714,13 +714,13 @@ async function runSummaryBatch(problems: any[]) {
             const sortText = String(pdoc.sort ?? pdoc.docId);
             try {
                 let acted = false;
-                const cached = await oi33Model.aiGetProblemSummary('system', pdoc.docId);
+                const cached = await oi33Model.aiGetProblemSummary(domainId, pdoc.docId);
                 let brief = cached?.content || '';
                 // Fresh generation returns the difficulty in the same call.
                 let freshDifficulty: number | null = null;
                 if (!brief) {
                     const fullText = [`# ${pdoc.title || ''}`, '', optimizeProblemContent(pdoc.content || '')].join('\n');
-                    const result = await generateProblemSummaryWithDifficulty('system', pdoc.docId, fullText, cfg.summary_model);
+                    const result = await generateProblemSummaryWithDifficulty(domainId, pdoc.docId, fullText, cfg.summary_model);
                     brief = result.summary;
                     freshDifficulty = result.difficulty;
                     if (brief) {
@@ -739,7 +739,7 @@ async function runSummaryBatch(problems: any[]) {
                     }
                     if (!difficulty) {
                         // Cached summary without a difficulty: judge it on its own.
-                        difficulty = await generateProblemDifficulty('system', pdoc.docId, brief, cfg.summary_model);
+                        difficulty = await generateProblemDifficulty(domainId, pdoc.docId, brief, cfg.summary_model);
                         if (difficulty) {
                             counters.difficulties++;
                             acted = true;
@@ -748,7 +748,7 @@ async function runSummaryBatch(problems: any[]) {
                     if (!difficulty) {
                         counters.failed++;
                     } else {
-                        if (await applyAiDifficultyIfUnset('system', pdoc, difficulty)) {
+                        if (await applyAiDifficultyIfUnset(domainId, pdoc, difficulty)) {
                             counters.applied++;
                             acted = true;
                         }
@@ -785,8 +785,9 @@ class Ai33SummaryBatchHandler extends Handler {
 
     @param('start', Types.String)
     @param('end', Types.String)
+    @param('domainId', Types.String, true)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async post(_d: any, start: string, end: string) {
+    async post(_d: any, start: string, end: string, domainId = 'system') {
         await checkOi33Admin(this.user._id);
         if (summaryBatchRunning) throw new ValidationError('批量生成正在进行中。');
         const startKey = parseSortKey(start);
@@ -795,7 +796,7 @@ class Ai33SummaryBatchHandler extends Handler {
             throw new ValidationError('题号区间无效，支持纯数字（如 1000）或字母数字混合（如 ABC123A）。');
         }
         const problems = (await DocumentModel.coll.find({
-            domainId: 'system',
+            domainId,
             docType: DocumentModel.TYPE_PROBLEM,
         }, {
             projection: {
@@ -813,6 +814,7 @@ class Ai33SummaryBatchHandler extends Handler {
         summaryBatchRunning = true;
         await oi33Model.aiBatchSaveStatus({
             running: true,
+            domainId,
             start: start.trim(),
             end: end.trim(),
             total: problems.length,
@@ -827,7 +829,7 @@ class Ai33SummaryBatchHandler extends Handler {
             finishedAt: null as any,
             lastError: '',
         });
-        runSummaryBatch(problems);
+        runSummaryBatch(domainId, problems);
         this.response.redirect = this.url('oi33_ai_summary_batch');
     }
 }
