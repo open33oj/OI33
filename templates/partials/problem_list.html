@@ -36,7 +36,7 @@
           <span class="nojs--hide toggle-tag notag--hide">{{ _('Hide tags') }}</span>
         </th>
         <th class="col--ac-tried">{{ _('AC') }} / {{ _('Tried') }}</th>
-        <th class="col--difficulty">{{ _('Difficulty') }}</th>
+        <th class="col--difficulty"><span class="oi33-diff-col-toggle nojs--hide" role="button" data-show-text="显示难度" data-hide-text="隐藏难度">显示难度</span><span class="hasjs--hide">{{ _('Difficulty') }}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -60,7 +60,7 @@
           {{ problem.render_problem_title(pdoc) }}
         </td>
         <td class="col--ac-tried">{{ pdoc.nAccept }} / {{ pdoc.nSubmit }}</td>
-        <td class="col--difficulty">{{ oi33diff.render(pdoc['difficulty']) }}</td>
+        <td class="col--difficulty"><span class="oi33-diff-col-hidden">隐藏</span><span class="oi33-diff-col-value">{{ oi33diff.render(pdoc['difficulty']) }}</span></td>
       </tr>
     {%- endfor -%}
     </tbody>

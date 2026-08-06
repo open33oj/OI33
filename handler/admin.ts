@@ -2,7 +2,6 @@ import { Handler, PRIV, Types, query, Context, UserModel, ObjectId } from 'hydro
 import Schema from 'schemastery';
 import { oi33Model } from '../model';
 import { migrate, previewMigration } from '../migrate';
-import { runExport } from '../scripts/export-hydro-data';
 import { runUpdateRatings } from '../scripts/update-ratings';
 import { runFixLuoguDifficulty } from '../scripts/fix-luogu-difficulty';
 import { checkOi33Admin } from './utils';
@@ -72,19 +71,6 @@ class MigrateHandler extends Handler {
 export async function apply(ctx: Context) {
     ctx.Route('oi33_admin', '/oi33/admin', Oi33AdminHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_migrate', '/oi33/migrate', MigrateHandler, PRIV.PRIV_USER_PROFILE);
-
-    ctx.addScript(
-        'exportHydroData',
-        'Export problems, contests, records and user snapshots within date range for AI analysis',
-        Schema.object({
-            startDate: Schema.string(),
-            endDate: Schema.string(),
-            outputDir: Schema.string(),
-            includeCode: Schema.boolean(),
-            domainId: Schema.array(Schema.string()),
-        }),
-        runExport,
-    );
 
     ctx.addScript(
         'updateRatings',

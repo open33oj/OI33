@@ -1,0 +1,89 @@
+{% set page_name = "oi33_ai_summary_batch" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+{% if status and status.running %}<meta http-equiv="refresh" content="10">{% endif %}
+
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('AI Summary Batch') }}</h1>
+      </div>
+      <div class="section__body">
+        {% if (handler.user.realname_flag or 0) >= 2 %}
+          <p>
+            <a href="/oi33/ai/admin">&laquo; {{ _('Back to Admin') }}</a>
+            <a class="rounded primary button" style="margin-left:1rem;padding:0.4rem 1.2rem;font-size:1rem;" href="{{ url('oi33_ai_summary') }}">{{ _('AI Problem Summary') }}</a>
+          </p>
+        {% endif %}
+        <p class="ai33-desc">{{ _('ai_batch_help') }}</p>
+
+        <form method="post" class="ai33-batch-form">
+          <label>{{ _('Start Sort') }}
+            <input name="start" type="text" class="textbox" placeholder="1000 / ABC123A" required{% if status and status.running %} disabled{% endif %}{% if status %} value="{{ status.start }}"{% endif %}>
+          </label>
+          <label>{{ _('End Sort') }}
+            <input name="end" type="text" class="textbox" placeholder="1500 / ABC200D" required{% if status and status.running %} disabled{% endif %}{% if status %} value="{{ status.end }}"{% endif %}>
+          </label>
+          <button type="submit" class="rounded primary button"{% if status and status.running %} disabled{% endif %}>{{ _('Start Batch') }}</button>
+          <span class="ai33-desc-inline">{{ _('At most {0} problems per batch.').format(maxRange) }}</span>
+        </form>
+
+        {% if status %}
+          <div class="ai33-batch-status">
+            <p>
+              {% if status.running %}
+                <span class="ai33-batch-running">{{ _('Batch Running') }}</span>
+              {% else %}
+                <span class="ai33-batch-done">{{ _('Batch Finished') }}</span>
+              {% endif %}
+              {{ _('Range') }}: {{ status.start }} ~ {{ status.end }} ·
+              {{ _('Progress') }}: {{ status.done }} / {{ status.total }}
+              {% if status.running and status.currentSort %} · {{ _('Current') }}: {{ status.currentSort }}{% endif %}
+            </p>
+            <p>
+              {{ _('Summaries Generated') }}: {{ status.generated }} ·
+              {{ _('Difficulties Judged') }}: {{ status.difficulties }} ·
+              {{ _('Difficulty Applied') }}: {{ status.applied }} ·
+              {{ _('Skipped') }}: {{ status.skipped }} ·
+              {{ _('Failed') }}: {{ status.failed }}
+            </p>
+            <p class="ai33-subtitle">
+              {{ _('Started At') }}: {{ datetimeSpan(status.startedAt)|safe }}
+              {% if status.finishedAt %} · {{ _('Finished At') }}: {{ datetimeSpan(status.finishedAt)|safe }}{% endif %}
+            </p>
+            {% if status.lastError %}
+              <p class="ai33-text-error">{{ status.lastError }}</p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.ai33-desc { color: #666; margin-bottom: 1rem; }
+.theme--dark .ai33-desc, [data-mantine-color-scheme=dark] .ai33-desc { color: #aaa; }
+.ai33-desc-inline { color: #888; font-size: 0.85em; margin-left: 0.5rem; }
+.ai33-subtitle { font-size: 0.85em; color: #888; }
+.theme--dark .ai33-subtitle, [data-mantine-color-scheme=dark] .ai33-subtitle { color: #999; }
+.ai33-text-error { color: #c00; }
+.theme--dark .ai33-text-error, [data-mantine-color-scheme=dark] .ai33-text-error { color: #ff6b6b; }
+.ai33-batch-form label { display: inline-block; margin-right: 1rem; }
+.ai33-batch-form input { width: 8rem; }
+.ai33-batch-status {
+    margin-top: 1rem;
+    padding: 12px;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+.theme--dark .ai33-batch-status, [data-mantine-color-scheme=dark] .ai33-batch-status {
+    background: #1e1e1e;
+    border-color: #444;
+}
+.ai33-batch-running { color: #d48806; font-weight: bold; }
+.ai33-batch-done { color: #389e0d; font-weight: bold; }
+</style>
+{% endblock %}

@@ -39,7 +39,6 @@ oi33/
 │   ├── school-cat.ts     # Big cat world routes (state, school list/search, bind, feed, detail)
 │   └── permissions.ts    # Permission matrix reference page
 ├── scripts/
-│   ├── export-hydro-data.ts
 │   ├── update-ratings.ts
 │   ├── fix-luogu-difficulty.ts # /manage/script: restores raw Luogu difficulty (0-8) from ndjson, undoing hydroac-client remap; args {"path":"","domainId":"luogu","prefix":""}
 │   ├── school.txt        # OIerDB school list source (province,city,official name,aliases)
@@ -95,6 +94,8 @@ oi33/
 | `oi33_school` | OIerDB schools imported at startup (`_id` = OIerDB code, `prov`, `abbr`; `_id: 'meta'` tracks import count) |
 | `oi33_school_cat` | one doc per fed school (`_id` = school code): `currentWeight`, `historyWeight`, optional pinned position `x`/`y`/`positionAt` |
 | `oi33_school_feed_history` | archived per-user feeding totals moved out of 当前投喂 on rebind (`uid`, `schoolId`, `amount`) |
+| `oi33_ai_problem_summary` | per-problem cached AI 精简题意 (`content`, `model`) plus AI-judged Luogu difficulty (`difficulty` 1-8, `difficultyModel`) |
+| `oi33_ai_batch` | single doc `_id: 'current'`: batch summary/difficulty generation progress (`running`, `start`/`end`, counters, `currentSort`) |
 
 Core profile/content write operations also insert into `oi33_log`. `oi33_user.cat_can` is the single source of truth for cat-can inventory, while trades use the immutable `oi33_cat_can_bill` ledger. Normal runtime no longer reads or writes the legacy `oi33_cat_can_batch` collection; `/oi33/migrate` previews and idempotently drops it.
 
@@ -228,6 +229,7 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/wiki/categories` | WikiCategoriesHandler (GET/POST) | OI33 flag >= 2 |
 | `/oi33/judge-monitor` | JudgeMonitorHandler (GET/POST) | OI33 flag >= 2 |
 | `/oi33/permissions` | PermissionsShowHandler | OI33 flag >= 2 |
+| `/oi33/ai/summary/batch` | Ai33SummaryBatchHandler (GET/POST) | OI33 flag >= 2 |
 | `/oi33/tokens` | TokenListHandler | PRIV_USER_PROFILE (admin sees all) |
 | `/oi33/tokens/create` | TokenCreateHandler (POST) | PRIV_ALL |
 | `/oi33/tokens/:id/delete` | TokenDeleteHandler (POST) | PRIV_ALL |
@@ -271,6 +273,14 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 - The `handler/create` bearer-token hook in `patches.ts` **skips** `/oi33/oauth/*` paths so the OAuth handlers manage their own Bearer auth against `oi33_oauth_token` (separate from the `oi33_token` API-token system).
 - All OAuth write ops (authorize/deny/token/refresh/revoke/client_create/client_delete) log via `oi33_log` with `type: 'oauth'`.
 
+### AI reference difficulty (AI 参考难度)
+- `handler/ai.ts` `generateProblemDifficulty()` judges the Luogu-scale difficulty (1-8) from the cached 精简题意 and stores it on the `oi33_ai_problem_summary` doc (`difficulty`/`difficultyModel`); cost logs as global `summary` usage (never charged).
+- `generateProblemSummaryWithDifficulty()` produces both in ONE call: the model writes the condensed statement, then a trailing `[[难度]]N` marker line (`SUMMARY_DIFFICULTY_TAIL`); the marker is stripped before saving. All summary generation (manual regenerate, streaming, batch) uses the configured `summary_model` from `/oi33/ai/models` — there is no forced pro model. A custom `difficulty_prompt` only applies to the difficulty-only path; combined generation uses the fixed tail.
+- Unrated problems (`difficulty` unset/0) get the AI level written directly via `problem.edit`; already-rated problems keep their rating and only show the AI badge on `/oi33/ai/summary` (rendered via `partials/oi33_difficulty.html`).
+- Manual regenerate on `/oi33/ai/summary` uses `generateProblemSummaryWithDifficulty()`; a difficulty-only action exists for problems with a cached summary but no AI difficulty (e.g. summaries generated in the background during analysis).
+- Batch at `/oi33/ai/summary/batch` (OI33 flag >= 2): `sort` range [start, end] supporting both plain numbers (`1000`) and alphanumeric sorts (`ABC123A` — parsed to `[prefix, num, tail]`, compared prefix-first then numerically), max 500 problems per run, sequential background processing using `summary_model`, idempotent (only fills gaps; fresh summaries come with a difficulty from the same call, cached-but-undifficultied summaries get a difficulty-only pass), progress in `oi33_ai_batch` (`_id: 'current'`).
+- The difficulty system prompt is configurable via `difficulty_prompt` on `/oi33/ai/models` (empty = built-in default).
+
 ## Monkey-patches ([handler/patches.ts](handler/patches.ts))
 1. **UserModel.getList** — injects oi33 fields (coin, badge, realname, birthday, atcoder, codeforces, rating fields) into `User` instances with `hasPriv()` (used by pages rendering `user.html`)
 2. **UserModel.getListForRender** — same injection for plain objects without `hasPriv()` (used for lightweight rendering)
@@ -287,7 +297,8 @@ Patches are wrapped in `applyPatches(ctx)` and called from the top-level `apply(
 - Page title uses `_('Back to Admin')` → links to `/oi33/admin`, gated by OI33 `realname_flag >= 2`
 - Use `{{ datetimeSpan(value)|safe }}` for timestamp rendering
 - POST forms must include `<input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">`
-- Problem difficulty always renders through `partials/oi33_difficulty.html` (`render` badge / `options` dropdown). Stored values follow Luogu's 0-8 scale (0/未设置 = 暂无评定, 1 = 入门 … 8 = NOI/NOI+/CTS) with Luogu badge colors; Hydro's automatic `lib.difficulty(nSubmit, nAccept)` fallback is never used. The problem edit/create form posts `difficulty` as `''` (clears to 0) or `1`-`8` because Hydro validates it as optional `PositiveInt`.
+- Problem difficulty always renders through `partials/oi33_difficulty.html` (`render` badge / `renderMasked` masked badge / `options` dropdown). Stored values follow Luogu's 0-8 scale (0/未设置 = 暂无评定, 1 = 入门 … 8 = NOI/NOI+/CTS) with Luogu badge colors; Hydro's automatic `lib.difficulty(nSubmit, nAccept)` fallback is never used. The problem edit/create form posts `difficulty` as `''` (clears to 0) or `1`-`8` because Hydro validates it as optional `PositiveInt`.
+- Everywhere difficulty is displayed (problem detail tag row + sidebar, problem list, training detail tables), it is masked by default and revealed purely client-side (CSS hides the badge under `html.hasjs`; `frontend/oi33_difficulty.page.ts` — registered as a plain `addPage` function so it binds on every page load — flips inline `display` styles directly and mirrors state on the `oi33-diff-shown` class). Problem page badges use `renderMasked` (a gray 显示难度 tag that toggles itself); list tables hide the whole column (cells show a gray 隐藏 placeholder) behind a plain-text 显示难度 link in the column header that toggles the entire table (text swaps to 隐藏难度). Only admin tooling (`/oi33/ai/summary`) renders unmasked.
 
 ## Installation
 ```bash

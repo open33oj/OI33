@@ -23,6 +23,7 @@
 | 倒计时 | 首页倒计时组件（配置驱动） | 首页 partial |
 | 剪贴板 | Markdown 剪贴板 CRUD、公有/私有（已认证才能发布公开粘贴） | `/oi33/paste/*` |
 | 前端覆盖 | Logo、favicon、模板覆盖 | 静态资源 |
+| 洛谷难度徽章 | 题目页/题目列表/训练计划按洛谷 0-8 体系展示彩色难度徽章；默认遮挡为灰色「显示难度」，点击纯前端切换显隐 | 题目页/列表 |
 | 管理仪表盘 | 统一查看所有数据 + 操作日志 | `/oi33/admin` |
 | 数据迁移 | 从老插件迁移数据到新集合 | `/oi33/migrate` |
 | Wiki 百科 | 分类目录、Markdown 页面 CRUD、JSON 批量导入/导出（仅管理员可编辑） | `/oi33/wiki/*` |
@@ -380,103 +381,6 @@ hydrooj addon remove frontend-33oj
 - 未配置时不展示；同一个首页配置只出现一次，重复配置不会重复渲染。
 - 对应页面 `/oi33/meow`，模块数据来自 `meowHomeFeed`（管理员 + 关注的人 + 自己）。
 
-## 数据导出脚本
-
-`scripts/export-hydro-data.ts` —— 以 **提交记录（record）** 为核心驱动，导出指定日期区间内的提交记录，并关联提取涉及的用户、题目、比赛及比赛成绩，用于 AI 分析。
-
-### 导出逻辑
-
-1. **查询 record**：以日期区间筛选提交记录（主要驱动）
-2. **提取关联 ID**：从 record 中抽取出 `uid`、`pid`、`contestId`
-3. **查询关联用户**：仅导出存在提交记录的用户（去敏）
-4. **查询关联题目**：仅导出被提交过的题目
-5. **查询关联比赛**：仅导出被提交涉及的比赛
-6. **聚合比赛成绩**：按 `(比赛, 用户)` 分组，聚合每场比赛的得分、AC 数、各题提交详情
-
-### 导出内容
-
-| 数据 | 来源 | 说明 |
-|------|------|------|
-| `records` | `record` | 日期区间内的所有提交记录 |
-| `users` | `user` | 存在提交记录的用户（去敏） |
-| `problems` | `document` (`docType=10`) | 被提交过的题目 |
-| `contests` | `document` (`docType=30`) | 被提交涉及的比赛 |
-| `contestResults` | `record` 聚合 | 每场比赛每个用户的成绩汇总 |
-
-### 使用方法
-
-**Hydro 控制面板 → 脚本管理**
-
-1. 进入 Hydro 控制面板「脚本管理」
-2. 找到 `exportHydroData` 脚本（插件注册后会自动显示在列表中）
-3. 填入参数后运行：
-
-| 参数 | 必填 | 说明 | 示例 |
-|------|------|------|------|
-| `startDate` | 是 | 开始日期 | `2026-01-01` |
-| `endDate` | 是 | 结束日期 | `2026-05-15` |
-| `outputDir` | 否 | 输出目录，默认 `/tmp` | `/tmp` |
-| `includeCode` | 否 | 是否包含提交代码，默认 `true` | `true` |
-| `domainId` | 否 | 限定域列表，默认全部域；可填多个域 ID | `["system"]` |
-
-4. 运行后到服务器 `outputDir` 目录下取 `hydro-export-YYYY-MM-DD_to_YYYY-MM-DD_YYYY-MM-DD_HH-mm-ss.json`（末尾为导出时刻 UTC 时间戳，避免覆盖同段内容的多次导出）
-
-### 参数示例（可直接复制到脚本管理参数框）
-
-```json
-{"startDate":"2026-01-01","endDate":"2026-05-15","outputDir":"/tmp","includeCode":true,"domainId":["system"]}
-```
-
-> 输出文件示例：`/tmp/hydro-export-2026-01-01_to_2026-05-15_2026-05-15_14-41-01.json`
-
-### 输出格式
-
-```json
-{
-  "meta": {
-    "version": "1.0",
-    "exportedAt": "2026-05-15T...",
-    "dateRange": { "start": "2026-01-01", "end": "2026-05-15" },
-    "recordCounts": {
-      "records": 1280,
-      "users": 156,
-      "problems": 45,
-      "contests": 3,
-      "contestResults": 89
-    }
-  },
-  "records": [
-    {
-      "_id": "...", "domainId": "system", "uid": 1, "pid": 1,
-      "status": 1, "score": 100, "time": 100, "memory": 65536,
-      "lang": "cc.cc14o2", "contest": "...", "judgeAt": "..."
-    }
-  ],
-  "users": [
-    { "uid": 1, "uname": "...", "mail": "...", "priv": 3 }
-  ],
-  "problems": [
-    { "domainId": "system", "docId": 1, "title": "...", "difficulty": 3 }
-  ],
-  "contests": [
-    { "_id": "...", "title": "...", "beginAt": "...", "endAt": "...", "rule": "oi", "pids": [1, 2] }
-  ],
-  "contestResults": [
-    {
-      "domainId": "system",
-      "contestId": "...",
-      "uid": 1,
-      "totalScore": 300,
-      "acCount": 3,
-      "problemCount": 5,
-      "submissions": [
-        { "pid": 1, "score": 100, "status": 1, "time": 100, "memory": 65536, "lang": "cc.cc14o2" }
-      ]
-    }
-  ]
-}
-```
-
 ## AI 代码分析
 
 在提交记录页面对单份代码调用 DeepSeek 思考模型进行流式点评。学生看到引导式分析（只提问和提示，不给完整答案），教师（OI33 身份 ≥ 2）看到诊断式分析（结论 + 定位 + 修改方向），两套 prompt 均要求模型全程使用中文且思考简明扼要。
@@ -492,7 +396,15 @@ hydrooj addon remove frontend-33oj
 
 - 某题首次分析时，后台自动生成「精简题意」（压缩题面，保留定义/格式/数据范围/特判）并缓存到 `oi33_ai_problem_summary`，后续分析直接复用以降低成本。
 - 缓存未就绪时不阻塞分析：本次先用完整题面，缓存生成供下次使用。
-- 管理员可在 `/oi33/ai/summary` 查看任意题的精简题意，或用 `deepseek-v4-pro` 手动重新生成；生成费用计入全局统计，不扣用户余额。
+- 管理员可在 `/oi33/ai/summary` 查看任意题的精简题意，或手动重新生成（使用 `/oi33/ai/models` 配置的精简题意模型，一次调用同时产出精简题意和 AI 参考难度）；生成费用计入全局统计，不扣用户余额。
+
+### AI 参考难度与批量生成
+
+- `/oi33/ai/summary`：查看/重新生成精简题意，WebSocket 流式输出（实时显示思考过程与题意 markdown）；一次调用同时产出精简题意和难度（模型在末尾输出 `[[难度]]N` 标记，入库前剥离，不会混入缓存）。
+- `/oi33/ai/summary/batch`：按 sort 题号区间批量补齐，支持纯数字（`1000 ~ 1500`）和字母数字混合（`ABC123A ~ ABC200D`，按前缀→数字→后缀比较）两种格式；单次最多 500 题，后台顺序执行、只补缺口、可重复跑，页面每 10 秒自动刷新进度。
+- 题目未评级（难度为 0/未设置）时 AI 难度直接写入题目；已评级题目保留原评级，AI 参考难度仅在 `/oi33/ai/summary` 展示。
+- 难度评判的 system prompt 可在 `/oi33/ai/models` 配置（`difficulty_prompt`，留空用内置默认；仅对单独评判路径生效，合并生成使用内置难度说明）。
+- 后台分析时自动生成的精简题意不评判难度，可在 summary 页用「生成 AI 参考难度」单独补判。
 
 ### 计费
 
@@ -513,7 +425,7 @@ hydrooj addon remove frontend-33oj
 ### 请求预算
 
 - 流式分析：`max_tokens 16384`，超时 180 秒（思考模型会把 completion 额度消耗在思维链上，避免难题思考被截断）。
-- 精简题意：`max_tokens 8192`，超时 120 秒；被长度截断的结果不会写入缓存。
+- 精简题意：`max_tokens 8192`，超时 120 秒（流式生成 180 秒）；被长度截断的结果不会写入缓存。
 
 ## AI 讨论审核
 

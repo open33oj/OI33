@@ -96,7 +96,7 @@
                 <th class="col--name">{{ _('Problem') }}</th>
                 <th class="col--tried">{{ _('Tried') }}</th>
                 <th class="col--ac">{{ _('AC') }}</th>
-                <th class="col--difficulty">{{ _('Difficulty') }}</th>
+                <th class="col--difficulty"><span class="oi33-diff-col-toggle nojs--hide" role="button" data-show-text="显示难度" data-hide-text="隐藏难度">显示难度</span><span class="hasjs--hide">{{ _('Difficulty') }}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -129,7 +129,7 @@
                     </td>
                     <td class="col--tried">{{ pdoc.nSubmit }}</td>
                     <td class="col--ac">{{ pdoc.nAccept }}</td>
-                    <td class="col--difficulty">{{ oi33diff.render(pdoc['difficulty']) }}</td>
+                    <td class="col--difficulty"><span class="oi33-diff-col-hidden">隐藏</span><span class="oi33-diff-col-value">{{ oi33diff.render(pdoc['difficulty']) }}</span></td>
                   </tr>
                 {% else %}
                   {% set pdoc = {'_id': pid, 'hidden': true, 'title': '*'} %}

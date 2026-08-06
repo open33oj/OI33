@@ -12,7 +12,7 @@
     <dt>{{ _('Memory') }}</dt>
     <dd>{{ pdoc.config.memoryMax if pdoc.config.memoryMax == pdoc.config.memoryMin else pdoc.config.memoryMin+'~'+pdoc.config.memoryMax }}MiB</dd>
     <dt>{{ _('Difficulty') }}</dt>
-    <dd>{{ oi33diff.render(pdoc['difficulty']) }}</dd>
+    <dd>{{ oi33diff.renderMasked(pdoc['difficulty']) }}</dd>
     <dt>{{ _('Tags') }}</dt>
     <dd>
       {{ problem.render_problem_tags(pdoc, true) }}

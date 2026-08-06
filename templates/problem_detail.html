@@ -106,7 +106,7 @@
           {% if not tdoc %}
             <a class="problem__tag-item interactive" href="{{ url('record_main', query={pid:pdoc.docId}) }}">{{ _('Tried') }}: {{ pdoc.nSubmit }}</a>
             <a class="problem__tag-item interactive" href="{{ url('record_main', query={pid:pdoc.docId, status:1}) }}">{{ _('Accepted') }}: {{ pdoc.nAccept if ((not tdoc) or showAccept) else '?' }}</a>
-            {{ oi33diff.render(pdoc['difficulty'], 'tag') }}
+            {{ oi33diff.renderMasked(pdoc['difficulty'], 'tag') }}
             <span class="problem__tag-item interactive">{{ _('Uploaded By') }}: {{ user.render_inline(udoc, badge=false) }}</span>
           {% endif %}
           {% if pdoc.tag.length %}

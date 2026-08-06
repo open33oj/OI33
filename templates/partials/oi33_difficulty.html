@@ -15,6 +15,22 @@
 .oi33-difficulty--8 { background: #0e1d69; border-color: #152056; color: #fff; }
 /* 题目页 tag 尺寸变体：直接占满 problem__tag-item 的位置，不再叠灰底 */
 .oi33-difficulty--tag { display: inline-flex; align-items: center; padding: 0 10px; border-radius: 2px; font-size: 14px; line-height: 30px; min-height: 30px; margin-left: 0.1875rem; margin-bottom: 0.3125rem; }
+/* 难度遮挡开关：默认遮住真实难度，JS 切换 .oi33-diff-shown 显示 */
+.oi33-diff-mask { cursor: pointer; user-select: none; }
+.oi33-diff-mask:not(.problem__tag-item) { display: inline-block; padding: 0 0.35em; border-radius: 0.25em; border: 1px solid #acacac; background: #e8e8e8; color: #555; font-size: 0.75rem; line-height: 1.5; white-space: nowrap; }
+.theme--dark .oi33-diff-mask:not(.problem__tag-item), [data-mantine-color-scheme=dark] .oi33-diff-mask:not(.problem__tag-item) { background: #3a3a3a; border-color: #555; color: #ccc; }
+html.hasjs .oi33-diffwrap .oi33-diff-real,
+html.hasjs .oi33-diffwrap.oi33-diff-shown .oi33-diff-mask { display: none; }
+html.hasjs .oi33-diffwrap.oi33-diff-shown .oi33-diff-real { display: inline-block; }
+html.nojs .oi33-diff-mask { display: none; }
+/* 列表页难度列：表头纯文字开关，点击整列显隐；隐藏时单元格显示灰色「隐藏」占位 */
+.oi33-diff-col-toggle { cursor: pointer; user-select: none; font-weight: normal; color: #888; }
+.theme--dark .oi33-diff-col-toggle, [data-mantine-color-scheme=dark] .oi33-diff-col-toggle { color: #999; }
+.oi33-diff-col-hidden { color: #999; font-size: 0.75rem; }
+html.hasjs .oi33-diff-shown .oi33-diff-col-hidden,
+html.nojs .oi33-diff-col-hidden { display: none; }
+html.hasjs .oi33-diff-col-value { display: none; }
+html.hasjs .oi33-diff-shown .oi33-diff-col-value { display: inline-block; }
 </style>
 {% endmacro %}
 
@@ -23,6 +39,11 @@
 {%- set level = (value or 0) * 1 -%}
 {%- if level < 1 or level > 8 %}{% set level = 0 %}{% endif -%}
 <span class="oi33-difficulty oi33-difficulty--{{ level }}{% if size %} oi33-difficulty--{{ size }}{% endif %}">{{ labels[level] }}</span>
+{% endmacro %}
+
+{# 遮挡版难度徽章：默认显示灰色「显示难度」标签，点击后切换显示真实难度（纯前端，数据已渲染在页面里） #}
+{% macro renderMasked(value, size='') %}
+<span class="oi33-diffwrap"><span class="oi33-diff-mask{% if size == 'tag' %} problem__tag-item interactive{% endif %}" role="button">显示难度</span><span class="oi33-diff-real">{{ render(value, size) }}</span></span>
 {% endmacro %}
 
 {% macro options(value) %}

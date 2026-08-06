@@ -1,11 +1,12 @@
 import { db, ObjectId } from 'hydrooj';
 import crypto from 'crypto';
 import type {
-    Oi33AiAccess, Oi33AiAnalysis, Oi33AiConfig, Oi33AiProblemSummary,
+    Oi33AiAccess, Oi33AiAnalysis, Oi33AiBatchStatus, Oi33AiConfig, Oi33AiProblemSummary,
     Oi33AiProvider, Oi33AiProviderModel, Oi33AiUsage,
 } from './types';
 
 export const aiAnalysisColl = db.collection<Oi33AiAnalysis>('oi33_ai_analysis');
+export const aiBatchColl = db.collection<Oi33AiBatchStatus>('oi33_ai_batch');
 export const aiConfigColl = db.collection<Oi33AiConfig>('oi33_ai_config');
 export const aiProblemSummaryColl = db.collection<Oi33AiProblemSummary>('oi33_ai_problem_summary');
 export const aiProviderColl = db.collection<Oi33AiProvider>('oi33_ai_provider');
@@ -107,6 +108,25 @@ export async function aiSaveProblemSummary(domainId: string, pid: number, conten
         },
         { upsert: true },
     );
+}
+
+// AI-judged difficulty (Luogu 0-8 scale, 1-8) attached to the cached summary.
+// No upsert: a difficulty only makes sense alongside a summary.
+export async function aiSaveProblemDifficulty(domainId: string, pid: number, difficulty: number, model: string) {
+    await aiProblemSummaryColl.updateOne(
+        { _id: `${domainId}:${pid}` },
+        { $set: { difficulty, difficultyModel: model } },
+    );
+}
+
+// --- Batch summary/difficulty generation status (single doc `_id: 'current'`) ---
+
+export async function aiBatchGetStatus(): Promise<Oi33AiBatchStatus | null> {
+    return await aiBatchColl.findOne({ _id: 'current' });
+}
+
+export async function aiBatchSaveStatus(patch: Partial<Omit<Oi33AiBatchStatus, '_id'>>) {
+    await aiBatchColl.updateOne({ _id: 'current' }, { $set: patch }, { upsert: true });
 }
 
 // --- Analysis persistence (shared per-record) ---

@@ -373,6 +373,7 @@ export interface Oi33AiConfig {
     student_prompt?: string;
     teacher_prompt?: string;
     summary_prompt?: string;
+    difficulty_prompt?: string;
     // DeepSeek thinking-mode effort for analyses: low / high / max.
     analysis_effort?: string;
     // Discussion moderation: '1' = on, anything else = off.
@@ -483,7 +484,29 @@ export interface Oi33AiProblemSummary {
     pid: number;
     content: string;
     model: string;
+    // AI-judged difficulty on the Luogu 0-8 scale (1-8); shown as a reference
+    // badge and applied to the problem only when it has no rating yet.
+    difficulty?: number;
+    difficultyModel?: string;
     createdAt: Date;
+}
+
+export interface Oi33AiBatchStatus {
+    _id: string; // always 'current'
+    running: boolean;
+    start: string; // sort range endpoints, e.g. "1000" or "ABC123A"
+    end: string;
+    total: number;
+    done: number;
+    generated: number; // summaries newly generated
+    difficulties: number; // AI difficulties newly judged
+    applied: number; // problems whose difficulty was set
+    skipped: number;
+    failed: number;
+    currentSort: string;
+    startedAt: Date;
+    finishedAt?: Date;
+    lastError?: string;
 }
 
 export interface Oi33AiProviderModel {

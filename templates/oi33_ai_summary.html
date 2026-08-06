@@ -1,6 +1,8 @@
+{% import "partials/oi33_difficulty.html" as oi33diff %}
 {% set page_name = "oi33_ai_summary" %}
 {% extends "layout/basic.html" %}
 {% block content %}
+{{ oi33diff.style() }}
 
 <div class="row">
   <div class="medium-12 columns">
@@ -10,7 +12,10 @@
       </div>
       <div class="section__body">
         {% if (handler.user.realname_flag or 0) >= 2 %}
-          <p><a href="/oi33/ai/admin">&laquo; {{ _('Back to Admin') }}</a></p>
+          <p>
+            <a href="/oi33/ai/admin">&laquo; {{ _('Back to Admin') }}</a>
+            <a class="rounded primary button" style="margin-left:1rem;padding:0.4rem 1.2rem;font-size:1rem;" href="{{ url('oi33_ai_summary_batch') }}">{{ _('AI Summary Batch') }}</a>
+          </p>
         {% endif %}
         <p class="ai33-desc">{{ _('ai_summary_help') }}</p>
 
@@ -25,15 +30,28 @@
               <span class="ai33-subtitle">{{ _('No summary yet.') }}</span>
             {% endif %}
           </h3>
+          <p class="ai33-difficulty-row">
+            {{ _('Current Difficulty') }}：{{ oi33diff.render(pdoc['difficulty']) }}
+            {% if summary and summary.difficulty %}
+              &nbsp;·&nbsp;{{ _('AI Reference Difficulty') }}：{{ oi33diff.render(summary.difficulty) }}
+              <span class="ai33-subtitle">{{ summary.difficultyModel }}</span>
+            {% endif %}
+          </p>
           {% if summary %}
             <div class="ai33-summary-view typo">{{ summary.content | markdown | safe }}</div>
           {% endif %}
-          <form method="post" style="margin-top:1rem;"
-                onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='{{ _('Generating...') }}';">
-            <input type="hidden" name="action" value="regenerate">
+          <div id="ai33-stream-view" class="ai33-summary-view typo richmedia" style="display:none;margin-top:1rem;"></div>
+          <div id="ai33-loading" class="ai33-loading" style="display:none;"><span class="ai33-spinner"></span> <span id="ai33-loading-text"></span></div>
+          <div id="ai33-error" class="ai33-text-error" style="display:none;margin-top:0.5rem;"></div>
+          <form method="post" style="margin-top:1rem;" id="ai-summary-form"
+                onsubmit="this.querySelectorAll('button').forEach(function(b){b.disabled=true});">
             <input type="hidden" name="domainId" value="{{ domainId }}">
             <input type="hidden" name="pid" value="{{ pid }}">
-            <button type="submit" class="rounded primary button">{% if summary %}{{ _('Regenerate with {0}').format(proModel) }}{% else %}{{ _('Generate with {0}').format(proModel) }}{% endif %}</button>
+            <input type="hidden" name="action" id="ai-summary-action" value="">
+            <button type="submit" onclick="document.getElementById('ai-summary-action').value='regenerate';" class="rounded primary button">{% if summary %}{{ _('Regenerate with {0}').format(summaryModel) }}{% else %}{{ _('Generate with {0}').format(summaryModel) }}{% endif %}</button>
+            {% if summary and not summary.difficulty %}
+              <button type="submit" onclick="document.getElementById('ai-summary-action').value='difficulty';" class="rounded button">{{ _('Generate AI Reference Difficulty') }}</button>
+            {% endif %}
           </form>
         {% endif %}
       </div>
@@ -42,12 +60,34 @@
 </div>
 
 <style>
+@keyframes ai33-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.ai33-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 3px solid;
+    border-color: #e0e0e0;
+    border-top-color: #5a9cf8;
+    border-radius: 50%;
+    animation: ai33-spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+.theme--dark .ai33-spinner, [data-mantine-color-scheme=dark] .ai33-spinner {
+    border-color: #444;
+}
+.ai33-loading { margin: 1rem 0; color: #666; }
+.theme--dark .ai33-loading, [data-mantine-color-scheme=dark] .ai33-loading { color: #999; }
 .ai33-desc { color: #666; margin-bottom: 1rem; }
 .theme--dark .ai33-desc, [data-mantine-color-scheme=dark] .ai33-desc { color: #aaa; }
 .ai33-subtitle { font-size: 0.7em; color: #888; font-weight: normal; margin-left: 0.5rem; }
 .theme--dark .ai33-subtitle, [data-mantine-color-scheme=dark] .ai33-subtitle { color: #999; }
 .ai33-text-error { color: #c00; }
 .theme--dark .ai33-text-error, [data-mantine-color-scheme=dark] .ai33-text-error { color: #ff6b6b; }
+.ai33-difficulty-row { margin: 0.5rem 0 1rem; }
 .ai33-summary-view {
     line-height: 1.7;
     padding: 12px;
