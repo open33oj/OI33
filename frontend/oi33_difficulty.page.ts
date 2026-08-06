@@ -18,9 +18,11 @@ addPage(() => {
         const colToggle = target.closest('.oi33-diff-col-toggle') as HTMLElement;
         if (colToggle) {
             // Hydro's sticky-header script splits thead/tbody into two
-            // sibling tables inside .section__table-container; the toggle
-            // lives in the header table, the cells in the body table.
-            const scope = (colToggle.closest('.section__table-container') || colToggle.closest('table')) as HTMLElement;
+            // sibling tables, and the wrapper markup varies by version —
+            // so walk up from the toggle to the nearest ancestor that also
+            // contains the value cells instead of relying on a fixed class.
+            let scope = colToggle.parentElement as HTMLElement | null;
+            while (scope && !scope.querySelector('.oi33-diff-col-value')) scope = scope.parentElement;
             if (!scope) return;
             const shown = !scope.classList.contains('oi33-diff-shown');
             scope.classList.toggle('oi33-diff-shown', shown);
