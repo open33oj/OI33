@@ -419,13 +419,13 @@ hydrooj addon remove frontend-33oj
 | Provider | Base URL + API Key（API Key 留空表示不修改）；未配置时回退到环境变量 `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` |
 | 模型价格 | 每个模型的输入（缓存未命中/命中）与输出单价（元 / 1M token） |
 | 默认模型 | 学生、教师、精简题意三个角色各自的模型（默认 `deepseek-v4-flash` / `deepseek-v4-pro` / `deepseek-v4-flash`） |
-| 思考强度 | DeepSeek 思考模式的 `reasoning_effort`：留空用官方默认 high，可填 low（更快、省 token）或 max；仅对代码分析生效 |
+| 思考强度 | 每个角色（学生/教师/精简题意）单独配置 DeepSeek 思考模式的 `reasoning_effort`：留空用官方默认 high，可填 low（更快、省 token）或 max；精简题意强度对手动重新生成、批量生成和难度评判生效（难题生成题意失败时建议调 low） |
 | System Prompts | 学生、教师、精简题意三个 prompt 的查看与修改；清空保存即恢复内置默认 |
 
 ### 请求预算
 
 - 流式分析：`max_tokens 16384`，超时 180 秒（思考模型会把 completion 额度消耗在思维链上，避免难题思考被截断）。
-- 精简题意：`max_tokens 8192`，超时 120 秒（流式生成 180 秒）；被长度截断的结果不会写入缓存。
+- 精简题意：`max_tokens 8192`，超时 120 秒（流式 180 秒）；手动重新生成放宽到 `max_tokens 16384`、超时 300 秒；被长度截断的结果不会写入缓存。
 
 ## AI 讨论审核
 

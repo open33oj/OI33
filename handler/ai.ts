@@ -77,6 +77,12 @@ const DIFFICULTY_SYSTEM_PROMPT = [
 // marker is stripped before saving; it never lands in the cached summary.
 // Note: a custom difficulty_prompt from /oi33/ai/models only applies to the
 // difficulty-only path; combined generation uses this fixed tail.
+// Only the values DeepSeek's thinking mode accepts;
+// empty = provider default (high), param omitted from requests.
+function validEffort(v?: string): string {
+    return ['low', 'high', 'max'].includes(v || '') ? v! : '';
+}
+
 const DIFFICULTY_MARKER = '[[难度]]';
 const SUMMARY_DIFFICULTY_TAIL = [
     '输出完精简题意后，在最后一行单独输出一行难度标记：[[难度]]N，N 为 1-8 的整数，不要输出任何其他内容。',
@@ -188,9 +194,10 @@ function formatMoney(v: number): string {
 
 export async function callChatCompletion(
     config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 1024, json = false,
+    opts: { effort?: string; timeoutMs?: number } = {},
 ) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120000);
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs || 120000);
     try {
         const resp = await fetch(`${config.baseUrl}/v1/chat/completions`, {
             method: 'POST',
@@ -206,6 +213,8 @@ export async function callChatCompletion(
                 ],
                 max_tokens: maxTokens,
                 ...(json ? { response_format: { type: 'json_object' } } : {}),
+                // DeepSeek thinking mode effort; omitted unless configured.
+                ...(opts.effort ? { reasoning_effort: opts.effort } : {}),
             }),
             signal: controller.signal,
         });
@@ -229,11 +238,12 @@ export async function callChatCompletion(
 export async function callChatCompletionStream(
     config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 8192,
     onChunk?: (text: string) => void, onRChunk?: (text: string) => void,
+    opts: { effort?: string; timeoutMs?: number } = {},
 ) {
     const controller = new AbortController();
     // Generous window: reasoning models may think for minutes before the
     // first content token arrives.
-    const timer = setTimeout(() => controller.abort(), 180000);
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs || 180000);
     let fullText = '';
     let usage: any = null;
     let finishReason = '';
@@ -254,6 +264,8 @@ export async function callChatCompletionStream(
                 // DeepSeek only reports token usage on streams when asked.
                 stream_options: { include_usage: true },
                 max_tokens: maxTokens,
+                // DeepSeek thinking mode effort; omitted unless configured.
+                ...(opts.effort ? { reasoning_effort: opts.effort } : {}),
             }),
             signal: controller.signal,
         });
@@ -303,12 +315,13 @@ async function generateProblemSummary(
 ): Promise<string> {
     const config = await resolveChatConfig(modelName);
     if (!config.apiKey) return '';
-    const systemPrompt = (await oi33Model.aiGetConfig()).summary_prompt || SUMMARY_SYSTEM_PROMPT;
+    const cfg = await oi33Model.aiGetConfig();
+    const systemPrompt = cfg.summary_prompt || SUMMARY_SYSTEM_PROMPT;
     // Generous budget: reasoning-style models burn completion tokens on
     // thinking, and LaTeX-heavy summaries are token-dense.
     const { content, usage, finishReason } = onChunk
-        ? await callChatCompletionStream(config, systemPrompt, fullText, 8192, onChunk, onRChunk)
-        : await callChatCompletion(config, systemPrompt, fullText, 8192);
+        ? await callChatCompletionStream(config, systemPrompt, fullText, 8192, onChunk, onRChunk, { effort: cfg.summary_effort })
+        : await callChatCompletion(config, systemPrompt, fullText, 8192, false, { effort: cfg.summary_effort });
     if (!content) return '';
     // Never cache a truncated summary.
     if (finishReason === 'length') return '';
@@ -337,8 +350,9 @@ async function generateProblemDifficulty(
 ): Promise<number | null> {
     const config = await resolveChatConfig(modelName);
     if (!config.apiKey) return null;
-    const systemPrompt = (await oi33Model.aiGetConfig()).difficulty_prompt || DIFFICULTY_SYSTEM_PROMPT;
-    const { content, usage } = await callChatCompletion(config, systemPrompt, briefText, 2048, true);
+    const cfg = await oi33Model.aiGetConfig();
+    const systemPrompt = cfg.difficulty_prompt || DIFFICULTY_SYSTEM_PROMPT;
+    const { content, usage } = await callChatCompletion(config, systemPrompt, briefText, 2048, true, { effort: cfg.summary_effort });
     let parsed: any = null;
     try { parsed = JSON.parse(content); } catch { /* fall through */ }
     const difficulty = Number(parsed?.difficulty);
@@ -367,13 +381,16 @@ async function generateProblemDifficulty(
 async function generateProblemSummaryWithDifficulty(
     domainId: string, pid: number, fullText: string, modelName: string,
     onChunk?: (text: string) => void, onRChunk?: (text: string) => void,
+    // Manual regeneration raises the limits: hard problems think for minutes.
+    limits: { maxTokens?: number; timeoutMs?: number } = {},
 ): Promise<{ summary: string; difficulty: number | null }> {
     const config = await resolveChatConfig(modelName);
     if (!config.apiKey) return { summary: '', difficulty: null };
-    const systemPrompt = `${(await oi33Model.aiGetConfig()).summary_prompt || SUMMARY_SYSTEM_PROMPT}\n\n${SUMMARY_DIFFICULTY_TAIL}`;
+    const cfg = await oi33Model.aiGetConfig();
+    const systemPrompt = `${cfg.summary_prompt || SUMMARY_SYSTEM_PROMPT}\n\n${SUMMARY_DIFFICULTY_TAIL}`;
     const { content, usage, finishReason } = onChunk
-        ? await callChatCompletionStream(config, systemPrompt, fullText, 8192, onChunk, onRChunk)
-        : await callChatCompletion(config, systemPrompt, fullText, 8192);
+        ? await callChatCompletionStream(config, systemPrompt, fullText, limits.maxTokens || 8192, onChunk, onRChunk, { effort: cfg.summary_effort, timeoutMs: limits.timeoutMs })
+        : await callChatCompletion(config, systemPrompt, fullText, limits.maxTokens || 8192, false, { effort: cfg.summary_effort, timeoutMs: limits.timeoutMs });
     // Never cache a truncated summary.
     if (!content || finishReason === 'length') return { summary: '', difficulty: null };
     let summary = content;
@@ -587,7 +604,9 @@ class Ai33ModelsHandler extends Handler {
     @param('teacher_prompt', Types.String, true)
     @param('summary_prompt', Types.String, true)
     @param('difficulty_prompt', Types.String, true)
-    @param('analysis_effort', Types.String, true)
+    @param('student_effort', Types.String, true)
+    @param('teacher_effort', Types.String, true)
+    @param('summary_effort', Types.String, true)
     async post(
         _domainId: string, action: string,
         provider?: string, base_url?: string, api_key?: string,
@@ -595,7 +614,7 @@ class Ai33ModelsHandler extends Handler {
         student_model?: string, teacher_model?: string, summary_model?: string,
         student_prompt?: string, teacher_prompt?: string, summary_prompt?: string,
         difficulty_prompt?: string,
-        analysis_effort?: string,
+        student_effort?: string, teacher_effort?: string, summary_effort?: string,
     ) {
         await checkOi33Admin(this.user._id);
         if (action === 'save_provider' && provider) {
@@ -621,11 +640,9 @@ class Ai33ModelsHandler extends Handler {
                 teacher_prompt: (teacher_prompt || '').trim(),
                 summary_prompt: (summary_prompt || '').trim(),
                 difficulty_prompt: (difficulty_prompt || '').trim(),
-                // Only the values DeepSeek's thinking mode accepts;
-                // empty = provider default (high), param omitted from requests.
-                analysis_effort: ['low', 'high', 'max'].includes(analysis_effort || '')
-                    ? analysis_effort
-                    : '',
+                student_effort: validEffort(student_effort),
+                teacher_effort: validEffort(teacher_effort),
+                summary_effort: validEffort(summary_effort),
             });
         }
         this.response.redirect = this.url('oi33_ai_models');
@@ -666,6 +683,7 @@ class Ai33SummaryHandler extends Handler {
             // One call produces both the summary and the difficulty.
             const { summary, difficulty } = await generateProblemSummaryWithDifficulty(
                 domainId, pdoc.docId, fullText, cfg.summary_model,
+                undefined, undefined, { maxTokens: 16384, timeoutMs: 300000 },
             );
             if (!summary) throw new Error('生成失败：请检查模型配置与 API Key，或稍后再试。');
             await applyAiDifficultyIfUnset(domainId, pdoc, difficulty);
@@ -1011,6 +1029,7 @@ class Ai33SummaryStreamHandler extends ConnectionHandler {
                 const { summary, difficulty } = await generateProblemSummaryWithDifficulty(
                     domainId, pdoc.docId, fullText, cfg.summary_model,
                     (c) => this.send({ chunk: c }), (r) => this.send({ rchunk: r }),
+                    { maxTokens: 16384, timeoutMs: 300000 },
                 );
                 if (!summary) {
                     this.send({ error: '生成失败：请检查模型配置与 API Key，或稍后再试。' });
@@ -1199,8 +1218,11 @@ class Ai33AnalyzeStreamHandler extends ConnectionHandler {
                     // DeepSeek only reports token usage on streams when asked.
                     stream_options: { include_usage: true },
                     // DeepSeek thinking mode defaults to effort=high; admins
-                    // can lower it via /oi33/ai/models. Omitted unless set.
-                    ...(cfg.analysis_effort ? { reasoning_effort: cfg.analysis_effort } : {}),
+                    // can lower it per role via /oi33/ai/models. Omitted
+                    // unless set. analysis_effort is the legacy global field.
+                    ...(((access.isTeacher ? cfg.teacher_effort : cfg.student_effort) || cfg.analysis_effort)
+                        ? { reasoning_effort: (access.isTeacher ? cfg.teacher_effort : cfg.student_effort) || cfg.analysis_effort }
+                        : {}),
                     // Reasoning-style models burn completion tokens on
                     // thinking; keep the cap well above the ~500-char answer
                     // so long reasoning on hard problems isn't truncated.

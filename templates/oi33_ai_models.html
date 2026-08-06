@@ -20,12 +20,18 @@
         {% for p in providers %}{% for m in p.models %}{% set _ = allModels.push(m.name) %}{% endfor %}{% endfor %}
         <form method="post" style="margin-bottom:2rem;">
           <input type="hidden" name="action" value="set_defaults">
-          {% for key, label in [['student_model', _('Student Model')], ['teacher_model', _('Teacher Model')], ['summary_model', _('Summary Model')]] %}
+          {% for key, effortKey, label in [['student_model', 'student_effort', _('Student Model')], ['teacher_model', 'teacher_effort', _('Teacher Model')], ['summary_model', 'summary_effort', _('Summary Model')]] %}
           <div class="row">
-            <div class="columns">
+            <div class="medium-6 columns">
               <div class="form__item">
                 <label>{{ label }}</label>
                 <input type="text" name="{{ key }}" class="textbox" value="{{ config[key] }}" list="ai33-model-list" required>
+              </div>
+            </div>
+            <div class="medium-6 columns">
+              <div class="form__item">
+                <label>{{ _('Reasoning Effort') }}</label>
+                <input type="text" name="{{ effortKey }}" class="textbox" value="{{ config[effortKey] or '' }}" list="ai33-effort-list" placeholder="high">
               </div>
             </div>
           </div>
@@ -33,20 +39,12 @@
           <datalist id="ai33-model-list">
             {% for name in allModels %}<option value="{{ name }}">{% endfor %}
           </datalist>
-          <div class="row">
-            <div class="columns">
-              <div class="form__item">
-                <label>{{ _('Reasoning Effort') }}</label>
-                <input type="text" name="analysis_effort" class="textbox" value="{{ config.analysis_effort or '' }}" list="ai33-effort-list" placeholder="high">
-                <datalist id="ai33-effort-list">
-                  <option value="low">
-                  <option value="high">
-                  <option value="max">
-                </datalist>
-                <p class="ai33-desc" style="margin-top:0.3rem;">{{ _('ai_effort_help') }}</p>
-              </div>
-            </div>
-          </div>
+          <datalist id="ai33-effort-list">
+            <option value="low">
+            <option value="high">
+            <option value="max">
+          </datalist>
+          <p class="ai33-desc">{{ _('ai_effort_help') }}</p>
 
           <h3 style="margin:1.5rem 0 0.5rem;">{{ _('System Prompts') }}</h3>
           <p class="ai33-desc">{{ _('ai_prompts_help') }}</p>

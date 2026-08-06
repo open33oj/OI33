@@ -374,7 +374,11 @@ export interface Oi33AiConfig {
     teacher_prompt?: string;
     summary_prompt?: string;
     difficulty_prompt?: string;
-    // DeepSeek thinking-mode effort for analyses: low / high / max.
+    // Per-role DeepSeek thinking-mode effort: low / high / max (empty = high).
+    student_effort?: string;
+    teacher_effort?: string;
+    summary_effort?: string;
+    // Legacy global effort, kept as a fallback for analyses.
     analysis_effort?: string;
     // Discussion moderation: '1' = on, anything else = off.
     moderation_enabled?: string;
