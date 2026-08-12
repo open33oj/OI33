@@ -11,7 +11,7 @@ function field(body: any, name: string): string {
 }
 
 class ContractListHandler extends Handler {
-    async get(domainId: string) {
+    async get() {
         const uid = this.user._id;
         const [incoming, outgoing, resolved, sellable, oi33Data] = await Promise.all([
             oi33Model.contractListIncoming(uid),
@@ -34,7 +34,7 @@ class ContractListHandler extends Handler {
             ...outgoing.map((contract) => contract.buyer),
             ...resolved.flatMap((contract) => [contract.seller, contract.buyer]),
         ])];
-        const udict = uids.length ? await UserModel.getList(domainId, uids) : {};
+        const udict = uids.length ? await UserModel.getList('', uids) : {};
         const oi33Dict = uids.length ? await oi33Model.getUserDataByUids(uids) : {};
         for (const id of uids) {
             if (udict[id] && oi33Dict[id]) oi33Model.mergeOi33Fields(udict[id], oi33Dict[id]);
@@ -45,12 +45,13 @@ class ContractListHandler extends Handler {
             achievementDict, udict,
             viewerFood: Number(oi33Data[uid]?.cat_food) || 0,
             verified: (oi33Data[uid]?.realname_flag ?? 0) >= 1,
+            feePercent: oi33Model.CONTRACT_FEE_PERCENT,
         };
     }
 }
 
 class ContractCreateHandler extends Handler {
-    async post(domainId: string) {
+    async post() {
         if ((await checkUserFlag(this.user._id)) < 1) {
             throw new ForbiddenError('只有通过认证的用户才能创建交易合同。');
         }
@@ -59,7 +60,7 @@ class ContractCreateHandler extends Handler {
         const buyer = Number(field(body, 'buyer'));
         const price = Number(field(body, 'price'));
         if (!Number.isSafeInteger(buyer) || buyer <= 0) throw new ValidationError('买家 UID 无效。');
-        if (!(await UserModel.getById(domainId, buyer))) throw new NotFoundError(buyer);
+        if (!(await UserModel.getById('', buyer))) throw new NotFoundError(buyer);
         await oi33Model.contractCreate({
             achievementId, seller: this.user._id, buyer, price,
         });

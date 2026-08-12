@@ -91,12 +91,13 @@ import {
 import {
     ensureAuctionIndexes, auctionGet, auctionCreate, auctionBid, auctionSettle,
     auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
-    auctionGetBids,
+    auctionGetBids, auctionRareShowcase,
 } from './auction';
 import {
     ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
     contractAccept, contractDecline, contractCancel, contractListIncoming,
     contractListOutgoing, contractListRecentResolved,
+    CONTRACT_FEE_PERCENT, contractFeeAmount,
 } from './contract';
 
 export * from './types';
@@ -185,10 +186,11 @@ const oi33Model = {
     achievementAcceptedDomainIncluded, achievementImportInitialDefinitions,
     ensureAuctionIndexes, auctionGet, auctionCreate, auctionBid, auctionSettle,
     auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
-    auctionGetBids,
+    auctionGetBids, auctionRareShowcase,
     ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
     contractAccept, contractDecline, contractCancel, contractListIncoming,
     contractListOutgoing, contractListRecentResolved,
+    CONTRACT_FEE_PERCENT, contractFeeAmount,
 };
 
 global.Hydro.model.oi33 = oi33Model;

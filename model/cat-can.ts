@@ -1,4 +1,5 @@
 import { db, ObjectId } from 'hydrooj';
+import { logColl } from './log';
 import { userColl } from './user';
 
 export const catCanBillColl = db.collection('oi33_cat_can_bill');
@@ -127,6 +128,33 @@ function calculateBuyPrice(sellPrice: number) {
     return ceilDivide(sellPrice * 105, 100);
 }
 
+// All inputs and intermediate values behind a price tick, so both the tick
+// writer and the market page work from the exact same numbers.
+function computeCatCanPriceParams(pool: any, previousSellPrice?: number) {
+    const reserveFood = Math.max(0, Number(pool?.reserveFood) || 0);
+    const userFood = Math.max(0, Number(pool?.userFoodTotal) || 0);
+    const userCans = Math.max(0, Number(pool?.circulatingCans) || 0);
+    const supply = Math.max(userCans + 1, Number(pool?.virtualCanSupply) || 1000);
+    const poolCans = Math.max(1, supply - userCans);
+    const systemFood = Math.max(1, userFood + reserveFood);
+    const ammPrice = systemFood / poolCans;
+    const backingPrice = userCans > 0 ? reserveFood / userCans : ammPrice;
+    const rawTarget = Math.max(1, Math.min(ammPrice, backingPrice));
+    const previousPrice = Math.max(1, Math.floor(previousSellPrice || INITIAL_PRICE));
+    const lowerBound = ceilDivide(previousPrice * (100 - MAX_TICK_PERCENT), 100);
+    const upperBound = Math.floor(previousPrice * (100 + MAX_TICK_PERCENT) / 100);
+    const boundedTarget = Math.max(lowerBound, Math.min(upperBound, Math.floor(rawTarget)));
+    const backingCap = userCans > 0 ? Math.floor(backingPrice) : boundedTarget;
+    const sellPrice = Math.max(1, Math.min(boundedTarget, backingCap));
+    const buyPrice = calculateBuyPrice(sellPrice);
+    return {
+        reserveFood, userFood, userCans, supply, poolCans, systemFood,
+        ammPrice, backingPrice, rawTarget,
+        previousPrice, lowerBound, upperBound, boundedTarget, backingCap,
+        sellPrice, buyPrice,
+    };
+}
+
 export async function ensureCurrentCatCanPrice(now = new Date()) {
     const parts = shanghaiParts(now);
     const slotAt = priceSlotFor(parts);
@@ -136,22 +164,7 @@ export async function ensureCurrentCatCanPrice(now = new Date()) {
         getOrCreatePool(now),
         catCanPriceColl.find({ _id: { $lt: slotAt } }).sort({ _id: -1 }).limit(1).next(),
     ]);
-    const reserveFood = Math.max(0, Number((pool as any)?.reserveFood) || 0);
-    const userFood = Math.max(0, Number((pool as any)?.userFoodTotal) || 0);
-    const userCans = Math.max(0, Number((pool as any)?.circulatingCans) || 0);
-    const supply = Math.max(userCans + 1, Number((pool as any)?.virtualCanSupply) || 1000);
-    const poolCans = Math.max(1, supply - userCans);
-    const systemFood = Math.max(1, userFood + reserveFood);
-    const ammPrice = systemFood / poolCans;
-    const backingPrice = userCans > 0 ? reserveFood / userCans : ammPrice;
-    const rawTarget = Math.max(1, Math.min(ammPrice, backingPrice));
-    const previousPrice = Math.max(1, Math.floor(Number(previous?.sellPrice) || INITIAL_PRICE));
-    const lowerBound = ceilDivide(previousPrice * (100 - MAX_TICK_PERCENT), 100);
-    const upperBound = Math.floor(previousPrice * (100 + MAX_TICK_PERCENT) / 100);
-    const boundedTarget = Math.max(lowerBound, Math.min(upperBound, Math.floor(rawTarget)));
-    const backingCap = userCans > 0 ? Math.floor(backingPrice) : boundedTarget;
-    const sellPrice = Math.max(1, Math.min(boundedTarget, backingCap));
-    const buyPrice = calculateBuyPrice(sellPrice);
+    const { sellPrice, buyPrice } = computeCatCanPriceParams(pool, Number(previous?.sellPrice) || 0);
     const snapshot = {
         _id: slotAt,
         sellPrice,
@@ -170,6 +183,7 @@ export async function ensureCurrentCatCanPrice(now = new Date()) {
 export async function ensureCatCanIndexes() {
     await Promise.all([
         catCanBillColl.createIndex({ uid: 1, createdAt: -1 }),
+        catCanBillColl.createIndex({ createdAt: 1 }),
         catCanPriceColl.createIndex({ createdAt: -1 }),
     ]);
 }
@@ -389,13 +403,116 @@ export async function sellCatCans(uid: number, quantity: number, now = new Date(
     return { quantity, price: quote.sellPrice, amount: revenue, fee, received, nextTradeAt };
 }
 
+interface CatCanEconomyWindow {
+    checkinMint: number; // 签到发放（含上线补发）
+    adminMint: number; // 管理员/比赛发放（单个 + 批量）
+    tradeFeeBurn: number; // 交易手续费销毁
+    feedBurn: number; // 投喂大猫销毁
+    moveBurn: number; // 地图移动销毁
+    contractFeeBurn: number; // 合同中介费销毁
+    deductBurn: number; // 管理员扣减
+    auctionFoodBurn: number; // 拍卖结算销毁的储备粮（不来自用户余额，不计入净增发）
+    mintTotal: number;
+    burnTotal: number;
+    net: number; // 净增发 = 发放 - 销毁
+    cansBought: number; // 买入（池子售出）
+    cansSoldBack: number; // 卖出回池（撤销单按负数量自动冲抵）
+    cansOtherBack: number; // 传送/喵喵/拍卖结算回池
+    cansNetOut: number; // 池子净售出（负值 = 净回收）
+}
+
+function emptyEconomyWindow(): CatCanEconomyWindow {
+    return {
+        checkinMint: 0, adminMint: 0,
+        tradeFeeBurn: 0, feedBurn: 0, moveBurn: 0, contractFeeBurn: 0, deductBurn: 0,
+        auctionFoodBurn: 0,
+        mintTotal: 0, burnTotal: 0, net: 0,
+        cansBought: 0, cansSoldBack: 0, cansOtherBack: 0, cansNetOut: 0,
+    };
+}
+
+function finalizeEconomyWindow(w: CatCanEconomyWindow) {
+    w.mintTotal = w.checkinMint + w.adminMint;
+    w.burnTotal = w.tradeFeeBurn + w.feedBurn + w.moveBurn + w.contractFeeBurn + w.deductBurn;
+    w.net = w.mintTotal - w.burnTotal;
+    w.cansNetOut = w.cansBought - w.cansSoldBack - w.cansOtherBack;
+}
+
+// 7d/30d cat-food mint vs burn plus can-flow stats, sourced from oi33_log
+// (every food/can flow writes one) and the trade bill ledger.
+async function getCatCanEconomy(now = new Date()) {
+    const since30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+    const since7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+    const [logs, bills] = await Promise.all([
+        logColl.find({
+            createdAt: { $gte: since30 },
+            $or: [
+                { type: 'checkin' },
+                { type: 'cat_account' },
+                { type: 'contract', action: 'accept' },
+                { type: 'auction', action: 'settle' },
+            ],
+        } as any, {
+            projection: { type: 1, action: 1, amount: 1, canAmount: 1, fee: 1, createdAt: 1 },
+        }).toArray(),
+        catCanBillColl.find(
+            { createdAt: { $gte: since30 } },
+            { projection: { quantity: 1, fee: 1, createdAt: 1 } },
+        ).toArray(),
+    ]);
+    const w7 = emptyEconomyWindow();
+    const w30 = emptyEconomyWindow();
+    const windowsFor = (at: Date) => (new Date(at).getTime() >= since7.getTime() ? [w7, w30] : [w30]);
+    for (const log of logs) {
+        const amount = Number((log as any).amount) || 0;
+        const canAmount = Number((log as any).canAmount) || 0;
+        for (const w of windowsFor((log as any).createdAt)) {
+            if ((log as any).type === 'checkin') {
+                if (amount > 0) w.checkinMint += amount;
+            } else if ((log as any).type === 'cat_account') {
+                const action = (log as any).action;
+                if ((action === 'grant' || action === 'bulk_grant') && amount > 0) w.adminMint += amount;
+                else if (action === 'school_feed') w.feedBurn += Math.max(0, -amount);
+                else if (action === 'cat_map_move') w.moveBurn += Math.max(0, -amount);
+                else if (action === 'deduct') w.deductBurn += Math.max(0, -amount);
+                // Teleports and meow posts return cans to the pool; refunds take them back.
+                w.cansOtherBack -= canAmount;
+            } else if ((log as any).type === 'contract') {
+                w.contractFeeBurn += Math.max(0, Number((log as any).fee) || 0);
+            } else if ((log as any).type === 'auction') {
+                // Settled bids return the escrowed cans to the pool; the
+                // equivalent reserve food is burned (legacy settles have no
+                // foodBurn and simply contribute nothing here).
+                w.cansOtherBack += Math.max(0, amount);
+                w.auctionFoodBurn += Math.max(0, Number((log as any).foodBurn) || 0);
+            }
+        }
+    }
+    for (const bill of bills) {
+        const quantity = Number((bill as any).quantity) || 0;
+        const fee = Number((bill as any).fee) || 0; // reversal bills carry negative fees
+        for (const w of windowsFor((bill as any).createdAt)) {
+            w.tradeFeeBurn += fee;
+            if (quantity > 0) w.cansBought += quantity;
+            else w.cansSoldBack += -quantity;
+        }
+    }
+    finalizeEconomyWindow(w7);
+    finalizeEconomyWindow(w30);
+    return { days7: w7, days30: w30 };
+}
+
 export async function getCatCanPage(uid: number, now = new Date()) {
     const quote = await getCurrentQuote(now);
-    const [user, pool, priceHistory] = await Promise.all([
+    const slotAt = priceSlotFor(shanghaiParts(now));
+    const [user, pool, priceHistory, previous, economy] = await Promise.all([
         userColl.findOne({ _id: uid }),
         getOrCreatePool(now),
         getCatCanPriceHistory(),
+        catCanPriceColl.find({ _id: { $lt: slotAt } }).sort({ _id: -1 }).limit(1).next(),
+        getCatCanEconomy(now),
     ]);
+    const params = computeCatCanPriceParams(pool, Number(previous?.sellPrice) || 0);
     const virtualCanSupply = Math.max(1, Number((pool as any)?.virtualCanSupply) || 1);
     const circulatingCans = Math.max(0, Number((pool as any)?.circulatingCans) || 0);
     const cooldownUntil = getCooldownUntil(user);
@@ -407,6 +524,12 @@ export async function getCatCanPage(uid: number, now = new Date()) {
             buyPrice: quote.buyPrice,
             availableCans: Math.max(0, virtualCanSupply - circulatingCans - 1),
         },
+        market: {
+            ...params,
+            feesBurned: Math.max(0, Number((pool as any)?.feesBurned) || 0),
+            initialPrice: INITIAL_PRICE,
+            maxTickPercent: MAX_TICK_PERCENT,
+        },
         balance: Number((user as any)?.cat_food) || 0,
         inventory: Number((user as any)?.cat_can) || 0,
         feeNumerator: FEE_NUMERATOR,
@@ -417,5 +540,7 @@ export async function getCatCanPage(uid: number, now = new Date()) {
         cooldownUntilMs: isCoolingDown ? cooldownUntil!.getTime() : 0,
         isCoolingDown,
         priceHistory,
+        economy7: economy.days7,
+        economy30: economy.days30,
     };
 }

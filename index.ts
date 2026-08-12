@@ -28,6 +28,7 @@ import { ensureMeowIndexes } from './model/meow';
 import { ensureAchievementIndexes } from './model/achievement';
 import { ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
+import { ensureLogIndexes } from './model/log';
 
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
@@ -86,6 +87,7 @@ export async function apply(ctx: Context) {
                 await ensureAchievementIndexes();
                 await ensureAuctionIndexes();
                 await ensureContractIndexes();
+                await ensureLogIndexes();
                 await maintainCatCanMarket();
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {

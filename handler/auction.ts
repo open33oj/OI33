@@ -60,6 +60,10 @@ class AuctionListHandler extends Handler {
             if (auction.winner) uids.push(auction.winner);
         }
         const udict = await buildUserDict(domainId, uids);
+        // The create form only offers saleable achievements that have never
+        // been successfully auctioned and are not currently held.
+        const rareRows = viewer.flag >= 2 ? await oi33Model.auctionRareShowcase() : [];
+        const auctionable = rareRows.filter((row) => row.status === 'pending').map((row) => row.achievement);
         const decorate = (auction: Oi33Auction) => ({
             ...auction,
             remainText: auction.status === 'active' ? remainText(auction.endAt, now) : '',
@@ -72,7 +76,7 @@ class AuctionListHandler extends Handler {
             udict,
             canManage: viewer.flag >= 2,
             viewerFlag: viewer.flag,
-            achievements,
+            achievements: auctionable,
             preselect,
             viewerCans: viewer.cans,
         };
@@ -163,8 +167,29 @@ class AuctionCancelHandler extends Handler {
     }
 }
 
+class AuctionRareHandler extends Handler {
+    async get() {
+        await oi33Model.auctionSettleExpired();
+        const now = new Date();
+        const rows = await oi33Model.auctionRareShowcase();
+        const udict = await buildUserDict(
+            '',
+            rows.filter((row) => row.award).map((row) => row.award!.uid),
+        );
+        this.response.template = 'oi33_auction_rare.html';
+        this.response.body = {
+            rows: rows.map((row) => ({
+                ...row,
+                remainText: row.activeAuction ? remainText(row.activeAuction.endAt, now) : '',
+            })),
+            udict,
+        };
+    }
+}
+
 export async function apply(ctx: Context) {
     ctx.Route('oi33_auction', '/oi33/auction', AuctionListHandler);
+    ctx.Route('oi33_auction_rare', '/oi33/achievements/rare', AuctionRareHandler);
     ctx.Route('oi33_auction_create', '/oi33/auction/create', AuctionCreateHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_auction_detail', '/oi33/auction/:id', AuctionDetailHandler);
     ctx.Route('oi33_auction_bid', '/oi33/auction/:id/bid', AuctionBidHandler, PRIV.PRIV_USER_PROFILE);

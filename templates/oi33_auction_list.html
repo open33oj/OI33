@@ -8,6 +8,7 @@
       <div class="section__header">
         <h1 class="section__title">成就拍卖</h1>
         <div class="section__tools">
+          <a href="{{ url('oi33_auction_rare') }}" class="rounded button">稀有成就</a>
           {% if handler.user._id %}<a href="{{ url('oi33_contracts') }}" class="rounded button">我的交易合同</a>{% endif %}
           {% if canManage %}
           <a href="{{ url('oi33_achievement_manage') }}" class="rounded button">成就管理</a>
@@ -17,13 +18,15 @@
       <div class="section__body">
         <p class="auction-help">
           出价立即托管扣除猫罐头，被超越时自动退款；每次出价至少比当前最高价多 1 个罐头。
-          成交后赢家获得成就，支付的罐头回流罐头池；流拍或取消则全额退款。
+          成交后赢家获得成就，支付的罐头回流罐头池，同时按当前卖价销毁等值储备粮；流拍或取消则全额退款。
+          稀有成就只拍卖一次，成交后只能通过交易合同转让。
           {% if handler.user._id %}你当前持有 <strong>{{ viewerCans }}</strong> 个猫罐头。{% endif %}
         </p>
 
         {% if canManage %}
         <div class="auction-create">
           <h2>上架拍卖</h2>
+          <p class="auction-help">只有可售卖且从未拍出的稀有成就可以上架；每个稀有成就只拍卖一次。</p>
           {% if achievements.length %}
           <form method="post" action="{{ url('oi33_auction_create') }}">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -48,7 +51,7 @@
             <button type="submit" class="rounded primary button">上架拍卖</button>
           </form>
           {% else %}
-          <p>请先在成就管理中创建成就。</p>
+          <p>暂无可以上架的稀有成就。请在成就管理中创建可售卖的成就；已拍出或已被持有的成就只能等待合同转让。</p>
           {% endif %}
         </div>
         {% endif %}

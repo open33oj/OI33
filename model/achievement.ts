@@ -59,8 +59,17 @@ export async function achievementGet(id: string) {
     return await achievementColl.findOne({ _id: id });
 }
 
+// Display order for achievement lists: auction (saleable) first, then manual,
+// then automatic. The `order` field (and fetch order) breaks ties within a
+// group via a stable sort.
+export function achievementCategoryRank(achievement: any) {
+    if (achievement?.saleable) return 0;
+    return AUTOMATIC_RULE_TYPES.includes(achievement?.ruleType) ? 2 : 1;
+}
+
 export async function achievementList() {
-    return await achievementColl.find().sort({ order: 1, _id: 1 }).toArray();
+    const achievements = await achievementColl.find().sort({ order: 1, _id: 1 }).toArray();
+    return achievements.sort((a, b) => achievementCategoryRank(a) - achievementCategoryRank(b));
 }
 
 export async function achievementSave(input: {
@@ -139,7 +148,8 @@ export async function achievementGetUserAwards(uid: number) {
         })
         .filter(Boolean)
         .sort((a: any, b: any) => (
-            a.achievement.order - b.achievement.order
+            achievementCategoryRank(a.achievement) - achievementCategoryRank(b.achievement)
+            || a.achievement.order - b.achievement.order
             || a.earnedAt.getTime() - b.earnedAt.getTime()
         ));
 }

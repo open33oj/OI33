@@ -4,7 +4,7 @@ import {
 import type { Oi33Auction } from './types';
 import { addLog } from './log';
 import { achievementColl, achievementGrant, userAchievementColl } from './achievement';
-import { catCanPoolColl } from './cat-can';
+import { catCanPoolColl, ensureCurrentCatCanPrice } from './cat-can';
 import { userColl } from './user';
 
 export const auctionColl = db.collection('oi33_auction');
@@ -37,8 +37,20 @@ export async function auctionCreate(input: {
 }) {
     const achievement = await achievementColl.findOne({ _id: input.achievementId });
     if (!achievement) throw new ValidationError('成就不存在。');
+    if (!achievement.saleable) throw new ValidationError('只有标记为可售卖的稀有成就才能拍卖。');
     if (!Number.isSafeInteger(input.startPrice) || input.startPrice < 1) {
         throw new ValidationError('起拍价必须是不少于 1 的整数个猫罐头。');
+    }
+    // Rare achievements are unique and auctioned at most once: after a
+    // successful sale they can only change hands via trade contracts.
+    const [settled, held] = await Promise.all([
+        auctionColl.findOne({ achievementId: input.achievementId, status: 'settled', winner: { $ne: null } }),
+        userAchievementColl.findOne({
+            achievementId: input.achievementId, source: { $in: ['auction', 'contract'] },
+        }),
+    ]);
+    if (settled || held) {
+        throw new ValidationError('该成就已经拍卖过。稀有成就只拍卖一次，之后只能通过交易合同转让。');
     }
     const running = await auctionColl.findOne({
         achievementId: input.achievementId, status: 'active',
@@ -96,25 +108,33 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
         { $inc: { cat_can: -amount } },
     );
     if (!deducted.modifiedCount) throw new ValidationError('猫罐头不足，无法出价。');
-    const updated = await auctionColl.updateOne(
+    // Return the pre-update doc so the refund below targets the leader that
+    // was actually displaced by THIS update. Refunding from the stale read
+    // above races concurrent bids: two bidders reading the same state can both
+    // win the atomic filter in turn, and the intermediate leader's escrow
+    // would never be refunded.
+    const previous = await auctionColl.findOneAndUpdate(
         {
             _id: auction._id,
             status: 'active',
             endAt: { $gt: now },
+            highestBidder: { $ne: uid },
             $or: [{ highestBid: null }, { highestBid: { $lt: amount } }],
         },
         {
             $set: { highestBid: amount, highestBidder: uid },
             $inc: { bidCount: 1 },
         },
+        { returnDocument: 'before' },
     );
-    if (!updated.modifiedCount) {
+    if (!previous) {
         await auctionRefund(uid, amount, auction._id, '出价未生效');
         const latest = await auctionColl.findOne({ _id: auction._id });
         if (!latest || latest.status !== 'active' || latest.endAt.getTime() <= now.getTime()) {
             if (latest?.status === 'active') await auctionSettle(auction._id, now);
             throw new ValidationError('拍卖已结束。');
         }
+        if (latest.highestBidder === uid) throw new ValidationError('你已经是当前最高出价者。');
         throw new ValidationError(`出价至少需要 ${(latest.highestBid ?? 0) + 1} 个猫罐头。`);
     }
     await auctionBidColl.insertOne({
@@ -124,8 +144,8 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
         type: 'auction', userId: uid, action: 'bid',
         auctionId: auction._id.toHexString(), achievementId: auction.achievementId, amount,
     } as any);
-    if (auction.highestBidder != null && auction.highestBid != null) {
-        await auctionRefund(auction.highestBidder, auction.highestBid, auction._id, '被更高出价超越');
+    if (previous.highestBidder != null && previous.highestBid != null) {
+        await auctionRefund(previous.highestBidder, previous.highestBid, auction._id, '被更高出价超越');
     }
     return await auctionColl.findOne({ _id: auction._id });
 }
@@ -144,19 +164,38 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
     if (auction.highestBidder != null && auction.highestBid != null) {
         try {
             await achievementGrant(auction.highestBidder, auction.achievementId, 0, 'auction', true);
-            // The winning cans return to the AMM pool (no food is paid out).
-            await catCanPoolColl.updateOne(
-                { _id: 'main' },
-                { $inc: { circulatingCans: -auction.highestBid }, $set: { updatedAt: now } },
+            // The winning cans return to the AMM pool, and the pool burns
+            // reserve food equal to their current sell value — exactly as if
+            // the winner sold the cans back and the proceeds were destroyed
+            // (no fee, no cooldown). This makes auctions a cat-food sink.
+            const market: any = await ensureCurrentCatCanPrice(now);
+            const pool: any = await catCanPoolColl.findOne({ _id: 'main' });
+            const foodBurn = Math.min(
+                Math.max(0, Number(pool?.reserveFood) || 0),
+                auction.highestBid * Math.max(0, Number(market?.sellPrice) || 0),
             );
+            const poolUpdated = await catCanPoolColl.updateOne(
+                { _id: 'main', reserveFood: { $gte: foodBurn } },
+                {
+                    $inc: { reserveFood: -foodBurn, circulatingCans: -auction.highestBid },
+                    $set: { updatedAt: now },
+                },
+            );
+            if (!poolUpdated.modifiedCount) {
+                // The reserve moved concurrently; never leave the cans stuck.
+                await catCanPoolColl.updateOne(
+                    { _id: 'main' },
+                    { $inc: { circulatingCans: -auction.highestBid }, $set: { updatedAt: now } },
+                );
+            }
             await auctionColl.updateOne(
                 { _id: auction._id },
-                { $set: { winner: auction.highestBidder, settlePrice: auction.highestBid } },
+                { $set: { winner: auction.highestBidder, settlePrice: auction.highestBid, foodBurn } },
             );
             await addLog({
                 type: 'auction', userId: auction.highestBidder, action: 'settle',
                 auctionId: auction._id.toHexString(), achievementId: auction.achievementId,
-                amount: auction.highestBid,
+                amount: auction.highestBid, foodBurn,
             } as any);
         } catch (e) {
             // Never leave the escrowed cans stuck: if the grant fails (e.g.
@@ -219,4 +258,32 @@ export async function auctionListRecentFinished(limit = 20) {
 export async function auctionGetBids(auctionId: ObjectId, limit = 50) {
     return await auctionBidColl.find({ auctionId })
         .sort({ createdAt: -1, _id: -1 }).limit(limit).toArray();
+}
+
+// Rare (saleable) achievements are unique: auctioned at most once, afterwards
+// they can only change hands via trade contracts. Each row reports who holds
+// the single copy, or that it is on/awaiting its one auction.
+export async function auctionRareShowcase() {
+    const achievements = await achievementColl.find({ saleable: true }).toArray();
+    if (!achievements.length) return [];
+    const ids = achievements.map((achievement) => achievement._id);
+    const [awards, auctions] = await Promise.all([
+        userAchievementColl.find({
+            achievementId: { $in: ids }, source: { $in: ['auction', 'contract'] },
+        }).toArray(),
+        auctionColl.find({ achievementId: { $in: ids } }).toArray(),
+    ]);
+    return achievements.map((achievement) => {
+        const award = awards.find((a) => a.achievementId === achievement._id) || null;
+        const activeAuction = auctions.find(
+            (a) => a.achievementId === achievement._id && a.status === 'active',
+        ) || null;
+        const settledAuction = auctions
+            .filter((a) => a.achievementId === achievement._id && a.status === 'settled' && a.winner != null)
+            .sort((a, b) => (b.settledAt?.getTime() || 0) - (a.settledAt?.getTime() || 0))[0] || null;
+        const status = award ? 'held' : activeAuction ? 'auction' : 'pending';
+        return {
+            achievement, award, activeAuction, settledAuction, status,
+        };
+    });
 }

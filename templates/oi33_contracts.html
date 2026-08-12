@@ -18,11 +18,18 @@
       <div class="section__body">
         <p class="contract-help">
           拍卖中获得的可售卖成就可以通过合同转售给指定用户：对方接受后，成就转给对方、对方的猫粮转给你。
+          成交时收取成交价 {{ feePercent }}% 的中介费（向上取整），从卖家到账中扣除并销毁。
           你当前持有 <strong>{{ catFood.amount(viewerFood) }}</strong> 猫粮。
         </p>
 
         <div class="contract-create">
           <h2>创建交易合同</h2>
+          <div class="contract-fee-notice">
+            <strong>中介费提示：</strong>合同成交时将收取成交价 <strong>{{ feePercent }}%</strong>
+            的中介费（向上取整，不足 1g 按 1g 计），从卖家实际到账中扣除并<strong>直接销毁</strong>。
+            例如定价 1000g，成交后买家支付 1000g，你实际到账 950g，50g 作为中介费销毁。
+            定价前请确认已考虑该费用。
+          </div>
           {% if not verified %}
           <p class="contract-help">只有通过认证的用户才能创建交易合同。</p>
           {% elif sellable.length %}
@@ -73,7 +80,7 @@
               <td>
                 {% if verified %}
                 <form method="post" action="{{ url('oi33_contract_accept', id=contract._id) }}" class="contract-inline-form"
-                  onsubmit="return confirm('接受后将支付 {{ catFood.amount(contract.price, true) }} 并获得该成就。确定接受吗？');">
+                  onsubmit="return confirm('接受后将支付 {{ model.oi33.formatCatFood(contract.price) }} 猫粮并获得该成就。确定接受吗？');">
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <button type="submit" class="rounded primary button">接受</button>
                 </form>
@@ -98,6 +105,7 @@
           <tbody>
           {% for contract in outgoing %}
             {% set achievement = achievementDict[contract.achievementId] %}
+            {% set cfee = contract.fee if contract.fee is defined else ((contract.price * feePercent / 100) | round(0, 'ceil')) %}
             <tr>
               <td>
                 {% if achievement %}
@@ -106,7 +114,12 @@
                 {% else %}{{ contract.achievementId }}{% endif %}
               </td>
               <td>{% if udict[contract.buyer] %}{{ user.render_inline(udict[contract.buyer]) }}{% else %}UID {{ contract.buyer }}{% endif %}</td>
-              <td>{{ catFood.amount(contract.price, true) }}</td>
+              <td>
+                {{ catFood.amount(contract.price, true) }}
+                {% if contract.status == 'pending' or contract.status == 'accepted' %}
+                <br><small class="contract-fee-note">中介费 {{ catFood.amount(cfee) }}，到账 {{ catFood.amount(contract.price - cfee) }}</small>
+                {% endif %}
+              </td>
               <td>{{ statusLabel(contract.status) }}</td>
               <td>{{ datetimeSpan(contract.createdAt)|safe }}</td>
               <td>
@@ -133,11 +146,17 @@
           <tbody>
           {% for contract in resolved %}
             {% set achievement = achievementDict[contract.achievementId] %}
+            {% set cfee = contract.fee if contract.fee is defined else ((contract.price * feePercent / 100) | round(0, 'ceil')) %}
             <tr>
               <td>{{ achievement.name if achievement else contract.achievementId }}</td>
               <td>{% if udict[contract.seller] %}{{ user.render_inline(udict[contract.seller]) }}{% else %}UID {{ contract.seller }}{% endif %}</td>
               <td>{% if udict[contract.buyer] %}{{ user.render_inline(udict[contract.buyer]) }}{% else %}UID {{ contract.buyer }}{% endif %}</td>
-              <td>{{ catFood.amount(contract.price, true) }}</td>
+              <td>
+                {{ catFood.amount(contract.price, true) }}
+                {% if contract.status == 'accepted' %}
+                <br><small class="contract-fee-note">中介费 {{ catFood.amount(cfee) }}，卖家到账 {{ catFood.amount(contract.price - cfee) }}</small>
+                {% endif %}
+              </td>
               <td>{{ statusLabel(contract.status) }}</td>
               <td>{{ datetimeSpan(contract.resolvedAt)|safe }}</td>
             </tr>
@@ -154,6 +173,13 @@
   .theme--dark .contract-help, [data-mantine-color-scheme=dark] .contract-help { color:#aaa; }
   .contract-create { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
   .contract-create h2 { margin-top:0; }
+  .contract-fee-notice {
+    margin:0.6rem 0 1rem; padding:0.7rem 1rem;
+    border:1px solid #e0a800; border-left:4px solid #e0a800; border-radius:4px;
+    background:rgba(224,168,0,.12); line-height:1.6;
+  }
+  .contract-fee-note { color:#b8860b; }
+  .theme--dark .contract-fee-note, [data-mantine-color-scheme=dark] .contract-fee-note { color:#e0a800; }
   .contract-icon {
     width:1em; height:1em; vertical-align:-0.1em; object-fit:fill;
     image-rendering:crisp-edges; image-rendering:pixelated;

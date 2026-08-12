@@ -53,26 +53,6 @@
       </div>
     </div>
 
-    <div class="section oi33-can-history">
-      <div class="section__header"><h2 class="section__title">罐头价格历史</h2></div>
-      <div class="section__body">
-        <div class="oi33-can-history-legend"><span class="is-sell">卖出价</span><small>单位：猫粮 / 个；每 8 小时记录一次</small></div>
-        <div class="oi33-can-history-wrap">
-          <svg class="oi33-can-history-chart" viewBox="0 0 900 260" role="img" aria-label="猫罐头历史卖出价格折线图">
-            <line class="oi33-can-history-grid" x1="62" y1="20" x2="838" y2="20"></line>
-            <line class="oi33-can-history-grid" x1="62" y1="117" x2="838" y2="117"></line>
-            <line class="oi33-can-history-grid" x1="62" y1="214" x2="838" y2="214"></line>
-            <text x="8" y="24">{{ priceHistory.max }}</text>
-            <text x="8" y="218">{{ priceHistory.min }}</text>
-            <polyline class="oi33-can-history-line is-sell" points="{{ priceHistory.sellPoints }}"></polyline>
-            {% for node in priceHistory.nodes %}
-            <circle class="oi33-can-history-dot is-sell" cx="{{ node.x }}" cy="{{ node.sellY }}" r="3"><title>{{ node.label }} 卖出价 {{ node.sellPrice }} 猫粮/个</title></circle>
-            {% if node.showLabel %}<text class="oi33-can-history-date" x="{{ node.x }}" y="244" text-anchor="middle">{{ node.label }}</text>{% endif %}
-            {% endfor %}
-          </svg>
-        </div>
-      </div>
-    </div>
 
     <div class="row oi33-can-trade-row">
       <div class="medium-6 columns">
@@ -107,6 +87,111 @@
             </form>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="section oi33-can-history">
+      <div class="section__header"><h2 class="section__title">罐头价格历史</h2></div>
+      <div class="section__body">
+        <div class="oi33-can-history-legend"><span class="is-sell">卖出价</span><small>单位：猫粮 / 个；每 8 小时记录一次</small></div>
+        <div class="oi33-can-history-wrap">
+          <svg class="oi33-can-history-chart" viewBox="0 0 900 260" role="img" aria-label="猫罐头历史卖出价格折线图">
+            <line class="oi33-can-history-grid" x1="62" y1="20" x2="838" y2="20"></line>
+            <line class="oi33-can-history-grid" x1="62" y1="117" x2="838" y2="117"></line>
+            <line class="oi33-can-history-grid" x1="62" y1="214" x2="838" y2="214"></line>
+            <text x="8" y="24">{{ priceHistory.max }}</text>
+            <text x="8" y="218">{{ priceHistory.min }}</text>
+            <polyline class="oi33-can-history-line is-sell" points="{{ priceHistory.sellPoints }}"></polyline>
+            {% for node in priceHistory.nodes %}
+            <circle class="oi33-can-history-dot is-sell" cx="{{ node.x }}" cy="{{ node.sellY }}" r="3"><title>{{ node.label }} 卖出价 {{ node.sellPrice }} 猫粮/个</title></circle>
+            {% if node.showLabel %}<text class="oi33-can-history-date" x="{{ node.x }}" y="244" text-anchor="middle">{{ node.label }}</text>{% endif %}
+            {% endfor %}
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="section oi33-can-economy">
+      <div class="section__header"><h2 class="section__title">经济指标</h2></div>
+      <div class="section__body">
+        <table class="data-table">
+          <thead>
+            <tr><th>猫粮收支</th><th>近 7 天</th><th>近 30 天</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>签到发放（含上线补发）</td><td>{{ catFood.amount(economy7.checkinMint, true) }}</td><td>{{ catFood.amount(economy30.checkinMint, true) }}</td></tr>
+            <tr><td>管理员 / 比赛发放</td><td>{{ catFood.amount(economy7.adminMint, true) }}</td><td>{{ catFood.amount(economy30.adminMint, true) }}</td></tr>
+            <tr><td>交易手续费销毁</td><td>{{ catFood.amount(economy7.tradeFeeBurn) }}</td><td>{{ catFood.amount(economy30.tradeFeeBurn) }}</td></tr>
+            <tr><td>投喂大猫销毁</td><td>{{ catFood.amount(economy7.feedBurn) }}</td><td>{{ catFood.amount(economy30.feedBurn) }}</td></tr>
+            <tr><td>地图移动销毁</td><td>{{ catFood.amount(economy7.moveBurn) }}</td><td>{{ catFood.amount(economy30.moveBurn) }}</td></tr>
+            <tr><td>合同中介费销毁</td><td>{{ catFood.amount(economy7.contractFeeBurn) }}</td><td>{{ catFood.amount(economy30.contractFeeBurn) }}</td></tr>
+            <tr><td>管理员扣减</td><td>{{ catFood.amount(economy7.deductBurn) }}</td><td>{{ catFood.amount(economy30.deductBurn) }}</td></tr>
+            <tr>
+              <td><strong>净增发（发放 − 销毁）</strong></td>
+              <td><strong>{{ catFood.amount(economy7.net, true) }}</strong></td>
+              <td><strong>{{ catFood.amount(economy30.net, true) }}</strong></td>
+            </tr>
+            <tr>
+              <td>拍卖结算销毁储备粮（不来自用户余额）</td>
+              <td>{{ catFood.amount(economy7.auctionFoodBurn) }}</td>
+              <td>{{ catFood.amount(economy30.auctionFoodBurn) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <table class="data-table">
+          <thead>
+            <tr><th>罐头流动</th><th>近 7 天</th><th>近 30 天</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>买入（池子售出）</td><td>{{ economy7.cansBought }} 个</td><td>{{ economy30.cansBought }} 个</td></tr>
+            <tr><td>卖出回池</td><td>{{ economy7.cansSoldBack }} 个</td><td>{{ economy30.cansSoldBack }} 个</td></tr>
+            <tr><td>其他回池（传送 / 喵喵 / 拍卖结算）</td><td>{{ economy7.cansOtherBack }} 个</td><td>{{ economy30.cansOtherBack }} 个</td></tr>
+            <tr>
+              <td><strong>池子净售出（负值 = 净回收）</strong></td>
+              <td><strong>{{ economy7.cansNetOut }} 个</strong></td>
+              <td><strong>{{ economy30.cansNetOut }} 个</strong></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="oi33-can-economy-note">
+          供应健康度：罐头流通率 <strong>{{ (market.userCans / market.supply * 100) | round(1) }}%</strong>
+          （流通罐头 ÷ 虚拟总供应，越接近 100% 池子越容易售罄）；
+          储备覆盖 <strong>{{ (market.backingPrice / market.sellPrice) | round(2) }} 倍</strong>
+          （储备支撑价 ÷ 当前卖出价，≥ 1 表示储备足以按现价全额兑付）。
+        </p>
+        <style>
+          .oi33-can-economy .data-table { margin-bottom: 1rem; }
+          .oi33-can-economy-note { color:#777; margin-bottom: 0; }
+          .theme--dark .oi33-can-economy-note, [data-mantine-color-scheme=dark] .oi33-can-economy-note { color:#aaa; }
+        </style>
+      </div>
+
+    <div class="section oi33-can-market">
+      <div class="section__header"><h2 class="section__title">定价参数</h2></div>
+      <div class="section__body">
+        <table class="data-table">
+          <thead>
+            <tr><th>参数</th><th>当前值</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>储备粮</td><td>{{ catFood.amount(market.reserveFood) }}</td><td>买入时流入、卖出时支出的池内猫粮</td></tr>
+            <tr><td>用户持有猫粮</td><td>{{ catFood.amount(market.userFood) }}</td><td>全体用户猫粮余额合计</td></tr>
+            <tr><td>系统猫粮总量</td><td>{{ catFood.amount(market.systemFood) }}</td><td>储备粮 + 用户持有猫粮</td></tr>
+            <tr><td>流通罐头</td><td>{{ market.userCans }} 个</td><td>全体用户持有的罐头合计</td></tr>
+            <tr><td>虚拟总供应</td><td>{{ market.supply }} 个</td><td>池子创建时按系统猫粮以初始价 {{ market.initialPrice }} 猫粮/个折算</td></tr>
+            <tr><td>池内罐头</td><td>{{ market.poolCans }} 个</td><td>虚拟总供应 − 流通罐头</td></tr>
+            <tr><td>AMM 价格</td><td>{{ market.ammPrice | round(2) }} 猫粮/个</td><td>系统猫粮总量 ÷ 池内罐头</td></tr>
+            <tr><td>储备支撑价</td><td>{{ market.backingPrice | round(2) }} 猫粮/个</td><td>储备粮 ÷ 流通罐头；流通为 0 时取 AMM 价格</td></tr>
+            <tr><td>原始目标价</td><td>{{ market.rawTarget | round(2) }} 猫粮/个</td><td>max(1, min(AMM 价格, 储备支撑价))</td></tr>
+            <tr><td>上一期卖出价</td><td>{{ market.previousPrice }} 猫粮/个</td><td>上一个 8 小时价格槽的卖出价，无记录时为初始价</td></tr>
+            <tr><td>单期波动限制</td><td>{{ market.lowerBound }} ~ {{ market.upperBound }} 猫粮/个</td><td>上一期卖出价 ±{{ market.maxTickPercent }}%</td></tr>
+            <tr><td>限幅后目标价</td><td>{{ market.boundedTarget }} 猫粮/个</td><td>原始目标价取整后限制在波动范围内</td></tr>
+            <tr><td>支撑价上限</td><td>{{ market.backingCap }} 猫粮/个</td><td>储备支撑价取整；流通为 0 时取限幅后目标价</td></tr>
+            <tr><td>最终卖出价</td><td>{{ market.sellPrice }} 猫粮/个</td><td>max(1, min(限幅后目标价, 支撑价上限))</td></tr>
+            <tr><td>最终买入价</td><td>{{ market.buyPrice }} 猫粮/个</td><td>卖出价 × 1.05 向上取整</td></tr>
+            <tr><td>累计销毁手续费</td><td>{{ catFood.amount(market.feesBurned) }}</td><td>按成交额 {{ feeNumerator }}/{{ feeDenominator }} 收取并销毁</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>

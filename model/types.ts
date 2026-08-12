@@ -374,6 +374,9 @@ export interface Oi33Auction {
     bidCount: number;
     winner?: number;
     settlePrice?: number;
+    // Reserve food burned at settlement (= settlePrice cans × sell price at
+    // settle time, clamped to the reserve). Absent on legacy settlements.
+    foodBurn?: number;
     settledAt?: Date;
     cancelledAt?: Date;
     cancelledBy?: number;
@@ -396,6 +399,9 @@ export interface Oi33Contract {
     buyer: number;
     // Cat food price in grams.
     price: number;
+    // Intermediary fee in grams (5% of price, ceiled), deducted from the
+    // seller's proceeds and burned on accept. Absent on legacy contracts.
+    fee?: number;
     status: 'pending' | 'accepted' | 'declined' | 'cancelled';
     createdAt: Date;
     resolvedAt?: Date;

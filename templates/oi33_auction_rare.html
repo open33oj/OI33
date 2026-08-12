@@ -1,0 +1,67 @@
+{% set page_name = "oi33_auction_rare" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">稀有成就</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_auction') }}" class="rounded button">成就拍卖</a>
+          {% if handler.user._id %}<a href="{{ url('oi33_contracts') }}" class="rounded button">我的交易合同</a>{% endif %}
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="rare-help">
+          稀有成就全服唯一：只拍卖一次，成交后只能通过交易合同在玩家之间转让，不会再次上架。
+        </p>
+        {% if rows.length %}
+        <table class="data-table">
+          <thead>
+            <tr><th>成就</th><th>状态</th><th>持有者 / 拍卖</th><th>成交价</th></tr>
+          </thead>
+          <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>
+                <img class="rare-icon" src="{{ row.achievement.imageData }}" alt="{{ row.achievement.name }}">
+                {{ row.achievement.name }}
+                <br><small class="rare-desc">{{ row.achievement.description }}</small>
+              </td>
+              <td>
+                {% if row.status == 'held' %}持有中
+                {% elif row.status == 'auction' %}<a href="{{ url('oi33_auction_detail', id=row.activeAuction._id) }}">拍卖中</a>
+                {% else %}待拍卖{% endif %}
+              </td>
+              <td>
+                {% if row.status == 'held' %}
+                  {% if udict[row.award.uid] %}{{ user.render_inline(udict[row.award.uid]) }}{% else %}UID {{ row.award.uid }}{% endif %}
+                  <br><small class="rare-desc">{{ datetimeSpan(row.award.earnedAt)|safe }}获得{% if row.award.source == 'contract' %}（合同转让）{% endif %}</small>
+                {% elif row.status == 'auction' %}
+                  当前价 {{ row.activeAuction.highestBid or row.activeAuction.startPrice }} 罐头，剩余 {{ row.remainText }}
+                {% else %}—{% endif %}
+              </td>
+              <td>{% if row.settledAuction %}{{ row.settledAuction.settlePrice }} 罐头{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="rare-help">还没有可售卖的稀有成就。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .rare-help { color:#777; }
+  .rare-desc { color:#888; }
+  .theme--dark .rare-help, [data-mantine-color-scheme=dark] .rare-help,
+  .theme--dark .rare-desc, [data-mantine-color-scheme=dark] .rare-desc { color:#aaa; }
+  .rare-icon {
+    width:1em; height:1em; vertical-align:-0.1em; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+</style>
+{% endblock %}

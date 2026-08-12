@@ -4,9 +4,18 @@ import {
 import type { Oi33Contract } from './types';
 import { addLog } from './log';
 import { achievementColl, achievementGrant, userAchievementColl } from './achievement';
+import { catCanPoolColl } from './cat-can';
 import { userColl } from './user';
 
 export const contractColl = db.collection('oi33_achievement_contract');
+
+// 5% intermediary fee on the contract price, deducted from the seller's
+// proceeds and burned at settlement — a cat-food sink. Ceiled so every
+// trade pays at least 1g.
+export const CONTRACT_FEE_PERCENT = 5;
+export function contractFeeAmount(price: number) {
+    return Math.ceil((price * CONTRACT_FEE_PERCENT) / 100);
+}
 
 export async function ensureContractIndexes() {
     await Promise.all([
@@ -70,6 +79,7 @@ export async function contractCreate(input: {
         seller,
         buyer,
         price,
+        fee: contractFeeAmount(price),
         status: 'pending',
         createdAt: now,
     };
@@ -102,7 +112,13 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
         { $set: { status: 'accepted', resolvedAt: now } },
     );
     if (!flipped.modifiedCount) throw new ValidationError('合同已处理。');
-    // Cat food moves buyer → seller (user-to-user, pool totals unchanged).
+    // Legacy contracts created before the fee existed carry no `fee` field.
+    const fee = Number.isSafeInteger(contract.fee) && contract.fee! >= 0
+        ? contract.fee!
+        : contractFeeAmount(contract.price);
+    const sellerIncome = contract.price - fee;
+    // The buyer pays the full price; the seller receives price minus the
+    // intermediary fee, which is burned (user balances shrink by `fee`).
     const deducted = await userColl.updateOne(
         { _id: buyer, cat_food: { $gte: contract.price } },
         { $inc: { cat_food: -contract.price } },
@@ -113,14 +129,32 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
         );
         throw new ValidationError('猫粮不足，无法支付合同价格。');
     }
+    let sellerCredited = false;
+    let feeBurned = false;
     try {
-        await userColl.updateOne(
-            { _id: contract.seller }, { $inc: { cat_food: contract.price } }, { upsert: true },
-        );
+        if (sellerIncome > 0) {
+            await userColl.updateOne(
+                { _id: contract.seller }, { $inc: { cat_food: sellerIncome } }, { upsert: true },
+            );
+            sellerCredited = true;
+        }
+        if (fee > 0) {
+            // Keep the AMM pool's user-balance counter in sync with the burn.
+            await catCanPoolColl.updateOne(
+                { _id: 'main' }, { $inc: { userFoodTotal: -fee }, $set: { updatedAt: now } },
+            );
+            feeBurned = true;
+        }
         await userAchievementColl.deleteOne({ _id: award._id });
         await achievementGrant(buyer, contract.achievementId, 0, 'contract', true);
     } catch (e) {
         await userColl.updateOne({ _id: buyer }, { $inc: { cat_food: contract.price } });
+        if (sellerCredited) {
+            await userColl.updateOne({ _id: contract.seller }, { $inc: { cat_food: -sellerIncome } });
+        }
+        if (feeBurned) {
+            await catCanPoolColl.updateOne({ _id: 'main' }, { $inc: { userFoodTotal: fee } });
+        }
         // Best-effort restore of the seller's award if it was already removed.
         await userAchievementColl.insertOne(award as any).catch(() => {});
         await contractColl.updateOne(
@@ -131,7 +165,7 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
     await addLog({
         type: 'contract', userId: buyer, uid: contract.seller, action: 'accept',
         contractId: contract._id.toHexString(), achievementId: contract.achievementId,
-        amount: contract.price,
+        amount: contract.price, fee,
     } as any);
     return await contractColl.findOne({ _id: contract._id });
 }

@@ -3,6 +3,10 @@ import { Oi33Log } from './types';
 
 export const logColl = db.collection('oi33_log');
 
+export async function ensureLogIndexes() {
+    await logColl.createIndex({ createdAt: 1 });
+}
+
 export async function addLog(entry: Omit<Oi33Log, '_id' | 'createdAt'>) {
     await logColl.insertOne({ ...entry, _id: new ObjectId(), createdAt: new Date() } as any);
 }

@@ -41,7 +41,7 @@
   .page--user_detail .profile-header__main .user-profile-badge { text-shadow: none; }
 </style>
 <div class="row">
-  <div class="medium-9 columns">
+  <div class="medium-9 columns oi33-user-main">
     <div class="section">
       <div class="profile-header user-profile-bg">
         <div class="profile-header__content">
@@ -181,7 +181,42 @@
           </div>
         </div>
       </div>
-      {% if not _profileHidden %}<div class="profile-content">
+    </div>
+    {% if oi33AchievementPanel %}
+    <div class="section oi33-achievements">
+      <div class="section__header">
+        <h2 class="section__title">成就展示柜</h2>
+        <div class="section__tools">
+          {% if oi33AchievementPanel.isSelf %}
+          <a href="{{ url('oi33_achievement_showcase') }}" class="rounded button">编辑展示柜</a>
+          {% endif %}
+          {% if oi33AchievementPanel.canManage %}
+          <a href="{{ url('oi33_achievement_manage', query={uid:udoc._id}) }}" class="rounded button">管理成就</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="section__body">
+        {% if oi33AchievementPanel.showcaseAwards.length %}
+        <div class="oi33-showcase-grid">
+          {% for award in oi33AchievementPanel.showcaseAwards %}
+          <div class="oi33-showcase-badge" title="{{ award.achievement.name }}：{{ award.achievement.description }}">
+            <img class="oi33-showcase-pixel" src="{{ award.achievement.imageData }}" width="64" height="64"
+              alt="{{ award.achievement.name }}">
+            <span class="oi33-showcase-name">{{ award.achievement.name }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% elif oi33AchievementPanel.isSelf %}
+        <p class="oi33-achievement-empty">还没有布置成就展示柜，<a href="{{ url('oi33_achievement_showcase') }}">去编辑</a>选择要展示的徽章（最多 16 个）。</p>
+        {% else %}
+        <p class="oi33-achievement-empty">TA 还没有布置成就展示柜。</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% if not _profileHidden %}
+    <div class="section">
+      <div class="profile-content">
         <div class="section__tab-container immersive">
           <ul class="section__tabs">
             {% set _udmods = findSubModule('partials/user_detail/') %}
@@ -315,40 +350,8 @@
             {% for page in _udmods %}{% if 'solution.html' in page %}{% include page %}{% endif %}{% endfor %}
           </ul>
         </div>
-      </div>{% endif %}
-    </div>
-    {% if oi33AchievementPanel %}
-    <div class="section oi33-achievements">
-      <div class="section__header">
-        <h2 class="section__title">成就展示柜</h2>
-        <div class="section__tools">
-          {% if oi33AchievementPanel.isSelf %}
-          <a href="{{ url('oi33_achievement_showcase') }}" class="rounded button">编辑展示柜</a>
-          {% endif %}
-          {% if oi33AchievementPanel.canManage %}
-          <a href="{{ url('oi33_achievement_manage', query={uid:udoc._id}) }}" class="rounded button">管理成就</a>
-          {% endif %}
-        </div>
       </div>
-      <div class="section__body">
-        {% if oi33AchievementPanel.showcaseAwards.length %}
-        <div class="oi33-showcase-grid">
-          {% for award in oi33AchievementPanel.showcaseAwards %}
-          <div class="oi33-showcase-badge" title="{{ award.achievement.name }}：{{ award.achievement.description }}">
-            <img class="oi33-showcase-pixel" src="{{ award.achievement.imageData }}" width="64" height="64"
-              alt="{{ award.achievement.name }}">
-            <span class="oi33-showcase-name">{{ award.achievement.name }}</span>
-          </div>
-          {% endfor %}
-        </div>
-        {% elif oi33AchievementPanel.isSelf %}
-        <p class="oi33-achievement-empty">还没有布置成就展示柜，<a href="{{ url('oi33_achievement_showcase') }}">去编辑</a>选择要展示的徽章（最多 16 个）。</p>
-        {% else %}
-        <p class="oi33-achievement-empty">TA 还没有布置成就展示柜。</p>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
+    </div>{% endif %}
   </div>
   <div class="medium-3 columns">
     <div class="section side oi33-cat-card">
@@ -482,6 +485,58 @@
   [data-mantine-color-scheme=dark] .oi33-achievement-list__desc { color:#aaa; }
   .theme--dark .oi33-achievement-empty,
   [data-mantine-color-scheme=dark] .oi33-achievement-empty { color:#aaa; }
+  /* The tab panel is its own section now (no profile-header image behind it):
+     undo the stock negative margin that used to pull the tabs up over the
+     profile header image, and give the immersive strip a real bar. */
+  .page--user_detail .profile-content { margin-top: 0; }
+  .page--user_detail .profile-content .section__tabs { padding-top: 0; }
+  .page--user_detail .profile-content .section__tab-header-wrapper {
+    background: #f7f7f7;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  /* Join the main-column sections (profile header / showcase / tab panel)
+     into one continuous card. */
+  .page--user_detail .oi33-user-main > .section { margin-bottom: 0; }
+  .page--user_detail .oi33-user-main > .section:last-child { margin-bottom: 20px; }
+  @media (max-width: 760px) {
+    .page--user_detail .oi33-user-main > .section:last-child { margin-bottom: 10px; }
+  }
+  .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item {
+    color: #777;
+  }
+  .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item:hover {
+    color: #333;
+  }
+  .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item.selected {
+    background: #fff;
+    color: #333;
+    box-shadow: none;
+    border: 1px solid #e8e8e8;
+    border-bottom-color: #fff;
+    border-radius: 6px 6px 0 0;
+  }
+  .theme--dark .page--user_detail .profile-content .section__tab-header-wrapper,
+  [data-mantine-color-scheme=dark] .page--user_detail .profile-content .section__tab-header-wrapper {
+    background: #1e1e1e;
+    border-bottom-color: #2b2b2b;
+  }
+  .theme--dark .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item,
+  [data-mantine-color-scheme=dark] .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item {
+    color: #bdbdbd;
+  }
+  .theme--dark .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item:hover,
+  [data-mantine-color-scheme=dark] .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item:hover {
+    color: #eee;
+    background-color: #171717;
+  }
+  .theme--dark .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item.selected,
+  [data-mantine-color-scheme=dark] .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item.selected {
+    background: #323334;
+    color: #eee;
+    box-shadow: none;
+    border-color: #2b2b2b;
+    border-bottom-color: #323334;
+  }
   @media (max-width:500px) {
     .oi33-showcase-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
