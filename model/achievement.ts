@@ -73,6 +73,7 @@ export async function achievementSave(input: {
     imageData: string;
     imageSize: Oi33AchievementImageSize;
     order: number;
+    saleable: boolean;
     operator: number;
 }) {
     const now = new Date();
@@ -85,6 +86,7 @@ export async function achievementSave(input: {
         imageData: input.imageData,
         imageSize: input.imageSize,
         order: input.order,
+        saleable: input.saleable,
         updatedAt: now,
     };
     const update: Record<string, any> = {
@@ -200,7 +202,9 @@ export async function achievementEvaluateUser(
     if (!definitions.length) return { checked: 0, matched: 0, granted: [] as string[] };
 
     const needsAccepted = definitions.some((item) => item.ruleType === 'accepted_problems');
-    const needsUser = definitions.some((item) => item.ruleType !== 'accepted_problems');
+    const user = await userColl.findOne({ _id: uid });
+    // Unverified users never trigger automatic achievements.
+    if ((Number(user?.realname_flag) || 0) < 1) return { checked: 0, matched: 0, granted: [] as string[] };
     const acceptedDomains = needsAccepted ? achievementGetAcceptedDomains() : [];
     const acceptedFilter: Record<string, any> = {
         docType: DocumentModel.TYPE_PROBLEM,
@@ -208,14 +212,11 @@ export async function achievementEvaluateUser(
         status: STATUS.STATUS_ACCEPTED,
     };
     if (acceptedDomains.length) acceptedFilter.domainId = { $in: acceptedDomains };
-    const [user, acceptedStatuses] = await Promise.all([
-        needsUser ? userColl.findOne({ _id: uid }) : Promise.resolve(null),
-        needsAccepted
-            ? DocumentModel.collStatus.find(acceptedFilter, {
-                projection: { domainId: 1, docId: 1 },
-            }).toArray()
-            : Promise.resolve([]),
-    ]);
+    const acceptedStatuses = needsAccepted
+        ? await DocumentModel.collStatus.find(acceptedFilter, {
+            projection: { domainId: 1, docId: 1 },
+        }).toArray()
+        : [];
     const acceptedRefsByDomain = new Map<string, Map<string, any>>();
     for (const status of acceptedStatuses as any[]) {
         const domainId = String(status.domainId);

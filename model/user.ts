@@ -54,9 +54,12 @@ export async function backfillCatFoodForUser(userId: number) {
     if (!doc || (doc.cat_food_backfill_version || 0) >= CAT_FOOD_BACKFILL_VERSION) {
         return { updated: false, granted: 0 };
     }
+    // Unverified users never receive cat food; mark them as processed so the
+    // backfill does not retry them on every startup.
+    const unverified = (Number(doc.realname_flag) || 0) < 1;
     // Reconcile to the launch entitlement instead of blindly adding it again.
     // This lets users already marked by v1 receive only the newly missing amount.
-    const granted = getCatFoodBackfillGrant(doc);
+    const granted = unverified ? 0 : getCatFoodBackfillGrant(doc);
     const update: any = {
         $set: {
             cat_food_backfill_version: CAT_FOOD_BACKFILL_VERSION,

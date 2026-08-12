@@ -102,15 +102,23 @@ class CatFoodBulkGrantHandler extends Handler {
         const udict = await UserModel.getList(domainId, uids);
         const missing = uids.filter((uid) => !udict[uid]);
         if (missing.length) throw new ForbiddenError(`以下 UID 不存在：${missing.join('、')}`);
-        const preview = await oi33Model.createCatFoodBatchPreview(this.user._id, items);
-        const rows = items.map((item) => ({
+        const oi33Data = await oi33Model.getUserDataByUids(uids);
+        const isVerified = (uid: number) => (oi33Data[uid]?.realname_flag ?? 0) >= 1;
+        const eligible = items.filter((item) => isVerified(item.uid));
+        const skippedRows = items.filter((item) => !isVerified(item.uid)).map((item) => ({
+            ...item,
+            displayName: (udict[item.uid] as any)?.oi33_original_uname || udict[item.uid]?.uname || `UID ${item.uid}`,
+        }));
+        if (!eligible.length) throw new ForbiddenError('名单中的所有用户都未通过认证，无法发放猫粮。');
+        const preview = await oi33Model.createCatFoodBatchPreview(this.user._id, eligible);
+        const rows = eligible.map((item) => ({
             ...item,
             displayName: (udict[item.uid] as any)?.oi33_original_uname || udict[item.uid]?.uname || `UID ${item.uid}`,
         }));
         this.response.template = 'oi33_cat_food_bulk.html';
         this.response.body = {
-            preview, rows, jsonText,
-            total: items.reduce((sum, item) => sum + item.amount, 0),
+            preview, rows, skippedRows, jsonText,
+            total: eligible.reduce((sum, item) => sum + item.amount, 0),
         };
     }
 }
@@ -133,7 +141,8 @@ class CatFoodBulkConfirmHandler extends Handler {
                     ruleTypes: ['cat_food_balance'],
                 }).catch((e) => console.error('[oi33] bulk cat-food achievement evaluation failed:', e))
             )));
-            const notification = `批量发放完成：${result.users} 位用户，共 ${oi33Model.formatCatFood(result.total)}`;
+            const notification = `批量发放完成：${result.users} 位用户，共 ${oi33Model.formatCatFood(result.total)}`
+                + (result.skipped ? `；${result.skipped} 位未认证用户已自动跳过` : '');
             this.response.redirect = this.url('oi33_cat_food_bulk', { query: { notification } });
         } catch (e: any) {
             throw new ForbiddenError(e?.message || '批量发放失败。');

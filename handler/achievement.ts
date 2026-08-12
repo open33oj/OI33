@@ -1,9 +1,10 @@
 import {
-    Context, Handler, NotFoundError, PRIV, STATUS, Types, UserModel, ValidationError,
+    Context, ForbiddenError, Handler, NotFoundError, PRIV, STATUS, Types, UserModel, ValidationError,
     param, query,
 } from 'hydrooj';
 import { readFileSync } from 'fs';
-import { oi33Model } from '../model';
+import { oi33Model, userColl } from '../model';
+import { addLog } from '../model/log';
 import type { Oi33AchievementImageSize } from '../model/types';
 import type { Oi33AchievementRuleType } from '../model/types';
 import { checkOi33Admin, checkUserFlag } from './utils';
@@ -19,14 +20,6 @@ const RULE_OPTIONS: Array<{ value: Oi33AchievementRuleType; label: string }> = [
     { value: 'cat_can_balance', label: '猫罐头持有 x 个' },
 ];
 const RULE_TYPE_SET = new Set(RULE_OPTIONS.map((item) => item.value));
-const PROFILE_GROUPS: Array<{ ruleType: Oi33AchievementRuleType; label: string }> = [
-    { ruleType: 'accepted_problems', label: '通过题目' },
-    { ruleType: 'checkin_streak', label: '连续登录' },
-    { ruleType: 'checkin_total', label: '累计登录' },
-    { ruleType: 'cat_food_balance', label: '猫粮' },
-    { ruleType: 'cat_can_balance', label: '猫罐头' },
-    { ruleType: 'manual', label: '其他成就' },
-];
 
 function automaticRuleText(type: Oi33AchievementRuleType, threshold: number): string {
     if (type === 'accepted_problems') return `通过 ${threshold} 道题号不同的题目`;
@@ -163,6 +156,7 @@ class AchievementSaveHandler extends Handler {
             ...(ruleType === 'manual' ? {} : { threshold }),
             imageData: image.imageData,
             imageSize: image.imageSize,
+            saleable: field(body, 'saleable') === '1',
             operator: this.user._id,
         });
         this.response.redirect = this.url('oi33_achievement_manage');
@@ -231,56 +225,108 @@ class AchievementScanHandler extends Handler {
     }
 }
 
+const SHOWCASE_MAX = 16;
+
+class AchievementShowcaseHandler extends Handler {
+    async get() {
+        if ((await checkUserFlag(this.user._id)) < 1) {
+            throw new ForbiddenError('只有通过认证的用户才能编辑成就展示柜。');
+        }
+        const [awards, oi33Data] = await Promise.all([
+            oi33Model.achievementGetUserAwards(this.user._id),
+            oi33Model.getUserDataByUids([this.user._id]),
+        ]);
+        const selected: string[] = oi33Data[this.user._id]?.achievement_showcase || [];
+        // Show current selection first, in the saved order, so the existing
+        // arrangement is editable without hunting through the full list.
+        const awardMap = new Map(awards.map((award: any) => [String(award.achievementId), award]));
+        const selectedAwards = selected.map((id) => awardMap.get(String(id))).filter(Boolean);
+        const rest = awards.filter((award: any) => !selected.includes(String(award.achievementId)));
+        const positions = Object.fromEntries(selected.map((id, index) => [id, index + 1]));
+        this.response.template = 'oi33_achievement_showcase.html';
+        this.response.body = {
+            awards: [...selectedAwards, ...rest],
+            selected,
+            positions,
+            max: SHOWCASE_MAX,
+        };
+    }
+
+    async post() {
+        if ((await checkUserFlag(this.user._id)) < 1) {
+            throw new ForbiddenError('只有通过认证的用户才能编辑成就展示柜。');
+        }
+        const body = this.request.body as any;
+        const raw = body?.ids;
+        const checked = [...new Set(
+            (Array.isArray(raw) ? raw : raw ? [raw] : []).map((value) => String(value).trim()).filter(Boolean),
+        )];
+        // Each checked badge carries a position number; sort by it, ties keep
+        // the checkbox order. Missing/invalid numbers sink to the end.
+        const ids = checked
+            .map((id, index) => ({ id, index, pos: Number(field(body, `pos_${id}`)) }))
+            .sort((a, b) => (
+                (Number.isSafeInteger(a.pos) && a.pos >= 1 ? a.pos : Infinity)
+                - (Number.isSafeInteger(b.pos) && b.pos >= 1 ? b.pos : Infinity)
+            ) || a.index - b.index)
+            .map((item) => item.id);
+        if (ids.length > SHOWCASE_MAX) {
+            throw new ValidationError(`展示柜最多展示 ${SHOWCASE_MAX} 个徽章。`);
+        }
+        const awards = await oi33Model.achievementGetUserAwards(this.user._id);
+        const earned = new Set(awards.map((award: any) => String(award.achievementId)));
+        if (ids.some((id) => !earned.has(id))) {
+            throw new ValidationError('只能展示自己已经获得的成就。');
+        }
+        await userColl.updateOne(
+            { _id: this.user._id },
+            ids.length ? { $set: { achievement_showcase: ids } } : { $unset: { achievement_showcase: '' } },
+            { upsert: true },
+        );
+        await addLog({
+            type: 'achievement', userId: this.user._id, action: 'showcase_update',
+            reason: ids.join(', '),
+        });
+        this.response.redirect = this.url('oi33_achievement_showcase', {
+            query: { notification: '成就展示柜已保存' },
+        });
+    }
+}
+
+class AchievementUserHandler extends Handler {
+    @param('uid', Types.Int)
+    async get(domainId: string, uid: number) {
+        const udoc = await UserModel.getById(domainId, uid);
+        if (!udoc) throw new NotFoundError(uid);
+        const targetFlag = await checkUserFlag(uid);
+        const awards = targetFlag >= 1 ? await oi33Model.achievementGetUserAwards(uid) : [];
+        this.response.template = 'oi33_achievement_user.html';
+        this.response.body = { udoc, awards };
+    }
+}
+
 function registerAchievementUserPanel(ctx: Context) {
     ctx.on('handler/after/UserDetail', async (h: any) => {
         try {
             const body = h.response?.body;
             const uid = Number(body?.udoc?._id);
             if (!Number.isSafeInteger(uid) || uid <= 0) return;
-            const targetFlag = await checkUserFlag(uid);
-            if (targetFlag < 1) return;
+            const targetData = (await oi33Model.getUserDataByUids([uid]))[uid];
+            if ((targetData?.realname_flag ?? 0) < 1) return;
             const viewerUid = Number(h.user?._id) || 0;
             const [awards, viewerFlag] = await Promise.all([
                 oi33Model.achievementGetUserAwards(uid),
                 viewerUid ? checkUserFlag(viewerUid) : Promise.resolve(0),
             ]);
-            const categoryGroups = PROFILE_GROUPS.map((group) => ({
-                ...group,
-                awards: awards.filter((award: any) => (
-                    (award.achievement.ruleType || 'manual') === group.ruleType
-                )),
-            })).filter((group) => group.awards.length);
-            const featuredMap = new Map<string, { award: any; labels: string[] }>();
-            const addFeatured = (award: any, label: string) => {
-                const key = String(award.achievementId);
-                const existing = featuredMap.get(key);
-                if (existing) {
-                    if (!existing.labels.includes(label)) existing.labels.push(label);
-                } else featuredMap.set(key, { award, labels: [label] });
-            };
-            for (const group of categoryGroups) {
-                if (group.ruleType === 'manual') continue;
-                const highest = group.awards.reduce((best: any, award: any) => {
-                    const bestThreshold = Number(best.achievement.threshold) || 0;
-                    const threshold = Number(award.achievement.threshold) || 0;
-                    if (threshold !== bestThreshold) return threshold > bestThreshold ? award : best;
-                    return Number(award.achievement.order) > Number(best.achievement.order)
-                        ? award : best;
-                });
-                addFeatured(highest, `${group.label}最高`);
-            }
-            for (const award of awards as any[]) {
-                if (award.source === 'manual') addFeatured(award, '手动授予');
-            }
-            const featuredAwards = [...featuredMap.values()].map(({ award, labels }) => ({
-                ...award,
-                featureLabel: labels.join(' · '),
-            }));
-            const groups = featuredAwards.length
-                ? [{ label: '代表成就', awards: featuredAwards, featured: true }, ...categoryGroups]
-                : categoryGroups;
+            const rawShowcase = targetData?.achievement_showcase;
+            const showcaseIds = Array.isArray(rawShowcase) ? rawShowcase : [];
+            // The stored array order is the display order chosen by the user.
+            const awardMap = new Map(awards.map((award: any) => [String(award.achievementId), award]));
+            const showcaseAwards = showcaseIds.map((id) => awardMap.get(String(id))).filter(Boolean);
             body.oi33AchievementPanel = {
-                awards, groups,
+                awards, showcaseAwards,
+                showcaseConfigured: showcaseIds.length > 0,
+                isSelf: viewerUid === uid,
                 canManage: viewerFlag >= 2,
             };
         } catch (e) {
@@ -331,6 +377,17 @@ export async function apply(ctx: Context) {
         '/oi33/achievements/scan',
         AchievementScanHandler,
         PRIV.PRIV_USER_PROFILE,
+    );
+    ctx.Route(
+        'oi33_achievement_showcase',
+        '/oi33/achievements/showcase',
+        AchievementShowcaseHandler,
+        PRIV.PRIV_USER_PROFILE,
+    );
+    ctx.Route(
+        'oi33_achievement_user',
+        '/oi33/achievements/user/:uid',
+        AchievementUserHandler,
     );
     ctx.on('record/judge', async (rdoc: any, updated: boolean) => {
         if (!updated || rdoc?.status !== STATUS.STATUS_ACCEPTED) return;

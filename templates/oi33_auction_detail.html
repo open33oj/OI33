@@ -1,0 +1,116 @@
+{% set page_name = "oi33_auction_detail" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">成就拍卖 · {{ achievement.name }}</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_auction') }}" class="rounded button">返回拍卖列表</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <div class="auction-detail">
+          <img class="auction-pixel" src="{{ achievement.imageData }}" width="96" height="96" alt="{{ achievement.name }}">
+          <div class="auction-detail__body">
+            <h2>{{ achievement.name }}</h2>
+            <p>{{ achievement.description }}</p>
+            <p class="auction-meta"><strong>达成规则：</strong>{{ achievement.rule }}</p>
+            <p class="auction-meta">
+              起拍价 {{ auction.startPrice }} 罐头 · {{ datetimeSpan(auction.startAt)|safe }} 开始 ·
+              {{ datetimeSpan(auction.endAt)|safe }} 结束
+              {% if auction.status == 'active' %}（剩余 {{ remainText }}）{% endif %}
+            </p>
+            {% if auction.status == 'active' %}
+            <p class="auction-price">
+              {% if auction.highestBid != null %}
+              当前价 <strong>{{ auction.highestBid }}</strong> 罐头（{{ auction.bidCount }} 次出价），领先：
+              {% if udict[auction.highestBidder] %}{{ user.render_inline(udict[auction.highestBidder]) }}{% else %}UID {{ auction.highestBidder }}{% endif %}
+              {% else %}
+              还没有人出价，第一个出价只需 {{ auction.startPrice }} 罐头。
+              {% endif %}
+            </p>
+            {% elif auction.status == 'settled' %}
+              {% if auction.winner %}
+              <p class="auction-price">已成交：<strong>{{ auction.settlePrice }}</strong> 罐头，赢家
+                {% if udict[auction.winner] %}{{ user.render_inline(udict[auction.winner]) }}{% else %}UID {{ auction.winner }}{% endif %}。</p>
+              {% if achievement.saleable and auction.winner == handler.user._id %}
+              <p><a href="{{ url('oi33_contracts') }}">该成就可售卖，前往「我的交易合同」创建转售合同 →</a></p>
+              {% endif %}
+              {% else %}
+              <p class="auction-price">已流拍：没有人出价。</p>
+              {% endif %}
+            {% else %}
+            <p class="auction-price">拍卖已取消，所有出价已退款。</p>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if auction.status == 'active' %}
+        <div class="auction-bidbox">
+          {% if not handler.user._id %}
+          <p>登录后才能出价。</p>
+          {% elif canBid %}
+          <form method="post" action="{{ url('oi33_auction_bid', id=auction._id) }}">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <div class="form__item">
+              <label>你的出价（至少 {{ minBid }} 罐头，你持有 {{ viewerCans }} 个）</label>
+              <input class="textbox" type="number" name="amount" min="{{ minBid }}" value="{{ minBid }}" required>
+            </div>
+            <button type="submit" class="rounded primary button">立即出价</button>
+            <p class="auction-help">出价立即托管扣除猫罐头；被更高出价超越时自动全额退款。</p>
+          </form>
+          {% elif viewerOwned %}
+          <p class="auction-help">你已经拥有这个成就，无需竞拍。</p>
+          {% elif auction.highestBidder == handler.user._id %}
+          <p class="auction-help">你已经是当前最高出价者，静候结果即可。</p>
+          {% else %}
+          <p class="auction-help">只有通过认证的用户才能参与拍卖出价。</p>
+          {% endif %}
+          {% if canManage %}
+          <form method="post" action="{{ url('oi33_auction_cancel', id=auction._id) }}" style="margin-top:1rem;"
+            onsubmit="return confirm('取消拍卖将退还当前最高出价。确定取消吗？');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <button type="submit" class="rounded button">取消拍卖</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <h2>出价记录（{{ bids.length }}）</h2>
+        {% if bids.length %}
+        <table class="data-table">
+          <thead><tr><th>用户</th><th>出价</th><th>时间</th></tr></thead>
+          <tbody>
+          {% for bid in bids %}
+            <tr>
+              <td>{% if udict[bid.uid] %}{{ user.render_inline(udict[bid.uid]) }}{% else %}UID {{ bid.uid }}{% endif %}</td>
+              <td>{{ bid.amount }} 罐头</td>
+              <td>{{ datetimeSpan(bid.createdAt)|safe }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="auction-help">还没有出价记录。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .auction-detail { display:flex; gap:1rem; margin-bottom:1.5rem; }
+  .auction-detail__body { min-width:0; }
+  .auction-detail__body h2 { margin:0 0 .5rem; }
+  .auction-detail__body p { margin:.35rem 0; }
+  .auction-pixel { width:96px; height:96px; object-fit:fill; flex:0 0 96px; image-rendering:crisp-edges; image-rendering:pixelated; }
+  .auction-meta, .auction-help { color:#777; }
+  .auction-price { font-size:1.05em; }
+  .theme--dark .auction-meta, .theme--dark .auction-help,
+  [data-mantine-color-scheme=dark] .auction-meta, [data-mantine-color-scheme=dark] .auction-help { color:#aaa; }
+  .auction-bidbox { margin-bottom:1.5rem; padding:1rem; border:1px solid rgba(127,127,127,.2); border-radius:8px; }
+  .data-table form { margin:0; }
+</style>
+{% endblock %}

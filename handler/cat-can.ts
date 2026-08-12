@@ -1,8 +1,9 @@
 import {
     ConnectionHandler, Context, ForbiddenError, Handler, PRIV, Types, UserModel, param, subscribe,
 } from 'hydrooj';
-import { oi33Model } from '../model';
+import { achievementColl, oi33Model } from '../model';
 import { checkUserFlag } from './utils';
+import { remainText } from './auction';
 
 function formatNextTradeAt(value: Date) {
     return new Intl.DateTimeFormat('zh-CN', {
@@ -22,10 +23,30 @@ class CatCanMarketHandler extends Handler {
 class CatCanArenaHandler extends Handler {
     async get() {
         const role = this.user._id ? await checkUserFlag(this.user._id) : 0;
+        const now = new Date();
+        await oi33Model.auctionSettleExpired(now);
+        const [activeAuctions, canQuote] = await Promise.all([
+            oi33Model.auctionListActive(now),
+            oi33Model.getCatCanDayChange(now),
+        ]);
+        const shown = activeAuctions.slice(0, 4);
+        const achievements = shown.length
+            ? await achievementColl.find({ _id: { $in: shown.map((auction) => auction.achievementId) } }).toArray()
+            : [];
+        const achievementDict = Object.fromEntries(
+            achievements.map((achievement) => [achievement._id, achievement]),
+        );
+        const arenaAuctions = shown.map((auction) => ({
+            ...auction,
+            achievement: achievementDict[auction.achievementId] || null,
+            remainText: remainText(auction.endAt, now),
+        }));
         this.response.template = 'oi33_cat_can_arena.html';
         this.response.body = {
             loggedIn: !!this.user._id,
             canPaint: role >= 3,
+            canQuote,
+            arenaAuctions,
         };
     }
 }
@@ -246,6 +267,7 @@ class CatMapConnectionHandler extends ConnectionHandler {
 class CatCanBuyHandler extends Handler {
     @param('quantity', Types.PositiveInt)
     async post(domainId: string, quantity: number) {
+        if (await checkUserFlag(this.user._id) < 1) throw new ForbiddenError('完成实名认证后才能购买猫罐头。');
         try {
             const result = await oi33Model.buyCatCans(this.user._id, quantity);
             await oi33Model.achievementEvaluateUser(this.user._id, {
@@ -262,6 +284,7 @@ class CatCanBuyHandler extends Handler {
 class CatCanSellHandler extends Handler {
     @param('quantity', Types.PositiveInt)
     async post(domainId: string, quantity: number) {
+        if (await checkUserFlag(this.user._id) < 1) throw new ForbiddenError('完成实名认证后才能卖出猫罐头。');
         try {
             const result = await oi33Model.sellCatCans(this.user._id, quantity);
             await oi33Model.achievementEvaluateUser(this.user._id, {

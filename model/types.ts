@@ -58,6 +58,8 @@ export interface Oi33User {
     // Short-lived cross-process lock used to serialize meow submissions.
     meow_post_lock?: ObjectId;
     meow_post_lock_at?: Date;
+    // User-picked achievement ids shown in the profile showcase grid (max 16).
+    achievement_showcase?: string[];
 }
 
 export interface Oi33CatCanBill {
@@ -272,7 +274,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'achievement';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'achievement' | 'auction' | 'contract';
     sender?: number;
     operator?: number;
     receiver?: number;
@@ -310,6 +312,8 @@ export interface Oi33Log {
     rowEnd?: number;
     columnEnd?: number;
     achievementId?: string;
+    auctionId?: string;
+    contractId?: string;
 }
 
 // --- Achievements ---
@@ -336,6 +340,9 @@ export interface Oi33Achievement {
     imageData: string;
     imageSize: Oi33AchievementImageSize;
     order: number;
+    // When true, a user who won this achievement at auction may resell it
+    // through a direct trade contract.
+    saleable?: boolean;
     createdAt: Date;
     updatedAt: Date;
     createdBy: number;
@@ -349,6 +356,49 @@ export interface Oi33UserAchievement {
     grantedBy: number;
     source: string;
     announcementPostId?: ObjectId;
+}
+
+// --- Achievement auctions ---
+
+export interface Oi33Auction {
+    _id: ObjectId;
+    achievementId: string;
+    startPrice: number;
+    startAt: Date;
+    endAt: Date;
+    createdBy: number;
+    createdAt: Date;
+    status: 'active' | 'settled' | 'cancelled';
+    highestBid: number | null;
+    highestBidder: number | null;
+    bidCount: number;
+    winner?: number;
+    settlePrice?: number;
+    settledAt?: Date;
+    cancelledAt?: Date;
+    cancelledBy?: number;
+}
+
+export interface Oi33AuctionBid {
+    _id: ObjectId;
+    auctionId: ObjectId;
+    uid: number;
+    amount: number;
+    createdAt: Date;
+}
+
+// --- Achievement trade contracts ---
+
+export interface Oi33Contract {
+    _id: ObjectId;
+    achievementId: string;
+    seller: number;
+    buyer: number;
+    // Cat food price in grams.
+    price: number;
+    status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+    createdAt: Date;
+    resolvedAt?: Date;
 }
 
 export interface Oi33AiAnalysis {

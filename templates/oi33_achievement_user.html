@@ -1,0 +1,54 @@
+{% set page_name = "oi33_achievement_user" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ udoc.uname }} 的全部成就（{{ awards.length }}）</h1>
+        <div class="section__tools">
+          <a href="{{ url('user_detail', uid=udoc._id) }}" class="rounded button">返回个人页</a>
+        </div>
+      </div>
+      <div class="section__body">
+        {% if awards.length %}
+        <ul class="achievement-list">
+          {% for award in awards %}
+          <li class="achievement-list__row">
+            <img class="achievement-list__icon" src="{{ award.achievement.imageData }}" alt="{{ award.achievement.name }}">
+            <span class="achievement-list__name">{{ award.achievement.name }}</span>
+            <span class="achievement-list__desc" title="{{ award.achievement.description }}">{{ award.achievement.description }}</span>
+            <span class="achievement-list__time">{{ datetimeSpan(award.earnedAt)|safe }}获得</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="achievement-list-empty">还没有获得成就。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .achievement-list { list-style:none; margin:0; padding:0; }
+  .achievement-list__row {
+    display:flex; align-items:baseline; gap:0.6rem; padding:0.3rem 0;
+    border-bottom:1px dashed rgba(127,127,127,.15); min-width:0;
+  }
+  .achievement-list__icon {
+    width:1em; height:1em; flex:0 0 1em; align-self:center;
+    object-fit:fill; image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .achievement-list__name { flex:0 0 auto; font-weight:600; }
+  .achievement-list__desc {
+    flex:1 1 auto; min-width:0; color:#777; font-size:.85em;
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+  }
+  .achievement-list__time { flex:0 0 auto; color:#888; font-size:.8em; }
+  .achievement-list-empty { color:#777; font-size:.85em; }
+  .theme--dark .achievement-list__desc, [data-mantine-color-scheme=dark] .achievement-list__desc { color:#aaa; }
+  .theme--dark .achievement-list__time, .theme--dark .achievement-list-empty,
+  [data-mantine-color-scheme=dark] .achievement-list__time,
+  [data-mantine-color-scheme=dark] .achievement-list-empty { color:#aaa; }
+</style>
+{% endblock %}

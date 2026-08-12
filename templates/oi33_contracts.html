@@ -1,0 +1,164 @@
+{% set page_name = "oi33_contracts" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% import "components/cat_food.html" as catFood with context %}
+{% block content %}
+{% macro statusLabel(status) %}
+  {{ {'pending': '待处理', 'accepted': '已成交', 'declined': '已拒绝', 'cancelled': '已取消'}[status] or status }}
+{% endmacro %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">成就交易合同</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_auction') }}" class="rounded button">成就拍卖</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="contract-help">
+          拍卖中获得的可售卖成就可以通过合同转售给指定用户：对方接受后，成就转给对方、对方的猫粮转给你。
+          你当前持有 <strong>{{ catFood.amount(viewerFood) }}</strong> 猫粮。
+        </p>
+
+        <div class="contract-create">
+          <h2>创建交易合同</h2>
+          {% if not verified %}
+          <p class="contract-help">只有通过认证的用户才能创建交易合同。</p>
+          {% elif sellable.length %}
+          <form method="post" action="{{ url('oi33_contract_create') }}">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <div class="row">
+              <div class="medium-5 columns form__item">
+                <label>出售成就</label>
+                <select class="select" name="achievementId" required>
+                  {% for achievement in sellable %}
+                  <option value="{{ achievement._id }}">{{ achievement.name }}（{{ achievement._id }}）</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="medium-3 columns form__item">
+                <label>买家 UID</label>
+                <input class="textbox" type="number" name="buyer" min="1" required>
+              </div>
+              <div class="medium-4 columns form__item">
+                <label>价格（猫粮 g）</label>
+                <input class="textbox" type="number" name="price" min="1" required>
+              </div>
+            </div>
+            <button type="submit" class="rounded primary button">创建合同</button>
+          </form>
+          {% else %}
+          <p class="contract-help">你目前没有可转售的成就。只有通过拍卖获得、且被标记为可售卖的成就才能创建合同。</p>
+          {% endif %}
+        </div>
+
+        <h2>待我接受（{{ incoming.length }}）</h2>
+        {% if incoming.length %}
+        <table class="data-table">
+          <thead><tr><th>成就</th><th>卖家</th><th>价格</th><th>发起时间</th><th></th></tr></thead>
+          <tbody>
+          {% for contract in incoming %}
+            {% set achievement = achievementDict[contract.achievementId] %}
+            <tr>
+              <td>
+                {% if achievement %}
+                <img class="contract-icon" src="{{ achievement.imageData }}" alt="{{ achievement.name }}">
+                {{ achievement.name }}
+                {% else %}{{ contract.achievementId }}{% endif %}
+              </td>
+              <td>{% if udict[contract.seller] %}{{ user.render_inline(udict[contract.seller]) }}{% else %}UID {{ contract.seller }}{% endif %}</td>
+              <td>{{ catFood.amount(contract.price, true) }}</td>
+              <td>{{ datetimeSpan(contract.createdAt)|safe }}</td>
+              <td>
+                {% if verified %}
+                <form method="post" action="{{ url('oi33_contract_accept', id=contract._id) }}" class="contract-inline-form"
+                  onsubmit="return confirm('接受后将支付 {{ catFood.amount(contract.price, true) }} 并获得该成就。确定接受吗？');">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <button type="submit" class="rounded primary button">接受</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url('oi33_contract_decline', id=contract._id) }}" class="contract-inline-form">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <button type="submit" class="rounded button">拒绝</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="contract-help">暂时没有发给你的合同。</p>
+        {% endif %}
+
+        <h2>我发起的（{{ outgoing.length }}）</h2>
+        {% if outgoing.length %}
+        <table class="data-table">
+          <thead><tr><th>成就</th><th>买家</th><th>价格</th><th>状态</th><th>发起时间</th><th></th></tr></thead>
+          <tbody>
+          {% for contract in outgoing %}
+            {% set achievement = achievementDict[contract.achievementId] %}
+            <tr>
+              <td>
+                {% if achievement %}
+                <img class="contract-icon" src="{{ achievement.imageData }}" alt="{{ achievement.name }}">
+                {{ achievement.name }}
+                {% else %}{{ contract.achievementId }}{% endif %}
+              </td>
+              <td>{% if udict[contract.buyer] %}{{ user.render_inline(udict[contract.buyer]) }}{% else %}UID {{ contract.buyer }}{% endif %}</td>
+              <td>{{ catFood.amount(contract.price, true) }}</td>
+              <td>{{ statusLabel(contract.status) }}</td>
+              <td>{{ datetimeSpan(contract.createdAt)|safe }}</td>
+              <td>
+                {% if contract.status == 'pending' %}
+                <form method="post" action="{{ url('oi33_contract_cancel', id=contract._id) }}" class="contract-inline-form"
+                  onsubmit="return confirm('确定取消这份合同吗？');">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <button type="submit" class="rounded button">取消</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="contract-help">你还没有发起过合同。</p>
+        {% endif %}
+
+        {% if resolved.length %}
+        <h2>最近已结束</h2>
+        <table class="data-table">
+          <thead><tr><th>成就</th><th>卖家</th><th>买家</th><th>价格</th><th>结果</th><th>处理时间</th></tr></thead>
+          <tbody>
+          {% for contract in resolved %}
+            {% set achievement = achievementDict[contract.achievementId] %}
+            <tr>
+              <td>{{ achievement.name if achievement else contract.achievementId }}</td>
+              <td>{% if udict[contract.seller] %}{{ user.render_inline(udict[contract.seller]) }}{% else %}UID {{ contract.seller }}{% endif %}</td>
+              <td>{% if udict[contract.buyer] %}{{ user.render_inline(udict[contract.buyer]) }}{% else %}UID {{ contract.buyer }}{% endif %}</td>
+              <td>{{ catFood.amount(contract.price, true) }}</td>
+              <td>{{ statusLabel(contract.status) }}</td>
+              <td>{{ datetimeSpan(contract.resolvedAt)|safe }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .contract-help { color:#777; }
+  .theme--dark .contract-help, [data-mantine-color-scheme=dark] .contract-help { color:#aaa; }
+  .contract-create { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
+  .contract-create h2 { margin-top:0; }
+  .contract-icon {
+    width:1em; height:1em; vertical-align:-0.1em; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .contract-inline-form { display:inline; margin:0; }
+  .data-table form { margin:0; }
+</style>
+{% endblock %}

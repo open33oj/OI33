@@ -188,6 +188,21 @@ export async function getCurrentQuote(now = new Date()) {
     };
 }
 
+// 24h change is measured on the AMM anchor (sell) price against the newest
+// price slot recorded at or before now-24h. Null when no baseline exists.
+export async function getCatCanDayChange(now = new Date()) {
+    const quote = await getCurrentQuote(now);
+    const baseline: any = await catCanPriceColl
+        .find({ _id: { $lte: new Date(now.getTime() - 24 * 3600 * 1000) } } as any)
+        .sort({ _id: -1 }).limit(1).next();
+    const basePrice = Number(baseline?.sellPrice) || 0;
+    return {
+        ...quote,
+        changePercent: basePrice > 0 ? ((quote.sellPrice - basePrice) / basePrice) * 100 : null,
+        baselineAt: baseline?._id || null,
+    };
+}
+
 function buildPriceHistory(rows: any[]) {
     const plot = { left: 62, right: 838, top: 20, bottom: 214 };
     if (!rows.length) return { nodes: [], sellPoints: '', min: 0, max: 0 };

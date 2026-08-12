@@ -36,7 +36,7 @@ import {
     getCatFoodLogCount, getCatFoodLogs,
 } from './log';
 import {
-    getOrCreateCurrentMarket, getCurrentQuote, ensureCurrentCatCanPrice,
+    getOrCreateCurrentMarket, getCurrentQuote, getCatCanDayChange, ensureCurrentCatCanPrice,
     ensureCatCanIndexes, buyCatCans, sellCatCans, getCatCanPage,
 } from './cat-can';
 import {
@@ -88,6 +88,16 @@ import {
     achievementGetAcceptedDomains, achievementSetAcceptedDomains,
     achievementAcceptedDomainIncluded, achievementImportInitialDefinitions,
 } from './achievement';
+import {
+    ensureAuctionIndexes, auctionGet, auctionCreate, auctionBid, auctionSettle,
+    auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
+    auctionGetBids,
+} from './auction';
+import {
+    ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
+    contractAccept, contractDecline, contractCancel, contractListIncoming,
+    contractListOutgoing, contractListRecentResolved,
+} from './contract';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -111,6 +121,8 @@ export {
 export { moderationColl } from './moderate';
 export { meowPostColl, meowFollowColl, meowLikeColl } from './meow';
 export { achievementColl, userAchievementColl } from './achievement';
+export { auctionColl, auctionBidColl } from './auction';
+export { contractColl } from './contract';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -123,7 +135,7 @@ const oi33Model = {
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
     getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
     getCatFoodLogCount, getCatFoodLogs,
-    getOrCreateCurrentMarket, getCurrentQuote, ensureCurrentCatCanPrice,
+    getOrCreateCurrentMarket, getCurrentQuote, getCatCanDayChange, ensureCurrentCatCanPrice,
     ensureCatCanIndexes, buyCatCans, sellCatCans, getCatCanPage,
     ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
     createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
@@ -171,6 +183,12 @@ const oi33Model = {
     achievementGrant, achievementRevoke, achievementEvaluateUser, achievementEvaluateAll,
     achievementGetAcceptedDomains, achievementSetAcceptedDomains,
     achievementAcceptedDomainIncluded, achievementImportInitialDefinitions,
+    ensureAuctionIndexes, auctionGet, auctionCreate, auctionBid, auctionSettle,
+    auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
+    auctionGetBids,
+    ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
+    contractAccept, contractDecline, contractCancel, contractListIncoming,
+    contractListOutgoing, contractListRecentResolved,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -211,6 +229,9 @@ declare module 'hydrooj' {
         oi33_meow_like: import('./types').Oi33MeowLike;
         oi33_achievement: import('./types').Oi33Achievement;
         oi33_user_achievement: import('./types').Oi33UserAchievement;
+        oi33_auction: import('./types').Oi33Auction;
+        oi33_auction_bid: import('./types').Oi33AuctionBid;
+        oi33_achievement_contract: import('./types').Oi33Contract;
     }
 }
 

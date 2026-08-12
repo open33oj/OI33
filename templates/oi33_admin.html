@@ -103,6 +103,7 @@
               </a>
               <a href="/oi33/badge/manage" class="rounded button">{{ _('Manage Badges') }}</a>
               <a href="{{ url('oi33_achievement_manage') }}" class="rounded button">成就管理</a>
+              <a href="{{ url('oi33_auction') }}" class="rounded button">成就拍卖</a>
             </div>
           </div>
 
@@ -148,6 +149,8 @@
             <option value="oauth" {% if logType == 'oauth' %}selected{% endif %}>OAuth</option>
             <option value="meow" {% if logType == 'meow' %}selected{% endif %}>{{ _('activity_tag_meow') }}</option>
             <option value="achievement" {% if logType == 'achievement' %}selected{% endif %}>成就</option>
+            <option value="auction" {% if logType == 'auction' %}selected{% endif %}>拍卖</option>
+            <option value="contract" {% if logType == 'contract' %}selected{% endif %}>合同</option>
           </select>
           <button type="submit" class="rounded button">筛选</button>
           {% if logType %}<a href="{{ url('oi33_admin') }}" class="rounded button">查看全部</a>{% endif %}
@@ -379,6 +382,33 @@
                 {% elif a.action == 'definition_delete' %}删除了成就定义
                 {% elif a.action == 'config_update' %}修改了成就全局配置（AC 统计域：{{ a.reason or '全部域' }}）
                 {% elif a.action == 'initial_import' %}导入了初始成就定义
+                {% else %}{{ a.action }}{% endif %}
+                {% if a.achievementId %}「{{ a.achievementId }}」{% endif %}
+              </span>
+
+            {% elif a.type == 'auction' %}
+              <span class="oi33-timeline__tag">拍卖</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">
+                {% if a.action == 'create' %}上架了成就拍卖
+                {% elif a.action == 'bid' %}出价 {{ a.amount }} 罐头
+                {% elif a.action == 'refund' %}退回 {{ a.amount }} 罐头{% if a.reason %}（{{ a.reason }}）{% endif %}
+                {% elif a.action == 'settle' %}以 {{ a.amount }} 罐头拍得成就
+                {% elif a.action == 'settle_unsold' %}上架的拍卖流拍
+                {% elif a.action == 'cancel' %}取消了拍卖
+                {% else %}{{ a.action }}{% endif %}
+                {% if a.achievementId %}「{{ a.achievementId }}」{% endif %}
+              </span>
+              {% if a.auctionId %}<a href="{{ url('oi33_auction_detail', id=a.auctionId) }}">详情</a>{% endif %}
+
+            {% elif a.type == 'contract' %}
+              <span class="oi33-timeline__tag">合同</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">
+                {% if a.action == 'create' %}向 {{ userLink(a.uid) }} 发起了成就合同（{{ a.amount }} g）
+                {% elif a.action == 'accept' %}接受了 {{ userLink(a.uid) }} 的成就合同（{{ a.amount }} g）
+                {% elif a.action == 'decline' %}拒绝了 {{ userLink(a.uid) }} 的成就合同
+                {% elif a.action == 'cancel' %}取消了与 {{ userLink(a.uid) }} 的成就合同
                 {% else %}{{ a.action }}{% endif %}
                 {% if a.achievementId %}「{{ a.achievementId }}」{% endif %}
               </span>

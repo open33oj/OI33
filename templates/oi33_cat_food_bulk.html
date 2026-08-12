@@ -13,7 +13,7 @@
         </div>
       </div>
       <div class="section__body">
-        <p>粘贴 JSON 数组后先生成预览。amount 使用基本单位 g；预览不会修改任何余额，确认后才会正式发放。</p>
+        <p>粘贴 JSON 数组后先生成预览。amount 使用基本单位 g；预览不会修改任何余额，确认后才会正式发放。未通过认证的用户会被自动跳过。</p>
         <form method="post" action="{{ url('oi33_cat_food_bulk') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <label>JSON 纯文本
@@ -39,6 +39,16 @@
       </div>
       <div class="section__body">
         <p>共 <strong>{{ rows.length }}</strong> 位用户，合计发放 <strong>{{ catFood.amount(total) }}</strong>。此预览 30 分钟内有效且只能确认一次。</p>
+        {% if skippedRows and skippedRows.length %}
+        <blockquote class="note typo">
+          <p>以下 <strong>{{ skippedRows.length }}</strong> 位用户未通过认证，已自动从发放名单中移除：</p>
+          <ul>
+            {% for row in skippedRows %}
+            <li>UID {{ row.uid }}（{{ row.displayName }}）— {{ catFood.amount(row.amount, true) }}，{{ row.reason }}</li>
+            {% endfor %}
+          </ul>
+        </blockquote>
+        {% endif %}
         <form method="post" action="{{ url('oi33_cat_food_bulk_confirm') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="previewId" value="{{ preview._id }}">

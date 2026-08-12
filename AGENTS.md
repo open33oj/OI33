@@ -22,6 +22,8 @@ oi33/
 │   ├── cat-map.ts        # 640x480 positions, persistent colors, movement costs/cooldowns
 │   ├── school-cat.ts     # Big cat world: school import, binding, feeding, leaderboards, NPC movement tick
 │   ├── school-cat-data.json # Generated school list (code/province/pinyin-initials) imported into oi33_school
+│   ├── auction.ts        # Achievement auctions: escrowed can bids, lazy settlement, refunds
+│   ├── contract.ts       # Achievement trade contracts: direct resale of auction-won achievements for cat food
 │   └── log.ts            # Activity log (audit trail)
 ├── handler/
 │   ├── patches.ts        # Monkey-patches (UserModel.getList, HomeHandler.getCheckin / getCountdown)
@@ -37,6 +39,8 @@ oi33/
 │   ├── cat-can.ts        # Cat-can market and realtime pixel-map routes/connections
 │   ├── cat-account.ts    # Unified account, grant, batch preview and reversal routes
 │   ├── school-cat.ts     # Big cat world routes (state, school list/search, bind, feed, detail)
+│   ├── auction.ts        # Achievement auction routes (list/detail/bid, admin create/cancel)
+│   ├── contract.ts       # Achievement trade contract routes (list/create/accept/decline/cancel)
 │   └── permissions.ts    # Permission matrix reference page
 ├── scripts/
 │   ├── update-ratings.ts
@@ -73,7 +77,7 @@ oi33/
 
 | Collection | Key fields |
 |------------|-----------|
-| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/管理员/行政管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_can`, `cat_can_trade_available_at`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `school_cat`, `school_cat_food`, `school_cat_month`, `school_cat_feed_at`, `atcoder`, `codeforces`, rating fields |
+| `oi33_user` | `_id` (== UserModel._id), `coin_now`, `coin_all`, `birthday_date`, `birthday_monthDay`, `badge_text`, `badge_color`, `badge_textColor`, `realname_flag` (0-3: 未认证/已认证/管理员/行政管理员), `realname_name`, `checkin_time`, `checkin_luck`, `checkin_cnt_now`, `checkin_cnt_all`, `cat_food`, `cat_can`, `cat_can_trade_available_at`, `cat_food_backfill_version`, `cat_food_backfilled_at`, `school_cat`, `school_cat_food`, `school_cat_month`, `school_cat_feed_at`, `achievement_showcase`, `atcoder`, `codeforces`, rating fields |
 | `oi33_coin_bill` | `_id` (ObjectId), `userId`, `rootId`, `amount`, `text` |
 | `oi33_paste` | `_id` (random string), `updateAt`, `title`, `owner`, `content`, `isprivate` |
 | `oi33_wiki` | `_id` (random slug: 8 hex bytes + base36 timestamp), `title`, `content`, `category`, `order`, `createdAt`, `updatedAt` |
@@ -84,7 +88,10 @@ oi33/
 | `oi33_oauth_code` | `_id` (auth code), `clientId`, `uid`, `redirectUri`, `scopes`, `codeChallenge?`, `codeChallengeMethod?`, `expiresAt` (10 min), `consumed` |
 | `oi33_oauth_token` | `_id`, `tokenHash` (SHA-256 of `33oat_…`), `tokenPrefix`, `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `lastUsedAt`, `isActive` |
 | `oi33_oauth_refresh` | `_id`, `tokenHash` (SHA-256 of `33ojrt_…`), `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `isActive` |
-| `oi33_log` | `_id`, `createdAt`, `type` (coin/birthday/badge/realname/checkin/cat_account/cat_map/paste/wiki/request/oauth), type-specific fields |
+| `oi33_log` | `_id`, `createdAt`, `type` (coin/birthday/badge/realname/checkin/cat_account/cat_map/paste/wiki/request/oauth/auction), type-specific fields |
+| `oi33_auction` | `_id` (ObjectId), `achievementId`, `startPrice`, `startAt`, `endAt`, `createdBy`, `status` (`active`/`settled`/`cancelled`), `highestBid`, `highestBidder`, `bidCount`, `winner`, `settlePrice`, `settledAt` |
+| `oi33_auction_bid` | `_id` (ObjectId), `auctionId`, `uid`, `amount`, `createdAt` |
+| `oi33_achievement_contract` | `_id` (ObjectId), `achievementId`, `seller`, `buyer`, `price` (cat food g), `status` (`pending`/`accepted`/`declined`/`cancelled`), `createdAt`, `resolvedAt` |
 | `oi33_cat_can_bill` | buy/sell/reversal ledger with principal, fee, food delta and can delta |
 | `oi33_cat_can_pool` | real reserve, virtual supply, burned fees, incremental global food/can counters and counter version |
 | `oi33_cat_can_price` | minimal 8-hour buy/sell price history (`_id`, prices, `createdAt`) |
@@ -133,6 +140,8 @@ Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymiz
 
 Cat-map participation also requires `realname_flag >= 1`. Downgrading a user below that level deletes their map-player position immediately so an invisible player cannot continue occupying a cell; re-verification requires joining the arena again.
 
+Unverified users (`realname_flag < 1`) are blocked from every interactive feature: daily check-in (`CheckinHandler`, and the homepage checkin partial hides the button via `payload.oi33_checkin_flag`), cat-map join/move/color and big-cat bind/feed/position (model-level `realname_flag: { $gte: 1 }` filters), buying/selling cat cans (`CatCanBuyHandler`/`CatCanSellHandler`), bidding in achievement auctions (`AuctionBidHandler`), creating or accepting achievement trade contracts, creating or editing pastes (they may still view/manage/delete their existing pastes), posting meows (pre-existing) plus following and liking (unfollow stays allowed), receiving cat food in any form (single grants throw, batch grants skip them at preview and again at confirm, the launch backfill marks them processed without granting), and automatic achievement evaluation (`achievementEvaluateUser` returns early for flag < 1; manual admin grants still work).
+
 Adjacent cat-map movement costs 33g cat food, while teleporting costs 3 cat cans. Every successful move or teleport sets `freeColorAvailable` to `true`; the next color change may bypass the current shared cooldown and atomically consumes that credit. The boolean credit never accumulates: moving or teleporting again before coloring still leaves exactly one free color change.
 
 ### Big cat world (大猫世界)
@@ -154,6 +163,15 @@ Authentication visibility and real-name visibility are separate: flag >= 1 resto
 - Effective immediately from `2026-07-18`: a normal daily check-in grants 100 cat food; a check-in continuing the previous day's streak grants 150.
 - Existing users receive a one-time launch grant of `checkin_cnt_all * 100`; users who already completed a consecutive check-in on launch day receive another 50. Versioned balance reconciliation makes the grant idempotent.
 - Cat food is displayed below the cat component on the user detail page. A successful check-in redirects with a Hydro success notification showing the awarded amount.
+- Unverified users can never receive cat food: `grantCatFood` throws `CAT_FOOD_UNVERIFIED_MESSAGE` for positive amounts (deductions stay allowed), batch previews filter unverified users out (shown as a skipped list) and `confirmCatFoodBatchPreview` skips them again at confirm time (counted in the result), and the launch backfill marks unverified users processed without granting.
+- `grantCatFood` deductions may drive the balance negative (plain `$inc`, no sufficiency gate) so mis-granted food can be clawed back; future earnings offset the debt. Spending paths (can trades, map moves, school feeds) still require sufficient balance.
+
+### Achievement auctions, showcase and profile panel
+
+- **Auctions** (`/oi33/auction`): OI33 flag >= 2 admins list an achievement with a duration (1–720 h) and a starting price in cat cans; only one active auction per achievement. Bidding requires `realname_flag >= 1`; each bid must exceed the current highest by at least 1 can (first bid meets the start price). Bids are escrowed — the full amount is deducted at bid time and the outbid previous leader is refunded automatically. Users who already own the achievement (and the current leader) cannot bid. Settlement is lazy (`auctionSettle` runs when an expired auction is listed/viewed/bid on): the winner is granted the achievement through `achievementGrant` (source `auction`, meow announcement included) and the winning cans return to the AMM pool (`circulatingCans` decreases, no food paid out); auctions with no bids simply close. Admins may cancel an active auction, which refunds the current leader. All actions log `type: 'auction'`. The arena page (`/oi33/arena`) shows a 罐头行情与成就拍卖 module below the map: the live can quote with 24 h change (`getCatCanDayChange`, measured on the sell/anchor price against the newest price slot at or before now-24h) plus up to 4 active auctions, each linking to its detail page.
+- **Trade contracts** (`/oi33/contracts`): an achievement definition marked `saleable` (checkbox in 成就管理) can be resold by a user whose award came from an auction (`source: 'auction'`). The seller creates a contract naming a buyer UID and a cat-food price; one pending contract per seller+achievement. The named buyer accepts (cat food moves buyer→seller with a sufficiency gate, the seller's auction award is deleted and re-granted to the buyer with `source: 'contract'` — contract-bought copies cannot be resold), declines, or the seller cancels. All actions log `type: 'contract'`.
+- **Showcase**: each user picks up to 16 earned achievements at `/oi33/achievements/showcase` (stored as `achievement_showcase` on `oi33_user`; the array order is the display order, set via per-badge position numbers in the editor). The user detail page renders them as a 4-column badge grid titled 成就展示柜, replacing the old grouped achievement section; unconfigured profiles show an edit hint to the owner instead.
+- **Profile achievement tab**: the user detail tabs (喵喵/关注/粉丝/…) include an 成就 tab listing every earned achievement as a compact row (font-height logo + name + description), capped at 50 rows; when more exist, a link leads to the public full list at `/oi33/achievements/user/:uid`.
 
 ### Profile edit + approval flow
 
@@ -180,13 +198,25 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/badge` | BadgeShowHandler | PRIV_USER_PROFILE |
 | `/oi33/badge/manage` | BadgeManageHandler | OI33 flag >= 2 |
 | `/oi33/badge/manage/:uid/del` | BadgeDelHandler | OI33 flag >= 2 |
-| `/oi33/checkin` | CheckinHandler | PRIV_USER_PROFILE |
+| `/oi33/checkin` | CheckinHandler | PRIV_USER_PROFILE + verified |
 | `/oi33/cat-food/bill/:uid` | CatFoodBillHandler | Legacy redirect to unified cat account |
 | `/oi33/profile/edit/:uid` | ProfileEditHandler | PRIV_USER_PROFILE (self; OI33 manager/executive admin can edit others with role limits) |
 | `/oi33/requests` | RequestListHandler | Logged in + OI33 manager/executive admin |
 | `/oi33/requests/:id/approve` | RequestApproveHandler (POST) | Logged in + role-based approval limit |
 | `/oi33/requests/:id/reject` | RequestRejectHandler (POST) | Logged in + OI33 manager/executive admin |
 | `/oi33/at-cf-rating` | RatingShowHandler | public |
+| `/oi33/auction` | AuctionListHandler | public |
+| `/oi33/auction/:id` | AuctionDetailHandler | public |
+| `/oi33/auction/create` | AuctionCreateHandler (POST) | OI33 flag >= 2 |
+| `/oi33/auction/:id/bid` | AuctionBidHandler (POST) | PRIV_USER_PROFILE + verified |
+| `/oi33/auction/:id/cancel` | AuctionCancelHandler (POST) | OI33 flag >= 2 |
+| `/oi33/contracts` | ContractListHandler | PRIV_USER_PROFILE |
+| `/oi33/contracts/create` | ContractCreateHandler (POST) | PRIV_USER_PROFILE + verified |
+| `/oi33/contracts/:id/accept` | ContractAcceptHandler (POST) | PRIV_USER_PROFILE + verified (named buyer) |
+| `/oi33/contracts/:id/decline` | ContractDeclineHandler (POST) | PRIV_USER_PROFILE (named buyer) |
+| `/oi33/contracts/:id/cancel` | ContractCancelHandler (POST) | PRIV_USER_PROFILE (seller) |
+| `/oi33/achievements/showcase` | AchievementShowcaseHandler (GET/POST) | PRIV_USER_PROFILE + verified |
+| `/oi33/achievements/user/:uid` | AchievementUserHandler | public |
 | `/oi33/cat-can` | CatCanMarketHandler | PRIV_USER_PROFILE |
 | `/oi33/arena` | CatCanArenaHandler | public (verified users only) |
 | `/oi33/arena/big/state` | SchoolCatStateHandler | public |
@@ -201,18 +231,18 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/arena/color` | CatMapColorHandler (POST) | PRIV_USER_PROFILE + verified |
 | `/oi33/cat-arena/admin` | CatMapAdminHandler | OI33 flag = 3; rectangle paint and forced random relocation |
 | `/oi33/cat-arena/admin/relocate` | CatMapAdminRelocateHandler (POST) | OI33 flag = 3 |
-| `/oi33/cat-can/buy` | CatCanBuyHandler (POST) | PRIV_USER_PROFILE |
-| `/oi33/cat-can/sell` | CatCanSellHandler (POST) | PRIV_USER_PROFILE |
+| `/oi33/cat-can/buy` | CatCanBuyHandler (POST) | PRIV_USER_PROFILE + verified |
+| `/oi33/cat-can/sell` | CatCanSellHandler (POST) | PRIV_USER_PROFILE + verified |
 | `/oi33/cat-account/:uid` | CatAccountHandler | PRIV_USER_PROFILE (self; OI33 flag >= 2 for others) |
 | `/oi33/cat-food/grant` | CatFoodGrantHandler | OI33 flag >= 2 |
 | `/oi33/cat-food/grant/bulk` | CatFoodBulkGrantHandler | OI33 flag >= 3 |
 | `/oi33/cat-food/grant/bulk/confirm` | CatFoodBulkConfirmHandler (POST) | OI33 flag >= 3 |
 | `/oi33/cat-account/transaction/:id/reverse` | CatCanReverseHandler (POST) | OI33 flag >= 2 |
-| `/oi33/paste/create` | PasteCreateHandler | PRIV_USER_PROFILE |
+| `/oi33/paste/create` | PasteCreateHandler | PRIV_USER_PROFILE + verified |
 | `/oi33/paste/manage` | PasteManageHandler | PRIV_USER_PROFILE |
 | `/oi33/paste/all` | PasteAllHandler | OI33 flag >= 2 |
 | `/oi33/paste/show/:id` | PasteShowHandler | public |
-| `/oi33/paste/show/:id/edit` | PasteEditHandler | PRIV_USER_PROFILE |
+| `/oi33/paste/show/:id/edit` | PasteEditHandler | PRIV_USER_PROFILE + verified |
 | `/oi33/paste/show/:id/delete` | PasteDeleteHandler | PRIV_USER_PROFILE |
 | `/oi33/admin` | Oi33AdminHandler | OI33 flag >= 2 |
 | `/oi33/migrate` | MigrateHandler | OI33 flag >= 2 |
@@ -247,8 +277,8 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 - `/oi33/birthday/set`, `/oi33/realname/set`, `/oi33/realname/show`, `/oi33/badge/create`
 
 ### Paste visibility rules
-- Public paste (`isprivate === false`) requires `flag >= 1` (Verified or above). Flag 0 users can only create private pastes.
-- `canPublish()` in `handler/utils.ts` enforces this at create and edit time.
+- Creating or editing any paste requires `flag >= 1` (Verified or above); unverified users can only view or delete their existing pastes. Making a paste public additionally goes through `canPublish()`.
+- `canPublish()` in `handler/utils.ts` enforces the public-visibility rule at create and edit time.
 
 ### Wiki handler patterns
 - Wiki pages use a dedicated layout (`layout/oi33_wiki.html`) with custom nav and footer, making the wiki section feel like a standalone site.
@@ -288,6 +318,7 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 4. **HomeHandler.getCountdown** — injects `payload.dates` for the countdown partial
 
 5. **handler/create Bearer-token auth** — verifies `Authorization: Bearer 33tok_…` against `oi33_token`, injects the token user before Hydro's `handler/create/http` PERM_VIEW gate, and enforces read-only method + route whitelist. **Skips** `/oi33/oauth/*` paths so the OAuth provider handlers manage their own Bearer auth against `oi33_oauth_token`.
+6. **nunjucks `Environment.prototype.getTemplate`** — startup-race guard for template overrides. Hydro calls `server.listen()` before ui-default's `TemplateService` finishes reading addon templates into its registry; a page rendered in that window compiles shared names (e.g. `components/user.html`) from ui-default's original content, and the production loader (`noCache: false`) caches that compiled version for the whole process lifetime (symptom: ranking table loses `[realname]` prefixes, identity icons and anonymization until restart). For every template oi33 ships, the patch drops the compiled `loader.cache` entry until the registry provably holds oi33's file content (exact string compare), then marks the name verified and stops touching it; a 120 s startup deadline bounds the worst case.
 
 Patches are wrapped in `applyPatches(ctx)` and called from the top-level `apply()` in [index.ts](index.ts), not import-time side effects.
 

@@ -1,5 +1,6 @@
 {% set page_name = "oi33_cat_can_arena" %}
 {% extends "layout/basic.html" %}
+{% import "components/cat_food.html" as catFood with context %}
 {% block content %}
 <div class="row oi33-map-page">
   <div class="medium-12 columns">
@@ -67,8 +68,88 @@
       </div>
     </div>
 
+    <div class="section oi33-arena-market">
+      <div class="section__header">
+        <h2 class="section__title">罐头行情与成就拍卖</h2>
+        <div class="section__tools">
+          <a href="{{ url('oi33_cat_can') }}" class="rounded button">罐头交易</a>
+          <a href="{{ url('oi33_auction') }}" class="rounded button">全部拍卖</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <div class="oi33-arena-market__grid">
+          <a class="oi33-arena-quote" href="{{ url('oi33_cat_can') }}">
+            <span class="oi33-arena-quote__label">🥫 猫罐头实时价格</span>
+            <span class="oi33-arena-quote__price">
+              买入 {{ catFood.amount(canQuote.buyPrice) }} · 卖出 {{ catFood.amount(canQuote.sellPrice) }}
+            </span>
+            {% if canQuote.changePercent !== null and canQuote.changePercent !== undefined %}
+            <span class="oi33-arena-quote__change {{ 'is-up' if canQuote.changePercent >= 0 else 'is-down' }}">
+              24h {% if canQuote.changePercent >= 0 %}+{% endif %}{{ canQuote.changePercent | round(2) }}%
+            </span>
+            {% else %}
+            <span class="oi33-arena-quote__change">24h —</span>
+            {% endif %}
+          </a>
+          {% for auction in arenaAuctions %}
+          <a class="oi33-arena-auction" href="{{ url('oi33_auction_detail', id=auction._id) }}">
+            {% if auction.achievement %}
+            <img class="oi33-arena-auction__icon" src="{{ auction.achievement.imageData }}"
+              alt="{{ auction.achievement.name }}">
+            {% endif %}
+            <span class="oi33-arena-auction__body">
+              <span class="oi33-arena-auction__name">{{ auction.achievement.name if auction.achievement else auction.achievementId }}</span>
+              <span class="oi33-arena-auction__meta">
+                {% if auction.highestBid != null %}当前价 <strong>{{ auction.highestBid }}</strong> 罐头
+                {% else %}起拍价 {{ auction.startPrice }} 罐头{% endif %}
+                · 剩余 {{ auction.remainText }}
+              </span>
+            </span>
+          </a>
+          {% endfor %}
+          {% if not arenaAuctions.length %}
+          <a class="oi33-arena-auction oi33-arena-auction--empty" href="{{ url('oi33_auction') }}">
+            <span class="oi33-arena-auction__body">
+              <span class="oi33-arena-auction__name">成就拍卖</span>
+              <span class="oi33-arena-auction__meta">暂时没有进行中的拍卖，去看看已结束的拍卖 →</span>
+            </span>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
+<style>
+  .oi33-arena-market__grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:0.75rem; }
+  .oi33-arena-quote, .oi33-arena-auction {
+    display:flex; align-items:center; gap:0.75rem; padding:0.75rem 1rem;
+    border:1px solid rgba(127,127,127,.2); border-radius:8px;
+    color:inherit; text-decoration:none;
+  }
+  .oi33-arena-quote:hover, .oi33-arena-auction:hover { border-color:var(--accent-color,#55b6e2); text-decoration:none; }
+  .oi33-arena-quote { flex-direction:column; align-items:flex-start; gap:0.25rem; }
+  .oi33-arena-quote__label { font-weight:600; }
+  .oi33-arena-quote__price { font-size:1.05em; }
+  .oi33-arena-quote__change { font-size:.85em; color:#888; }
+  .oi33-arena-quote__change.is-up { color:#d32f2f; }
+  .oi33-arena-quote__change.is-down { color:#2e7d32; }
+  .oi33-arena-auction__icon {
+    width:40px; height:40px; flex:0 0 40px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .oi33-arena-auction__body { display:flex; flex-direction:column; gap:0.25rem; min-width:0; }
+  .oi33-arena-auction__name { font-weight:600; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .oi33-arena-auction__meta { font-size:.85em; color:#888; }
+  .theme--dark .oi33-arena-quote__change, .theme--dark .oi33-arena-auction__meta,
+  [data-mantine-color-scheme=dark] .oi33-arena-quote__change,
+  [data-mantine-color-scheme=dark] .oi33-arena-auction__meta { color:#aaa; }
+  .theme--dark .oi33-arena-quote__change.is-up,
+  [data-mantine-color-scheme=dark] .oi33-arena-quote__change.is-up { color:#ef5350; }
+  .theme--dark .oi33-arena-quote__change.is-down,
+  [data-mantine-color-scheme=dark] .oi33-arena-quote__change.is-down { color:#66bb6a; }
+</style>
 
 <dialog class="oi33-map-dialog" data-map-cell-dialog>
   <form method="dialog">

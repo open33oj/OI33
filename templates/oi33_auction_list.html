@@ -1,0 +1,133 @@
+{% set page_name = "oi33_auction" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">成就拍卖</h1>
+        <div class="section__tools">
+          {% if handler.user._id %}<a href="{{ url('oi33_contracts') }}" class="rounded button">我的交易合同</a>{% endif %}
+          {% if canManage %}
+          <a href="{{ url('oi33_achievement_manage') }}" class="rounded button">成就管理</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="auction-help">
+          出价立即托管扣除猫罐头，被超越时自动退款；每次出价至少比当前最高价多 1 个罐头。
+          成交后赢家获得成就，支付的罐头回流罐头池；流拍或取消则全额退款。
+          {% if handler.user._id %}你当前持有 <strong>{{ viewerCans }}</strong> 个猫罐头。{% endif %}
+        </p>
+
+        {% if canManage %}
+        <div class="auction-create">
+          <h2>上架拍卖</h2>
+          {% if achievements.length %}
+          <form method="post" action="{{ url('oi33_auction_create') }}">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <div class="row">
+              <div class="medium-5 columns form__item">
+                <label>成就</label>
+                <select class="select" name="achievementId" required>
+                  {% for achievement in achievements %}
+                  <option value="{{ achievement._id }}" {% if preselect == achievement._id %}selected{% endif %}>{{ achievement.name }}（{{ achievement._id }}）</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="medium-3 columns form__item">
+                <label>拍卖时长（小时）</label>
+                <input class="textbox" type="number" name="hours" min="1" max="720" value="24" required>
+              </div>
+              <div class="medium-4 columns form__item">
+                <label>起拍价（猫罐头）</label>
+                <input class="textbox" type="number" name="startPrice" min="1" value="1" required>
+              </div>
+            </div>
+            <button type="submit" class="rounded primary button">上架拍卖</button>
+          </form>
+          {% else %}
+          <p>请先在成就管理中创建成就。</p>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <h2>进行中的拍卖（{{ active.length }}）</h2>
+        {% if active.length %}
+        <div class="auction-grid">
+          {% for auction in active %}
+          {% set achievement = achievementDict[auction.achievementId] %}
+          <article class="auction-card">
+            {% if achievement %}
+            <img class="auction-pixel" src="{{ achievement.imageData }}" width="64" height="64" alt="{{ achievement.name }}">
+            {% endif %}
+            <div class="auction-card__body">
+              <h3><a href="{{ url('oi33_auction_detail', id=auction._id) }}">{{ achievement.name if achievement else auction.achievementId }}</a></h3>
+              <p class="auction-meta">起拍价 {{ auction.startPrice }} 罐头 · 剩余 {{ auction.remainText }}</p>
+              <p class="auction-price">
+                {% if auction.highestBid != null %}
+                当前价 <strong>{{ auction.highestBid }}</strong> 罐头（{{ auction.bidCount }} 次出价）<br>
+                领先：{% if udict[auction.highestBidder] %}{{ user.render_inline(udict[auction.highestBidder]) }}{% else %}UID {{ auction.highestBidder }}{% endif %}
+                {% else %}
+                还没有人出价
+                {% endif %}
+              </p>
+              <a class="rounded primary button" href="{{ url('oi33_auction_detail', id=auction._id) }}">参与竞拍</a>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="auction-help">暂时没有进行中的拍卖。</p>
+        {% endif %}
+
+        {% if finished.length %}
+        <h2>最近结束的拍卖</h2>
+        <table class="data-table">
+          <thead><tr><th>成就</th><th>结果</th><th>成交价</th><th>赢家</th><th>结束时间</th><th></th></tr></thead>
+          <tbody>
+          {% for auction in finished %}
+            <tr>
+              <td>
+                {% if achievementDict[auction.achievementId] %}
+                  {{ achievementDict[auction.achievementId].name }}
+                {% else %}
+                  {{ auction.achievementId }}
+                {% endif %}
+              </td>
+              <td>{{ '已取消' if auction.status == 'cancelled' else ('成交' if auction.winner else '流拍') }}</td>
+              <td>{{ auction.settlePrice + ' 罐头' if auction.settlePrice else '—' }}</td>
+              <td>
+                {% if auction.winner %}
+                  {% if udict[auction.winner] %}{{ user.render_inline(udict[auction.winner]) }}{% else %}UID {{ auction.winner }}{% endif %}
+                {% else %}—{% endif %}
+              </td>
+              <td>{{ datetimeSpan(auction.settledAt or auction.cancelledAt or auction.endAt)|safe }}</td>
+              <td><a href="{{ url('oi33_auction_detail', id=auction._id) }}">详情</a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .auction-help { color:#777; }
+  .theme--dark .auction-help, [data-mantine-color-scheme=dark] .auction-help { color:#aaa; }
+  .auction-create { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
+  .auction-create h2 { margin-top:0; }
+  .auction-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+  .auction-card { display:flex; gap:1rem; border:1px solid rgba(127,127,127,.2); border-radius:8px; padding:1rem; }
+  .auction-card__body { min-width:0; }
+  .auction-card__body h3 { margin:0 0 .5rem; }
+  .auction-card__body p { margin:.35rem 0; }
+  .auction-pixel { width:64px; height:64px; object-fit:fill; flex:0 0 64px; image-rendering:crisp-edges; image-rendering:pixelated; }
+  .auction-meta { color:#888; font-size:.85em; }
+  .theme--dark .auction-meta, [data-mantine-color-scheme=dark] .auction-meta { color:#aaa; }
+  .data-table form { margin:0; }
+  @media (max-width:600px) { .auction-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}

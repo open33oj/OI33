@@ -259,6 +259,33 @@
               </div>
             </li>
             {% endif %}
+            {% if oi33AchievementPanel %}
+            <li class="section__tab-item">
+              <h1 class="section__tab-title">成就（{{ oi33AchievementPanel.awards.length }}）</h1>
+              <div class="section__tab-main">
+                <div class="typo section__body no-media">
+                  {% if oi33AchievementPanel.awards.length %}
+                  <ul class="oi33-achievement-list">
+                    {% for award in oi33AchievementPanel.awards.slice(0, 50) %}
+                    <li class="oi33-achievement-list__row">
+                      <img class="oi33-achievement-list__icon" src="{{ award.achievement.imageData }}"
+                        alt="{{ award.achievement.name }}">
+                      <span class="oi33-achievement-list__name">{{ award.achievement.name }}</span>
+                      <span class="oi33-achievement-list__desc"
+                        title="{{ award.achievement.description }}">{{ award.achievement.description }}</span>
+                    </li>
+                    {% endfor %}
+                  </ul>
+                  {% if oi33AchievementPanel.awards.length > 50 %}
+                  <p><a href="{{ url('oi33_achievement_user', uid=udoc._id) }}">查看所有成就（共 {{ oi33AchievementPanel.awards.length }} 个）</a></p>
+                  {% endif %}
+                  {% else %}
+                  <p>还没有获得成就。</p>
+                  {% endif %}
+                </div>
+              </div>
+            </li>
+            {% endif %}
             {% for page in _udmods %}{% if 'activity.html' in page %}{% include page %}{% endif %}{% endfor %}
             {% if pdocs.length %}
             <li class="section__tab-item">
@@ -293,38 +320,31 @@
     {% if oi33AchievementPanel %}
     <div class="section oi33-achievements">
       <div class="section__header">
-        <h2 class="section__title">成就（{{ oi33AchievementPanel.awards.length }}）</h2>
-        {% if oi33AchievementPanel.canManage %}
+        <h2 class="section__title">成就展示柜</h2>
         <div class="section__tools">
+          {% if oi33AchievementPanel.isSelf %}
+          <a href="{{ url('oi33_achievement_showcase') }}" class="rounded button">编辑展示柜</a>
+          {% endif %}
+          {% if oi33AchievementPanel.canManage %}
           <a href="{{ url('oi33_achievement_manage', query={uid:udoc._id}) }}" class="rounded button">管理成就</a>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
       <div class="section__body">
-        {% if oi33AchievementPanel.awards.length %}
-          {% for group in oi33AchievementPanel.groups %}
-          <section class="oi33-achievement-group {{ 'oi33-achievement-group--featured' if group.featured else '' }}">
-            <h3 class="oi33-achievement-group__title">{{ group.label }}（{{ group.awards.length }}）</h3>
-            <div class="oi33-achievement-grid">
-              {% for award in group.awards %}
-              <article class="oi33-achievement-card" title="{{ award.achievement.description }}">
-                <img class="oi33-achievement-pixel" src="{{ award.achievement.imageData }}"
-                  width="96" height="96" alt="{{ award.achievement.name }}">
-                <div class="oi33-achievement-card__body">
-                  {% if award.featureLabel %}
-                  <p class="oi33-achievement-feature-label" title="{{ award.featureLabel }}">{{ award.featureLabel }}</p>
-                  {% endif %}
-                  <h4 title="{{ award.achievement.name }}">{{ award.achievement.name }}</h4>
-                  <p class="oi33-achievement-rule" title="{{ award.achievement.rule }}">{{ award.achievement.rule }}</p>
-                  <p class="oi33-achievement-time">{{ datetimeSpan(award.earnedAt)|safe }}获得</p>
-                </div>
-              </article>
-              {% endfor %}
-            </div>
-          </section>
+        {% if oi33AchievementPanel.showcaseAwards.length %}
+        <div class="oi33-showcase-grid">
+          {% for award in oi33AchievementPanel.showcaseAwards %}
+          <div class="oi33-showcase-badge" title="{{ award.achievement.name }}：{{ award.achievement.description }}">
+            <img class="oi33-showcase-pixel" src="{{ award.achievement.imageData }}" width="64" height="64"
+              alt="{{ award.achievement.name }}">
+            <span class="oi33-showcase-name">{{ award.achievement.name }}</span>
+          </div>
           {% endfor %}
+        </div>
+        {% elif oi33AchievementPanel.isSelf %}
+        <p class="oi33-achievement-empty">还没有布置成就展示柜，<a href="{{ url('oi33_achievement_showcase') }}">去编辑</a>选择要展示的徽章（最多 16 个）。</p>
         {% else %}
-        <p class="oi33-achievement-empty">还没有获得成就。</p>
+        <p class="oi33-achievement-empty">TA 还没有布置成就展示柜。</p>
         {% endif %}
       </div>
     </div>
@@ -429,47 +449,41 @@
   .oi33-meow-panelbar form { margin: 0; }
   .oi33-meow-paneltitle { margin: 1.25rem 0 0.5rem !important; font-size: 1.05em; }
   .oi33-meow-panellist__row { padding: 0.3rem 0; }
-  .oi33-achievement-group + .oi33-achievement-group { margin-top:1.75rem; }
-  .oi33-achievement-group__title { margin:0 0 .75rem; font-size:1.1rem; }
-  .oi33-achievement-group--featured {
-    padding-bottom:1.25rem; border-bottom:1px solid rgba(127,127,127,.2);
-  }
-  .oi33-achievement-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; }
-  .oi33-achievement-card {
+  .oi33-showcase-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; }
+  .oi33-showcase-badge {
     display:flex; flex-direction:column; align-items:center; min-width:0;
     padding:.8rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
   }
-  .oi33-achievement-pixel {
-    width:96px; height:96px; flex:0 0 96px; object-fit:fill;
+  .oi33-showcase-pixel {
+    width:64px; height:64px; object-fit:fill;
     image-rendering:crisp-edges; image-rendering:pixelated;
   }
-  .oi33-achievement-card__body { min-width:0; width:100%; text-align:center; }
-  .oi33-achievement-card__body h4 {
-    overflow:hidden; margin:.55rem 0 .25rem; font-size:.88rem;
-    white-space:nowrap; text-overflow:ellipsis;
+  .oi33-showcase-name {
+    margin-top:.5rem; font-size:.85rem; max-width:100%;
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
   }
-  .oi33-achievement-card__body p { margin:.18rem 0; }
-  .oi33-achievement-feature-label {
-    overflow:hidden; color:var(--accent-color,#55b6e2); font-size:.68rem;
-    font-weight:600; line-height:1.3; white-space:nowrap; text-overflow:ellipsis;
+  .oi33-achievement-list { list-style:none; margin:0; padding:0; }
+  .oi33-achievement-list__row {
+    display:flex; align-items:baseline; gap:.6rem; padding:.25rem 0; min-width:0;
+    border-bottom:1px dashed rgba(127,127,127,.15);
   }
-  .oi33-achievement-feature-label + h4 { margin-top:.25rem; }
-  .oi33-achievement-rule, .oi33-achievement-time {
-    overflow:hidden; color:#777; font-size:.75rem;
-    line-height:1.35; white-space:nowrap; text-overflow:ellipsis;
+  .oi33-achievement-list__row:last-child { border-bottom:none; }
+  .oi33-achievement-list__icon {
+    width:1em; height:1em; flex:0 0 1em; align-self:center; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .oi33-achievement-list__name { flex:0 0 auto; font-weight:600; }
+  .oi33-achievement-list__desc {
+    flex:1 1 auto; min-width:0; color:#777; font-size:.85em;
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
   }
   .oi33-achievement-empty { color:#777; font-size:.85em; }
-  .theme--dark .oi33-achievement-rule,
-  .theme--dark .oi33-achievement-time,
+  .theme--dark .oi33-achievement-list__desc,
+  [data-mantine-color-scheme=dark] .oi33-achievement-list__desc { color:#aaa; }
   .theme--dark .oi33-achievement-empty,
-  [data-mantine-color-scheme=dark] .oi33-achievement-rule,
-  [data-mantine-color-scheme=dark] .oi33-achievement-time,
   [data-mantine-color-scheme=dark] .oi33-achievement-empty { color:#aaa; }
-  @media (max-width:900px) {
-    .oi33-achievement-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  }
   @media (max-width:500px) {
-    .oi33-achievement-grid { grid-template-columns:1fr; }
+    .oi33-showcase-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
 </style>
 {% endblock %}

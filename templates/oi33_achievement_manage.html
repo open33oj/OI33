@@ -8,6 +8,7 @@
       <div class="section__header">
         <h1 class="section__title">成就管理</h1>
         <div class="section__tools">
+          <a href="{{ url('oi33_auction') }}" class="rounded button">成就拍卖</a>
           <form method="post" action="{{ url('oi33_achievement_scan') }}" style="display:inline;margin:0;"
             onsubmit="return confirm('将逐个扫描现有 OI33 用户并补发成就。扫描补发不会发布喵喵；猫粮按账户明细中的历史最高余额统计。确定开始吗？');">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -100,6 +101,13 @@
                   <input type="file" name="image" accept="image/png,.png" {% if not editing %}required{% endif %}>
                 </div>
               </div>
+              <div class="form__item">
+                <label style="display:flex;align-items:center;gap:0.5rem;">
+                  <input type="checkbox" name="saleable" value="1"
+                    {% if editing and editing.saleable %}checked{% endif %}>
+                  可售卖（拍卖获得该成就的用户可以创建交易合同转售）
+                </label>
+              </div>
               {% if editing %}
               <div class="achievement-edit-preview">
                 <img class="achievement-pixel" src="{{ editing.imageData }}"
@@ -155,9 +163,10 @@
               {{ '自动发放' if achievement.ruleType and achievement.ruleType != 'manual' else '手动发放' }}
             </p>
             <p class="achievement-meta">
-              {{ achievement.imageSize }}×{{ achievement.imageSize }} · 排序 {{ achievement.order }}
+              {{ achievement.imageSize }}×{{ achievement.imageSize }} · 排序 {{ achievement.order }}{% if achievement.saleable %} · 可售卖{% endif %}
             </p>
             <a class="rounded button" href="{{ url('oi33_achievement_manage', query={edit:achievement._id}) }}">编辑</a>
+            <a class="rounded button" href="{{ url('oi33_auction', query={achievement:achievement._id}) }}">发起拍卖</a>
             <form method="post" action="{{ url('oi33_achievement_delete', id=achievement._id) }}"
               class="achievement-inline-form" onsubmit="return confirm('确定删除这个尚未授予的成就吗？');">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">

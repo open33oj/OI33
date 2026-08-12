@@ -10,6 +10,8 @@ const ACCOUNT_PAGE_SIZE = 50;
 const CHART_DAYS = 7;
 const PREVIEW_TTL = 30 * 60 * 1000;
 
+export const CAT_FOOD_UNVERIFIED_MESSAGE = '该用户未通过认证，无法获得猫粮。';
+
 export interface CatFoodGrantItem {
     uid: number;
     amount: number;
@@ -211,11 +213,17 @@ export async function grantCatFood(
 ) {
     if (!Number.isSafeInteger(amount) || amount === 0) throw new Error('猫粮调整数量必须是非零整数。');
     if (!reason.trim() || reason.trim().length > 100) throw new Error('调整原因不能为空且不能超过 100 字。');
-    const result = amount > 0
-        ? await userColl.updateOne({ _id: uid }, { $inc: { cat_food: amount } }, { upsert: true })
-        : await userColl.updateOne({ _id: uid, cat_food: { $gte: -amount } }, { $inc: { cat_food: amount } });
+    if (amount > 0) {
+        const target = await userColl.findOne({ _id: uid }, { projection: { realname_flag: 1 } });
+        if ((Number((target as any)?.realname_flag) || 0) < 1) {
+            throw new Error(CAT_FOOD_UNVERIFIED_MESSAGE);
+        }
+    }
+    // Both directions use a plain $inc: deductions may drive the balance
+    // negative (e.g. clawing back mis-granted food); future earnings simply
+    // offset the debt. Spending paths still gate on sufficient balance.
+    const result = await userColl.updateOne({ _id: uid }, { $inc: { cat_food: amount } }, { upsert: true });
     if (!result.acknowledged) throw new Error('猫粮调整失败。');
-    if (amount < 0 && !result.modifiedCount) throw new Error('猫粮余额不足，无法扣除。');
     let counterUpdated = false;
     try {
         const counterResult = await catCanPoolColl.updateOne(
@@ -265,14 +273,24 @@ export async function confirmCatFoodBatchPreview(id: string, operator: number, n
     );
     if (!claimed.modifiedCount) throw new Error('该预览已被处理。');
     let total = 0;
+    let granted = 0;
+    let skipped = 0;
     try {
         for (let index = 0; index < preview.items.length; index++) {
             const item = preview.items[index];
-            await grantCatFood(item.uid, operator, item.amount, item.reason, 'bulk_grant', { batchId: _id, batchIndex: index });
-            total += item.amount;
+            try {
+                await grantCatFood(item.uid, operator, item.amount, item.reason, 'bulk_grant', { batchId: _id, batchIndex: index });
+                total += item.amount;
+                granted++;
+            } catch (e: any) {
+                // Users downgraded to unverified between preview and confirm
+                // are skipped instead of aborting the whole batch.
+                if (e?.message !== CAT_FOOD_UNVERIFIED_MESSAGE) throw e;
+                skipped++;
+            }
         }
         await catFoodBatchPreviewColl.updateOne({ _id }, { $set: { status: 'completed', completedAt: new Date(), total } });
-        return { users: preview.items.length, total };
+        return { users: granted, skipped, total };
     } catch (e: any) {
         await catFoodBatchPreviewColl.updateOne({ _id }, { $set: { status: 'failed', failedAt: new Date(), error: e?.message || String(e), total } });
         throw e;

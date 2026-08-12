@@ -1,0 +1,92 @@
+{% set page_name = "oi33_achievement_showcase" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">编辑成就展示柜</h1>
+        <div class="section__tools">
+          <a href="{{ url('user_detail', uid=handler.user._id) }}" class="rounded button">返回个人页</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="showcase-help">
+          勾选要展示的成就徽章，最多 <strong>{{ max }}</strong> 个，将在个人页以 4×4 网格展示。
+          勾选后在数字框里填写展示顺序（1 开始，从左到右、从上到下），保存时按数字从小到大排列。
+          当前已选 <strong id="showcase-count">0</strong> / {{ max }} 个。
+        </p>
+        {% if awards.length %}
+        <form method="post" action="{{ url('oi33_achievement_showcase') }}" id="showcase-form">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <div class="showcase-grid">
+            {% for award in awards %}
+            <label class="showcase-item{% if award.achievementId in selected %} showcase-item--selected{% endif %}"
+              title="{{ award.achievement.description }}">
+              <input type="checkbox" name="ids" value="{{ award.achievementId }}"
+                {% if award.achievementId in selected %}checked{% endif %}>
+              <img class="showcase-pixel" src="{{ award.achievement.imageData }}" width="48" height="48"
+                alt="{{ award.achievement.name }}">
+              <span class="showcase-name">{{ award.achievement.name }}</span>
+              <input type="number" class="showcase-pos" name="pos_{{ award.achievementId }}"
+                min="1" max="{{ max }}" step="1" placeholder="顺序"
+                value="{{ positions[award.achievementId] or '' }}">
+            </label>
+            {% endfor %}
+          </div>
+          <button type="submit" class="rounded primary button" style="margin-top:1rem;">保存展示柜</button>
+        </form>
+        {% else %}
+        <p class="showcase-help">你还没有获得成就。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .showcase-help { color:#777; }
+  .theme--dark .showcase-help, [data-mantine-color-scheme=dark] .showcase-help { color:#aaa; }
+  .showcase-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:0.75rem; }
+  .showcase-item {
+    display:flex; flex-direction:column; align-items:center; gap:0.4rem;
+    padding:0.75rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
+    cursor:pointer; text-align:center;
+  }
+  .showcase-item--selected { border-color:var(--accent-color,#55b6e2); box-shadow:0 0 0 1px var(--accent-color,#55b6e2); }
+  .showcase-item input { margin:0; }
+  .showcase-pixel { width:48px; height:48px; object-fit:fill; image-rendering:crisp-edges; image-rendering:pixelated; }
+  .showcase-name { font-size:.85rem; overflow:hidden; max-width:100%; white-space:nowrap; text-overflow:ellipsis; }
+  .showcase-pos {
+    display:none; width:4.5rem; padding:0.1rem 0.3rem; text-align:center;
+    border:1px solid rgba(127,127,127,.35); border-radius:4px; background:transparent; color:inherit;
+  }
+  .showcase-item--selected .showcase-pos { display:block; }
+</style>
+<script>
+  (function () {
+    var form = document.getElementById('showcase-form');
+    if (!form) return;
+    var max = {{ max }};
+    var counter = document.getElementById('showcase-count');
+    var boxes = Array.prototype.slice.call(form.querySelectorAll('input[name="ids"]'));
+    function update() {
+      var checked = boxes.filter(function (box) { return box.checked; });
+      counter.textContent = String(checked.length);
+      boxes.forEach(function (box) {
+        box.closest('.showcase-item').classList.toggle('showcase-item--selected', box.checked);
+        if (!box.checked) box.disabled = checked.length >= max;
+      });
+    }
+    boxes.forEach(function (box) { box.addEventListener('change', update); });
+    // Newly checked badges get the next free position number automatically;
+    // the server sorts by these numbers anyway, so this is pure convenience.
+    form.addEventListener('change', function (event) {
+      var box = event.target;
+      if (box.name !== 'ids' || !box.checked) return;
+      var input = form.querySelector('input[name="pos_' + box.value + '"]');
+      if (input && !input.value) input.value = String(boxes.filter(function (b) { return b.checked; }).length);
+    });
+    update();
+  })();
+</script>
+{% endblock %}
