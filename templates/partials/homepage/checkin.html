@@ -4,7 +4,9 @@
   </div>
   <div class="section__body typo" style="text-align: center">
     {% if UserContext._id != 0 %}
-      {% if payload.oi33_checkin and payload.luck_today == payload.oi33_checkin.time %}
+      {% if (payload.oi33_checkin_flag or 0) < 1 %}
+        <p>{{ _('Verify realname to draw') }}</p>
+      {% elif payload.oi33_checkin and payload.luck_today == payload.oi33_checkin.time %}
         {% if payload.luck_vip and payload.luck_vip.includes(UserContext._id) %}
           <h1 style="font-weight: bold; color:{{ payload.luck_type[0].color }};">
             § 天天大吉 §

@@ -10,6 +10,7 @@ import { checkUserFlag, canPublish, checkOi33Admin } from './utils';
 class PasteCreateHandler extends Handler {
     async get() {
         const flag = await checkUserFlag(this.user._id);
+        if (flag < 1) throw new ForbiddenError('Only verified users can create pastes.');
         this.response.body = { canPublic: canPublish(flag), canCreateWiki: flag >= 2 };
         this.response.template = 'oi33_paste_create.html';
     }
@@ -22,6 +23,7 @@ class PasteCreateHandler extends Handler {
         if (!isprivate && !canPublish(flag)) {
             throw new ForbiddenError('Only verified users can create public pastes.');
         }
+        if (flag < 1) throw new ForbiddenError('Only verified users can create pastes.');
         const pasteid = await oi33Model.pasteAdd(this.user._id, title, content, !!isprivate);
         this.response.redirect = this.url('oi33_paste_show', { id: pasteid });
     }
@@ -34,6 +36,7 @@ class PasteEditHandler extends Handler {
         if (!doc) throw new NotFoundError(id);
         if (this.user._id !== doc.owner) await checkOi33Admin(this.user._id);
         const flag = await checkUserFlag(this.user._id);
+        if (flag < 1) throw new ForbiddenError('Only verified users can edit pastes.');
         this.response.body = { doc, canPublic: canPublish(flag) };
         this.response.template = 'oi33_paste_edit.html';
     }
@@ -50,6 +53,7 @@ class PasteEditHandler extends Handler {
         if (!isprivate && !canPublish(flag)) {
             throw new ForbiddenError('Only verified users can publish pastes.');
         }
+        if (flag < 1) throw new ForbiddenError('Only verified users can edit pastes.');
         await oi33Model.pasteEdit(pasteId, doc.owner, title, content, !!isprivate);
         this.response.redirect = this.url('oi33_paste_show', { id: pasteId });
     }

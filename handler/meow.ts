@@ -268,6 +268,7 @@ class MeowFollowHandler extends Handler {
     @param('uid', Types.Int)
     async post(domainId: string, uid: number) {
         if (uid === this.user._id) throw new ValidationError('不能关注自己。');
+        if (await checkUserFlag(this.user._id) < 1) throw new ForbiddenError('完成实名认证后才能关注用户。');
         if (await oi33Model.meowFollow(this.user._id, uid)) {
             await addLog({ type: 'meow', userId: this.user._id, action: 'follow', uid });
         }
@@ -292,6 +293,7 @@ class MeowUnfollowHandler extends Handler {
 class MeowLikeHandler extends Handler {
     @param('postId', Types.ObjectId)
     async post(domainId: string, postId: ObjectId) {
+        if (await checkUserFlag(this.user._id) < 1) throw new ForbiddenError('完成实名认证后才能点赞。');
         const post = await oi33Model.meowGetPost(postId);
         if (!post) throw new NotFoundError(postId);
         // Only approved posts (and your own posts) can be liked, so a manual

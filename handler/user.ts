@@ -1,9 +1,9 @@
 import {
     moment, UserModel,
-    Handler, PRIV, Types, param, query, NotFoundError, Context,
+    Handler, PRIV, Types, param, query, NotFoundError, ForbiddenError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
-import { checkOi33Admin } from './utils';
+import { checkOi33Admin, checkUserFlag } from './utils';
 
 // --- Coin handlers ---
 
@@ -153,6 +153,7 @@ class UsersShowHandler extends Handler {
 class CheckinHandler extends Handler {
     async post() {
         const uid = this.user._id;
+        if (await checkUserFlag(uid) < 1) throw new ForbiddenError('完成实名认证后才能签到。');
         const now = moment().format('YYYY-MM-DD');
         const result = await oi33Model.doCheckin(uid, now);
         if (result.checkedIn) {

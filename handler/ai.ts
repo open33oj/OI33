@@ -344,19 +344,30 @@ async function generateProblemSummary(
 
 // Judge the Luogu-scale difficulty (1-8) from the condensed statement and
 // cache it on the summary doc. Cost is recorded globally (type 'summary'),
-// never charged to a user. Returns the level or null on failure.
+// never charged to a user. On failure returns difficulty: null plus the
+// underlying reason so callers can show it instead of a generic message.
 async function generateProblemDifficulty(
     domainId: string, pid: number, briefText: string, modelName: string,
-): Promise<number | null> {
+): Promise<{ difficulty: number | null; error: string }> {
+    const fail = (error: string) => ({ difficulty: null, error });
     const config = await resolveChatConfig(modelName);
-    if (!config.apiKey) return null;
+    if (!config.apiKey) return fail('未配置 API Key。');
     const cfg = await oi33Model.aiGetConfig();
     const systemPrompt = cfg.difficulty_prompt || DIFFICULTY_SYSTEM_PROMPT;
-    const { content, usage } = await callChatCompletion(config, systemPrompt, briefText, 2048, true, { effort: cfg.summary_effort });
+    // No response_format json mode here: thinking-mode models reject it with
+    // a 400, and reasoning can exhaust a tiny max_tokens before any JSON
+    // lands. The prompt already demands a bare JSON object; extract it.
+    const { content, usage, error } = await callChatCompletion(
+        config, systemPrompt, briefText, 8192, false,
+        { effort: cfg.summary_effort, timeoutMs: 300000 },
+    );
+    if (!content) return fail(error || 'API 无响应。');
+    // Models may wrap the JSON in prose or code fences; extract it leniently.
     let parsed: any = null;
-    try { parsed = JSON.parse(content); } catch { /* fall through */ }
+    const match = content.match(/\{[^{}]*"difficulty"\s*:\s*\d+[^{}]*\}/);
+    try { parsed = match ? JSON.parse(match[0]) : null; } catch { /* fall through */ }
     const difficulty = Number(parsed?.difficulty);
-    if (!Number.isSafeInteger(difficulty) || difficulty < 1 || difficulty > 8) return null;
+    if (!Number.isSafeInteger(difficulty) || difficulty < 1 || difficulty > 8) return fail('模型未返回有效难度。');
     await oi33Model.aiSaveProblemDifficulty(domainId, pid, difficulty, config.model);
     await oi33Model.aiAddUsage({
         uid: 0,
@@ -371,7 +382,7 @@ async function generateProblemDifficulty(
         cost: calcCost(usage, config.price),
         deducted: false,
     });
-    return difficulty;
+    return { difficulty, error: '' };
 }
 
 // Combined generation: one call produces the condensed statement AND the
@@ -692,8 +703,8 @@ class Ai33SummaryHandler extends Handler {
             if (!pdoc) throw new NotFoundError(pid);
             const summary = await oi33Model.aiGetProblemSummary(domainId, pdoc.docId);
             if (!summary?.content) throw new ValidationError('请先生成精简题意。');
-            const difficulty = await generateProblemDifficulty(domainId, pdoc.docId, summary.content, cfg.summary_model);
-            if (!difficulty) throw new Error('难度评判失败：请检查模型配置与 API Key，或稍后再试。');
+            const { difficulty, error } = await generateProblemDifficulty(domainId, pdoc.docId, summary.content, cfg.summary_model);
+            if (!difficulty) throw new Error(`难度评判失败：${error || '请稍后再试。'}`);
             await applyAiDifficultyIfUnset(domainId, pdoc, difficulty);
         }
         this.response.redirect = this.url('oi33_ai_summary', { query: { domainId, pid } });
@@ -757,7 +768,7 @@ async function runSummaryBatch(domainId: string, problems: any[]) {
                     }
                     if (!difficulty) {
                         // Cached summary without a difficulty: judge it on its own.
-                        difficulty = await generateProblemDifficulty(domainId, pdoc.docId, brief, cfg.summary_model);
+                        difficulty = (await generateProblemDifficulty(domainId, pdoc.docId, brief, cfg.summary_model)).difficulty;
                         if (difficulty) {
                             counters.difficulties++;
                             acted = true;
@@ -1044,9 +1055,9 @@ class Ai33SummaryStreamHandler extends ConnectionHandler {
                     return;
                 }
                 this.send({ status: 'difficulty' });
-                const difficulty = await generateProblemDifficulty(domainId, pdoc.docId, summary.content, cfg.summary_model);
+                const { difficulty, error } = await generateProblemDifficulty(domainId, pdoc.docId, summary.content, cfg.summary_model);
                 if (!difficulty) {
-                    this.send({ error: '难度评判失败：请检查模型配置与 API Key，或稍后再试。' });
+                    this.send({ error: `难度评判失败：${error || '请稍后再试。'}` });
                     return;
                 }
                 await applyAiDifficultyIfUnset(domainId, pdoc, difficulty);
