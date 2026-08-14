@@ -39,16 +39,38 @@ export function applyPatches(_ctx: Context) {
         // realname_name is sensitive: templates only render it to viewers with
         // OI33 flag >= 2. Apply the same rule to JSON serialization, otherwise
         // registering it in _publicFields above would leak real names to anyone.
+        // The override MUST be non-enumerable: handlers like /home/messages
+        // spread the udoc ({ ...udoc, avatarUrl }) into a plain object, and an
+        // enumerable serialize would be copied along; the framework JSON
+        // serializer ('serialize' in v) then calls it with the plain object as
+        // `this` and crashes with "this.getFields is not a function".
         const origSerialize = (clone as any).serialize;
         if (typeof origSerialize === 'function') {
-            (clone as any).serialize = function serialize(h?: any) {
-                const result = origSerialize.call(this, h);
-                if (result && (Number(h?.user?.realname_flag) || 0) < 2) {
-                    delete result.realname_name;
-                }
-                return result;
-            };
+            Object.defineProperty(clone, 'serialize', {
+                configurable: true,
+                enumerable: false,
+                writable: true,
+                value: function serialize(h?: any) {
+                    const result = origSerialize.call(this, h);
+                    if (result && (Number(h?.user?.realname_flag) || 0) < 2) {
+                        delete result.realname_name;
+                    }
+                    return result;
+                },
+            });
         }
+        // Likewise, once the serialize override is lost through a spread, a
+        // plain-enumerable realname_name would leak real names into JSON
+        // verbatim. Define it non-enumerable up front; the later
+        // mergeOi33Fields assignment keeps the attributes (writable), while
+        // templates and pick() inside serialize() still read it normally.
+        // (Same trick as the getListForRender patch below.)
+        Object.defineProperty(clone, 'realname_name', {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: (clone as any).realname_name || '',
+        });
         return clone;
     }
 

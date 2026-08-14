@@ -352,6 +352,31 @@
         </div>
       </div>
     </div>{% endif %}
+    {% if (handler.user.realname_flag or 0) >= 2 %}
+    {# 管理员可见的注册信息（包括未认证用户），用于识别小号。IP 可点击反查同 IP 账号。 #}
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">注册信息</h2>
+        <div class="section__tools">
+          <a href="{{ url('oi33_admin_accounts') }}" class="rounded button">全部账号</a>
+        </div>
+      </div>
+      <div class="typo section__body no-media">
+        <dl class="exlarge horizontal">
+          <dt>邮箱</dt>
+          <dd>{{ udoc.mail or '-' }}</dd>
+          <dt>注册时间</dt>
+          <dd>{% if udoc.regat %}{{ datetimeSpan(udoc.regat)|safe }}{% else %}-{% endif %}</dd>
+          <dt>最近登录</dt>
+          <dd>{% if udoc.loginat %}{{ datetimeSpan(udoc.loginat)|safe }}{% else %}-{% endif %}</dd>
+          <dt>最近 IP</dt>
+          <dd>{% if udoc.loginip %}<a href="{{ url('oi33_admin_ip', query={ip: udoc.loginip}) }}">{{ udoc.loginip }}</a>{% else %}-{% endif %}</dd>
+          <dt>所有 IP</dt>
+          <dd>{% for item in udoc.ip or [] %}<a href="{{ url('oi33_admin_ip', query={ip: item}) }}">{{ item }}</a>{{ ' ' }}{% else %}-{% endfor %}</dd>
+        </dl>
+      </div>
+    </div>
+    {% endif %}
   </div>
   <div class="medium-3 columns">
     <div class="section side oi33-cat-card">

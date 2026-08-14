@@ -88,7 +88,7 @@ oi33/
 | `oi33_oauth_code` | `_id` (auth code), `clientId`, `uid`, `redirectUri`, `scopes`, `codeChallenge?`, `codeChallengeMethod?`, `expiresAt` (10 min), `consumed` |
 | `oi33_oauth_token` | `_id`, `tokenHash` (SHA-256 of `33oat_…`), `tokenPrefix`, `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `lastUsedAt`, `isActive` |
 | `oi33_oauth_refresh` | `_id`, `tokenHash` (SHA-256 of `33ojrt_…`), `clientId`, `uid`, `scopes`, `expiresAt`, `createdAt`, `isActive` |
-| `oi33_log` | `_id`, `createdAt`, `type` (coin/birthday/badge/realname/checkin/cat_account/cat_map/paste/wiki/request/oauth/auction), type-specific fields |
+| `oi33_log` | `_id`, `createdAt`, `type` (coin/birthday/badge/realname/checkin/cat_account/cat_map/paste/wiki/request/oauth/auction/admin), type-specific fields |
 | `oi33_auction` | `_id` (ObjectId), `achievementId`, `startPrice`, `startAt`, `endAt`, `createdBy`, `status` (`active`/`settled`/`cancelled`), `highestBid`, `highestBidder`, `bidCount`, `winner`, `settlePrice`, `foodBurn` (reserve food burned at settlement, absent on legacy), `settledAt` |
 | `oi33_auction_bid` | `_id` (ObjectId), `auctionId`, `uid`, `amount`, `createdAt` |
 | `oi33_achievement_contract` | `_id` (ObjectId), `achievementId`, `seller`, `buyer`, `price` (cat food g), `fee` (intermediary fee g, absent on legacy contracts), `status` (`pending`/`accepted`/`declined`/`cancelled`), `createdAt`, `resolvedAt` |
@@ -137,6 +137,8 @@ When rendering user lists with oi33 data:
 Never use `getListForRender` when the `user.html` component is rendered, because that component calls `udoc.hasPriv()` which is only available on `getList` results.
 
 Users with `realname_flag < 1` (including missing `oi33_user` data) are anonymized in all user-list rendering as `UID <id>` with the default blank avatar. Their custom username and avatar are visible only on their own user-detail page to viewers with `realname_flag >= 2`.
+
+For alt-account detection, viewers with `realname_flag >= 2` additionally see a 注册信息 card on every user-detail page (including unverified profiles, where the stock registration block is hidden): mail, regat/loginat, last-login IP and all historical IPs, each IP linking to `/oi33/admin/ip?ip=…` (all accounts that used it). The full roster lives at `/oi33/admin/accounts`; both pages read Hydro's raw `user` collection directly, bypassing the anonymizing `UserModel.getList` patch on purpose.
 
 Cat-map participation also requires `realname_flag >= 1`. Downgrading a user below that level deletes their map-player position immediately so an invisible player cannot continue occupying a cell; re-verification requires joining the arena again.
 
@@ -252,6 +254,9 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/paste/show/:id/edit` | PasteEditHandler | PRIV_USER_PROFILE + verified |
 | `/oi33/paste/show/:id/delete` | PasteDeleteHandler | PRIV_USER_PROFILE |
 | `/oi33/admin` | Oi33AdminHandler | OI33 flag >= 2 |
+| `/oi33/admin/user/create` | AdminUserCreateHandler (GET 表单 / POST) | OI33 flag >= 2 |
+| `/oi33/admin/accounts` | AdminAccountsHandler | OI33 flag >= 2 |
+| `/oi33/admin/ip` | AdminIpHandler (`?ip=`) | OI33 flag >= 2 |
 | `/oi33/migrate` | MigrateHandler | OI33 flag >= 2 |
 | `/oi33/wiki` | WikiMainHandler | public |
 | `/oi33/wiki/pages` | WikiPagesHandler | public |

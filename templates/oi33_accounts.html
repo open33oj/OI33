@@ -1,0 +1,87 @@
+{% set page_name = "oi33_accounts" %}
+{% import "components/nothing.html" as nothing with context %}
+{% import "components/paginator.html" as paginator with context %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{% if ip %}IP {{ ip }} 的所有用户{% else %}账号注册信息{% endif %}</h1>
+        <div class="section__tools">
+          {% if ip %}<a href="{{ url('oi33_admin_accounts') }}" class="rounded button">全部用户</a>{% endif %}
+          <a href="{{ url('oi33_admin') }}" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <form method="get" action="{{ url('oi33_admin_ip') }}" style="display:flex;gap:0.5rem;align-items:center;">
+          <input type="text" name="ip" class="textbox" placeholder="输入 IP，查询使用过该 IP 的所有用户"
+                 value="{{ ip or '' }}" style="max-width:320px;" required>
+          <button type="submit" class="rounded button">查询 IP</button>
+        </form>
+      </div>
+      <div class="section__body no-padding">
+        {% if not udocs.length %}
+        {{ nothing.render(_('No data')) }}
+        {% else %}
+        <table class="data-table">
+          <colgroup>
+            <col class="col--uid" style="width:5rem">
+            <col class="col--user">
+            <col class="col--flag" style="width:9rem">
+            <col class="col--mail">
+            <col class="col--time" style="width:9rem">
+            <col class="col--time" style="width:9rem">
+            <col class="col--ip" style="width:9rem">
+            <col class="col--ip">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="col--uid">{{ _('User ID') }}</th>
+              <th class="col--user">{{ _('Username') }}</th>
+              <th class="col--flag">{{ _('Flag') }}</th>
+              <th class="col--mail">邮箱</th>
+              <th class="col--time">注册时间</th>
+              <th class="col--time">最近登录</th>
+              <th class="col--ip">最近 IP</th>
+              <th class="col--ip">所有 IP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {%- for udoc in udocs -%}
+            <tr>
+              <td class="col--uid">{{ udoc._id }}</td>
+              <td class="col--user">
+                <a href="{{ url('user_detail', uid=udoc._id) }}">{{ udoc.uname }}</a>
+              </td>
+              <td class="col--flag">
+                {%- if udoc.oi33_flag == 1 -%}{{ _('Verified') }}
+                {%- elif udoc.oi33_flag == 2 -%}{{ _('Teacher') }}
+                {%- elif udoc.oi33_flag == 3 -%}{{ _('Admin') }}
+                {%- else -%}{{ _('Unverified') }}{%- endif -%}
+                {%- if udoc.oi33_realname %}（{{ udoc.oi33_realname }}）{% endif -%}
+              </td>
+              <td class="col--mail">{{ udoc.mail or '' }}</td>
+              <td class="col--time">{% if udoc.regat %}{{ datetimeSpan(udoc.regat)|safe }}{% endif %}</td>
+              <td class="col--time">{% if udoc.loginat %}{{ datetimeSpan(udoc.loginat)|safe }}{% endif %}</td>
+              <td class="col--ip">
+                {%- if udoc.loginip -%}
+                <a href="{{ url('oi33_admin_ip', query={ip: udoc.loginip}) }}">{{ udoc.loginip }}</a>
+                {%- endif -%}
+              </td>
+              <td class="col--ip">
+                {%- for item in udoc.ip or [] -%}
+                <a href="{{ url('oi33_admin_ip', query={ip: item}) }}">{{ item }}</a>{{ ' ' }}
+                {%- endfor -%}
+              </td>
+            </tr>
+            {%- endfor -%}
+          </tbody>
+        </table>
+        {{ paginator.render(page, upcount, add_qs=('ip=' + (ip|urlencode) if ip else '')) }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
