@@ -17,7 +17,7 @@
       </div>
       <div class="section__body">
         <p class="contract-help">
-          拍卖中获得的可售卖成就可以通过合同转售给指定用户：对方接受后，成就转给对方、对方的猫粮转给你。
+          拍卖或合同交易中获得的可售卖成就可以通过合同转售给指定用户：对方接受后，成就转给对方、对方的猫粮转给你。
           成交时收取成交价 {{ feePercent }}% 的中介费（向上取整），从卖家到账中扣除并销毁。
           你当前持有 <strong>{{ catFood.amount(viewerFood) }}</strong> 猫粮。
         </p>
@@ -56,7 +56,7 @@
             <button type="submit" class="rounded primary button">创建合同</button>
           </form>
           {% else %}
-          <p class="contract-help">你目前没有可转售的成就。只有通过拍卖获得、且被标记为可售卖的成就才能创建合同。</p>
+          <p class="contract-help">你目前没有可转售的成就。只有通过拍卖或交易合同获得、且被标记为可售卖的成就才能创建合同。</p>
           {% endif %}
         </div>
 

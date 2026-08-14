@@ -453,7 +453,7 @@ async function getCatCanEconomy(now = new Date()) {
                 { type: 'auction', action: 'settle' },
             ],
         } as any, {
-            projection: { type: 1, action: 1, amount: 1, canAmount: 1, fee: 1, createdAt: 1 },
+            projection: { type: 1, action: 1, amount: 1, canAmount: 1, fee: 1, foodBurn: 1, createdAt: 1 },
         }).toArray(),
         catCanBillColl.find(
             { createdAt: { $gte: since30 } },

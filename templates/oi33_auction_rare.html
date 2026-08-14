@@ -25,7 +25,7 @@
           {% for row in rows %}
             <tr>
               <td>
-                <img class="rare-icon" src="{{ row.achievement.imageData }}" alt="{{ row.achievement.name }}">
+                <img class="rare-icon" src="{{ row.achievement.imageData }}" width="64" height="64" alt="{{ row.achievement.name }}">
                 {{ row.achievement.name }}
                 <br><small class="rare-desc">{{ row.achievement.description }}</small>
               </td>
@@ -60,7 +60,7 @@
   .theme--dark .rare-help, [data-mantine-color-scheme=dark] .rare-help,
   .theme--dark .rare-desc, [data-mantine-color-scheme=dark] .rare-desc { color:#aaa; }
   .rare-icon {
-    width:1em; height:1em; vertical-align:-0.1em; object-fit:fill;
+    width:64px; height:64px; vertical-align:middle; object-fit:fill;
     image-rendering:crisp-edges; image-rendering:pixelated;
   }
 </style>

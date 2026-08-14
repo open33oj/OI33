@@ -36,10 +36,15 @@ export async function contractGet(id: string | ObjectId) {
     return await contractColl.findOne({ _id: objectId });
 }
 
-// A user's award is sellable only when the achievement definition allows
-// reselling AND this copy was won at auction (source === 'auction').
+// A user's award is sellable when the achievement definition allows reselling
+// AND this copy came from a trade (auction win or a previous contract), so
+// contract-bought copies can be resold again.
+export const TRADE_AWARD_SOURCES = ['auction', 'contract'];
+
 export async function contractListSellableAwards(uid: number) {
-    const awards = await userAchievementColl.find({ uid, source: 'auction' }).toArray();
+    const awards = await userAchievementColl.find({
+        uid, source: { $in: TRADE_AWARD_SOURCES },
+    }).toArray();
     if (!awards.length) return [];
     const definitions = await achievementColl.find({
         _id: { $in: awards.map((award) => award.achievementId) },
@@ -66,8 +71,10 @@ export async function contractCreate(input: {
     const achievement = await achievementColl.findOne({ _id: achievementId });
     if (!achievement) throw new ValidationError('成就不存在。');
     if (!achievement.saleable) throw new ValidationError('该成就不可售卖。');
-    const award = await userAchievementColl.findOne({ uid: seller, achievementId, source: 'auction' });
-    if (!award) throw new ValidationError('只有拍卖获得的成就才能转售。');
+    const award = await userAchievementColl.findOne({
+        uid: seller, achievementId, source: { $in: TRADE_AWARD_SOURCES },
+    });
+    if (!award) throw new ValidationError('只有拍卖或交易合同获得的成就才能转售。');
     const buyerAward = await userAchievementColl.findOne({ uid: buyer, achievementId });
     if (buyerAward) throw new ValidationError('对方已经拥有这个成就。');
     const running = await contractColl.findOne({ seller, achievementId, status: 'pending' });
@@ -99,7 +106,8 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
     const achievement = await achievementColl.findOne({ _id: contract.achievementId });
     if (!achievement?.saleable) throw new ValidationError('该成就已不可售卖，合同失效。');
     const award = await userAchievementColl.findOne({
-        uid: contract.seller, achievementId: contract.achievementId, source: 'auction',
+        uid: contract.seller, achievementId: contract.achievementId,
+        source: { $in: TRADE_AWARD_SOURCES },
     });
     if (!award) throw new ValidationError('卖家已经不再拥有该成就，合同失效。');
     const buyerAward = await userAchievementColl.findOne({
