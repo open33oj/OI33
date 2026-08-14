@@ -75,6 +75,7 @@
               <a href="/oi33/users" class="primary rounded button">{{ _('OI33 All Users') }}</a>
               <a href="{{ url('oi33_admin_accounts') }}" class="rounded button">账号与 IP</a>
               <a href="{{ url('oi33_admin_user_create') }}" class="rounded button">新建用户</a>
+              <a href="{{ url('oi33_admin_user_password') }}" class="rounded button">重置密码</a>
               <a href="/oi33/requests" class="{% if pendingCount %}primary {% endif %}rounded button">
                 {{ _('Pending Requests') }}{% if pendingCount %} ({{ pendingCount }}){% endif %}
               </a>
@@ -431,6 +432,10 @@
               {% if a.action == 'create_user' %}
                 <span class="oi33-timeline__note">创建了新用户</span>
                 {{ userLink(a.userId) }}
+              {% elif a.action == 'reset_password' %}
+                <span class="oi33-timeline__note">重置了</span>
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__note">的密码</span>
               {% else %}
                 <span class="oi33-timeline__note">{{ a.action }}</span>
               {% endif %}

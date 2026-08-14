@@ -117,6 +117,7 @@ Core profile/content write operations also insert into `oi33_log`. `oi33_user.ca
 - `PRIV_USER_PROFILE`: any logged-in user
 - OI33 `realname_flag >= 2`: all OI33 management and approval operations
 - `PRIV_ALL`: super-admin (used only for token management)
+- Admin password reset (`/oi33/admin/user/password`): flag 2 may only reset ordinary users (target flag < 2 and not Hydro `PRIV_ALL`); flag 3 is unrestricted
 
 ### `realname_flag` identity levels
 | Flag | Label | Paste public? |
@@ -255,6 +256,7 @@ AtCoder/Codeforces 用户名通过申请流程修改。AT 和 CF 的 rating 字�
 | `/oi33/paste/show/:id/delete` | PasteDeleteHandler | PRIV_USER_PROFILE |
 | `/oi33/admin` | Oi33AdminHandler | OI33 flag >= 2 |
 | `/oi33/admin/user/create` | AdminUserCreateHandler (GET 表单 / POST) | OI33 flag >= 2 |
+| `/oi33/admin/user/password` | AdminUserPasswordHandler (GET 表单 / POST) | OI33 flag >= 2 |
 | `/oi33/admin/accounts` | AdminAccountsHandler | OI33 flag >= 2 |
 | `/oi33/admin/ip` | AdminIpHandler (`?ip=`) | OI33 flag >= 2 |
 | `/oi33/migrate` | MigrateHandler | OI33 flag >= 2 |

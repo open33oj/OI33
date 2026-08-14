@@ -1,11 +1,11 @@
-import { Handler, PRIV, Types, query, param, Context, UserModel, ObjectId, UserAlreadyExistError, db } from 'hydrooj';
+import { Handler, PRIV, Types, query, param, Context, UserModel, ObjectId, UserAlreadyExistError, UserNotFoundError, ForbiddenError, db } from 'hydrooj';
 import Schema from 'schemastery';
 import { oi33Model } from '../model';
 import { addLog } from '../model/log';
 import { migrate, previewMigration } from '../migrate';
 import { runUpdateRatings } from '../scripts/update-ratings';
 import { runFixLuoguDifficulty } from '../scripts/fix-luogu-difficulty';
-import { checkOi33Admin } from './utils';
+import { checkOi33Admin, checkUserFlag } from './utils';
 
 // --- Admin dashboard ---
 
@@ -66,6 +66,45 @@ class AdminUserCreateHandler extends Handler {
         });
         this.response.redirect = this.url('oi33_admin', {
             query: { notification: `用户 ${uname}（UID ${uid}）创建成功。` },
+        });
+    }
+}
+
+// --- Admin password reset ---
+
+class AdminUserPasswordHandler extends Handler {
+    async get() {
+        await checkOi33Admin(this.user._id);
+        this.response.template = 'oi33_user_password.html';
+    }
+
+    @param('target', Types.String)
+    @param('password', Types.Password)
+    async post(domainId: string, target: string, password: string) {
+        const flag = await checkOi33Admin(this.user._id);
+        const trimmed = target.trim();
+        const uid = /^\d+$/.test(trimmed) ? Number(trimmed) : NaN;
+        const udoc = Number.isFinite(uid)
+            ? await UserModel.getById('system', uid)
+            : await UserModel.getByUname('system', trimmed);
+        if (!udoc) throw new UserNotFoundError(trimmed);
+        // 管理员 (flag 2) 只能重置普通用户（含未认证/已认证）的密码；
+        // 行政管理员 (flag 3) 不受限。与 profile 编辑的身份层级规则一致。
+        // Hydro 超级管理员 (PRIV_ALL) 同样不允许 flag 2 重置，防止绕过
+        // OI33 身份体系接管超管账号。
+        const targetFlag = await checkUserFlag(udoc._id);
+        if (flag < 3 && (targetFlag >= 2 || udoc.hasPriv(PRIV.PRIV_ALL))) {
+            throw new ForbiddenError('不能重置管理员或行政管理员的密码。');
+        }
+        await UserModel.setPassword(udoc._id, password);
+        await addLog({
+            type: 'admin',
+            sender: this.user._id,
+            userId: udoc._id,
+            action: 'reset_password',
+        });
+        this.response.redirect = this.url('oi33_admin', {
+            query: { notification: `已重置用户 ${udoc.uname}（UID ${udoc._id}）的密码。` },
         });
     }
 }
@@ -142,6 +181,7 @@ class MigrateHandler extends Handler {
 export async function apply(ctx: Context) {
     ctx.Route('oi33_admin', '/oi33/admin', Oi33AdminHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_admin_user_create', '/oi33/admin/user/create', AdminUserCreateHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_admin_user_password', '/oi33/admin/user/password', AdminUserPasswordHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_admin_accounts', '/oi33/admin/accounts', AdminAccountsHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_admin_ip', '/oi33/admin/ip', AdminIpHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_migrate', '/oi33/migrate', MigrateHandler, PRIV.PRIV_USER_PROFILE);
