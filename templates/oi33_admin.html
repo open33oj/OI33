@@ -76,6 +76,7 @@
               <a href="{{ url('oi33_admin_accounts') }}" class="rounded button">账号与 IP</a>
               <a href="{{ url('oi33_admin_user_create') }}" class="rounded button">新建用户</a>
               <a href="{{ url('oi33_admin_user_password') }}" class="rounded button">重置密码</a>
+              <a href="{{ url('oi33_admin_mail_blacklist') }}" class="rounded button">邮箱黑名单</a>
               <a href="/oi33/requests" class="{% if pendingCount %}primary {% endif %}rounded button">
                 {{ _('Pending Requests') }}{% if pendingCount %} ({{ pendingCount }}){% endif %}
               </a>
@@ -91,6 +92,13 @@
               <a href="/oi33/coin/inc" class="rounded button">{{ _('Grant Coins') }}</a>
               <a href="{{ url('oi33_cat_food_grant') }}" class="rounded button">发放猫粮</a>
               {% if (handler.user.realname_flag or 0) >= 3 %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放猫粮</a>{% endif %}
+              {% if (handler.user.realname_flag or 0) >= 3 %}
+              <form method="post" action="{{ url('oi33_admin_cat_asset_purge') }}" style="display:inline;"
+                    onsubmit="return confirm('确认销毁所有未认证用户的猫粮（视作管理员扣除）、将其猫罐头回流储备池、把小猫移出猫猫广场并清空其对大猫的贡献（含历史投喂记录）？此操作不可撤销。');">
+                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                <button type="submit" class="rounded button">清理未认证猫资产</button>
+              </form>
+              {% endif %}
             </div>
           </div>
 

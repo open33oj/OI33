@@ -13,7 +13,9 @@
       </div>
       <div class="section__body">
         <div class="auction-detail">
+          {% if achievement.imageData %}
           <img class="auction-pixel" src="{{ achievement.imageData }}" width="96" height="96" alt="{{ achievement.name }}">
+          {% endif %}
           <div class="auction-detail__body">
             <h2>{{ achievement.name }}</h2>
             <p>{{ achievement.description }}</p>

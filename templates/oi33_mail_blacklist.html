@@ -1,0 +1,62 @@
+{% set page_name = "oi33_mail_blacklist" %}
+{% extends "layout/basic.html" %}
+{% import "components/nothing.html" as nothing with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">邮箱黑名单</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_admin') }}" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p style="opacity:0.6;">
+          被屏蔽的邮箱域名将无法用于注册（含 OAuth 首次登录）和修改邮箱，立即生效；已有账号不受影响。
+        </p>
+        <form method="post" action="{{ url('oi33_admin_mail_blacklist') }}" style="margin-bottom:1.5rem;">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <div class="row" style="margin-bottom:1rem;">
+            <div class="medium-6 columns">
+              <label>邮箱域名
+                <input type="text" name="domain" class="textbox" placeholder="example.com" required autofocus>
+              </label>
+            </div>
+          </div>
+          <button type="submit" class="rounded primary button">屏蔽该域名</button>
+        </form>
+
+        {% if entries.length %}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>域名</th>
+              <th>有效期至</th>
+              <th style="width:1%;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in entries %}
+            <tr>
+              <td><code>{{ entry.domain }}</code></td>
+              <td>{% if entry.expireAt %}{{ datetimeSpan(entry.expireAt)|safe }}{% else %}长期{% endif %}</td>
+              <td>
+                <form method="post" action="{{ url('oi33_admin_mail_blacklist_delete', domain=entry.domain) }}"
+                      onsubmit="return confirm('确认解除对 ' + '{{ entry.domain }}' + ' 的屏蔽？');">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <button type="submit" class="rounded button">解除</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        {{ nothing.render('黑名单为空。') }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -150,6 +150,9 @@ class ProfileEditHandler extends Handler {
             }
         } else {
             const current: any = (await oi33Model.getUserDataByUids([uid]))[uid] || {};
+            if ((current.realname_flag ?? 0) < 1 && kind !== 'realname') {
+                throw new ForbiddenError('未认证用户只能提交认证申请，其他信息请在认证通过后修改。');
+            }
             if (lockedKinds(current)[kind as Oi33RequestKind]) throw new ForbiddenError(LOCK_MESSAGE);
             await oi33Model.submitRequest(uid, kind as Oi33RequestKind, this.user._id, payload);
         }

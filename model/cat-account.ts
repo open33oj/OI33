@@ -2,6 +2,8 @@ import { db, ObjectId } from 'hydrooj';
 import { addLog, logColl } from './log';
 import { userColl } from './user';
 import { catCanBillColl, catCanPoolColl } from './cat-can';
+import { catMapPlayerColl } from './cat-map';
+import { schoolCatColl, schoolFeedHistoryColl } from './school-cat';
 
 export const catFoodBatchPreviewColl = db.collection('oi33_cat_food_batch_preview');
 
@@ -295,6 +297,113 @@ export async function confirmCatFoodBatchPreview(id: string, operator: number, n
         await catFoodBatchPreviewColl.updateOne({ _id }, { $set: { status: 'failed', failedAt: new Date(), error: e?.message || String(e), total } });
         throw e;
     }
+}
+
+// 销毁所有未认证用户的猫资产：猫粮视作管理员扣除（逐用户记 deduct
+// 日志），罐头回流储备池（circulatingCans 减少，储备粮不变，等于无偿归还），
+// 并把小猫移出猫猫广场、清空其对绑定大猫的当前贡献（大猫减重，不转入历史）
+// 以及全部历史投喂记录（删除 oi33_school_feed_history 并按学校扣减
+// historyWeight，恢复认证后也没有可恢复的贡献）。
+// 未认证用户本就无法获得/交易猫资产，这里清理的是历史遗留与降级账户，
+// 使其余额不再计入 userFoodTotal / circulatingCans 定价计数。
+export async function purgeUnverifiedCatAssets(operator: number, now = new Date()) {
+    const unverifiedFilter = {
+        $or: [{ realname_flag: { $exists: false } }, { realname_flag: { $lt: 1 } }],
+    };
+    const [targets, playerRows] = await Promise.all([
+        userColl.find({
+            $and: [
+                unverifiedFilter,
+                { $or: [{ cat_food: { $gt: 0 } }, { cat_can: { $gt: 0 } }, { school_cat_food: { $gt: 0 } }] },
+            ],
+        } as any, { projection: { cat_food: 1, cat_can: 1, school_cat: 1, school_cat_food: 1 } }).toArray(),
+        catMapPlayerColl.find({}, { projection: { _id: 1 } }).toArray(),
+    ]);
+    let users = 0;
+    let food = 0;
+    let cans = 0;
+    let schoolContribution = 0;
+    const affectedCatIds = new Set<number>();
+    for (const target of targets as any[]) {
+        const targetFood = Math.max(0, Number(target.cat_food) || 0);
+        const targetCans = Math.max(0, Number(target.cat_can) || 0);
+        const contribution = Math.max(0, Math.floor(Number(target.school_cat_food) || 0));
+        if (!targetFood && !targetCans && !contribution) continue;
+        // 带上清理时读到的数值作为过滤条件，数据并发变化则跳过该用户。
+        const filter: any = { _id: target._id };
+        const set: any = {};
+        const unset: any = {};
+        if (targetFood) { filter.cat_food = target.cat_food; set.cat_food = 0; }
+        if (targetCans) { filter.cat_can = target.cat_can; set.cat_can = 0; }
+        if (contribution) { filter.school_cat_food = target.school_cat_food; unset.school_cat_food = ''; }
+        const update: any = {};
+        if (Object.keys(set).length) update.$set = set;
+        if (Object.keys(unset).length) update.$unset = unset;
+        const claimed = await userColl.updateOne(filter, update);
+        if (!claimed.modifiedCount) continue;
+        users++;
+        food += targetFood;
+        cans += targetCans;
+        const schoolId = Number.isSafeInteger(target.school_cat) ? target.school_cat : null;
+        if (contribution && schoolId !== null) {
+            await schoolCatColl.updateOne(
+                { _id: schoolId } as any,
+                { $inc: { currentWeight: -contribution }, $set: { updatedAt: now } } as any,
+            );
+            affectedCatIds.add(schoolId);
+            schoolContribution += contribution;
+        }
+        await addLog({
+            type: 'cat_account', userId: target._id, sender: operator,
+            action: 'deduct', amount: -targetFood, canAmount: -targetCans,
+            reason: '未认证用户资产清理',
+        } as any);
+    }
+    // 小猫地图玩家存在独立集合里，未认证即移出广场。
+    const playerIds = playerRows.map((row: any) => row._id);
+    const unverifiedPlayers: any[] = playerIds.length
+        ? await userColl.find({ _id: { $in: playerIds }, ...unverifiedFilter } as any, { projection: { _id: 1 } }).toArray()
+        : [];
+    const removedMapUids = unverifiedPlayers.map((row) => row._id);
+    if (removedMapUids.length) await catMapPlayerColl.deleteMany({ _id: { $in: removedMapUids } });
+    // 投喂历史（改绑时归档的贡献）同样清空：删除历史记录并按学校扣减
+    // historyWeight，未认证用户不再出现在历史投喂榜，恢复认证后也没有
+    // 可恢复的历史贡献。
+    const historyUids = await schoolFeedHistoryColl.distinct('uid');
+    const unverifiedHistoryUsers: any[] = historyUids.length
+        ? await userColl.find({ _id: { $in: historyUids }, ...unverifiedFilter } as any, { projection: { _id: 1 } }).toArray()
+        : [];
+    const historyUidSet = unverifiedHistoryUsers.map((row) => row._id);
+    let historyContribution = 0;
+    if (historyUidSet.length) {
+        const historyRows = await schoolFeedHistoryColl.find({ uid: { $in: historyUidSet } } as any).toArray();
+        const perCat = new Map<number, number>();
+        for (const row of historyRows as any[]) {
+            const amount = Math.max(0, Math.floor(Number(row.amount) || 0));
+            if (!amount || !Number.isSafeInteger(row.schoolId)) continue;
+            perCat.set(row.schoolId, (perCat.get(row.schoolId) || 0) + amount);
+        }
+        for (const [schoolId, amount] of perCat) {
+            await schoolCatColl.updateOne(
+                { _id: schoolId } as any,
+                { $inc: { historyWeight: -amount }, $set: { updatedAt: now } } as any,
+            );
+            affectedCatIds.add(schoolId);
+            historyContribution += amount;
+        }
+        await schoolFeedHistoryColl.deleteMany({ uid: { $in: historyUidSet } } as any);
+    }
+    if (food || cans) {
+        await catCanPoolColl.updateOne(
+            { _id: 'main' },
+            { $inc: { userFoodTotal: -food, circulatingCans: -cans }, $set: { updatedAt: now } },
+        );
+    }
+    return {
+        users, food, cans, schoolContribution, historyContribution,
+        removedMapUids,
+        affectedCatIds: Array.from(affectedCatIds),
+    };
 }
 
 export async function reverseCatCanTransaction(id: string, operator: number, reason: string, now = new Date()) {

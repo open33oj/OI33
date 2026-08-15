@@ -1,4 +1,4 @@
-import { Handler, PRIV, Types, query, param, Context, UserModel, ObjectId, UserAlreadyExistError, UserNotFoundError, ForbiddenError, db } from 'hydrooj';
+import { Handler, PRIV, Types, query, param, Context, UserModel, ObjectId, UserAlreadyExistError, UserNotFoundError, ForbiddenError, ValidationError, BlackListModel, db } from 'hydrooj';
 import Schema from 'schemastery';
 import { oi33Model } from '../model';
 import { addLog } from '../model/log';
@@ -150,6 +150,84 @@ class AdminIpHandler extends Handler {
     }
 }
 
+// --- Unverified user cat-asset purge ---
+
+class AdminCatAssetPurgeHandler extends Handler {
+    async post() {
+        const flag = await checkOi33Admin(this.user._id);
+        if (flag < 3) throw new ForbiddenError('仅行政管理员可以清理未认证用户猫资产。');
+        const result = await oi33Model.purgeUnverifiedCatAssets(this.user._id);
+        for (const uid of result.removedMapUids) {
+            (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'remove', uid });
+        }
+        for (const id of result.affectedCatIds) {
+            (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'bigcat', cat: { id } });
+        }
+        this.response.redirect = this.url('oi33_admin', {
+            query: {
+                notification: `已清理 ${result.users} 名未认证用户：销毁猫粮 ${result.food} g，回流猫罐头 ${result.cans} 个，`
+                    + `移出猫猫广场 ${result.removedMapUids.length} 人，`
+                    + `清空大猫贡献 ${result.schoolContribution} g（含历史贡献 ${result.historyContribution} g）。`,
+            },
+        });
+    }
+}
+
+// --- Mail blacklist ---
+// Hydro 内核在注册、OAuth 回跳和修改邮箱时检查 blacklist 集合里的
+// `mail::<domain>` 条目，但内核没有提供管理界面，这里补上。
+
+const blacklistColl = db.collection<any>('blacklist');
+const MAIL_DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+function normalizeMailDomain(raw: string) {
+    const domain = String(raw || '').trim().toLowerCase().replace(/^@+/, '');
+    if (!MAIL_DOMAIN_RE.test(domain)) throw new ValidationError('domain');
+    return domain;
+}
+
+class AdminMailBlacklistHandler extends Handler {
+    async get() {
+        await checkOi33Admin(this.user._id);
+        const rows = await blacklistColl.find({ _id: /^mail::/ }).sort({ _id: 1 }).toArray();
+        this.response.template = 'oi33_mail_blacklist.html';
+        this.response.body = {
+            entries: rows.map((row) => ({ domain: String(row._id).slice('mail::'.length), expireAt: row.expireAt })),
+        };
+    }
+
+    @param('domain', Types.String)
+    async post(domainId: string, domain: string) {
+        await checkOi33Admin(this.user._id);
+        const normalized = normalizeMailDomain(domain);
+        // 第二参数 0 = 长期有效（BlackListModel 内部转为约 83 年）。
+        await BlackListModel.add(`mail::${normalized}`, 0);
+        await addLog({
+            type: 'admin', sender: this.user._id,
+            action: 'mail_blacklist_add', reason: normalized,
+        });
+        this.response.redirect = this.url('oi33_admin_mail_blacklist', {
+            query: { notification: `已屏蔽邮箱域名 ${normalized}，该域名将无法注册或换绑邮箱。` },
+        });
+    }
+}
+
+class AdminMailBlacklistDeleteHandler extends Handler {
+    @param('domain', Types.String)
+    async post(domainId: string, domain: string) {
+        await checkOi33Admin(this.user._id);
+        const normalized = normalizeMailDomain(domain);
+        await BlackListModel.del(`mail::${normalized}`);
+        await addLog({
+            type: 'admin', sender: this.user._id,
+            action: 'mail_blacklist_del', reason: normalized,
+        });
+        this.response.redirect = this.url('oi33_admin_mail_blacklist', {
+            query: { notification: `已解除对 ${normalized} 的屏蔽。` },
+        });
+    }
+}
+
 // --- Migration handler ---
 
 class MigrateHandler extends Handler {
@@ -184,6 +262,9 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_admin_user_password', '/oi33/admin/user/password', AdminUserPasswordHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_admin_accounts', '/oi33/admin/accounts', AdminAccountsHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_admin_ip', '/oi33/admin/ip', AdminIpHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_admin_cat_asset_purge', '/oi33/admin/cat-assets/purge', AdminCatAssetPurgeHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_admin_mail_blacklist', '/oi33/admin/mail-blacklist', AdminMailBlacklistHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_admin_mail_blacklist_delete', '/oi33/admin/mail-blacklist/:domain/delete', AdminMailBlacklistDeleteHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_migrate', '/oi33/migrate', MigrateHandler, PRIV.PRIV_USER_PROFILE);
 
     ctx.addScript(

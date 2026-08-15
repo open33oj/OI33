@@ -42,7 +42,7 @@ import {
 import {
     ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
     createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
-    reverseCatCanTransaction,
+    reverseCatCanTransaction, purgeUnverifiedCatAssets,
 } from './cat-account';
 import {
     ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
@@ -140,7 +140,7 @@ const oi33Model = {
     ensureCatCanIndexes, buyCatCans, sellCatCans, getCatCanPage,
     ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
     createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
-    reverseCatCanTransaction,
+    reverseCatCanTransaction, purgeUnverifiedCatAssets,
     ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
     moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
     getCatMapCooldownMinutes,

@@ -92,8 +92,15 @@ class AuctionDetailHandler extends Handler {
             const settled = await oi33Model.auctionSettle(id);
             if (settled) auction = settled;
         }
-        const achievement = await oi33Model.achievementGet(auction.achievementId);
-        if (!achievement) throw new NotFoundError(auction.achievementId);
+        // 成就定义可能已被删除（历史拍卖保留可读，且管理员仍需能打开页面取消它）。
+        const achievement = (await oi33Model.achievementGet(auction.achievementId)) || {
+            _id: auction.achievementId,
+            name: `${auction.achievementId}（已删除）`,
+            description: '该成就定义已被删除。',
+            rule: '—',
+            imageData: '',
+            saleable: false,
+        };
         const now = new Date();
         const bids = await oi33Model.auctionGetBids(auction._id);
         const viewer = await getViewerInfo(this.user._id);

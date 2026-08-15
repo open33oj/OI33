@@ -3,7 +3,7 @@ import {
     param, query,
 } from 'hydrooj';
 import { readFileSync } from 'fs';
-import { oi33Model, userColl } from '../model';
+import { oi33Model, auctionColl, userColl } from '../model';
 import { addLog } from '../model/log';
 import type { Oi33AchievementImageSize } from '../model/types';
 import type { Oi33AchievementRuleType } from '../model/types';
@@ -167,6 +167,12 @@ class AchievementDeleteHandler extends Handler {
     @param('id', Types.String)
     async post(domainId: string, id: string) {
         await checkOi33Admin(this.user._id);
+        // 有进行中的拍卖时先取消（自动退回领先者的托管罐头），
+        // 避免残留指向已删除成就的拍卖。
+        const activeAuctions = await auctionColl.find({ achievementId: id, status: 'active' }).toArray();
+        for (const auction of activeAuctions) {
+            await oi33Model.auctionCancel(auction._id, this.user._id);
+        }
         if (!(await oi33Model.achievementDelete(id, this.user._id))) {
             throw new NotFoundError(id);
         }

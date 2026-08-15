@@ -47,11 +47,15 @@ function priceSlotFor(parts: ShanghaiParts) {
 }
 
 async function getGlobalBalances() {
+    // 只统计已认证用户：未认证用户的猫粮/罐头不参与定价计数。
+    const verifiedMatch = { $match: { realname_flag: { $gte: 1 } } };
     const [foodRows, canRows] = await Promise.all([
         userColl.aggregate([
+            verifiedMatch,
             { $group: { _id: null, total: { $sum: { $max: [{ $ifNull: ['$cat_food', 0] }, 0] } }, users: { $sum: 1 } } },
         ]).toArray(),
         userColl.aggregate([
+            verifiedMatch,
             { $group: { _id: null, total: { $sum: { $max: [{ $ifNull: ['$cat_can', 0] }, 0] } } } },
         ]).toArray(),
     ]);

@@ -17,7 +17,13 @@
     <p>该信息已设置，不可自行更改；如需修改请发邮件至 <a href="mailto:{{ lockEmail }}">{{ lockEmail }}</a> 说明情况。</p>
   </blockquote>
 {% endmacro %}
+{% macro unverified_notice() %}
+  <blockquote class="note typo">
+    <p>未认证用户只能提交认证申请，其他信息请在认证通过后修改。</p>
+  </blockquote>
+{% endmacro %}
 {% block content %}
+{% set unverifiedLocked = (not canDirect) and ((oi33Doc.realname_flag or 0) < 1) %}
 <div class="row">
   <div class="medium-9 columns">
     <div class="section">
@@ -45,7 +51,9 @@
       </div>
       <div class="section__body">
         {{ pending_notice('birthday') }}
-        {% if lockedMap and lockedMap['birthday'] %}
+        {% if unverifiedLocked %}
+        {{ unverified_notice() }}
+        {% elif lockedMap and lockedMap['birthday'] %}
         <p>当前生日：{{ oi33Doc.birthday_date }}</p>
         {{ locked_notice() }}
         {% else %}
@@ -111,7 +119,9 @@
       </div>
       <div class="section__body">
         {{ pending_notice('badge') }}
-        {% if lockedMap and lockedMap['badge'] %}
+        {% if unverifiedLocked %}
+        {{ unverified_notice() }}
+        {% elif lockedMap and lockedMap['badge'] %}
         <p>当前徽章：<span class="user-profile-badge" style="background-color:#{{ oi33Doc.badge_color }};color:#{{ oi33Doc.badge_textColor or 'fff' }};">{{ oi33Doc.badge_text }}</span></p>
         {{ locked_notice() }}
         {% else %}
@@ -148,7 +158,9 @@
       </div>
       <div class="section__body">
         {{ pending_notice('atcoder') }}
-        {% if lockedMap and lockedMap['atcoder'] %}
+        {% if unverifiedLocked %}
+        {{ unverified_notice() }}
+        {% elif lockedMap and lockedMap['atcoder'] %}
         <p>当前 AtCoder：{{ oi33Doc.atcoder }}</p>
         {{ locked_notice() }}
         {% else %}
@@ -173,7 +185,9 @@
       </div>
       <div class="section__body">
         {{ pending_notice('codeforces') }}
-        {% if lockedMap and lockedMap['codeforces'] %}
+        {% if unverifiedLocked %}
+        {{ unverified_notice() }}
+        {% elif lockedMap and lockedMap['codeforces'] %}
         <p>当前 Codeforces：{{ oi33Doc.codeforces }}</p>
         {{ locked_notice() }}
         {% else %}
