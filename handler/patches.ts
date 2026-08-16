@@ -264,6 +264,13 @@ export function applyPatches(_ctx: Context) {
     _ctx.on('handler/after/UserDetail', (h: any) => {
         const udoc = h.response?.body?.udoc;
         if (udoc?.oi33_profile_hidden) oi33Model.anonymizeOi33Identity(udoc);
+        // Unapproved/unreviewed bios must not leak through the template OR the
+        // ?noTemplate=1 JSON response (which serializes udoc verbatim). The
+        // template uses bio_hidden_pending to show the owner a hint instead.
+        if (udoc?.bio && !udoc.bio_visible) {
+            udoc.bio_hidden_pending = true;
+            udoc.bio = '';
+        }
     });
 
     // /domain/user builds its user list with a raw aggregation on domain.user,

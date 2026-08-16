@@ -119,14 +119,14 @@ export async function aiSaveProblemDifficulty(domainId: string, pid: number, dif
     );
 }
 
-// --- Batch summary/difficulty generation status (single doc `_id: 'current'`) ---
+// --- Batch job status (`_id: 'current'` = summary batch, 'bio_review' = bio batch) ---
 
-export async function aiBatchGetStatus(): Promise<Oi33AiBatchStatus | null> {
-    return await aiBatchColl.findOne({ _id: 'current' });
+export async function aiBatchGetStatus(id = 'current'): Promise<Oi33AiBatchStatus | null> {
+    return await aiBatchColl.findOne({ _id: id });
 }
 
-export async function aiBatchSaveStatus(patch: Partial<Omit<Oi33AiBatchStatus, '_id'>>) {
-    await aiBatchColl.updateOne({ _id: 'current' }, { $set: patch }, { upsert: true });
+export async function aiBatchSaveStatus(patch: Partial<Omit<Oi33AiBatchStatus, '_id'>>, id = 'current') {
+    await aiBatchColl.updateOne({ _id: id }, { $set: patch }, { upsert: true });
 }
 
 // --- Analysis persistence (shared per-record) ---

@@ -120,6 +120,7 @@
               <a href="{{ url('oi33_ai_moderation') }}" class="{% if modPendingCount %}primary {% endif %}rounded button">
                 AI 审核{% if modPendingCount %} ({{ modPendingCount }}){% endif %}
               </a>
+              <a href="{{ url('oi33_ai_bio_review') }}" class="rounded button">简介批量审查</a>
               <a href="/oi33/paste/all" class="rounded button">{{ _('All Pastes') }}</a>
               <a href="/oi33/wiki" class="rounded button">{{ _('Wiki Home') }}</a>
               <a href="/oi33/wiki/create" class="rounded button">{{ _('New Page') }}</a>

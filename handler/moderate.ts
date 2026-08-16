@@ -1,9 +1,13 @@
 import {
-    Context, DiscussionModel, DocumentModel, ForbiddenError, Handler,
+    Context, DiscussionModel, DocumentModel, ForbiddenError, Handler, MessageModel,
     NotFoundError, ObjectId, PERM, PRIV, Types, UserModel, ValidationError, param,
 } from 'hydrooj';
-import crypto from 'crypto';
 import { oi33Model } from '../model';
+// normalizeText/hashOf/bioHashOf live in the model layer (shared with bio
+// display hashing); re-exported here so existing handler consumers keep working.
+import { bioHashOf, hashOf, normalizeText } from '../model/moderate';
+
+export { bioHashOf, hashOf, normalizeText };
 import type {
     Oi33AiModeration, Oi33ModerationKind, Oi33ModerationSource, Oi33ModerationTarget,
     Oi33ModerationVerdict,
@@ -23,6 +27,7 @@ const KIND_LABELS: Record<Oi33ModerationKind, string> = {
     topic_edit: '主题编辑',
     reply_edit: '回复编辑',
     tailreply_edit: '评论编辑',
+    bio: '个人简介',
 };
 
 // Categories the AI may return; anything outside this list maps to 其他 so
@@ -43,14 +48,6 @@ const DEFAULT_MODERATION_PROMPT = [
 ].join('\n');
 
 // --- Rule layer (deterministic, free) ---
-
-export function normalizeText(text: string): string {
-    return text
-        .normalize('NFKC')
-        // Zero-width and directional-override chars used to defeat keyword filters.
-        .replace(/[​-‏‪-‮⁠-⁤﻿]/g, '')
-        .toLowerCase();
-}
 
 interface RuleHit {
     verdict: 'block' | 'review';
@@ -99,10 +96,6 @@ export function configWords(cfg: any): string[] {
 
 export function configReviewWords(cfg: any): string[] {
     return (cfg.moderation_review_words || '').split('\n').map((w: string) => normalizeText(w.trim())).filter(Boolean);
-}
-
-export function hashOf(normalized: string): string {
-    return crypto.createHash('sha256').update(normalized).digest('hex');
 }
 
 // --- Synchronous pre-check (instant; runs before the write is accepted) ---
@@ -603,6 +596,24 @@ class Ai33ModerationHandler extends Handler {
         } else if ((action === 'approve' || action === 'reject') && id) {
             const entry = await oi33Model.modGet(id);
             if (!entry || entry.status !== 'pending') throw new ValidationError('该条目已被处理。');
+            // Bio entries have no discussion target: flip the stored bio
+            // review state directly. bioSetStatus is hash-guarded, so a newer
+            // edit of the bio is never clobbered by a stale queue decision.
+            if (entry.kind === 'bio') {
+                await oi33Model.bioSetStatus(
+                    entry.uid, entry.contentHash, action === 'approve' ? 'approved' : 'rejected',
+                );
+                if (action === 'reject') {
+                    await MessageModel.send(
+                        1, entry.uid,
+                        '你的个人简介人工审核未通过，不会对其他用户展示。'
+                        + '可在「账号设置」中修改后重新提交（两次修改间隔 2 小时）。',
+                    ).catch(() => {});
+                }
+                await oi33Model.modSetStatus(id, action === 'approve' ? 'approved' : 'rejected', this.user._id);
+                this.response.redirect = this.url('oi33_ai_moderation');
+                return;
+            }
             // Entries from before the target field existed, or whose content was
             // already removed, can't be operated on — close them so the queue
             // isn't stuck, recording the admin's choice.

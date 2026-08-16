@@ -1,9 +1,31 @@
+import crypto from 'crypto';
 import { db, ObjectId } from 'hydrooj';
 import type {
     Oi33AiModeration, Oi33ModerationStatus, Oi33ModerationVerdict,
 } from './types';
 
 export const moderationColl = db.collection<Oi33AiModeration>('oi33_ai_moderation');
+
+// Canonical text normalization for moderation + bio display hashing. Lives in
+// the model layer so both handlers and mergeOi33Fields share one definition.
+export function normalizeText(text: string): string {
+    return text
+        .normalize('NFKC')
+        // Zero-width and directional-override chars used to defeat keyword filters.
+        // eslint-disable-next-line no-control-regex
+        .replace(/[​-‏‪-‮⁠-⁤﻿]/g, '')
+        .toLowerCase();
+}
+
+export function hashOf(normalized: string): string {
+    return crypto.createHash('sha256').update(normalized).digest('hex');
+}
+
+// Hash of a raw (un-normalized) bio; display gating compares this against the
+// hash stored at review time, so any out-of-band bio change fails the match.
+export function bioHashOf(bio: string): string {
+    return hashOf(normalizeText(bio));
+}
 
 export async function ensureModerationIndexes() {
     await Promise.all([
@@ -31,9 +53,10 @@ export async function modListPending() {
 // Close pending entries that can never be operated on (they predate the
 // target field, or the target is an empty object). Otherwise clicking
 // approve/reject on them fails and they clog the queue forever.
+// Bio entries are target-less by design and handled separately — never close.
 export async function modCloseMissingTarget(handlerUid = 0) {
     await moderationColl.updateMany(
-        { status: 'pending', $or: [{ target: { $exists: false } }, { target: {} }] },
+        { status: 'pending', kind: { $ne: 'bio' }, $or: [{ target: { $exists: false } }, { target: {} }] },
         { $set: { status: 'done', handledAt: new Date(), handler: handlerUid } },
     );
 }

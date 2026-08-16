@@ -220,6 +220,20 @@
         <div class="section__tab-container immersive">
           <ul class="section__tabs">
             {% set _udmods = findSubModule('partials/user_detail/') %}
+            <li class="section__tab-item">
+              <h1 class="section__tab-title">{{ _('Bio') }}</h1>
+              <div class="section__tab-main">
+                <div class="typo section__body richmedia">
+                  {% if udoc.bio_visible and udoc.bio %}
+                    {{ udoc.bio|markdown|safe }}
+                  {% elif isSelfProfile and udoc.bio_hidden_pending %}
+                    <p class="oi33-bio-hint">你的个人简介正在审核中或未通过审核，审核通过后才会公开展示。可在<a href="{{ url('home_settings', category='account') }}">账号设置</a>中修改（两次修改间隔 2 小时）。</p>
+                  {% else %}
+                    <p class="oi33-bio-hint">这个人很懒，什么都没有写。</p>
+                  {% endif %}
+                </div>
+              </div>
+            </li>
             {% if oi33MeowPanel %}
             <li class="section__tab-item">
               <h1 class="section__tab-title">喵喵</h1>
@@ -506,6 +520,9 @@
     overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
   }
   .oi33-achievement-empty { color:#777; font-size:.85em; }
+  .oi33-bio-hint { color:#777; font-size:.85em; margin:0; }
+  .theme--dark .oi33-bio-hint,
+  [data-mantine-color-scheme=dark] .oi33-bio-hint { color:#aaa; }
   .theme--dark .oi33-achievement-list__desc,
   [data-mantine-color-scheme=dark] .oi33-achievement-list__desc { color:#aaa; }
   .theme--dark .oi33-achievement-empty,

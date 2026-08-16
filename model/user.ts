@@ -1,6 +1,7 @@
 import { db } from 'hydrooj';
 import { Oi33User } from './types';
 import { addLog } from './log';
+import { bioHashOf } from './moderate';
 
 export const userColl = db.collection('oi33_user');
 const catCanPoolCounterColl = db.collection('oi33_cat_can_pool');
@@ -144,6 +145,11 @@ function restoreOi33Identity(udoc: any) {
 export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: string[]) {
     const profileHidden = (oi33?.realname_flag ?? 0) < 1;
     udoc.oi33_profile_hidden = profileHidden;
+    // Bio display gate, shared by user_detail and the homepage ranking: the
+    // profile must be verified, the bio AI-approved, and the current text
+    // exactly the reviewed version (hash match defeats out-of-band writes).
+    udoc.bio_visible = !profileHidden && !!oi33 && oi33.bio_status === 'approved'
+        && !!udoc.bio && oi33.bio_hash === bioHashOf(String(udoc.bio));
     if (!profileHidden) restoreOi33Identity(udoc);
     if (profileHidden) {
         if (udoc.oi33_original_uname === undefined) setPrivateDisplayField(udoc, 'oi33_original_uname', udoc.uname || '');
@@ -185,6 +191,37 @@ export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: 
         udoc.codeforces_updated_at = oi33.codeforces_updated_at;
     }
     if (udoc.oi33_identity_anonymized) anonymizeOi33Identity(udoc);
+}
+
+// --- Bio AI moderation state ---
+
+// An edit through the settings page: record the new version as pending and
+// stamp the cooldown clock.
+export async function bioMarkEdited(userId: number, bioHash: string) {
+    await userColl.updateOne(
+        { _id: userId },
+        { $set: { bio_hash: bioHash, bio_status: 'pending', bio_edited_at: new Date() } },
+        { upsert: true },
+    );
+}
+
+// Resolve an edit-triggered review. Guarded by bio_hash so a verdict arriving
+// late cannot overwrite a newer edit's pending state.
+export async function bioSetStatus(userId: number, bioHash: string, status: 'approved' | 'rejected') {
+    await userColl.updateOne(
+        { _id: userId, bio_hash: bioHash },
+        { $set: { bio_status: status } },
+    );
+}
+
+// Batch review writes the hash unconditionally (no edit race to guard against)
+// and deliberately does not touch bio_edited_at — reviewing is not an edit.
+export async function bioSetReviewed(userId: number, bioHash: string, status: 'approved' | 'rejected') {
+    await userColl.updateOne(
+        { _id: userId },
+        { $set: { bio_hash: bioHash, bio_status: status } },
+        { upsert: true },
+    );
 }
 
 // --- Coin ---

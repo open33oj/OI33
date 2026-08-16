@@ -7,6 +7,7 @@ import {
     doCheckin, getCheckinUser,
     previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
     getAllUsersData, getRatedUsers,
+    bioMarkEdited, bioSetStatus, bioSetReviewed,
 } from './user';
 import {
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
@@ -68,6 +69,7 @@ import {
 import {
     ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
     modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
+    bioHashOf,
 } from './moderate';
 import {
     ensureMeowIndexes, meowDateKey, meowDailyFreeAvailable,
@@ -133,6 +135,7 @@ const oi33Model = {
     setRealname, getRealnamedUsers,
     doCheckin, getCheckinUser,
     previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
+    bioMarkEdited, bioSetStatus, bioSetReviewed, bioHashOf,
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
     getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
     getCatFoodLogCount, getCatFoodLogs,

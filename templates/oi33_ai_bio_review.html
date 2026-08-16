@@ -1,0 +1,78 @@
+{% set page_name = "oi33_ai_bio_review" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+{% if status and status.running %}<meta http-equiv="refresh" content="10">{% endif %}
+
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">个人简介批量审查</h1>
+      </div>
+      <div class="section__body">
+        {% if (handler.user.realname_flag or 0) >= 2 %}
+          <p>
+            <a href="/oi33/admin">&laquo; {{ _('Back to Admin') }}</a>
+            <a class="rounded primary button" style="margin-left:1rem;padding:0.4rem 1.2rem;font-size:1rem;" href="{{ url('oi33_ai_moderation') }}">内容审核</a>
+          </p>
+        {% endif %}
+        <p class="bio33-desc">对所有个人简介非空的用户执行一次 AI 审核：通过后公开展示，未通过则隐藏直到本人下次修改。已有最终审核结果且简介未变的用户会被跳过，可安全重复执行。</p>
+
+        <form method="post" class="bio33-batch-form">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <button type="submit" class="rounded primary button"{% if status and status.running %} disabled{% endif %}>开始批量审查</button>
+        </form>
+
+        {% if status %}
+          <div class="bio33-batch-status">
+            <p>
+              {% if status.running %}
+                <span class="bio33-batch-running">正在运行</span>
+              {% else %}
+                <span class="bio33-batch-done">已结束</span>
+              {% endif %}
+              {{ _('Progress') }}: {{ status.done }} / {{ status.total }}
+              {% if status.running and status.currentSort %} · 当前: {{ status.currentSort }}{% endif %}
+            </p>
+            <p>
+              审核通过: {{ status.generated }} ·
+              审核未通过: {{ status.applied }} ·
+              {{ _('Skipped') }}: {{ status.skipped }} ·
+              {{ _('Failed') }}: {{ status.failed }}
+            </p>
+            <p class="bio33-subtitle">
+              {{ _('Started At') }}: {{ datetimeSpan(status.startedAt)|safe }}
+              {% if status.finishedAt %} · {{ _('Finished At') }}: {{ datetimeSpan(status.finishedAt)|safe }}{% endif %}
+            </p>
+            {% if status.lastError %}
+              <p class="bio33-text-error">{{ status.lastError }}</p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.bio33-desc { color: #666; margin-bottom: 1rem; }
+.theme--dark .bio33-desc, [data-mantine-color-scheme=dark] .bio33-desc { color: #aaa; }
+.bio33-subtitle { font-size: 0.85em; color: #888; }
+.theme--dark .bio33-subtitle, [data-mantine-color-scheme=dark] .bio33-subtitle { color: #999; }
+.bio33-text-error { color: #c00; }
+.theme--dark .bio33-text-error, [data-mantine-color-scheme=dark] .bio33-text-error { color: #ff6b6b; }
+.bio33-batch-status {
+    margin-top: 1rem;
+    padding: 12px;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+.theme--dark .bio33-batch-status, [data-mantine-color-scheme=dark] .bio33-batch-status {
+    background: #1e1e1e;
+    border-color: #444;
+}
+.bio33-batch-running { color: #d48806; font-weight: bold; }
+.bio33-batch-done { color: #389e0d; font-weight: bold; }
+</style>
+{% endblock %}

@@ -60,6 +60,11 @@ export interface Oi33User {
     meow_post_lock_at?: Date;
     // User-picked achievement ids shown in the profile showcase grid (max 16).
     achievement_showcase?: string[];
+    // Bio AI moderation: status of the bio version identified by bio_hash.
+    // Only approved + hash-matching bios are displayed; edits re-review.
+    bio_status?: 'pending' | 'approved' | 'rejected';
+    bio_hash?: string;
+    bio_edited_at?: Date; // last actual bio change, drives the 2h edit cooldown
 }
 
 export interface Oi33CatCanBill {
@@ -452,7 +457,7 @@ export interface Oi33AiConfig {
     moderation_rate_limit?: number;
 }
 
-export type Oi33ModerationKind = 'topic' | 'reply' | 'tailreply' | 'topic_edit' | 'reply_edit' | 'tailreply_edit';
+export type Oi33ModerationKind = 'topic' | 'reply' | 'tailreply' | 'topic_edit' | 'reply_edit' | 'tailreply_edit' | 'bio';
 export type Oi33ModerationVerdict = 'pass' | 'block' | 'review';
 export type Oi33ModerationSource = 'rules' | 'ai' | 'cache' | 'fuse' | 'ratelimit' | 'error';
 export type Oi33ModerationStatus = 'done' | 'pending' | 'approved' | 'rejected';
@@ -552,19 +557,19 @@ export interface Oi33AiProblemSummary {
 }
 
 export interface Oi33AiBatchStatus {
-    _id: string; // always 'current'
+    _id: string; // 'current' = summary batch, 'bio_review' = bio moderation batch
     running: boolean;
     domainId?: string; // target domain, default system
-    start: string; // sort range endpoints, e.g. "1000" or "ABC123A"
-    end: string;
+    start?: string; // sort range endpoints, e.g. "1000" or "ABC123A"
+    end?: string;
     total: number;
     done: number;
-    generated: number; // summaries newly generated
+    generated: number; // summaries newly generated / bios approved
     difficulties: number; // AI difficulties newly judged
-    applied: number; // problems whose difficulty was set
+    applied: number; // problems whose difficulty was set / bios rejected
     skipped: number;
     failed: number;
-    currentSort: string;
+    currentSort?: string;
     startedAt: Date;
     finishedAt?: Date;
     lastError?: string;
