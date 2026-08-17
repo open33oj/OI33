@@ -2,6 +2,7 @@ import {
     ConnectionHandler, Context, ForbiddenError, Handler, PRIV, Types, UserModel, param, subscribe,
 } from 'hydrooj';
 import { achievementColl, oi33Model } from '../model';
+import { CAT_MAP_HEIGHT, CAT_MAP_WIDTH } from '../model/cat-map';
 import { checkUserFlag } from './utils';
 import { remainText } from './auction';
 
@@ -84,10 +85,10 @@ async function buildCatMapState(viewerUid = 0) {
     }).filter(Boolean);
     const me = viewerUid ? players.find((player: any) => player.uid === viewerUid) || null : null;
     return {
-        width: 640,
-        height: 480,
+        width: CAT_MAP_WIDTH,
+        height: CAT_MAP_HEIGHT,
         players,
-        cells: snapshot.cells.map((cell: any) => [cell.x, cell.y, cell.color]),
+        cells: snapshot.cells.map((cell: any) => [cell.x, cell.y, cell.color, Number(cell.catId) || 0]),
         me,
         canJoin: !!viewerUid && !!snapshot.balances[viewerUid] && !me,
         serverTime: Date.now(),
@@ -168,8 +169,14 @@ class CatMapColorHandler extends Handler {
     async post(domainId: string, x: number, y: number, color: number) {
         try {
             const result = await oi33Model.setCatMapCellColor(this.user._id, x, y, color);
-            const payload = { type: 'cell', cell: [result.x, result.y, result.color] };
+            const payload = { type: 'cell', cell: [result.x, result.y, result.color, result.catId] };
             (this.ctx as any).broadcast('oi33/cat-map-change', payload);
+            if (result.territoryChanged) {
+                (this.ctx as any).broadcast('oi33/cat-map-change', {
+                    type: 'bigcat',
+                    cat: { catId: result.catId },
+                });
+            }
             (this.ctx as any).broadcast('oi33/cat-map-change', {
                 type: 'cooldown',
                 uid: this.user._id,
@@ -216,13 +223,31 @@ class CatMapAdminHandler extends Handler {
             );
             (this.ctx as any).broadcast('oi33/cat-map-change', {
                 type: 'rect',
-                rect: [result.rowStart, result.columnStart, result.rowEnd, result.columnEnd, result.color],
+                rect: [result.rowStart, result.columnStart, result.rowEnd, result.columnEnd, result.color, result.catId],
             });
+            (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'bigcat', cat: { catId: result.catId } });
             this.response.redirect = this.url('oi33_cat_map_admin', {
                 query: { notification: `绘图完成：已修改 ${result.count} 个像素。` },
             });
         } catch (e: any) {
             throw new ForbiddenError(e?.message || '管理员绘图失败。');
+        }
+    }
+}
+
+class CatMapAdminRefreshTerritoriesHandler extends Handler {
+    async post() {
+        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以更新全图的大猫归属。');
+        try {
+            const result = await oi33Model.refreshCatMapTerritories(this.user._id);
+            (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'territory_refresh' });
+            this.response.redirect = this.url('oi33_cat_map_admin', {
+                query: {
+                    notification: `归属更新完成：处理 ${result.cellCount} 个有色格子，${result.catCount} 只大猫共占领 ${result.claimedCellCount} 格。`,
+                },
+            });
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '更新全图大猫归属失败。');
         }
     }
 }
@@ -307,6 +332,7 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_cat_map_color', '/oi33/arena/color', CatMapColorHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_admin', '/oi33/cat-arena/admin', CatMapAdminHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_admin_relocate', '/oi33/cat-arena/admin/relocate', CatMapAdminRelocateHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_cat_map_admin_refresh_territories', '/oi33/cat-arena/admin/refresh-territories', CatMapAdminRefreshTerritoriesHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Connection('oi33_cat_map_conn', '/oi33/arena/conn', CatMapConnectionHandler);
     ctx.Route('oi33_cat_can_arena_legacy', '/oi33/cat-can/arena', LegacyCatCanArenaHandler);
     ctx.Route('oi33_cat_map_admin_legacy', '/oi33/cat-can/arena/admin', LegacyCatMapAdminHandler);

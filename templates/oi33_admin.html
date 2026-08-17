@@ -253,6 +253,9 @@
                 <span class="oi33-timeline__note">免消耗移动到</span>格子 ({{ a.x }}, {{ a.y }})
               {% elif a.action == 'admin_teleport' %}
                 <span class="oi33-timeline__note">免消耗传送到</span>格子 ({{ a.x }}, {{ a.y }})
+              {% elif a.action == 'refresh_territories' %}
+                <span class="oi33-timeline__note">按最后绘图者的当前绑定刷新全图大猫归属</span>
+                {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
               {% else %}
                 <span class="oi33-timeline__note">设置</span>格子 ({{ a.x }}, {{ a.y }}) 为颜色码 {{ a.color }}
               {% endif %}
@@ -260,8 +263,8 @@
             {% elif a.type == 'cat_account' %}
               <span class="oi33-timeline__tag">猫粮</span>
               {{ userLink(a.sender) }}
-              {% if a.action == 'cat_map_move' or a.action == 'cat_map_teleport' %}
-                <span class="oi33-timeline__note">{% if a.action == 'cat_map_move' %}移动小猫{% else %}传送小猫{% endif %}</span>
+              {% if a.action == 'cat_map_move' or a.action == 'cat_map_teleport' or a.action == 'cat_map_territory_teleport' %}
+                <span class="oi33-timeline__note">{% if a.action == 'cat_map_move' %}移动小猫{% elif a.action == 'cat_map_territory_teleport' %}大猫领地内传送{% else %}传送小猫{% endif %}</span>
                 <span class="oi33-timeline__amount-neg">{{ catFood.amount(a.amount, true) }}</span>
               {% elif a.action == 'school_feed' %}
                 <span class="oi33-timeline__note">投喂大猫</span>

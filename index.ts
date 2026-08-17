@@ -23,7 +23,7 @@ import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
 import { ensureCatAccountIndexes } from './model/cat-account';
-import { ensureCatMapIndexes } from './model/cat-map';
+import { ensureCatMapIndexes, recountSchoolCatTerritories } from './model/cat-map';
 import { ensureSchoolCatIndexes } from './model/school-cat';
 import { ensureMeowIndexes } from './model/meow';
 import { ensureAchievementIndexes } from './model/achievement';
@@ -82,8 +82,12 @@ export async function apply(ctx: Context) {
             try {
                 await ensureCatCanIndexes();
                 await ensureCatAccountIndexes();
-                await ensureCatMapIndexes();
                 await ensureSchoolCatIndexes();
+                await ensureCatMapIndexes();
+                // Territory counters are incrementally maintained. Recount
+                // once at startup to repair the only remaining inconsistency
+                // window: a process crash between a cell write and its delta.
+                await recountSchoolCatTerritories();
                 await ensureModerationIndexes();
                 await ensureMeowIndexes();
                 await ensureAchievementIndexes();

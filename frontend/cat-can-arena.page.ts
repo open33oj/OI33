@@ -5,8 +5,10 @@ import './cat-can-arena.css';
 import { CAT_FRAMES, CAT_PIXEL_COLORS } from './cat-sprites';
 import { mountBigCatLayer } from './cat-big-arena.page';
 
-const MAP_WIDTH = 640;
-const MAP_HEIGHT = 480;
+const MAP_WIDTH = 1000;
+const MAP_HEIGHT = 1000;
+const LEGACY_MAP_WIDTH = 640;
+const LEGACY_MAP_HEIGHT = 480;
 const DEFAULT_GRID_SCALE = 52;
 const MIN_VIEW_SCALE = 0.25;
 const MAX_VIEW_SCALE = 110;
@@ -33,26 +35,34 @@ interface MapState {
     width: number;
     height: number;
     players: MapPlayer[];
-    cells: [number, number, number][];
+    cells: [number, number, number, number][];
     me: MapPlayer | null;
     canJoin: boolean;
     serverTime: number;
 }
 
-function paletteColor(code: number) {
+function paletteColorValue(code: number) {
     const standard = [
-        '#000000', '#800000', '#008000', '#808000', '#000080', '#800080', '#008080', '#c0c0c0',
-        '#808080', '#ff0000', '#00ff00', '#ffff00', '#0000ff', '#ff00ff', '#00ffff', '#ffffff',
+        0x000000, 0x800000, 0x008000, 0x808000, 0x000080, 0x800080, 0x008080, 0xC0C0C0,
+        0x808080, 0xFF0000, 0x00FF00, 0xFFFF00, 0x0000FF, 0xFF00FF, 0x00FFFF, 0xFFFFFF,
     ];
     if (code < 16) return standard[code];
     if (code < 232) {
         const value = code - 16;
         const levels = [0, 95, 135, 175, 215, 255];
-        return `rgb(${levels[Math.floor(value / 36)]}, ${levels[Math.floor(value / 6) % 6]}, ${levels[value % 6]})`;
+        return (levels[Math.floor(value / 36)] << 16)
+            | (levels[Math.floor(value / 6) % 6] << 8)
+            | levels[value % 6];
     }
     const gray = 8 + (code - 232) * 10;
-    return `rgb(${gray}, ${gray}, ${gray})`;
+    return (gray << 16) | (gray << 8) | gray;
 }
+
+function paletteColor(code: number) {
+    return `#${paletteColorValue(code).toString(16).padStart(6, '0')}`;
+}
+
+const PALETTE_VALUES = new Uint32Array(Array.from({ length: 256 }, (_, code) => paletteColorValue(code)));
 
 function mountPalettes() {
     document.querySelectorAll<HTMLElement>('[data-palette]').forEach((palette) => {
@@ -280,16 +290,24 @@ function mountMap() {
     const labelMetrics = new Map<number, { text: string; width: number }>();
     const cellColors = new Int16Array(MAP_WIDTH * MAP_HEIGHT);
     cellColors.fill(-1);
+    const cellCatIds = new Int32Array(MAP_WIDTH * MAP_HEIGHT);
+    cellCatIds.fill(-1);
     const overviewLayer = document.createElement('canvas');
     overviewLayer.width = MAP_WIDTH;
     overviewLayer.height = MAP_HEIGHT;
     const overviewContext = overviewLayer.getContext('2d')!;
     overviewContext.fillStyle = '#ffffff';
     overviewContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+    const territoryLayer = document.createElement('canvas');
+    territoryLayer.width = MAP_WIDTH;
+    territoryLayer.height = MAP_HEIGHT;
+    const territoryContext = territoryLayer.getContext('2d')!;
+    territoryContext.fillStyle = '#ffffff';
+    territoryContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
     const animations = new Map<number, { fromX: number; fromY: number; toX: number; toY: number; start: number; teleport: boolean }>();
     let showGrid = false;
     let showCats = true;
-    let showBigCats = true;
+    let showBigCats = false;
     let showNames = true;
     let viewScale = DEFAULT_GRID_SCALE;
     let viewCenterX = MAP_WIDTH / 2;
@@ -367,13 +385,55 @@ function mountMap() {
         }
         return visible;
     };
-    const setCell = (x: number, y: number, color: number) => {
-        cellColors[y * MAP_WIDTH + x] = color;
-        overviewContext.fillStyle = paletteColor(color);
-        overviewContext.fillRect(x, y, 1, 1);
+    let bigCats: ReturnType<typeof mountBigCatLayer> = null;
+    let territoryRebuildFrame = 0;
+    const rebuildOverviewLayer = () => {
+        const pixels = overviewContext.createImageData(MAP_WIDTH, MAP_HEIGHT);
+        const data = pixels.data;
+        for (let index = 0; index < cellColors.length; index++) {
+            const color = cellColors[index] < 0 ? 0xFFFFFF : PALETTE_VALUES[cellColors[index]];
+            const offset = index * 4;
+            data[offset] = color >> 16;
+            data[offset + 1] = (color >> 8) & 0xFF;
+            data[offset + 2] = color & 0xFF;
+            data[offset + 3] = 0xFF;
+        }
+        overviewContext.putImageData(pixels, 0, 0);
+    };
+    const rebuildTerritoryLayer = () => {
+        territoryRebuildFrame = 0;
+        const pixels = territoryContext.createImageData(MAP_WIDTH, MAP_HEIGHT);
+        const data = pixels.data;
+        for (let index = 0; index < cellColors.length; index++) {
+            const color = cellColors[index] < 0
+                ? 0xFFFFFF
+                : bigCats?.colorValueFor(cellCatIds[index] > 0 ? cellCatIds[index] : 0) ?? 0xB8BCC2;
+            const offset = index * 4;
+            data[offset] = color >> 16;
+            data[offset + 1] = (color >> 8) & 0xFF;
+            data[offset + 2] = color & 0xFF;
+            data[offset + 3] = 0xFF;
+        }
+        territoryContext.putImageData(pixels, 0, 0);
         invalidate();
     };
-    const setRect = (rowStart: number, columnStart: number, rowEnd: number, columnEnd: number, color: number) => {
+    const scheduleTerritoryRebuild = () => {
+        if (territoryRebuildFrame) return;
+        territoryRebuildFrame = window.requestAnimationFrame(rebuildTerritoryLayer);
+    };
+    const setCell = (x: number, y: number, color: number, catId = 0) => {
+        const index = y * MAP_WIDTH + x;
+        cellColors[index] = color;
+        cellCatIds[index] = Math.max(0, Number(catId) || 0);
+        overviewContext.fillStyle = paletteColor(color);
+        overviewContext.fillRect(x, y, 1, 1);
+        territoryContext.fillStyle = bigCats?.colorFor(cellCatIds[index]) || '#b8bcc2';
+        territoryContext.fillRect(x, y, 1, 1);
+        invalidate();
+    };
+    const setRect = (
+        rowStart: number, columnStart: number, rowEnd: number, columnEnd: number, color: number, catId = 0,
+    ) => {
         overviewContext.fillStyle = paletteColor(color);
         overviewContext.fillRect(
             columnStart,
@@ -381,8 +441,16 @@ function mountMap() {
             columnEnd - columnStart + 1,
             rowEnd - rowStart + 1,
         );
+        territoryContext.fillStyle = bigCats?.colorFor(catId) || '#b8bcc2';
+        territoryContext.fillRect(
+            columnStart,
+            rowStart,
+            columnEnd - columnStart + 1,
+            rowEnd - rowStart + 1,
+        );
         for (let row = rowStart; row <= rowEnd; row++) {
             cellColors.fill(color, row * MAP_WIDTH + columnStart, row * MAP_WIDTH + columnEnd + 1);
+            cellCatIds.fill(catId, row * MAP_WIDTH + columnStart, row * MAP_WIDTH + columnEnd + 1);
         }
         invalidate();
     };
@@ -425,8 +493,7 @@ function mountMap() {
     const updateStats = () => {
         if (catCount) catCount.textContent = String(players.size);
     };
-    // 大猫图层：绘制在底层画布之上、小猫之下，共享同一画布与视图变换。
-    const bigCats = mountBigCatLayer({ centerAt, invalidate });
+    bigCats = mountBigCatLayer({ invalidate, onTerritoryColorsChanged: scheduleTerritoryRebuild });
     const updateMeStatus = () => {
         if (!meStatus || !userId) return;
         if (!state.me) {
@@ -515,7 +582,7 @@ function mountMap() {
         const mapWidth = snap(MAP_WIDTH * viewScale);
         const mapHeight = snap(MAP_HEIGHT * viewScale);
         context.imageSmoothingEnabled = false;
-        context.drawImage(overviewLayer, origin.x, origin.y, mapWidth, mapHeight);
+        context.drawImage(showBigCats ? territoryLayer : overviewLayer, origin.x, origin.y, mapWidth, mapHeight);
         if (showGrid) {
             context.strokeStyle = 'rgba(0,0,0,.72)';
             context.lineWidth = 1;
@@ -539,9 +606,7 @@ function mountMap() {
         }
         context.strokeStyle = showGrid ? 'rgba(0,0,0,.72)' : 'rgba(255,255,255,.12)';
         context.strokeRect(origin.x + .5, origin.y + .5, mapWidth - 1, mapHeight - 1);
-        // 三图层顺序：底层画布（上方已绘制）→ 大猫 → 小猫。
-        // 大猫名字同时受“大猫”和“名字”开关控制。
-        if (showBigCats) bigCats?.draw(context, devicePixelRatio, origin, viewScale, width, height, showNames);
+        // 底图可在原始 8-bit 颜色与大猫领地颜色之间切换，小猫层保持独立。
         const renderCats = showCats && viewScale >= MIN_CAT_RENDER_SCALE;
         if (!renderCats && !showNames) return;
         const firstX = Math.max(0, Math.floor(-origin.x / viewScale));
@@ -741,6 +806,14 @@ function mountMap() {
         colorDialog.showModal();
     };
 
+    const isOwnTerritoryTeleport = (me: MapPlayer | null, x: number, y: number) => {
+        if (!me || Math.abs(me.x - x) + Math.abs(me.y - y) === 1) return false;
+        const ownCatId = bigCats?.boundCatId() || 0;
+        if (!ownCatId) return false;
+        return cellCatIds[me.y * MAP_WIDTH + me.x] === ownCatId
+            && cellCatIds[y * MAP_WIDTH + x] === ownCatId;
+    };
+
     const openActionDialog = (x: number, y: number) => {
         if (!actionDialog) return;
         selectedTarget = { x, y };
@@ -749,16 +822,24 @@ function mountMap() {
         const me = state.me;
         const distance = me ? Math.abs(me.x - x) + Math.abs(me.y - y) : 0;
         const adjacent = distance === 1;
+        const territoryTeleport = isOwnTerritoryTeleport(me, x, y);
         const title = actionDialog.querySelector<HTMLElement>('[data-action-title]');
         const message = actionDialog.querySelector<HTMLElement>('[data-action-message]');
         const confirm = actionDialog.querySelector<HTMLButtonElement>('[data-action-confirm]');
         const cooling = !!me && me.availableAt > now();
-        const lacksResource = !!me && (adjacent ? me.food < 3 : me.cans < 3);
-        if (title) title.textContent = joining ? '加入猫猫广场' : adjacent ? '移动到相邻格' : '传送到目标格';
+        const lacksResource = !!me && (adjacent || territoryTeleport ? me.food < 3 : me.cans < 3);
+        if (title) title.textContent = joining
+            ? '加入猫猫广场'
+            : adjacent
+                ? '移动到相邻格'
+                : territoryTeleport
+                    ? '大猫领地内传送'
+                    : '传送到目标格';
         if (message) {
             if (joining) message.textContent = `是否免费选择（行 ${y}, 列 ${x}）作为小猫的初始位置？首次加入不消耗资源，也不触发冷却。`;
             else if (cooling) message.textContent = `目标（行 ${y}, 列 ${x}）。所有操作共享冷却，可用时间：${new Date(me!.availableAt).toLocaleString('zh-CN')}。`;
             else if (adjacent) message.textContent = `是否使用 3g 猫粮移动到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。`;
+            else if (territoryTeleport) message.textContent = `起点和目标都在你当前大猫的领地内，是否使用 3g 猫粮传送到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。`;
             else message.textContent = `是否使用 3 个猫罐头传送到（行 ${y}, 列 ${x}）？当前持有 ${me!.cans} 个猫罐头。`;
         }
         if (confirm) confirm.disabled = cooling || lacksResource;
@@ -775,9 +856,13 @@ function mountMap() {
         const action = cellDialog.querySelector<HTMLButtonElement>('[data-cell-action]');
         const color = cellDialog.querySelector<HTMLButtonElement>('[data-cell-color]');
         if (title) title.textContent = `格子（行 ${y}，列 ${x}）`;
-        if (summary) summary.textContent = occupants.length
+        const index = y * MAP_WIDTH + x;
+        const occupation = cellColors[index] >= 0
+            ? `大猫归属：${bigCats?.labelFor(cellCatIds[index]) || '正在读取'}。`
+            : '该格尚未涂色，没有大猫归属。';
+        if (summary) summary.textContent = (occupants.length
             ? `这里有 ${occupants.length} 只小猫；地图显示猫罐头最多的 ${occupants[0].uname}。`
-            : '这里暂时没有小猫。';
+            : '这里暂时没有小猫。') + occupation;
         if (list) {
             list.replaceChildren();
             occupants.forEach((player, index) => {
@@ -798,8 +883,15 @@ function mountMap() {
             const canAct = !!me || joining;
             const distance = me ? Math.abs(me.x - x) + Math.abs(me.y - y) : 0;
             const adjacent = distance === 1;
+            const territoryTeleport = isOwnTerritoryTeleport(me, x, y);
             action.hidden = !canAct || sameCell;
-            action.textContent = joining ? '免费加入这里' : adjacent ? '移动到这里（3g）' : '传送到这里（3 个罐头）';
+            action.textContent = joining
+                ? '免费加入这里'
+                : adjacent
+                    ? '移动到这里（3g）'
+                    : territoryTeleport
+                        ? '领地传送到这里（3g）'
+                        : '传送到这里（3 个罐头）';
             action.disabled = false;
         }
         cellDialog.showModal();
@@ -913,7 +1005,7 @@ function mountMap() {
         gestureMoved = false;
         viewport.classList.remove('is-dragging');
         if (!wasDrag && !cancelled) {
-            // 大猫只是展示，点击统一按格子处理，方便小猫移动到大猫所在格。
+            // 两种底图视角都保留格子操作，领地内传送可直接点目标格。
             const cell = pointToCell(event.clientX, event.clientY);
             clickCell(cell.x, cell.y);
         }
@@ -1016,7 +1108,9 @@ function mountMap() {
                 ? '加入成功，首次选择位置免费且没有触发冷却。'
                 : result.action === 'move'
                     ? '移动成功，已销毁 3g 猫粮，并获得 1 次免冷却染色。'
-                    : '传送成功，3 个猫罐头已回到虚拟储备池，并获得 1 次免冷却染色。');
+                    : result.action === 'territory_teleport'
+                        ? '领地内传送成功，已销毁 3g 猫粮，并获得 1 次免冷却染色。'
+                        : '传送成功，3 个猫罐头已回到虚拟储备池，并获得 1 次免冷却染色。');
             actionDialog.close();
         } catch (e: any) {
             Notification.error(e.message || String(e));
@@ -1032,7 +1126,7 @@ function mountMap() {
         try {
             const color = Number(input.value);
             const result = await request.post(colorUrl, { ...selectedColorCell, color });
-            setCell(result.x, result.y, result.color);
+            setCell(result.x, result.y, result.color, result.catId);
             if (state.me) {
                 state.me.availableAt = result.availableAt ? new Date(result.availableAt).getTime() : 0;
                 state.me.freeColorAvailable = !!result.freeColorAvailable;
@@ -1045,6 +1139,48 @@ function mountMap() {
             button.disabled = false;
         }
     });
+
+    let firstMapLoad = true;
+    const loadMapState = async () => {
+        const incoming: MapState = await request.get(stateUrl);
+        state = incoming;
+        clockOffset = incoming.serverTime - Date.now();
+        players.clear();
+        playerBuckets.clear();
+        playersByCell.clear();
+        labelMetrics.clear();
+        incoming.players.forEach((player) => storePlayer({
+            ...player,
+            availableAt: Number(player.availableAt) || 0,
+            freeColorAvailable: !!player.freeColorAvailable,
+        }));
+        cellColors.fill(-1);
+        cellCatIds.fill(-1);
+        incoming.cells.forEach(([x, y, color, catId]) => {
+            if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return;
+            const index = y * MAP_WIDTH + x;
+            cellColors[index] = color;
+            cellCatIds[index] = Math.max(0, Number(catId) || 0);
+        });
+        rebuildOverviewLayer();
+        rebuildTerritoryLayer();
+        state.me = userId ? players.get(userId) || null : null;
+        if (firstMapLoad) {
+            const focusedPlayer = focusUserId ? players.get(focusUserId) : null;
+            if (focusedPlayer) {
+                centerAt(focusedPlayer.x, focusedPlayer.y);
+                if (coordinate) coordinate.textContent = `格子：（行 ${focusedPlayer.y}, 列 ${focusedPlayer.x}）`;
+            } else if (state.me) centerAt(state.me.x, state.me.y);
+            // Keep the preserved legacy artwork in view for visitors without
+            // a cat position; expansion adds space to its right and bottom.
+            else centerAt(LEGACY_MAP_WIDTH / 2, LEGACY_MAP_HEIGHT / 2);
+            if (focusUserId && !focusedPlayer) Notification.error('该用户的小猫尚未加入猫猫广场。');
+            firstMapLoad = false;
+        }
+        updateStats();
+        updateMeStatus();
+        loading?.classList.add('is-hidden');
+    };
 
     const socket = new Socket(connectionUrl);
     socket.on('open', () => {
@@ -1073,10 +1209,17 @@ function mountMap() {
             updateStats();
             updateMeStatus();
         }
-        if (payload.type === 'cell' && Array.isArray(payload.cell)) setCell(payload.cell[0], payload.cell[1], payload.cell[2]);
+        if (payload.type === 'cell' && Array.isArray(payload.cell)) {
+            setCell(payload.cell[0], payload.cell[1], payload.cell[2], payload.cell[3]);
+        }
         if (payload.type === 'bigcat') bigCats?.handleSocketMessage(payload);
         if (payload.type === 'rect' && Array.isArray(payload.rect)) {
-            setRect(payload.rect[0], payload.rect[1], payload.rect[2], payload.rect[3], payload.rect[4]);
+            setRect(payload.rect[0], payload.rect[1], payload.rect[2], payload.rect[3], payload.rect[4], payload.rect[5]);
+        }
+        if (payload.type === 'territory_refresh') {
+            Promise.all([loadMapState(), bigCats?.refresh()]).catch((e) => {
+                Notification.error(`大猫归属刷新失败：${e.message || e}`);
+            });
         }
         if (payload.type === 'cooldown' && Number(payload.uid) === userId && state.me) {
             state.me.availableAt = payload.availableAt ? new Date(payload.availableAt).getTime() : 0;
@@ -1085,34 +1228,7 @@ function mountMap() {
     });
 
     window.addEventListener('resize', resize);
-    request.get(stateUrl).then((incoming: MapState) => {
-        state = incoming;
-        clockOffset = incoming.serverTime - Date.now();
-        players.clear();
-        playerBuckets.clear();
-        playersByCell.clear();
-        labelMetrics.clear();
-        incoming.players.forEach((player) => storePlayer({
-            ...player,
-            availableAt: Number(player.availableAt) || 0,
-            freeColorAvailable: !!player.freeColorAvailable,
-        }));
-        cellColors.fill(-1);
-        overviewContext.fillStyle = '#ffffff';
-        overviewContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
-        incoming.cells.forEach(([x, y, color]) => setCell(x, y, color));
-        state.me = userId ? players.get(userId) || null : null;
-        const focusedPlayer = focusUserId ? players.get(focusUserId) : null;
-        if (focusedPlayer) {
-            centerAt(focusedPlayer.x, focusedPlayer.y);
-            if (coordinate) coordinate.textContent = `格子：（行 ${focusedPlayer.y}, 列 ${focusedPlayer.x}）`;
-        } else if (state.me) centerAt(state.me.x, state.me.y);
-        else centerAt(MAP_WIDTH / 2, MAP_HEIGHT / 2);
-        updateStats();
-        updateMeStatus();
-        loading?.classList.add('is-hidden');
-        if (focusUserId && !focusedPlayer) Notification.error('该用户的小猫尚未加入猫猫广场。');
-    }).catch((e) => {
+    loadMapState().catch((e) => {
         if (loading) loading.textContent = `地图加载失败：${e.message || e}`;
     });
     resize();

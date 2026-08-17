@@ -147,6 +147,8 @@ export interface Oi33CatMapCell {
     x: number;
     y: number;
     color: number;
+    // 0 = no big cat; otherwise OIerDB school id + 1 (school #0 stays usable).
+    catId: number;
     updatedBy: number;
     updatedAt: Date;
 }
@@ -161,9 +163,8 @@ export interface Oi33SchoolCat {
     _id: number;
     currentWeight: number;
     historyWeight: number;
-    x?: number;
-    y?: number;
-    positionAt?: Date;
+    territoryColor: number;
+    territoryCount: number;
     spawnedAt: Date;
     updatedAt: Date;
 }
@@ -312,6 +313,7 @@ export interface Oi33Log {
     x?: number;
     y?: number;
     color?: number;
+    catId?: number;
     rowStart?: number;
     columnStart?: number;
     rowEnd?: number;
@@ -370,7 +372,11 @@ export interface Oi33Auction {
     achievementId: string;
     startPrice: number;
     startAt: Date;
+    // The administrator-selected deadline. `endAt` is the effective deadline
+    // and may be extended so every accepted bid remains contestable for 1 min.
+    scheduledEndAt?: Date;
     endAt: Date;
+    lastBidAt?: Date;
     createdBy: number;
     createdAt: Date;
     status: 'active' | 'settled' | 'cancelled';

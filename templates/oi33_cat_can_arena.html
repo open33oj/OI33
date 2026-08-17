@@ -37,7 +37,7 @@
           </div>
           <div class="oi33-map-toggles" role="group" aria-label="地图显示选项">
             <button type="button" data-map-layer="grid" aria-pressed="false">格线</button>
-            <button type="button" data-map-layer="bigcats" class="is-active" aria-pressed="true">大猫</button>
+            <button type="button" data-map-layer="bigcats" aria-pressed="false">大猫视角</button>
             <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫</button>
             <button type="button" data-map-layer="names" class="is-active" aria-pressed="true">名字</button>
           </div>
@@ -58,10 +58,10 @@
                data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
             <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
             <div class="oi33-map-loading">正在生成猫咪世界…</div>
-            <div class="oi33-map-hint">同格显示猫罐头最多的小猫 · 点击格子查看小猫和操作 · 大猫只是展示，通过右侧榜单或上方按钮互动 · 全屏后可用方向键浏览 · 拖动、滚轮或双指缩放</div>
+            <div class="oi33-map-hint">大猫视角按领地归属重新着色 · 同一大猫领地内可花 3g 任意传送 · 全屏后可用方向键浏览 · 拖动、滚轮或双指缩放</div>
           </div>
           <aside class="oi33-bigcat-side">
-            <h2>大猫体重榜</h2>
+            <h2>大猫榜（体重 / 领地）</h2>
             <ol class="oi33-bigcat-ranking" data-bigcat-ranking></ol>
           </aside>
         </div>
@@ -201,11 +201,10 @@
       <button type="button" class="primary rounded button" data-bigcat-feed-confirm>投喂</button>
       <span class="oi33-bigcat-tip">投喂消耗猫粮，冷却固定 2 小时。</span>
     </div>
-    <div class="oi33-bigcat-detail-move" data-bigcat-detail-move hidden>
-      <label>行 <input type="number" min="0" max="479" data-bigcat-move-row></label>
-      <label>列 <input type="number" min="0" max="639" data-bigcat-move-col></label>
-      <button type="button" class="rounded button" data-bigcat-move-confirm>摆放位置</button>
-      <span class="oi33-bigcat-tip" data-bigcat-move-tip>当前投喂榜第一名可以选择大猫左上角所在格子，每 2 小时可以改变一次。</span>
+    <div class="oi33-bigcat-detail-color" data-bigcat-detail-color hidden>
+      <label>领地颜色 <input type="color" value="#39774d" data-bigcat-color-input></label>
+      <button type="button" class="rounded button" data-bigcat-color-confirm>修改颜色</button>
+      <span class="oi33-bigcat-tip">仅当前贡献最多的人可以修改；颜色不能与其他大猫重复。</span>
     </div>
     <div class="oi33-bigcat-boards">
       <div class="oi33-bigcat-board-tabs" role="tablist" aria-label="投喂榜切换">

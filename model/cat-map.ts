@@ -2,10 +2,13 @@ import { randomInt } from 'crypto';
 import { db, ObjectId } from 'hydrooj';
 import { catCanPoolColl } from './cat-can';
 import { logColl } from './log';
+import {
+    ensureSchoolCatRecord, schoolCatColl, schoolCatKey, schoolIdFromCatKey,
+} from './school-cat';
 import { userColl } from './user';
 
-export const CAT_MAP_WIDTH = 640;
-export const CAT_MAP_HEIGHT = 480;
+export const CAT_MAP_WIDTH = 1000;
+export const CAT_MAP_HEIGHT = 1000;
 export const CAT_MAP_MOVE_FOOD_COST = 3;
 export const CAT_MAP_TELEPORT_CAN_COST = 3;
 export const CAT_MAP_MIN_COOLDOWN_MINUTES = 50;
@@ -50,11 +53,20 @@ export async function ensureCatMapIndexes() {
         if (![26, 27].includes(e?.code)) throw e;
     }
     await catMapPlayerColl.updateMany({}, { $unset: { stackable: '' } });
+    // Existing artwork is retained in place. Legacy cells had no ownership,
+    // so they explicitly belong to big cat 0 until an administrator refreshes
+    // ownership from each cell's latest painter.
+    await catMapCellColl.updateMany(
+        { catId: { $exists: false } },
+        { $set: { catId: 0 } },
+    );
     await Promise.all([
         catMapPlayerColl.createIndex({ x: 1, y: 1 }),
         catMapPlayerColl.createIndex({ updatedAt: -1 }),
         catMapCellColl.createIndex({ x: 1, y: 1 }, { unique: true }),
         catMapCellColl.createIndex({ updatedAt: -1 }),
+        catMapCellColl.createIndex({ catId: 1 }),
+        catMapCellColl.createIndex({ updatedBy: 1 }),
     ]);
 }
 
@@ -117,13 +129,136 @@ export async function getCatMapSnapshot() {
     const uids = eligible.map((user) => user._id);
     const [players, cells] = await Promise.all([
         catMapPlayerColl.find({ _id: { $in: uids } }).toArray(),
-        catMapCellColl.find().toArray(),
+        catMapCellColl.find({}, { projection: { x: 1, y: 1, color: 1, catId: 1 } }).toArray(),
     ]);
     const balances = Object.fromEntries(eligible.map((user: any) => [user._id, {
         food: Math.max(0, Number(user.cat_food) || 0),
         cans: Math.max(0, Math.floor(Number(user.cat_can) || 0)),
     }]));
     return { players, cells, balances };
+}
+
+function normalizedCatId(value: unknown) {
+    return Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : 0;
+}
+
+async function applyTerritoryDeltas(deltas: Map<number, number>, now = new Date()) {
+    const entries = Array.from(deltas.entries()).filter(([catId, delta]) => catId > 0 && delta !== 0);
+    if (!entries.length) return;
+    for (const [catId] of entries) {
+        const schoolId = schoolIdFromCatKey(catId);
+        if (schoolId !== null) await ensureSchoolCatRecord(schoolId, now);
+    }
+    const operations = entries.map(([catId, delta]) => {
+        const schoolId = schoolIdFromCatKey(catId)!;
+        return {
+            updateOne: {
+                // Do not guard decrements with territoryCount >= n. Two
+                // concurrent transitions on the same cell may apply their
+                // counter deltas out of order; unconditional $inc operations
+                // are commutative and therefore converge to the exact count.
+                filter: { _id: schoolId },
+                update: { $inc: { territoryCount: delta }, $max: { updatedAt: now } },
+            },
+        };
+    });
+    if (operations.length) await schoolCatColl.bulkWrite(operations, { ordered: false });
+}
+
+async function moveTerritoryCount(previousCatId: number, nextCatId: number, now = new Date()) {
+    if (previousCatId === nextCatId) return false;
+    const deltas = new Map<number, number>();
+    if (previousCatId > 0) deltas.set(previousCatId, -1);
+    if (nextCatId > 0) deltas.set(nextCatId, (deltas.get(nextCatId) || 0) + 1);
+    await applyTerritoryDeltas(deltas, now);
+    return true;
+}
+
+export async function recountSchoolCatTerritories(now = new Date()) {
+    const groups: any[] = await catMapCellColl.aggregate([
+        { $match: { catId: { $gt: 0 } } },
+        { $group: { _id: '$catId', count: { $sum: 1 } } },
+    ], { allowDiskUse: true } as any).toArray();
+    const validGroups: Array<{ catId: number; schoolId: number; count: number }> = [];
+    for (const group of groups) {
+        const catId = normalizedCatId(group._id);
+        const schoolId = schoolIdFromCatKey(catId);
+        if (schoolId === null) continue;
+        try {
+            await ensureSchoolCatRecord(schoolId, now);
+            validGroups.push({ catId, schoolId, count: Math.max(0, Math.floor(Number(group.count) || 0)) });
+        } catch {
+            // Ignore corrupt ownership ids; the explicit refresh operation will
+            // rewrite them from authoritative user bindings.
+        }
+    }
+    await schoolCatColl.updateMany(
+        { territoryCount: { $ne: 0 } },
+        { $set: { territoryCount: 0, updatedAt: now } } as any,
+    );
+    if (validGroups.length) {
+        await schoolCatColl.bulkWrite(validGroups.map((group) => ({
+            updateOne: {
+                filter: { _id: group.schoolId },
+                update: { $set: { territoryCount: group.count, updatedAt: now } },
+            },
+        })), { ordered: false });
+    }
+    return { catCount: validGroups.length, cellCount: validGroups.reduce((sum, group) => sum + group.count, 0) };
+}
+
+export async function refreshCatMapTerritories(operator: number, now = new Date()) {
+    const admin: any = await getEligibleUser(operator);
+    if (!admin || (Number(admin.realname_flag) || 0) < 3) {
+        throw new Error('仅行政管理员可以更新全图的大猫归属。');
+    }
+    const cellCount = await catMapCellColl.countDocuments({ color: { $exists: true } });
+    if (cellCount) {
+        // Work per distinct painter, not per cell: only user ids cross the
+        // process boundary, while each indexed updateMany stays inside Mongo.
+        const painterValues = await catMapCellColl.distinct('updatedBy', {
+            color: { $exists: true },
+        });
+        const painterIds = painterValues.filter((uid: any) => Number.isSafeInteger(uid));
+        const bindings = new Map<number, number>();
+        for (let offset = 0; offset < painterIds.length; offset += 2000) {
+            const chunk = painterIds.slice(offset, offset + 2000);
+            const rows: any[] = await userColl.find(
+                { _id: { $in: chunk } },
+                { projection: { school_cat: 1 } },
+            ).toArray();
+            rows.forEach((row: any) => bindings.set(
+                row._id,
+                Number.isSafeInteger(row.school_cat) && row.school_cat >= 0
+                    ? schoolCatKey(row.school_cat)
+                    : 0,
+            ));
+        }
+        for (let offset = 0; offset < painterValues.length; offset += 500) {
+            const chunk = painterValues.slice(offset, offset + 500);
+            await catMapCellColl.bulkWrite(chunk.map((uid: any) => ({
+                updateMany: {
+                    filter: { updatedBy: uid, color: { $exists: true } },
+                    update: { $set: { catId: bindings.get(uid) || 0 } },
+                },
+            })), { ordered: false });
+        }
+        await catMapCellColl.updateMany(
+            { color: { $exists: true }, updatedBy: { $exists: false } },
+            { $set: { catId: 0 } },
+        );
+    }
+    const counts = await recountSchoolCatTerritories(now);
+    await logColl.insertOne({
+        _id: new ObjectId(),
+        createdAt: now,
+        type: 'cat_map',
+        userId: operator,
+        sender: operator,
+        action: 'refresh_territories',
+        reason: `按每格最后绘图者的当前绑定刷新 ${cellCount} 个格子，${counts.catCount} 只大猫占领 ${counts.cellCount} 格`,
+    } as any);
+    return { cellCount, catCount: counts.catCount, claimedCellCount: counts.cellCount };
 }
 
 export async function moveCatMapPlayer(uid: number, targetX: number, targetY: number, now = new Date()) {
@@ -138,8 +273,20 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     }
 
     const distance = Math.abs(player.x - targetX) + Math.abs(player.y - targetY);
-    const action = distance === 1 ? 'move' : 'teleport';
-    const foodCost = action === 'move' ? CAT_MAP_MOVE_FOOD_COST : 0;
+    let territoryTeleport = false;
+    if (distance !== 1 && Number.isSafeInteger(user.school_cat) && user.school_cat >= 0) {
+        const ownCatId = schoolCatKey(user.school_cat);
+        const endpointIds = [cellId(player.x, player.y), cellId(targetX, targetY)];
+        const endpointRows: any[] = await catMapCellColl.find(
+            { _id: { $in: endpointIds } } as any,
+            { projection: { catId: 1 } },
+        ).toArray();
+        const endpointCats = new Map(endpointRows.map((cell: any) => [cell._id, normalizedCatId(cell.catId)]));
+        territoryTeleport = endpointCats.get(endpointIds[0]) === ownCatId
+            && endpointCats.get(endpointIds[1]) === ownCatId;
+    }
+    const action = distance === 1 ? 'move' : territoryTeleport ? 'territory_teleport' : 'teleport';
+    const foodCost = action === 'move' || action === 'territory_teleport' ? CAT_MAP_MOVE_FOOD_COST : 0;
     const canCost = action === 'teleport' ? CAT_MAP_TELEPORT_CAN_COST : 0;
     const cansBefore = Math.max(0, Math.floor(Number(user.cat_can) || 0));
     const minutes = cooldownMinutes(cansBefore - canCost);
@@ -235,7 +382,7 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     const updatedUser: any = await userColl.findOne({ _id: uid });
     return {
         uid, fromX: player.x, fromY: player.y, x: targetX, y: targetY,
-        action, foodCost, canCost,
+        action, foodCost, canCost, territoryTeleport,
         cans: Math.max(0, Number(updatedUser?.cat_can) || 0),
         food: Math.max(0, Number(updatedUser?.cat_food) || 0),
         cooldownMinutes: minutes, availableAt,
@@ -250,6 +397,10 @@ export async function setCatMapCellColor(
     if (!validColor(color)) throw new Error('颜色码必须是 0～255 的整数。');
     const user: any = await getEligibleUser(operator);
     if (!user) throw new Error('只有已认证用户可以修改格子颜色。');
+    const catId = Number.isSafeInteger(user.school_cat) && user.school_cat >= 0
+        ? schoolCatKey(user.school_cat)
+        : 0;
+    if (catId > 0) await ensureSchoolCatRecord(user.school_cat, now);
     const player: any = await catMapPlayerColl.findOne({ _id: operator });
     if (!player || player.x !== x || player.y !== y) throw new Error('只能设置自己小猫当前所在格子的颜色。');
 
@@ -279,17 +430,20 @@ export async function setCatMapCellColor(
     if (!claimed.modifiedCount) throw new Error('操作冷却中，暂时不能更换颜色。');
 
     const id = cellId(x, y);
-    const previous: any = await catMapCellColl.findOne({ _id: id } as any);
+    let previous: any = null;
+    let previousCatId = 0;
     const logId = new ObjectId();
     let cellUpdated = false;
     let logged = false;
     try {
-        await catMapCellColl.updateOne(
+        previous = await catMapCellColl.findOneAndUpdate(
             { _id: id } as any,
-            { $set: { x, y, color, updatedBy: operator, updatedAt: now } },
-            { upsert: true },
+            { $set: { x, y, color, catId, updatedBy: operator, updatedAt: now } },
+            { upsert: true, returnDocument: 'before' },
         );
         cellUpdated = true;
+        previousCatId = normalizedCatId(previous?.catId);
+        await moveTerritoryCount(previousCatId, catId, now);
         await logColl.insertOne({
             _id: logId,
             createdAt: now,
@@ -300,6 +454,7 @@ export async function setCatMapCellColor(
             x,
             y,
             color,
+            catId,
         } as any);
         logged = true;
         await catMapPlayerColl.updateOne(
@@ -309,9 +464,20 @@ export async function setCatMapCellColor(
     } catch (e) {
         if (logged) await logColl.deleteOne({ _id: logId });
         if (cellUpdated) {
-            if (previous) await catMapCellColl.replaceOne({ _id: id } as any, previous);
-            else await catMapCellColl.deleteOne({ _id: id } as any);
+            // Only undo our own write. Another user may already have painted
+            // the same shared cell while a later counter/log operation was
+            // failing; replacing unconditionally would erase that newer art.
+            const ownWrite = {
+                _id: id,
+                updatedBy: operator,
+                updatedAt: now,
+                color,
+                catId,
+            } as any;
+            if (previous) await catMapCellColl.replaceOne(ownWrite, previous);
+            else await catMapCellColl.deleteOne(ownWrite);
         }
+        if (previousCatId !== catId) await recountSchoolCatTerritories(now);
         const rollback: any = { $unset: { movementLock: '', movementLockAt: '' }, $set: {} };
         if (player.availableAt) rollback.$set.availableAt = player.availableAt;
         else rollback.$unset.availableAt = '';
@@ -326,6 +492,9 @@ export async function setCatMapCellColor(
         x,
         y,
         color,
+        catId,
+        previousCatId,
+        territoryChanged: previousCatId !== catId,
         updatedBy: operator,
         updatedAt: now,
         cooldownMinutes: minutes,
@@ -346,10 +515,24 @@ export async function adminPaintCatMap(
     const user: any = await getEligibleUser(operator);
     if (!user || (Number(user.realname_flag) || 0) < 3) throw new Error('仅行政管理员可以使用地图绘图后台。');
     if (!validCoordinate(columnStart, rowStart) || !validCoordinate(columnEnd, rowEnd)) {
-        throw new Error('行坐标必须为 0～479，列坐标必须为 0～639。');
+        throw new Error(`行列坐标必须为 0～${CAT_MAP_HEIGHT - 1}、0～${CAT_MAP_WIDTH - 1}。`);
     }
     if (rowStart > rowEnd || columnStart > columnEnd) throw new Error('矩形起点必须位于终点的左上方。');
     if (!validColor(color)) throw new Error('颜色码必须是 0～255 的整数。');
+
+    const catId = Number.isSafeInteger(user.school_cat) && user.school_cat >= 0
+        ? schoolCatKey(user.school_cat)
+        : 0;
+    if (catId > 0) await ensureSchoolCatRecord(user.school_cat, now);
+    const priorGroups: any[] = await catMapCellColl.aggregate([
+        {
+            $match: {
+                x: { $gte: columnStart, $lte: columnEnd },
+                y: { $gte: rowStart, $lte: rowEnd },
+            },
+        },
+        { $group: { _id: { $ifNull: ['$catId', 0] }, count: { $sum: 1 } } },
+    ]).toArray();
 
     const operations: any[] = [];
     let count = 0;
@@ -359,18 +542,51 @@ export async function adminPaintCatMap(
             operations.push({
                 updateOne: {
                     filter: { _id: id },
-                    update: { $set: { x: column, y: row, color, updatedBy: operator, updatedAt: now } },
+                    update: { $set: { x: column, y: row, color, catId, updatedBy: operator, updatedAt: now } },
                     upsert: true,
                 },
             });
             count++;
             if (operations.length >= 1000) {
-                await catMapCellColl.bulkWrite(operations, { ordered: false });
+                try {
+                    await catMapCellColl.bulkWrite(operations, { ordered: false });
+                } catch (e) {
+                    await recountSchoolCatTerritories(now);
+                    throw e;
+                }
                 operations.length = 0;
             }
         }
     }
-    if (operations.length) await catMapCellColl.bulkWrite(operations, { ordered: false });
+    if (operations.length) {
+        try {
+            await catMapCellColl.bulkWrite(operations, { ordered: false });
+        } catch (e) {
+            await recountSchoolCatTerritories(now);
+            throw e;
+        }
+    }
+    const territoryDeltas = new Map<number, number>();
+    let alreadyOwned = 0;
+    for (const group of priorGroups) {
+        const previousCatId = normalizedCatId(group._id);
+        const groupCount = Math.max(0, Math.floor(Number(group.count) || 0));
+        if (previousCatId === catId) {
+            alreadyOwned += groupCount;
+        } else if (previousCatId > 0) {
+            territoryDeltas.set(previousCatId, (territoryDeltas.get(previousCatId) || 0) - groupCount);
+        }
+    }
+    if (catId > 0 && count > alreadyOwned) territoryDeltas.set(
+        catId,
+        (territoryDeltas.get(catId) || 0) + count - alreadyOwned,
+    );
+    try {
+        await applyTerritoryDeltas(territoryDeltas, now);
+    } catch (e) {
+        await recountSchoolCatTerritories(now);
+        throw e;
+    }
     try {
         await logColl.insertOne({
             _id: new ObjectId(),
@@ -384,11 +600,12 @@ export async function adminPaintCatMap(
             rowEnd,
             columnEnd,
             color,
+            catId,
         } as any);
     } catch (e) {
         console.error('[oi33] failed to log admin map paint:', e);
     }
-    return { rowStart, columnStart, rowEnd, columnEnd, color, count };
+    return { rowStart, columnStart, rowEnd, columnEnd, color, catId, count };
 }
 
 export async function adminRelocateCatMapPlayer(

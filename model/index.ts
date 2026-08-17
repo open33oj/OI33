@@ -48,12 +48,13 @@ import {
 import {
     ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
     moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
-    getCatMapCooldownMinutes,
+    refreshCatMapTerritories, recountSchoolCatTerritories, getCatMapCooldownMinutes,
 } from './cat-map';
 import {
     ensureSchoolCatIndexes, searchSchools, listSchools, getSchool,
     getBigCatWorldState, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
-    setSchoolCatPosition, schoolCatSize, schoolDisplay, schoolUrl, removeSchoolCatBinding,
+    setSchoolCatTerritoryColor, schoolCatKey, schoolIdFromCatKey,
+    schoolCatColorCss, schoolDisplay, schoolUrl, removeSchoolCatBinding,
 } from './school-cat';
 import {
     aiGetRecordDetail, aiIsContestRecord,
@@ -116,7 +117,7 @@ export { logColl } from './log';
 export { catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
 export { catFoodBatchPreviewColl } from './cat-account';
 export { catMapPlayerColl, catMapCellColl } from './cat-map';
-export { schoolColl, schoolCatColl, schoolFeedHistoryColl } from './school-cat';
+export { schoolCatColl, schoolFeedHistoryColl } from './school-cat';
 export {
     aiAnalysisColl, aiConfigColl, aiProblemSummaryColl,
     aiProviderColl, aiAccessColl, aiUsageColl,
@@ -146,10 +147,11 @@ const oi33Model = {
     reverseCatCanTransaction, purgeUnverifiedCatAssets,
     ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
     moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
-    getCatMapCooldownMinutes,
+    refreshCatMapTerritories, recountSchoolCatTerritories, getCatMapCooldownMinutes,
     ensureSchoolCatIndexes, searchSchools, listSchools, getSchool,
     getBigCatWorldState, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
-    setSchoolCatPosition, schoolCatSize, schoolDisplay, schoolUrl, removeSchoolCatBinding,
+    setSchoolCatTerritoryColor, schoolCatKey, schoolIdFromCatKey,
+    schoolCatColorCss, schoolDisplay, schoolUrl, removeSchoolCatBinding,
     submitRequest, directUpdate, approveRequest, rejectRequest,
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
     applyRequestPayload,
@@ -219,7 +221,6 @@ declare module 'hydrooj' {
         oi33_cat_food_batch_preview: import('./types').Oi33CatFoodBatchPreview;
         oi33_cat_map_player: import('./types').Oi33CatMapPlayer;
         oi33_cat_map_cell: import('./types').Oi33CatMapCell;
-        oi33_school: import('./types').Oi33School;
         oi33_school_cat: import('./types').Oi33SchoolCat;
         oi33_school_feed_history: import('./types').Oi33SchoolFeedHistory;
         oi33_ai_analysis: import('./types').Oi33AiAnalysis;

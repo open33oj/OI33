@@ -9,7 +9,7 @@
         <div class="section__tools"><a href="{{ url('oi33_cat_can_arena') }}" class="rounded button">返回地图</a></div>
       </div>
       <div class="section__body">
-        <blockquote class="note">坐标顺序统一为（行, 列）：左上角是 (0,0)，右下角是 (479,639)。矩形范围包含起点和终点。</blockquote>
+        <blockquote class="note">坐标顺序统一为（行, 列）：左上角是 (0,0)，右下角是 (999,999)。矩形范围包含起点和终点；原 640×480 区域的画作已原位保留。</blockquote>
         <form method="post" action="{{ url('oi33_cat_map_admin_relocate') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <div class="row">
@@ -23,17 +23,23 @@
             </div>
           </div>
         </form>
+        <form method="post" action="{{ url('oi33_cat_map_admin_refresh_territories') }}"
+          onsubmit="return confirm('将把全部有色格子的归属更新为最后绘图者当前绑定的大猫；原始 8-bit 颜色不会改变。确定继续吗？');">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <button type="submit" class="rounded button">按最后绘图者刷新全图大猫归属</button>
+          <span class="help-text">这是显式批量更新；用户日后改绑不会自动改变旧画作。</span>
+        </form>
         <form method="post" data-admin-paint-form data-state-url="{{ url('oi33_cat_map_state') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="mode" value="rectangle">
           <div class="row">
-            <div class="medium-4 columns"><label>起始行（0～479）<input type="number" name="rowStart" min="0" max="479" required></label></div>
-            <div class="medium-4 columns"><label>起始列（0～639）<input type="number" name="columnStart" min="0" max="639" required></label></div>
+            <div class="medium-4 columns"><label>起始行（0～999）<input type="number" name="rowStart" min="0" max="999" required></label></div>
+            <div class="medium-4 columns"><label>起始列（0～999）<input type="number" name="columnStart" min="0" max="999" required></label></div>
             <div class="medium-4 columns"><label>颜色码（0～255）<input type="number" name="color" min="0" max="255" value="15" required data-color-input></label></div>
           </div>
           <div class="row" data-rect-fields>
-            <div class="medium-6 columns"><label>结束行（0～479）<input type="number" name="rowEnd" min="0" max="479" required></label></div>
-            <div class="medium-6 columns"><label>结束列（0～639）<input type="number" name="columnEnd" min="0" max="639" required></label></div>
+            <div class="medium-6 columns"><label>结束行（0～999）<input type="number" name="rowEnd" min="0" max="999" required></label></div>
+            <div class="medium-6 columns"><label>结束列（0～999）<input type="number" name="columnEnd" min="0" max="999" required></label></div>
           </div>
           <div class="oi33-map-color-selected"><span data-color-preview></span><strong>8-bit 颜色码参考表</strong></div>
           <div class="oi33-map-palette" data-palette aria-label="8-bit 颜色码参考表"></div>

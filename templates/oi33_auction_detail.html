@@ -26,6 +26,9 @@
               {% if auction.status == 'active' %}（剩余 {{ remainText }}）{% endif %}
             </p>
             {% if auction.status == 'active' %}
+            <p class="auction-help">结束时间取设定时间与最后一次有效出价后 1 分钟中的较晚者。</p>
+            {% endif %}
+            {% if auction.status == 'active' %}
             <p class="auction-price">
               {% if auction.highestBid != null %}
               当前价 <strong>{{ auction.highestBid }}</strong> 罐头（{{ auction.bidCount }} 次出价），领先：
@@ -62,7 +65,7 @@
               <input class="textbox" type="number" name="amount" min="{{ minBid }}" value="{{ minBid }}" required>
             </div>
             <button type="submit" class="rounded primary button">立即出价</button>
-            <p class="auction-help">出价立即托管扣除猫罐头；被更高出价超越时自动全额退款。</p>
+            <p class="auction-help">出价立即托管扣除猫罐头；被更高出价超越时自动全额退款；每次有效出价后至少保留 1 分钟竞价时间。</p>
           </form>
           {% elif viewerOwned %}
           <p class="auction-help">你已经拥有这个成就，无需竞拍。</p>

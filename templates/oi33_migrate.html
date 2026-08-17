@@ -52,6 +52,9 @@
               {% if result.meowCollectionsRenamed %}
               <tr><td>{{ _('Stream collections renamed to meow') }}：</td><td><strong>{{ result.meowCollectionsRenamed }}</strong></td></tr>
               {% endif %}
+              {% if result.legacySchoolCollectionDropped %}
+              <tr><td>冗余学校缓存表已删除：</td><td><strong>{{ result.legacySchoolRecordsDeleted }}</strong> 条</td></tr>
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">
@@ -106,6 +109,12 @@
             <tr>
               <td style="padding:0.5rem 0;">{{ _('Legacy cat-can batches to delete') }}：</td>
               <td><strong>{{ preview.legacyCatCanBatchCount }}</strong></td>
+            </tr>
+            {% endif %}
+            {% if preview.legacySchoolCount %}
+            <tr>
+              <td style="padding:0.5rem 0;">冗余学校缓存记录：</td>
+              <td><strong>{{ preview.legacySchoolCount }}</strong></td>
             </tr>
             {% endif %}
           </table>

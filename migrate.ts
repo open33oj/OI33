@@ -15,6 +15,7 @@ export async function previewMigration() {
         userCount,
         oauthLogCount,
         legacyCatCanBatchCount,
+        legacySchoolCount,
         catFoodPreview,
     ] = await Promise.all([
         db.collection('coin').countDocuments(),
@@ -31,10 +32,12 @@ export async function previewMigration() {
         }),
         db.collection('oi33_log').countDocuments({ type: 'oauth' }),
         db.collection('oi33_cat_can_batch').countDocuments(),
+        rawDb.collection('oi33_school').countDocuments(),
         previewCatFoodBackfill(),
     ]);
     return {
         billCount, pasteCount, birthdayCount, userCount, oauthLogCount, legacyCatCanBatchCount,
+        legacySchoolCount,
         catFoodUsers: catFoodPreview.users,
         catFoodAmount: catFoodPreview.amount,
     };
@@ -51,6 +54,8 @@ export async function migrate() {
         legacyCatCanBatchCollectionDropped: false,
         legacyAi33CollectionsDropped: 0,
         meowCollectionsRenamed: 0,
+        legacySchoolRecordsDeleted: 0,
+        legacySchoolCollectionDropped: false,
         catFoodUsers: 0,
         catFoodAmount: 0,
         errors: [] as string[],
@@ -297,6 +302,21 @@ export async function migrate() {
         );
     } catch (e: any) {
         result.errors.push(`Step 10 (rename stream → meow collections): ${e.message}`);
+    }
+
+    try {
+        // Step 11: school-cat-data.json is now the read-only source. The old
+        // Mongo copy duplicated the bundled data and is safe to remove.
+        const legacySchoolColl = rawDb.collection('oi33_school');
+        result.legacySchoolRecordsDeleted = await legacySchoolColl.countDocuments();
+        try {
+            await legacySchoolColl.drop();
+            result.legacySchoolCollectionDropped = true;
+        } catch (e: any) {
+            if (e?.code !== 26 && e?.codeName !== 'NamespaceNotFound') throw e;
+        }
+    } catch (e: any) {
+        result.errors.push(`Step 11 (drop redundant school cache): ${e.message}`);
     }
 
     return result;

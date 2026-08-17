@@ -64,7 +64,8 @@ class SchoolCatFeedHandler extends Handler {
                     display: result.display,
                     url: result.url,
                     weight: result.weight,
-                    size: result.size,
+                    territoryCount: result.territoryCount,
+                    color: result.color,
                 },
             });
             this.response.type = 'application/json';
@@ -92,21 +93,24 @@ class SchoolCatDetailHandler extends Handler {
     }
 }
 
-class SchoolCatPositionHandler extends Handler {
+class SchoolCatColorHandler extends Handler {
     @param('schoolId', Types.Int)
-    @param('x', Types.Int)
-    @param('y', Types.Int)
-    async post(domainId: string, schoolId: number, x: number, y: number) {
+    @param('color', Types.String)
+    async post(domainId: string, schoolId: number, color: string) {
         try {
-            const result = await oi33Model.setSchoolCatPosition(this.user._id, schoolId, x, y);
+            const normalized = String(color || '').trim();
+            if (!/^#[0-9a-f]{6}$/i.test(normalized)) throw new Error('领地颜色必须使用 #RRGGBB 格式。');
+            const result = await oi33Model.setSchoolCatTerritoryColor(
+                this.user._id, schoolId, Number.parseInt(normalized.slice(1), 16),
+            );
             (this.ctx as any).broadcast('oi33/cat-map-change', {
                 type: 'bigcat',
-                cat: { id: schoolId, x, y },
+                cat: { id: schoolId, catId: result.catId, color: result.color },
             });
             this.response.type = 'application/json';
             this.response.body = { ok: true, ...result };
         } catch (e: any) {
-            throw new ForbiddenError(e?.message || '摆放大猫失败。');
+            throw new ForbiddenError(e?.message || '修改大猫领地颜色失败。');
         }
     }
 }
@@ -116,6 +120,6 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_school_cat_schools', '/oi33/arena/big/schools', SchoolCatSchoolsHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_bind', '/oi33/arena/big/bind', SchoolCatBindHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_feed', '/oi33/arena/big/feed', SchoolCatFeedHandler, PRIV.PRIV_USER_PROFILE);
-    ctx.Route('oi33_school_cat_position', '/oi33/arena/big/cat/:schoolId/position', SchoolCatPositionHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_school_cat_color', '/oi33/arena/big/cat/:schoolId/color', SchoolCatColorHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_detail', '/oi33/arena/big/cat/:schoolId', SchoolCatDetailHandler);
 }

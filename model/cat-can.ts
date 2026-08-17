@@ -477,7 +477,9 @@ async function getCatCanEconomy(now = new Date()) {
                 const action = (log as any).action;
                 if ((action === 'grant' || action === 'bulk_grant') && amount > 0) w.adminMint += amount;
                 else if (action === 'school_feed') w.feedBurn += Math.max(0, -amount);
-                else if (action === 'cat_map_move') w.moveBurn += Math.max(0, -amount);
+                else if (action === 'cat_map_move' || action === 'cat_map_territory_teleport') {
+                    w.moveBurn += Math.max(0, -amount);
+                }
                 else if (action === 'deduct') w.deductBurn += Math.max(0, -amount);
                 // Teleports and meow posts return cans to the pool; refunds take them back.
                 w.cansOtherBack -= canAmount;

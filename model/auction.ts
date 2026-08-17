@@ -9,6 +9,7 @@ import { userColl } from './user';
 
 export const auctionColl = db.collection('oi33_auction');
 export const auctionBidColl = db.collection('oi33_auction_bid');
+export const AUCTION_BID_EXTENSION_MS = 60 * 1000;
 
 export async function ensureAuctionIndexes() {
     await Promise.all([
@@ -57,12 +58,14 @@ export async function auctionCreate(input: {
     });
     if (running) throw new ValidationError('该成就已有进行中的拍卖，结束后才能再次上架。');
     const now = new Date();
+    const scheduledEndAt = new Date(now.getTime() + input.durationMs);
     const doc: Oi33Auction = {
         _id: new ObjectId(),
         achievementId: input.achievementId,
         startPrice: input.startPrice,
         startAt: now,
-        endAt: new Date(now.getTime() + input.durationMs),
+        scheduledEndAt,
+        endAt: scheduledEndAt,
         createdBy: input.operator,
         createdAt: now,
         status: 'active',
@@ -113,6 +116,7 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
     // above races concurrent bids: two bidders reading the same state can both
     // win the atomic filter in turn, and the intermediate leader's escrow
     // would never be refunded.
+    const bidDeadline = new Date(now.getTime() + AUCTION_BID_EXTENSION_MS);
     const previous = await auctionColl.findOneAndUpdate(
         {
             _id: auction._id,
@@ -123,6 +127,9 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
         },
         {
             $set: { highestBid: amount, highestBidder: uid },
+            // `endAt` remains max(administrator deadline, last bid + 1 min).
+            // $max also keeps concurrent bids from shortening either value.
+            $max: { endAt: bidDeadline, lastBidAt: now },
             $inc: { bidCount: 1 },
         },
         { returnDocument: 'before' },
@@ -156,14 +163,17 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
     const auction = await auctionGet(id);
     if (!auction || auction.status !== 'active') return auction;
     if (auction.endAt.getTime() > now.getTime()) return auction;
-    const flipped = await auctionColl.updateOne(
-        { _id: auction._id, status: 'active' },
+    // Include the deadline in the atomic flip. A last-moment bid can extend
+    // endAt after our initial read; in that race settlement must lose.
+    const settledAuction = await auctionColl.findOneAndUpdate(
+        { _id: auction._id, status: 'active', endAt: { $lte: now } },
         { $set: { status: 'settled', settledAt: now } },
+        { returnDocument: 'before' },
     );
-    if (!flipped.modifiedCount) return await auctionColl.findOne({ _id: auction._id });
-    if (auction.highestBidder != null && auction.highestBid != null) {
+    if (!settledAuction) return await auctionColl.findOne({ _id: auction._id });
+    if (settledAuction.highestBidder != null && settledAuction.highestBid != null) {
         try {
-            await achievementGrant(auction.highestBidder, auction.achievementId, 0, 'auction', true);
+            await achievementGrant(settledAuction.highestBidder, settledAuction.achievementId, 0, 'auction', true);
             // The winning cans return to the AMM pool, and the pool burns
             // reserve food equal to their current sell value — exactly as if
             // the winner sold the cans back and the proceeds were destroyed
@@ -172,12 +182,12 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
             const pool: any = await catCanPoolColl.findOne({ _id: 'main' });
             const foodBurn = Math.min(
                 Math.max(0, Number(pool?.reserveFood) || 0),
-                auction.highestBid * Math.max(0, Number(market?.sellPrice) || 0),
+                settledAuction.highestBid * Math.max(0, Number(market?.sellPrice) || 0),
             );
             const poolUpdated = await catCanPoolColl.updateOne(
                 { _id: 'main', reserveFood: { $gte: foodBurn } },
                 {
-                    $inc: { reserveFood: -foodBurn, circulatingCans: -auction.highestBid },
+                    $inc: { reserveFood: -foodBurn, circulatingCans: -settledAuction.highestBid },
                     $set: { updatedAt: now },
                 },
             );
@@ -185,28 +195,28 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
                 // The reserve moved concurrently; never leave the cans stuck.
                 await catCanPoolColl.updateOne(
                     { _id: 'main' },
-                    { $inc: { circulatingCans: -auction.highestBid }, $set: { updatedAt: now } },
+                    { $inc: { circulatingCans: -settledAuction.highestBid }, $set: { updatedAt: now } },
                 );
             }
             await auctionColl.updateOne(
                 { _id: auction._id },
-                { $set: { winner: auction.highestBidder, settlePrice: auction.highestBid, foodBurn } },
+                { $set: { winner: settledAuction.highestBidder, settlePrice: settledAuction.highestBid, foodBurn } },
             );
             await addLog({
-                type: 'auction', userId: auction.highestBidder, action: 'settle',
-                auctionId: auction._id.toHexString(), achievementId: auction.achievementId,
-                amount: auction.highestBid, foodBurn,
+                type: 'auction', userId: settledAuction.highestBidder, action: 'settle',
+                auctionId: auction._id.toHexString(), achievementId: settledAuction.achievementId,
+                amount: settledAuction.highestBid, foodBurn,
             } as any);
         } catch (e) {
             // Never leave the escrowed cans stuck: if the grant fails (e.g.
             // the achievement was deleted mid-auction) refund the leader.
             console.error(`[oi33] auction settle grant failed for ${auction._id}:`, e);
-            await auctionRefund(auction.highestBidder, auction.highestBid, auction._id, '结算失败退款');
+            await auctionRefund(settledAuction.highestBidder, settledAuction.highestBid, auction._id, '结算失败退款');
         }
     } else {
         await addLog({
-            type: 'auction', userId: auction.createdBy, action: 'settle_unsold',
-            auctionId: auction._id.toHexString(), achievementId: auction.achievementId,
+            type: 'auction', userId: settledAuction.createdBy, action: 'settle_unsold',
+            auctionId: auction._id.toHexString(), achievementId: settledAuction.achievementId,
         } as any);
     }
     return await auctionColl.findOne({ _id: auction._id });
@@ -230,13 +240,22 @@ export async function auctionCancel(id: string | ObjectId, operator: number, now
     const auction = await auctionGet(id);
     if (!auction) throw new NotFoundError(String(id));
     if (auction.status !== 'active') throw new ValidationError('拍卖已结束。');
-    const flipped = await auctionColl.updateOne(
+    // Refund the leader captured by the same atomic status change. A bid may
+    // otherwise land between the read above and cancellation, leaving its
+    // newer escrow unrefunded.
+    const cancelledAuction = await auctionColl.findOneAndUpdate(
         { _id: auction._id, status: 'active' },
         { $set: { status: 'cancelled', cancelledAt: now, cancelledBy: operator } },
+        { returnDocument: 'before' },
     );
-    if (!flipped.modifiedCount) throw new ValidationError('拍卖已结束。');
-    if (auction.highestBidder != null && auction.highestBid != null) {
-        await auctionRefund(auction.highestBidder, auction.highestBid, auction._id, '拍卖已取消');
+    if (!cancelledAuction) throw new ValidationError('拍卖已结束。');
+    if (cancelledAuction.highestBidder != null && cancelledAuction.highestBid != null) {
+        await auctionRefund(
+            cancelledAuction.highestBidder,
+            cancelledAuction.highestBid,
+            auction._id,
+            '拍卖已取消',
+        );
     }
     await addLog({
         type: 'auction', userId: operator, action: 'cancel',
