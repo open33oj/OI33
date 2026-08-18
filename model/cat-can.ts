@@ -652,7 +652,7 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
     // Trade bills rebuild reserve and fees (same reduce as pool creation).
     const bills = await catCanBillColl.find({ action: { $in: ['buy', 'sell', 'reverse'] } }).toArray();
     let feesBurned = 0;
-    const reserveFood = bills.reduce((sum, bill) => {
+    let reserveFood = bills.reduce((sum, bill) => {
         const fee = Number(bill.fee) || 0;
         feesBurned += fee;
         const delta = Number(bill.catFoodDelta) || 0;
@@ -664,7 +664,33 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
         return sum + (bill.action === 'buy' ? principal : -principal);
     }, 0);
 
+    // Auction settlements burn reserve food equal to the winning bid's sell
+    // value; those burns are not trade bills, so replay them from the auction
+    // ledger to keep reserveFood exact.
+    const settledAuctions = await db.collection('oi33_auction').find({
+        status: 'settled',
+        foodBurn: { $exists: true, $gt: 0 },
+    } as any, {
+        projection: { foodBurn: 1 },
+    }).toArray();
+    for (const auction of settledAuctions) {
+        reserveFood -= Math.max(0, Number((auction as any).foodBurn) || 0);
+    }
+
     const balances = await getGlobalBalances();
+    // Bids are escrowed out of the user balances but still count as
+    // circulating while their auction is active, so add the active highest
+    // bids back on top of the verified-balance aggregate.
+    const activeAuctions = await db.collection('oi33_auction').find({
+        status: 'active',
+        highestBid: { $exists: true, $gt: 0 },
+    } as any, {
+        projection: { highestBid: 1 },
+    }).toArray();
+    let escrowedCans = 0;
+    for (const auction of activeAuctions) {
+        escrowedCans += Math.max(0, Number((auction as any).highestBid) || 0);
+    }
     // First calibration back-fills the anchor from the current supply so that
     // pre-existing pools converge to the same invariant as new ones.
     let base = Number(pool?.baseVirtualSupply);
@@ -672,7 +698,7 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
         base = Math.max(1000, (Number(pool?.virtualCanSupply) || 0) - minted + burned);
     }
     const virtualCanSupply = Math.max(1000, base + minted - burned);
-    const circulatingCans = Math.max(0, balances.userCans);
+    const circulatingCans = Math.max(0, balances.userCans + escrowedCans);
     const userFoodTotal = Math.max(0, balances.userFood);
 
     const update: any = {
