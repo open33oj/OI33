@@ -13,7 +13,7 @@ class Oi33AdminHandler extends Handler {
     @query('page', Types.PositiveInt, true)
     @query('type', Types.String, true)
     async get(domainId: string, page = 1, type = '') {
-        await checkOi33Admin(this.user._id);
+        const adminFlag = await checkOi33Admin(this.user._id);
         await oi33Model.compactRequestLogs();
         const { activities, tpcount } = await oi33Model.getRecentActivitiesPaginated(page, 30, type);
         const pendingCount = await oi33Model.getPendingRequestCount();
@@ -38,6 +38,8 @@ class Oi33AdminHandler extends Handler {
             activities, pendingCount, page, tpcount, udict, reqDict, logType: type,
             meowPendingCount: await oi33Model.meowListPending().then((l) => l.length),
             modPendingCount: await oi33Model.modListPending().then((l) => l.length),
+            adminFlag,
+            canPrivAll: this.user.hasPriv(PRIV.PRIV_ALL),
         };
     }
 }

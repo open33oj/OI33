@@ -41,16 +41,16 @@
               正在结算，请稍后刷新。
               {% elif rewardStatus.status == 'failed' %}
               上次结算失败：{{ rewardStatus.lastError or '未知错误' }}。可以重试。
+              {% elif rewardStatus.status == 'rolled_back' %}
+              当前版本已回滚，自动结算已暂停，请进入管理页重新计算。
+              {% elif rewardStatus.status == 'rolling_back' or rewardStatus.status == 'rollback_failed' %}
+              正在回滚或上次回滚未完成，请进入管理页处理。
               {% else %}
-              尚未结算。系统会自动执行，也可以在这里立即触发。
+              尚未结算。系统会自动执行，也可以进入管理页立即触发。
               {% endif %}
             </p>
           </div>
-          <form method="post" action="{{ url('oi33_school_cat_weekly_reward') }}"
-                onsubmit="return confirm('确定立即结算 {{ rewardStatus._id }} 的每周大猫奖励吗？奖励计划生成后会锁定本周领地、投喂人数和贡献快照，重复执行不会重复发放。');">
-            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-            <button type="submit" class="primary rounded button">{% if rewardStatus.status == 'completed' %}检查结算{% else %}立即结算{% endif %}</button>
-          </form>
+          <a href="{{ url('oi33_school_cat_rewards', query={ period: rewardStatus._id }) }}" class="primary rounded button">管理结算 / 回滚</a>
         </div>
         {% endif %}
 

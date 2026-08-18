@@ -52,6 +52,7 @@
       <div class="section__header"><h2 class="section__title">账户明细</h2></div>
       <div class="section__body no-padding">
         {% if entries.length %}
+        <div class="oi33-account-table-wrap">
         <table class="data-table oi33-account-table">
           <thead><tr><th>时间</th><th>事项</th><th>猫粮变化</th><th>罐头变化</th>{% if canManage %}<th>管理</th>{% endif %}</tr></thead>
           <tbody>
@@ -67,6 +68,7 @@
               {% elif entry.action == 'can_grant' %}管理员发放猫罐头
               {% elif entry.action == 'can_deduct' %}管理员扣除猫罐头
               {% elif entry.action == 'school_cat_weekly_reward' %}每周大猫奖励
+              {% elif entry.action == 'school_cat_weekly_reward_rollback' %}每周大猫奖励回滚
               {% elif entry.action == 'cat_map_move' %}猫咪地图移动
               {% elif entry.action == 'cat_map_teleport' %}猫咪地图传送
               {% elif entry.action == 'cat_map_territory_teleport' %}大猫领地内传送
@@ -97,6 +99,7 @@
           {% endfor %}
           </tbody>
         </table>
+        </div>
         {{ paginator.render(page, upcount) }}
         {% else %}<div class="oi33-account-empty">{{ nothing.render('还没有账户记录。') }}</div>{% endif %}
       </div>

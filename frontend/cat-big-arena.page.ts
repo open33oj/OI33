@@ -80,6 +80,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     const stateUrl = viewport.dataset.bigStateUrl;
     const schoolsUrl = viewport.dataset.schoolsUrl || '/oi33/arena/big/schools';
     const bindUrl = viewport.dataset.bindUrl || '/oi33/arena/big/bind';
+    const unbindUrl = viewport.dataset.unbindUrl || '/oi33/arena/big/unbind';
     const feedUrl = viewport.dataset.feedUrl || '/oi33/arena/big/feed';
     const detailBaseUrl = viewport.dataset.detailBaseUrl || '/oi33/arena/big/cat';
     const catCount = document.querySelector<HTMLElement>('[data-bigcat-count]');
@@ -87,6 +88,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     const rankingLink = document.querySelector<HTMLAnchorElement>('[data-bigcat-ranking-link]');
     const detailDialog = document.querySelector<HTMLDialogElement>('[data-bigcat-detail-dialog]');
     const pickerDialog = document.querySelector<HTMLDialogElement>('[data-bigcat-picker-dialog]');
+    const bindMenuButton = document.querySelector<HTMLButtonElement>('[data-bigcat-bind]');
+    const unbindButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-bigcat-unbind]'));
 
     detailDialog?.querySelectorAll<HTMLButtonElement>('[data-bigcat-board-tab]').forEach((tab) => {
         tab.addEventListener('click', () => {
@@ -279,6 +282,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         const colorBox = detailDialog.querySelector<HTMLElement>('[data-bigcat-detail-color]');
         const colorInput = detailDialog.querySelector<HTMLInputElement>('[data-bigcat-color-input]');
         const colorConfirm = detailDialog.querySelector<HTMLButtonElement>('[data-bigcat-color-confirm]');
+        const detailUnbind = detailDialog.querySelector<HTMLButtonElement>('[data-bigcat-unbind]');
         const boardCurrent = detailDialog.querySelector<HTMLElement>('[data-bigcat-board-current]');
         const boardHistory = detailDialog.querySelector<HTMLElement>('[data-bigcat-board-history]');
         const cat = cats.get(schoolId);
@@ -288,6 +292,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         renderBoard(boardCurrent, []);
         renderBoard(boardHistory, []);
         if (feedBox) feedBox.hidden = !(loggedIn && me && me.boundId === schoolId);
+        if (detailUnbind) detailUnbind.hidden = !(loggedIn && me && me.boundId === schoolId);
         if (colorBox) colorBox.hidden = true;
         if (feedConfirm) {
             feedConfirm.onclick = async () => {
@@ -397,7 +402,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             bind.type = 'button';
             bind.className = 'primary rounded button';
             const isCurrent = me?.boundId === school.id;
-            const locked = !!me && me.boundId !== null && !me.canChange && !isCurrent;
+            const locked = !!me && !me.canChange && !isCurrent;
             bind.textContent = isCurrent ? '当前绑定' : '绑定';
             bind.disabled = isCurrent || locked;
             if (locked) bind.title = '本月已修改过绑定，下个月才能改绑。';
@@ -461,14 +466,48 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         }
     };
 
-    document.querySelector<HTMLButtonElement>('[data-bigcat-bind]')?.addEventListener('click', () => {
+    bindMenuButton?.addEventListener('click', () => {
         if (!pickerDialog) return;
         const hint = pickerDialog.querySelector<HTMLElement>('[data-bigcat-picker-hint]');
         if (hint) hint.textContent = me?.boundId !== null && me?.boundId !== undefined
             ? `已绑定 ${me.boundDisplay}（当前投喂 ${formatWeight(me.contribution)}） · ${me.canChange ? '本月可改绑' : '本月已改绑'}`
             : '尚未绑定大猫';
+        const pickerUnbind = pickerDialog.querySelector<HTMLButtonElement>('[data-bigcat-unbind]');
+        if (pickerUnbind) pickerUnbind.hidden = me?.boundId === null || me?.boundId === undefined;
         pickerDialog.showModal();
         void loadPicker();
+    });
+    unbindButtons.forEach((unbindButton) => {
+        unbindButton.addEventListener('click', async () => {
+            if (!me || me.boundId === null) return;
+            if (!window.confirm(`确定取消绑定 ${me.boundDisplay || `#${me.boundId}`} 吗？当前贡献会转入历史，既有绘图归属不会改变；本月不能再次修改绑定。`)) return;
+            unbindButtons.forEach((button) => { button.disabled = true; });
+            try {
+                const result = await request.post(unbindUrl, {});
+                if (result.cat) upsertCat(result.cat);
+                const moved = Math.max(0, Number(result.movedToHistory) || 0);
+                me = {
+                    ...me,
+                    boundId: null,
+                    boundCatId: 0,
+                    boundDisplay: null,
+                    boundUrl: null,
+                    boundColor: null,
+                    contribution: 0,
+                    canChange: false,
+                };
+                if (bindMenuButton) bindMenuButton.textContent = '绑定大猫';
+                unbindButtons.forEach((button) => { button.hidden = true; });
+                Notification.success(`已取消绑定 ${result.previousDisplay}${moved ? `，${formatWeight(moved)} 已转入历史投喂` : ''}；既有绘图归属保持不变。`);
+                pickerDialog?.close();
+                detailDialog?.close();
+                scheduleRefresh();
+            } catch (e: any) {
+                Notification.error(e.message || String(e));
+            } finally {
+                unbindButtons.forEach((button) => { button.disabled = false; });
+            }
+        });
     });
     pickerDialog?.querySelector<HTMLButtonElement>('[data-bigcat-picker-search]')?.addEventListener('click', () => {
         pickerState.query = pickerDialog.querySelector<HTMLInputElement>('[data-bigcat-picker-q]')?.value.trim() || '';
@@ -517,6 +556,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             removedTerritoryColor = true;
         });
         me = incoming.me;
+        if (bindMenuButton) bindMenuButton.textContent = me?.boundId === null || me?.boundId === undefined
+            ? '绑定大猫' : '更换 / 取消大猫';
         renderRanking(incoming.ranking || []);
         if (rankingLink) rankingLink.textContent = `查看完整榜单（共 ${incoming.rankingTotal ?? cats.size} 只）→`;
         if (catCount) catCount.textContent = String(cats.size);

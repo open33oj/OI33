@@ -61,6 +61,11 @@ export interface Oi33User {
     school_cat_reward_amount?: number;
     school_cat_reward_school_id?: number;
     school_cat_reward_at?: Date;
+    // Stable run keys make weekly settlement/re-settlement idempotent even
+    // after a newer week has replaced the convenience fields above.
+    school_cat_reward_keys?: string[];
+    school_cat_reward_rollback_keys?: string[];
+    school_cat_reward_revision?: number;
     // Short-lived cross-process lock used to serialize meow submissions.
     meow_post_lock?: ObjectId;
     meow_post_lock_at?: Date;
@@ -121,6 +126,9 @@ export interface Oi33CatCanPool {
     schoolCatRewardPeriod?: string;
     schoolCatRewardCans?: number;
     schoolCatRewardAt?: Date;
+    schoolCatRewardRevision?: number;
+    schoolCatRewardKeys?: string[];
+    schoolCatRewardRollbackKeys?: string[];
     createdAt: Date;
     updatedAt: Date;
 }
@@ -211,7 +219,9 @@ export interface Oi33SchoolCatRewardSummary {
 
 export interface Oi33SchoolCatReward {
     _id: string; // Asia/Shanghai Monday date: YYYY-MM-DD
-    status: 'planned' | 'processing' | 'completed' | 'failed';
+    status: 'planned' | 'processing' | 'completed' | 'failed'
+        | 'rolling_back' | 'rollback_failed' | 'rolled_back';
+    revision: number;
     cats: Oi33SchoolCatRewardSummary[];
     allocations: Oi33SchoolCatRewardAllocation[];
     plannedUsers: number;
@@ -224,6 +234,24 @@ export interface Oi33SchoolCatReward {
     completedAt?: Date;
     failedAt?: Date;
     lastError?: string;
+    rollbackStartedAt?: Date;
+    rolledBackAt?: Date;
+    rolledBackBy?: number;
+    rollbackReason?: string;
+    history?: Array<{
+        revision: number;
+        status: string;
+        plannedUsers: number;
+        plannedCans: number;
+        issuedUsers?: number;
+        issuedCans?: number;
+        createdAt: Date;
+        completedAt?: Date;
+        rolledBackAt?: Date;
+        rolledBackBy?: number;
+        rollbackReason?: string;
+        cats: Oi33SchoolCatRewardSummary[];
+    }>;
     lockOwner?: ObjectId;
     lockUntil?: Date;
 }
@@ -370,6 +398,7 @@ export interface Oi33Log {
     schoolCatContributionCounted?: boolean;
     schoolCatContributionBatch?: ObjectId;
     schoolCatRewardPeriod?: string;
+    schoolCatRewardRevision?: number;
     rowStart?: number;
     columnStart?: number;
     rowEnd?: number;

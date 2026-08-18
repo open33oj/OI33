@@ -51,6 +51,7 @@
                data-big-state-url="{{ url('oi33_school_cat_state') }}"
                data-schools-url="{{ url('oi33_school_cat_schools') }}"
                data-bind-url="{{ url('oi33_school_cat_bind') }}"
+               data-unbind-url="{{ url('oi33_school_cat_unbind') }}"
                data-feed-url="{{ url('oi33_school_cat_feed') }}"
                data-detail-base-url="/oi33/arena/big/cat"
                data-conn-url="/oi33/arena/conn"
@@ -216,6 +217,7 @@
       <ol class="oi33-bigcat-board" data-bigcat-board-history hidden></ol>
     </div>
     <div class="oi33-map-dialog-actions">
+      <button type="button" class="rounded button oi33-bigcat-unbind" data-bigcat-unbind hidden>取消当前绑定</button>
       <button value="cancel" class="rounded button">关闭</button>
     </div>
   </form>
@@ -237,6 +239,7 @@
       <button type="button" class="rounded button" data-bigcat-picker-next>下一页</button>
     </div>
     <div class="oi33-map-dialog-actions">
+      <button type="button" class="rounded button oi33-bigcat-unbind" data-bigcat-unbind hidden>取消当前绑定</button>
       <button value="cancel" class="rounded button">关闭</button>
     </div>
   </form>

@@ -119,8 +119,8 @@
             <tr><th>猫粮收支</th><th>近 7 天</th><th>近 30 天</th></tr>
           </thead>
           <tbody>
-            <tr><td>签到发放（含上线补发）</td><td>{{ catFood.amount(economy7.checkinMint, true) }}</td><td>{{ catFood.amount(economy30.checkinMint, true) }}</td></tr>
-            <tr><td>管理员 / 比赛发放</td><td>{{ catFood.amount(economy7.adminMint, true) }}</td><td>{{ catFood.amount(economy30.adminMint, true) }}</td></tr>
+            <tr><td class="oi33-can-table-wrap">签到发放（含上线补发）</td><td>{{ catFood.amount(economy7.checkinMint, true) }}</td><td>{{ catFood.amount(economy30.checkinMint, true) }}</td></tr>
+            <tr><td class="oi33-can-table-wrap">管理员 / 比赛发放</td><td>{{ catFood.amount(economy7.adminMint, true) }}</td><td>{{ catFood.amount(economy30.adminMint, true) }}</td></tr>
             <tr><td>交易手续费销毁</td><td>{{ catFood.amount(economy7.tradeFeeBurn) }}</td><td>{{ catFood.amount(economy30.tradeFeeBurn) }}</td></tr>
             <tr><td>投喂大猫销毁</td><td>{{ catFood.amount(economy7.feedBurn) }}</td><td>{{ catFood.amount(economy30.feedBurn) }}</td></tr>
             <tr><td>地图移动销毁</td><td>{{ catFood.amount(economy7.moveBurn) }}</td><td>{{ catFood.amount(economy30.moveBurn) }}</td></tr>
@@ -132,7 +132,7 @@
               <td><strong>{{ catFood.amount(economy30.net, true) }}</strong></td>
             </tr>
             <tr>
-              <td>拍卖结算销毁储备粮（不来自用户余额）</td>
+              <td class="oi33-can-table-wrap">拍卖结算销毁储备粮（不来自用户余额）</td>
               <td>{{ catFood.amount(economy7.auctionFoodBurn) }}</td>
               <td>{{ catFood.amount(economy30.auctionFoodBurn) }}</td>
             </tr>
@@ -146,7 +146,7 @@
             <tr><td>买入（池子售出）</td><td>{{ economy7.cansBought }} 个</td><td>{{ economy30.cansBought }} 个</td></tr>
             <tr><td>系统增发（管理员 / 大猫奖励）</td><td>{{ economy7.cansMinted }} 个</td><td>{{ economy30.cansMinted }} 个</td></tr>
             <tr><td>卖出回池</td><td>{{ economy7.cansSoldBack }} 个</td><td>{{ economy30.cansSoldBack }} 个</td></tr>
-            <tr><td>其他回池（传送 / 喵喵 / 拍卖 / 管理扣除）</td><td>{{ economy7.cansOtherBack }} 个</td><td>{{ economy30.cansOtherBack }} 个</td></tr>
+            <tr><td class="oi33-can-table-wrap">其他回池（传送 / 喵喵 / 拍卖 / 管理扣除）</td><td>{{ economy7.cansOtherBack }} 个</td><td>{{ economy30.cansOtherBack }} 个</td></tr>
             <tr>
               <td><strong>池子净售出（负值 = 净回收）</strong></td>
               <td><strong>{{ economy7.cansNetOut }} 个</strong></td>
@@ -162,6 +162,10 @@
         </p>
         <style>
           .oi33-can-economy .data-table { margin-bottom: 1rem; }
+          .oi33-can-table-wrap, .oi33-can-market .data-table td:nth-child(3) {
+            overflow:visible; white-space:normal; text-overflow:clip;
+            overflow-wrap:anywhere; word-break:break-word;
+          }
           .oi33-can-economy-note { color:#777; margin-bottom: 0; }
           .theme--dark .oi33-can-economy-note, [data-mantine-color-scheme=dark] .oi33-can-economy-note { color:#aaa; }
         </style>

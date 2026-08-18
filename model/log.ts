@@ -4,6 +4,25 @@ import { Oi33Log } from './types';
 export const logColl = db.collection('oi33_log');
 
 export async function ensureLogIndexes() {
+    // The first weekly-reward implementation keyed logs only by period/user.
+    // Re-settling a rolled-back week needs one immutable ledger row per
+    // revision, so migrate legacy rows and replace that index in place.
+    let indexes: any[] = [];
+    try {
+        indexes = await logColl.listIndexes().toArray();
+    } catch (e: any) {
+        if (e?.code !== 26 && e?.codeName !== 'NamespaceNotFound') throw e;
+    }
+    const legacyRewardIndex = indexes.find((index: any) => index?.key?.type === 1
+        && index?.key?.action === 1
+        && index?.key?.schoolCatRewardPeriod === 1
+        && index?.key?.userId === 1
+        && index?.key?.schoolCatRewardRevision === undefined);
+    if (legacyRewardIndex?.name) await logColl.dropIndex(legacyRewardIndex.name);
+    await logColl.updateMany({
+        schoolCatRewardPeriod: { $type: 'string' },
+        schoolCatRewardRevision: { $exists: false },
+    } as any, { $set: { schoolCatRewardRevision: 1 } } as any);
     await Promise.all([
         logColl.createIndex({ createdAt: 1 }),
         // Supports the one-time/idempotent legacy movement contribution scan.
@@ -12,7 +31,10 @@ export async function ensureLogIndexes() {
         }),
         logColl.createIndex({ schoolCatContributionBatch: 1 }, { sparse: true }),
         logColl.createIndex(
-            { type: 1, action: 1, schoolCatRewardPeriod: 1, userId: 1 },
+            {
+                type: 1, action: 1, schoolCatRewardPeriod: 1,
+                schoolCatRewardRevision: 1, userId: 1,
+            },
             {
                 unique: true,
                 partialFilterExpression: { schoolCatRewardPeriod: { $type: 'string' } },

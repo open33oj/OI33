@@ -17,8 +17,11 @@ export const SCHOOL_CAT_WEEKLY_MIN_TERRITORY = 64;
 export const SCHOOL_CAT_WEEKLY_MAX_BASE_CANS = 12;
 export const SCHOOL_CAT_WEEKLY_FEEDERS_PER_MULTIPLIER = 3;
 export const SCHOOL_CAT_ADMIN_CANS_PER_FEEDER = 5;
+export const SCHOOL_CAT_REWARD_PAGE_SIZE = 20;
+export const SCHOOL_CAT_REWARD_ALLOCATION_PAGE_SIZE = 100;
 
 const TIME_ZONE = 'Asia/Shanghai';
+const REWARD_PERIOD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const schoolCatColl = db.collection('oi33_school_cat');
 export const schoolFeedHistoryColl = db.collection('oi33_school_feed_history');
@@ -64,6 +67,26 @@ export function schoolCatRewardPeriod(now = new Date()) {
     const daysSinceMonday = (localDate.getUTCDay() + 6) % 7;
     localDate.setUTCDate(localDate.getUTCDate() - daysSinceMonday);
     return localDate.toISOString().slice(0, 10);
+}
+
+function normalizeSchoolCatRewardPeriod(period: string) {
+    const normalized = String(period || '').trim();
+    if (!REWARD_PERIOD_RE.test(normalized)) throw new Error('结算周期格式无效。');
+    const date = new Date(`${normalized}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized
+        || date.getUTCDay() !== 1) {
+        throw new Error('结算周期必须是有效的周一日期。');
+    }
+    return normalized;
+}
+
+function schoolCatRewardRevision(plan: any) {
+    const revision = Math.floor(Number(plan?.revision) || 1);
+    return Math.max(1, revision);
+}
+
+function schoolCatRewardRunKey(period: string, revision: number) {
+    return `${period}#${revision}`;
 }
 
 export function schoolCatTerritoryBaseReward(territoryCount: number) {
@@ -401,6 +424,7 @@ async function getOrCreateSchoolCatRewardPlan(period: string, operator: number, 
     const doc = {
         _id: period,
         status: 'planned',
+        revision: 1,
         ...plan,
         operator,
         createdAt: now,
@@ -420,9 +444,92 @@ export async function getSchoolCatWeeklyRewardStatus(now = new Date()) {
     const period = schoolCatRewardPeriod(now);
     const row: any = await schoolCatRewardColl.findOne(
         { _id: period } as any,
-        { projection: { allocations: 0 } },
+        { projection: { allocations: 0, 'history.cats': 0 } },
     );
     return row || { _id: period, status: 'pending', plannedUsers: 0, plannedCans: 0 };
+}
+
+export async function listSchoolCatWeeklyRewards(page = 1, pageSize = SCHOOL_CAT_REWARD_PAGE_SIZE) {
+    const size = Math.max(1, Math.min(100, Math.floor(pageSize) || SCHOOL_CAT_REWARD_PAGE_SIZE));
+    const total = await schoolCatRewardColl.countDocuments({});
+    const upcount = Math.max(1, Math.ceil(total / size));
+    const current = Math.max(1, Math.min(upcount, Math.floor(page) || 1));
+    const rewards: any[] = await schoolCatRewardColl.find({}, {
+        projection: { allocations: 0, 'history.cats': 0 },
+    }).sort({ _id: -1 }).skip((current - 1) * size).limit(size).toArray();
+    return { rewards, page: current, upcount, total };
+}
+
+export async function getSchoolCatWeeklyRewardDetail(
+    rawPeriod: string,
+    allocationPage = 1,
+    pageSize = SCHOOL_CAT_REWARD_ALLOCATION_PAGE_SIZE,
+) {
+    const period = normalizeSchoolCatRewardPeriod(rawPeriod);
+    const size = Math.max(1, Math.min(500, Math.floor(pageSize) || SCHOOL_CAT_REWARD_ALLOCATION_PAGE_SIZE));
+    const base: any = await schoolCatRewardColl.findOne(
+        { _id: period } as any,
+        { projection: { allocations: 0, 'history.cats': 0 } },
+    );
+    if (!base) return null;
+    const total = Math.max(0, Math.floor(Number(base.plannedUsers) || 0));
+    const upcount = Math.max(1, Math.ceil(total / size));
+    const current = Math.max(1, Math.min(upcount, Math.floor(allocationPage) || 1));
+    const sliced: any = await schoolCatRewardColl.findOne(
+        { _id: period } as any,
+        { projection: {
+            allocations: { $slice: [(current - 1) * size, size] },
+            'history.cats': 0,
+        } } as any,
+    );
+    return {
+        ...sliced,
+        revision: schoolCatRewardRevision(sliced),
+        allocationPage: current,
+        allocationPages: upcount,
+        allocationTotal: total,
+    };
+}
+
+function schoolCatRewardHistoryEntry(plan: any) {
+    return {
+        revision: schoolCatRewardRevision(plan),
+        status: String(plan.status || ''),
+        plannedUsers: Math.max(0, Number(plan.plannedUsers) || 0),
+        plannedCans: Math.max(0, Number(plan.plannedCans) || 0),
+        issuedUsers: Math.max(0, Number(plan.issuedUsers) || 0),
+        issuedCans: Math.max(0, Number(plan.issuedCans) || 0),
+        createdAt: plan.createdAt || new Date(),
+        completedAt: plan.completedAt,
+        rolledBackAt: plan.rolledBackAt,
+        rolledBackBy: plan.rolledBackBy,
+        rollbackReason: plan.rollbackReason,
+        cats: Array.isArray(plan.cats) ? plan.cats : [],
+    };
+}
+
+async function rebuildRolledBackSchoolCatRewardPlan(period: string, operator: number, now: Date) {
+    const previous: any = await schoolCatRewardColl.findOne({ _id: period } as any);
+    if (!previous || previous.status !== 'rolled_back') return previous;
+    const revision = schoolCatRewardRevision(previous) + 1;
+    const next = await buildSchoolCatWeeklyRewardPlan(period);
+    const rebuilt = await schoolCatRewardColl.updateOne(
+        { _id: period, status: 'rolled_back' } as any,
+        {
+            $push: { history: schoolCatRewardHistoryEntry(previous) },
+            $set: {
+                status: 'planned', revision, ...next,
+                operator, createdAt: now,
+            },
+            $unset: {
+                startedAt: '', completedAt: '', failedAt: '', lastError: '',
+                issuedUsers: '', issuedCans: '', rolledBackAt: '', rolledBackBy: '',
+                rollbackReason: '', lockOwner: '', lockUntil: '',
+            },
+        } as any,
+    );
+    if (!rebuilt.modifiedCount) throw new Error('结算批次刚刚发生变化，请刷新后重试。');
+    return await schoolCatRewardColl.findOne({ _id: period } as any);
 }
 
 async function renewSchoolCatRewardLock(period: string, lockOwner: ObjectId) {
@@ -434,26 +541,49 @@ async function renewSchoolCatRewardLock(period: string, lockOwner: ObjectId) {
 }
 
 // Builds one immutable snapshot per Shanghai week and applies it idempotently.
-// A database lease serializes manual and scheduled runs. Per-user period
-// markers, the pool period marker and idempotent log upserts allow an expired
-// lease to resume safely after a process interruption.
-export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date()) {
-    const period = schoolCatRewardPeriod(now);
+// A database lease serializes manual and scheduled runs. Per-user/pool run
+// keys and idempotent log upserts allow an expired lease to resume safely
+// after a process interruption.
+export async function settleSchoolCatWeeklyRewards(
+    operator = 0,
+    now = new Date(),
+    requestedPeriod = schoolCatRewardPeriod(now),
+) {
+    const period = normalizeSchoolCatRewardPeriod(requestedPeriod);
     let plan: any = await getOrCreateSchoolCatRewardPlan(period, operator, now);
+    if (plan.status === 'rolled_back') {
+        // A manual rollback pauses the automatic ten-minute scheduler until an
+        // administrator explicitly requests a fresh revision.
+        if (!operator) {
+            return {
+                period, revision: schoolCatRewardRevision(plan), paused: true,
+                completed: false, newlyCompleted: false, running: false,
+                users: 0, cans: 0, awardedUids: [] as number[],
+            };
+        }
+        plan = await rebuildRolledBackSchoolCatRewardPlan(period, operator, now);
+    }
     if (plan.status === 'completed') {
         return {
-            period, completed: true, newlyCompleted: false, running: false,
+            period, revision: schoolCatRewardRevision(plan),
+            completed: true, newlyCompleted: false, running: false,
             users: Number(plan.issuedUsers) || 0,
             cans: Number(plan.issuedCans) || 0,
             awardedUids: [] as number[],
         };
     }
+    if (['rolling_back', 'rollback_failed'].includes(plan.status)) {
+        throw new Error('该批次正在回滚或回滚未完成，请先在结算管理页完成回滚。');
+    }
+
+    const revision = schoolCatRewardRevision(plan);
+    const runKey = schoolCatRewardRunKey(period, revision);
 
     const lockOwner = new ObjectId();
     const lockUntil = new Date(now.getTime() + 30 * 60 * 1000);
     const locked = await schoolCatRewardColl.updateOne({
         _id: period,
-        status: { $ne: 'completed' },
+        status: { $in: ['planned', 'failed', 'processing'] },
         $or: [
             { lockUntil: { $exists: false } },
             { lockUntil: { $lte: now } },
@@ -466,6 +596,7 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
         plan = await schoolCatRewardColl.findOne({ _id: period } as any);
         return {
             period,
+            revision: schoolCatRewardRevision(plan),
             completed: plan?.status === 'completed',
             newlyCompleted: false,
             running: plan?.status !== 'completed',
@@ -478,6 +609,21 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
     try {
         plan = await schoolCatRewardColl.findOne({ _id: period, lockOwner } as any);
         if (!plan) throw new Error('每周奖励结算锁已失效。');
+        // Adopt a partially applied legacy revision without minting twice.
+        if (revision === 1) {
+            await userColl.updateMany({
+                school_cat_reward_period: period,
+                school_cat_reward_revision: { $exists: false },
+            } as any, {
+                $set: { school_cat_reward_revision: 1 },
+                $addToSet: { school_cat_reward_keys: runKey },
+            } as any);
+            await logColl.updateMany({
+                type: 'cat_account', action: 'school_cat_weekly_reward',
+                schoolCatRewardPeriod: period,
+                schoolCatRewardRevision: { $exists: false },
+            } as any, { $set: { schoolCatRewardRevision: 1 } } as any);
+        }
         const allocations: Oi33SchoolCatRewardAllocation[] = Array.isArray(plan.allocations)
             ? plan.allocations.filter((row: any) => Number.isSafeInteger(row?.uid)
                 && Number.isSafeInteger(row?.amount) && row.amount > 0)
@@ -489,12 +635,14 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
                     filter: {
                         _id: row.uid,
                         realname_flag: { $gte: 1 },
-                        school_cat_reward_period: { $ne: period },
+                        school_cat_reward_keys: { $ne: runKey },
                     },
                     update: {
                         $inc: { cat_can: row.amount },
+                        $addToSet: { school_cat_reward_keys: runKey },
                         $set: {
                             school_cat_reward_period: period,
+                            school_cat_reward_revision: revision,
                             school_cat_reward_amount: row.amount,
                             school_cat_reward_school_id: row.schoolId,
                             school_cat_reward_at: now,
@@ -512,32 +660,45 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
             const chunk = uids.slice(offset, offset + 2000);
             const users: any[] = await userColl.find({
                 _id: { $in: chunk },
-                school_cat_reward_period: period,
+                school_cat_reward_keys: runKey,
             } as any, {
-                projection: {
-                    school_cat_reward_amount: 1,
-                    school_cat_reward_school_id: 1,
-                },
+                projection: { _id: 1 },
             }).toArray();
             for (const user of users) {
                 const allocation = allocationByUid.get(user._id);
                 if (!allocation) continue;
-                if (Number(user.school_cat_reward_amount) !== allocation.amount
-                    || Number(user.school_cat_reward_school_id) !== allocation.schoolId) {
-                    throw new Error(`UID ${user._id} 的每周奖励幂等标记与奖励计划不一致。`);
-                }
                 issued.push(allocation);
             }
             await renewSchoolCatRewardLock(period, lockOwner);
         }
         const issuedCans = issued.reduce((sum, row) => sum + row.amount, 0);
         await ensureCatCanPool(now);
+        if (revision === 1) {
+            const legacyPool: any = await catCanPoolColl.findOne({
+                _id: 'main', schoolCatRewardPeriod: period,
+                schoolCatRewardRevision: { $exists: false },
+            } as any);
+            if (legacyPool) {
+                if (Number(legacyPool.schoolCatRewardCans) !== issuedCans) {
+                    throw new Error('旧版每周奖励的市场计数器与奖励计划不一致。');
+                }
+                await catCanPoolColl.updateOne(
+                    { _id: 'main', schoolCatRewardPeriod: period, schoolCatRewardRevision: { $exists: false } } as any,
+                    {
+                        $set: { schoolCatRewardRevision: 1 },
+                        $addToSet: { schoolCatRewardKeys: runKey },
+                    } as any,
+                );
+            }
+        }
         const poolUpdated = await catCanPoolColl.updateOne(
-            { _id: 'main', schoolCatRewardPeriod: { $ne: period } } as any,
+            { _id: 'main', schoolCatRewardKeys: { $ne: runKey } } as any,
             {
                 $inc: { virtualCanSupply: issuedCans, circulatingCans: issuedCans },
+                $addToSet: { schoolCatRewardKeys: runKey },
                 $set: {
                     schoolCatRewardPeriod: period,
+                    schoolCatRewardRevision: revision,
                     schoolCatRewardCans: issuedCans,
                     schoolCatRewardAt: now,
                     updatedAt: now,
@@ -546,8 +707,8 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
         );
         if (!poolUpdated.modifiedCount) {
             const pool: any = await catCanPoolColl.findOne({ _id: 'main' });
-            if (pool?.schoolCatRewardPeriod !== period
-                || Number(pool?.schoolCatRewardCans) !== issuedCans) {
+            if (!Array.isArray(pool?.schoolCatRewardKeys)
+                || !pool.schoolCatRewardKeys.includes(runKey)) {
                 throw new Error('每周奖励的市场计数器与奖励计划不一致。');
             }
         }
@@ -560,6 +721,7 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
                         type: 'cat_account',
                         action: 'school_cat_weekly_reward',
                         schoolCatRewardPeriod: period,
+                        schoolCatRewardRevision: revision,
                         userId: row.uid,
                     },
                     update: {
@@ -568,14 +730,15 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
                             type: 'cat_account',
                             action: 'school_cat_weekly_reward',
                             schoolCatRewardPeriod: period,
+                            schoolCatRewardRevision: revision,
                             userId: row.uid,
                             sender: operator,
                             amount: 0,
                             canAmount: row.amount,
                             catId: schoolCatKey(row.schoolId),
-                            reason: row.isAdminCat
+                            reason: `第 ${revision} 版 · ${row.isAdminCat
                                 ? `管理员大猫每周奖励：每位当前投喂者 ${SCHOOL_CAT_ADMIN_CANS_PER_FEEDER} 个`
-                                : `大猫领地每周奖励：当前贡献 ${row.contribution}g，权重 ${row.weight}`,
+                                : `大猫领地每周奖励：当前贡献 ${row.contribution}g，权重 ${row.weight}`}`,
                             createdAt: now,
                         },
                     },
@@ -584,6 +747,18 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
             })), { ordered: false });
             await renewSchoolCatRewardLock(period, lockOwner);
         }
+        await logColl.updateOne({
+            type: 'school_cat', action: 'weekly_reward_settle',
+            schoolCatRewardPeriod: period, schoolCatRewardRevision: revision,
+        } as any, {
+            $setOnInsert: {
+                _id: new ObjectId(), type: 'school_cat', action: 'weekly_reward_settle',
+                schoolCatRewardPeriod: period, schoolCatRewardRevision: revision,
+                sender: operator,
+                reason: `${period} 第 ${revision} 版结算：${issued.length} 位用户，共 ${issuedCans} 个罐头`,
+                createdAt: now,
+            },
+        } as any, { upsert: true });
         const completedAt = new Date();
         const completed = await schoolCatRewardColl.updateOne(
             { _id: period, lockOwner } as any,
@@ -599,7 +774,7 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
         );
         if (!completed.modifiedCount) throw new Error('每周奖励已发放，但结算状态写入失败。');
         return {
-            period, completed: true, newlyCompleted: true, running: false,
+            period, revision, completed: true, newlyCompleted: true, running: false,
             users: issued.length, cans: issuedCans,
             awardedUids: issued.map((row) => row.uid),
         };
@@ -612,6 +787,280 @@ export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date(
                     failedAt: new Date(),
                     lastError: e?.message || String(e),
                 },
+                $unset: { lockOwner: '', lockUntil: '' },
+            } as any,
+        );
+        throw e;
+    }
+}
+
+async function ensureSchoolCatRewardLogRevision(period: string) {
+    await logColl.updateMany({
+        action: { $in: ['school_cat_weekly_reward', 'school_cat_weekly_reward_rollback'] },
+        schoolCatRewardPeriod: period,
+        schoolCatRewardRevision: { $exists: false },
+    } as any, { $set: { schoolCatRewardRevision: 1 } } as any);
+}
+
+async function getIssuedSchoolCatRewardRows(period: string, revision: number) {
+    await ensureSchoolCatRewardLogRevision(period);
+    const logs: any[] = await logColl.find({
+        type: 'cat_account', action: 'school_cat_weekly_reward',
+        schoolCatRewardPeriod: period, schoolCatRewardRevision: revision,
+        canAmount: { $gt: 0 },
+    } as any, {
+        projection: { userId: 1, canAmount: 1, catId: 1 },
+    }).sort({ userId: 1 }).toArray();
+    return logs.map((log: any) => ({
+        uid: Number(log.userId),
+        amount: Math.max(0, Math.floor(Number(log.canAmount) || 0)),
+        schoolId: schoolIdFromCatKey(Number(log.catId)),
+    })).filter((row) => Number.isSafeInteger(row.uid) && row.uid > 0 && row.amount > 0);
+}
+
+async function schoolCatRewardRollbackReadiness(plan: any) {
+    const period = normalizeSchoolCatRewardPeriod(plan._id);
+    const revision = schoolCatRewardRevision(plan);
+    const runKey = schoolCatRewardRunKey(period, revision);
+    const rows = await getIssuedSchoolCatRewardRows(period, revision);
+    const expectedUsers = Math.max(0, Math.floor(Number(plan.issuedUsers) || 0));
+    const expectedCans = Math.max(0, Math.floor(Number(plan.issuedCans) || 0));
+    const issuedCans = rows.reduce((sum, row) => sum + row.amount, 0);
+    if (rows.length !== expectedUsers || issuedCans !== expectedCans) {
+        throw new Error(`结算日志与批次汇总不一致（日志 ${rows.length} 人/${issuedCans} 个，批次 ${expectedUsers} 人/${expectedCans} 个）。`);
+    }
+    const users = new Map<number, any>();
+    const uids = rows.map((row) => row.uid);
+    for (let offset = 0; offset < uids.length; offset += 2000) {
+        const chunk: any[] = await userColl.find({ _id: { $in: uids.slice(offset, offset + 2000) } } as any, {
+            projection: { cat_can: 1, school_cat_reward_rollback_keys: 1 },
+        }).toArray();
+        for (const user of chunk) users.set(user._id, user);
+    }
+    const pending: typeof rows = [];
+    const insufficient: Array<{ uid: number; required: number; balance: number | null }> = [];
+    let alreadyRolledBack = 0;
+    for (const row of rows) {
+        const user = users.get(row.uid);
+        const rollbackKeys = Array.isArray(user?.school_cat_reward_rollback_keys)
+            ? user.school_cat_reward_rollback_keys : [];
+        if (rollbackKeys.includes(runKey)) {
+            alreadyRolledBack++;
+            continue;
+        }
+        const balance = user ? Math.floor(Number(user.cat_can) || 0) : null;
+        if (balance === null || balance < row.amount) {
+            insufficient.push({ uid: row.uid, required: row.amount, balance });
+        } else pending.push(row);
+    }
+    return {
+        period, revision, runKey, rows, pending, insufficient,
+        canRollback: insufficient.length === 0,
+        alreadyRolledBack,
+        issuedUsers: rows.length,
+        issuedCans,
+    };
+}
+
+export async function getSchoolCatWeeklyRewardRollbackCheck(rawPeriod: string) {
+    const period = normalizeSchoolCatRewardPeriod(rawPeriod);
+    const plan: any = await schoolCatRewardColl.findOne(
+        { _id: period } as any,
+        { projection: { allocations: 0 } },
+    );
+    if (!plan || !['completed', 'rolling_back', 'rollback_failed'].includes(plan.status)) return null;
+    return await schoolCatRewardRollbackReadiness(plan);
+}
+
+async function renewSchoolCatRewardRollbackLock(period: string, lockOwner: ObjectId) {
+    const renewed = await schoolCatRewardColl.updateOne(
+        { _id: period, status: 'rolling_back', lockOwner } as any,
+        { $set: { lockUntil: new Date(Date.now() + 30 * 60 * 1000) } } as any,
+    );
+    if (!renewed.matchedCount) throw new Error('每周奖励回滚锁已失效。');
+}
+
+export async function rollbackSchoolCatWeeklyRewards(
+    operator: number,
+    rawPeriod: string,
+    reason: string,
+    now = new Date(),
+) {
+    const period = normalizeSchoolCatRewardPeriod(rawPeriod);
+    const normalizedReason = String(reason || '').trim();
+    if (!normalizedReason || normalizedReason.length > 100) throw new Error('回滚原因不能为空且不能超过 100 字。');
+    let plan: any = await schoolCatRewardColl.findOne({ _id: period } as any);
+    if (!plan) throw new Error('该结算批次不存在。');
+    if (plan.status === 'rolled_back') {
+        return {
+            period, revision: schoolCatRewardRevision(plan), newlyRolledBack: false,
+            users: Number(plan.issuedUsers) || 0, cans: Number(plan.issuedCans) || 0,
+        };
+    }
+    if (!['completed', 'rolling_back', 'rollback_failed'].includes(plan.status)) {
+        throw new Error('只有已完成或回滚失败的结算批次可以回滚。');
+    }
+
+    // Give a useful error before claiming the batch. The same check is run
+    // again under the lease because users can trade between these two reads.
+    const preview = await schoolCatRewardRollbackReadiness(plan);
+    if (preview.insufficient.length) {
+        const examples = preview.insufficient.slice(0, 5)
+            .map((row) => `UID ${row.uid}（需 ${row.required}，现有 ${row.balance ?? '不存在'}）`).join('、');
+        throw new Error(`有 ${preview.insufficient.length} 位用户罐头余额不足，暂不能安全回滚：${examples}`);
+    }
+
+    const revision = schoolCatRewardRevision(plan);
+    const runKey = schoolCatRewardRunKey(period, revision);
+    const lockOwner = new ObjectId();
+    const locked = await schoolCatRewardColl.updateOne({
+        _id: period,
+        status: { $in: ['completed', 'rolling_back', 'rollback_failed'] },
+        $or: [
+            { lockUntil: { $exists: false } },
+            { lockUntil: { $lte: now } },
+        ],
+    } as any, {
+        $set: {
+            status: 'rolling_back', lockOwner,
+            lockUntil: new Date(now.getTime() + 30 * 60 * 1000),
+            rollbackStartedAt: now, rolledBackBy: operator, rollbackReason: normalizedReason,
+        },
+        $unset: { failedAt: '', lastError: '' },
+    } as any);
+    if (!locked.modifiedCount) throw new Error('该批次正在被另一个进程处理，请稍后刷新。');
+
+    try {
+        plan = await schoolCatRewardColl.findOne({ _id: period, lockOwner } as any);
+        if (!plan) throw new Error('每周奖励回滚锁已失效。');
+        const readiness = await schoolCatRewardRollbackReadiness(plan);
+        if (readiness.insufficient.length) {
+            const examples = readiness.insufficient.slice(0, 5)
+                .map((row) => `UID ${row.uid}（需 ${row.required}，现有 ${row.balance ?? '不存在'}）`).join('、');
+            throw new Error(`回滚前余额发生变化：${examples}`);
+        }
+
+        for (let offset = 0; offset < readiness.pending.length; offset += 500) {
+            const chunk = readiness.pending.slice(offset, offset + 500);
+            await userColl.bulkWrite(chunk.map((row) => ({
+                updateOne: {
+                    filter: {
+                        _id: row.uid, cat_can: { $gte: row.amount },
+                        school_cat_reward_rollback_keys: { $ne: runKey },
+                    },
+                    update: {
+                        $inc: { cat_can: -row.amount },
+                        $addToSet: { school_cat_reward_rollback_keys: runKey },
+                    },
+                },
+            })), { ordered: false });
+            await renewSchoolCatRewardRollbackLock(period, lockOwner);
+        }
+
+        const rollbackUsers = await userColl.countDocuments({
+            _id: { $in: readiness.rows.map((row) => row.uid) },
+            school_cat_reward_rollback_keys: runKey,
+        } as any);
+        if (rollbackUsers !== readiness.rows.length) {
+            throw new Error(`仅完成 ${rollbackUsers}/${readiness.rows.length} 位用户的扣回，可能有余额刚刚发生变化。`);
+        }
+
+        await ensureCatCanPool(now);
+        const poolUpdated = await catCanPoolColl.updateOne({
+            _id: 'main', schoolCatRewardRollbackKeys: { $ne: runKey },
+            virtualCanSupply: { $gte: readiness.issuedCans },
+            circulatingCans: { $gte: readiness.issuedCans },
+        } as any, {
+            $inc: {
+                virtualCanSupply: -readiness.issuedCans,
+                circulatingCans: -readiness.issuedCans,
+            },
+            $addToSet: { schoolCatRewardRollbackKeys: runKey },
+            $set: { updatedAt: now },
+        } as any);
+        if (!poolUpdated.modifiedCount) {
+            const pool: any = await catCanPoolColl.findOne({ _id: 'main' });
+            if (!Array.isArray(pool?.schoolCatRewardRollbackKeys)
+                || !pool.schoolCatRewardRollbackKeys.includes(runKey)) {
+                throw new Error('市场罐头计数不足或不一致，无法完成回滚。');
+            }
+        }
+
+        const revisionFilter: any = revision === 1
+            ? { $or: [{ school_cat_reward_revision: 1 }, { school_cat_reward_revision: { $exists: false } }] }
+            : { school_cat_reward_revision: revision };
+        await userColl.updateMany({
+            school_cat_reward_period: period, ...revisionFilter,
+        } as any, { $unset: {
+            school_cat_reward_period: '', school_cat_reward_revision: '',
+            school_cat_reward_amount: '', school_cat_reward_school_id: '', school_cat_reward_at: '',
+        } } as any);
+        const poolRevisionFilter: any = revision === 1
+            ? { $or: [{ schoolCatRewardRevision: 1 }, { schoolCatRewardRevision: { $exists: false } }] }
+            : { schoolCatRewardRevision: revision };
+        await catCanPoolColl.updateOne({
+            _id: 'main', schoolCatRewardPeriod: period, ...poolRevisionFilter,
+        } as any, { $unset: {
+            schoolCatRewardPeriod: '', schoolCatRewardRevision: '',
+            schoolCatRewardCans: '', schoolCatRewardAt: '',
+        } } as any);
+
+        for (let offset = 0; offset < readiness.rows.length; offset += 500) {
+            const chunk = readiness.rows.slice(offset, offset + 500);
+            await logColl.bulkWrite(chunk.map((row) => ({
+                updateOne: {
+                    filter: {
+                        type: 'cat_account', action: 'school_cat_weekly_reward_rollback',
+                        schoolCatRewardPeriod: period, schoolCatRewardRevision: revision,
+                        userId: row.uid,
+                    },
+                    update: { $setOnInsert: {
+                        _id: new ObjectId(), type: 'cat_account',
+                        action: 'school_cat_weekly_reward_rollback',
+                        schoolCatRewardPeriod: period, schoolCatRewardRevision: revision,
+                        userId: row.uid, sender: operator, amount: 0,
+                        canAmount: -row.amount,
+                        catId: row.schoolId === null ? 0 : schoolCatKey(row.schoolId),
+                        reason: `回滚 ${period} 第 ${revision} 版每周大猫奖励：${normalizedReason}`,
+                        createdAt: now,
+                    } },
+                    upsert: true,
+                },
+            })), { ordered: false });
+            await renewSchoolCatRewardRollbackLock(period, lockOwner);
+        }
+        await logColl.updateOne({
+            type: 'school_cat', action: 'weekly_reward_rollback',
+            schoolCatRewardPeriod: period, schoolCatRewardRevision: revision,
+        } as any, { $setOnInsert: {
+            _id: new ObjectId(), type: 'school_cat', action: 'weekly_reward_rollback',
+            schoolCatRewardPeriod: period, schoolCatRewardRevision: revision,
+            sender: operator,
+            reason: `${period} 第 ${revision} 版回滚：${readiness.rows.length} 位用户，共 ${readiness.issuedCans} 个罐头；${normalizedReason}`,
+            createdAt: now,
+        } } as any, { upsert: true });
+
+        const rolledBackAt = new Date();
+        const completed = await schoolCatRewardColl.updateOne(
+            { _id: period, status: 'rolling_back', lockOwner } as any,
+            {
+                $set: {
+                    status: 'rolled_back', rolledBackAt,
+                    rolledBackBy: operator, rollbackReason: normalizedReason,
+                },
+                $unset: { lockOwner: '', lockUntil: '', failedAt: '', lastError: '', rollbackStartedAt: '' },
+            } as any,
+        );
+        if (!completed.modifiedCount) throw new Error('奖励已扣回，但批次状态写入失败。');
+        return {
+            period, revision, newlyRolledBack: true,
+            users: readiness.rows.length, cans: readiness.issuedCans,
+        };
+    } catch (e: any) {
+        await schoolCatRewardColl.updateOne(
+            { _id: period, lockOwner } as any,
+            {
+                $set: { status: 'rollback_failed', failedAt: new Date(), lastError: e?.message || String(e) },
                 $unset: { lockOwner: '', lockUntil: '' },
             } as any,
         );
@@ -830,9 +1279,12 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
     const previousId = Number.isSafeInteger(user.school_cat) ? user.school_cat : null;
     if (previousId === schoolId) throw new Error('你已经绑定了这只大猫。');
     const monthKey = shanghaiMonthKey(now);
-    if (previousId !== null && (user.school_cat_month || '') === monthKey) {
+    if ((user.school_cat_month || '') === monthKey) {
         throw new Error('每个月只能修改一次绑定的大猫，请下个月再修改。');
     }
+    // The first-ever binding is free. Binding again after a user-initiated
+    // cancellation is a monthly change even though there is no current cat.
+    const isInitialBinding = previousId === null && !String(user.school_cat_month || '');
     const targetCat: any = await ensureSchoolCatRecord(schoolId, now);
     const contribution = Math.max(0, Math.floor(Number(user.school_cat_food) || 0));
     if (previousId !== null && contribution > 0) {
@@ -871,8 +1323,8 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
     await userColl.updateOne(
         { _id: uid },
         {
-            $set: previousId === null
-                // 首次绑定不占每月一次的修改额度，只有改绑才记录月份。
+            $set: isInitialBinding
+                // 首次绑定不占每月一次的修改额度；改绑和取消后的重新绑定都会记录月份。
                 ? { school_cat: schoolId, school_cat_food: restored }
                 : { school_cat: schoolId, school_cat_food: restored, school_cat_month: monthKey },
         },
@@ -882,10 +1334,12 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
             type: 'school_cat',
             userId: uid,
             sender: uid,
-            action: previousId === null ? 'bind' : 'rebind',
-            reason: previousId === null
+            action: isInitialBinding ? 'bind' : 'rebind',
+            reason: isInitialBinding
                 ? `绑定大猫 ${schoolDisplay(school)}${restored ? `，恢复历史投喂 ${restored}g` : ''}`
-                : `从 #${previousId} 改绑 ${schoolDisplay(school)}，${contribution}g 转入历史投喂${restored ? `，恢复历史投喂 ${restored}g` : ''}`,
+                : previousId === null
+                    ? `取消绑定后重新绑定 ${schoolDisplay(school)}${restored ? `，恢复历史投喂 ${restored}g` : ''}`
+                    : `从 #${previousId} 改绑 ${schoolDisplay(school)}，${contribution}g 转入历史投喂${restored ? `，恢复历史投喂 ${restored}g` : ''}`,
         } as any);
     } catch (e) {
         console.error('[oi33] failed to log school cat bind:', e);
@@ -898,7 +1352,90 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
         boundColor: targetCat.territoryColor,
         movedToHistory: previousId === null ? 0 : contribution,
         restoredFromHistory: restored,
-        canChange: previousId === null,
+        canChange: isInitialBinding,
+    };
+}
+
+export async function unbindSchoolCat(uid: number, now = new Date()) {
+    const user: any = await getEligibleUser(uid);
+    if (!user) throw new Error('只有已认证用户可以取消绑定大猫。');
+    const schoolId = Number.isSafeInteger(user.school_cat) ? user.school_cat : null;
+    if (schoolId === null) throw new Error('你当前没有绑定大猫。');
+    const monthKey = shanghaiMonthKey(now);
+    if ((user.school_cat_month || '') === monthKey) {
+        throw new Error('每个月只能修改一次绑定的大猫，请下个月再取消绑定。');
+    }
+    const school: any = await getSchool(schoolId);
+    const contribution = Math.max(0, Math.floor(Number(user.school_cat_food) || 0));
+    const hadContributionField = Object.prototype.hasOwnProperty.call(user, 'school_cat_food');
+    const hadMonthField = Object.prototype.hasOwnProperty.call(user, 'school_cat_month');
+    const updated = await userColl.updateOne(
+        {
+            _id: uid, school_cat: schoolId,
+            ...(Object.prototype.hasOwnProperty.call(user, 'school_cat_food')
+                ? { school_cat_food: user.school_cat_food }
+                : { school_cat_food: { $exists: false } }),
+        } as any,
+        {
+            $set: { school_cat_month: monthKey },
+            $unset: { school_cat: '', school_cat_food: '' },
+        } as any,
+    );
+    if (!updated.modifiedCount) throw new Error('大猫绑定刚刚发生变化，请刷新后重试。');
+    const historyId = new ObjectId();
+    let catUpdated = false;
+    let historyInserted = false;
+    try {
+        if (contribution > 0) {
+            const catResult = await schoolCatColl.updateOne(
+                { _id: schoolId, currentWeight: { $gte: contribution } } as any,
+                {
+                    $inc: { currentWeight: -contribution, historyWeight: contribution },
+                    $set: { updatedAt: now },
+                } as any,
+            );
+            if (!catResult.modifiedCount) throw new Error('大猫体重更新失败。');
+            catUpdated = true;
+            await schoolFeedHistoryColl.insertOne({
+                _id: historyId, uid, schoolId, amount: contribution, createdAt: now,
+            } as any);
+            historyInserted = true;
+        }
+        await addLog({
+            type: 'school_cat', userId: uid, sender: uid, action: 'unbind',
+            catId: schoolCatKey(schoolId),
+            reason: `取消绑定 ${school ? schoolDisplay(school) : `#${schoolId}`}，${contribution}g 转入历史投喂；既有绘图归属保持不变`,
+        } as any);
+    } catch (e) {
+        if (historyInserted) await schoolFeedHistoryColl.deleteOne({ _id: historyId } as any);
+        if (catUpdated) await schoolCatColl.updateOne(
+            { _id: schoolId } as any,
+            { $inc: { currentWeight: contribution, historyWeight: -contribution } } as any,
+        );
+        const restore: any = { school_cat: schoolId };
+        if (hadContributionField) restore.school_cat_food = user.school_cat_food;
+        const restoreUnset: any = {};
+        if (!hadContributionField) restoreUnset.school_cat_food = '';
+        if (hadMonthField) {
+            restore.school_cat_month = user.school_cat_month;
+        } else {
+            restoreUnset.school_cat_month = '';
+        }
+        const restoreUpdate: any = { $set: restore };
+        if (Object.keys(restoreUnset).length) restoreUpdate.$unset = restoreUnset;
+        await userColl.updateOne(
+            { _id: uid, school_cat: { $exists: false }, school_cat_month: monthKey } as any,
+            restoreUpdate,
+        );
+        throw e;
+    }
+    const cat: any = await schoolCatColl.findOne({ _id: schoolId } as any);
+    return {
+        previousId: schoolId,
+        previousDisplay: school ? schoolDisplay(school) : `#${schoolId}`,
+        movedToHistory: contribution,
+        canChange: false,
+        cat: cat ? publicCat(cat, school) : null,
     };
 }
 
@@ -947,6 +1484,7 @@ export async function feedSchoolCat(uid: number, amount: number, now = new Date(
         {
             _id: uid,
             realname_flag: { $gte: 1 },
+            school_cat: schoolId,
             cat_food: { $gte: amount },
             $or: [
                 { school_cat_feed_at: { $exists: false } },

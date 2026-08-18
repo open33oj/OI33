@@ -21,7 +21,23 @@
 .oi33-account-dot.is-food { fill: var(--account-food); }
 .oi33-account-dot.is-can { fill: var(--account-can); }
 .oi33-account-date { font-size: 10px !important; }
-.oi33-account-reason { display: block; margin-top: 2px; opacity: .62; }
+.oi33-account-table-wrap { width: 100%; overflow-x: auto; }
+.oi33-account-table { min-width: 760px; }
+.oi33-account-table th, .oi33-account-table td { vertical-align: middle; }
+.oi33-account-table th:first-child, .oi33-account-table td:first-child { width: 10.5rem; }
+.oi33-account-table th:nth-child(3), .oi33-account-table td:nth-child(3),
+.oi33-account-table th:nth-child(4), .oi33-account-table td:nth-child(4) { width: 8.5rem; }
+.oi33-account-table th:last-child:nth-child(5), .oi33-account-table td:last-child:nth-child(5) { width: 15rem; }
+.oi33-account-table th:nth-child(2), .oi33-account-table td:nth-child(2),
+.oi33-account-table .oi33-account-reason {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.oi33-account-long-cell { overflow: visible !important; white-space: normal !important; text-overflow: clip !important; overflow-wrap: anywhere; word-break: break-word; }
+.oi33-account-reason { display: block; max-width: none; margin-top: 2px; line-height: 1.45; opacity: .62; }
 .oi33-account-reversed { display: inline-block; margin-left: 7px; padding: 1px 6px; border-radius: 99px; color: #a33; background: rgba(190,50,50,.1); font-size: .75rem; }
 .theme--dark .oi33-account-reversed, [data-mantine-color-scheme=dark] .oi33-account-reversed { color: #ff8a8a; }
 .oi33-account-reverse-form { display: flex; align-items: center; gap: 6px; min-width: 220px; }
@@ -29,4 +45,5 @@
 .oi33-account-empty { padding: 20px; }
 @media (max-width: 720px) {
   .oi33-account-balances { grid-template-columns: 1fr; }
+  .oi33-account-table { min-width: 680px; }
 }

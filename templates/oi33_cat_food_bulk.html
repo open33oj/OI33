@@ -32,7 +32,7 @@
           <thead><tr><th>UID</th><th>用户名</th><th>猫粮数量</th><th>原因</th></tr></thead>
           <tbody>
           {% for row in rows %}
-          <tr><td>{{ row.uid }}</td><td>{{ row.displayName }}</td><td>{{ catFood.amount(row.amount, true) }}</td><td>{{ row.reason }}</td></tr>
+          <tr><td>{{ row.uid }}</td><td>{{ row.displayName }}</td><td>{{ catFood.amount(row.amount, true) }}</td><td class="oi33-account-long-cell">{{ row.reason }}</td></tr>
           {% endfor %}
           </tbody>
         </table>

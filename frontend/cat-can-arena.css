@@ -107,7 +107,7 @@
 .oi33-map-tab.is-active { border-color: rgba(69,102,76,.28); color: #267044; background: #fff; box-shadow: inset 0 -3px 0 #39774d; }
 .oi33-bigcat-main { display: flex; align-items: flex-start; }
 .oi33-bigcat-main .oi33-map-viewport { height: auto; min-width: 0; min-height: 0; flex: 1 1 auto; aspect-ratio: 1 / 1; }
-.oi33-bigcat-side { box-sizing: border-box; width: 320px; height: min(72vh, 720px); flex: 0 0 320px; overflow-y: auto; padding: 14px 18px; border-left: 1px solid rgba(128,128,128,.16); background: rgba(248,250,247,.92); }
+.oi33-bigcat-side { box-sizing: border-box; width: 320px; min-height: 0; flex: 0 0 320px; overflow-y: auto; padding: 14px 18px; border-left: 1px solid rgba(128,128,128,.16); background: rgba(248,250,247,.92); }
 .oi33-bigcat-side h2 { margin: 0 0 8px; font-size: 15px; }
 .oi33-bigcat-ranking-link { display: block; margin-top: 10px; color: #39774d; font-size: 12px; font-weight: 600; text-align: center; }
 .oi33-bigcat-ranking { margin: 0; padding: 0; list-style: none; }
@@ -156,6 +156,8 @@
 .oi33-bigcat-picker-list .button { flex: 0 0 auto; margin: 0; }
 .oi33-bigcat-picker-pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px; }
 .oi33-bigcat-picker-pager span { color: #667269; font-size: 12px; font-variant-numeric: tabular-nums; }
+.oi33-bigcat-unbind { margin-right: auto; color: #a33; }
+.theme--dark .oi33-bigcat-unbind { color: #ff8a8a; }
 .theme--dark .oi33-map-tabs { background: rgba(28,33,29,.94); }
 .theme--dark .oi33-map-tab { color: #a5b2a7; }
 .theme--dark .oi33-map-tab.is-active { color: #76bd87; background: #252825; }

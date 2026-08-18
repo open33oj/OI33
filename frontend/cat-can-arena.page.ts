@@ -278,6 +278,8 @@ function mountMap() {
     const catCount = document.querySelector<HTMLElement>('[data-map-cat-count]');
     const meStatus = document.querySelector<HTMLElement>('[data-map-me-status]');
     const fullscreenRoot = viewport.closest<HTMLElement>('.oi33-map-body');
+    const bigCatSide = viewport.closest<HTMLElement>('.oi33-bigcat-main')
+        ?.querySelector<HTMLElement>('.oi33-bigcat-side');
     const fullscreenButton = document.querySelector<HTMLButtonElement>('[data-map-fullscreen]');
     const cellDialog = document.querySelector<HTMLDialogElement>('[data-map-cell-dialog]');
     const actionDialog = document.querySelector<HTMLDialogElement>('[data-map-action-dialog]');
@@ -483,10 +485,23 @@ function mountMap() {
         const ratio = window.devicePixelRatio || 1;
         devicePixelRatio = ratio;
         const rect = viewport.getBoundingClientRect();
-        canvas.width = Math.max(1, Math.round(rect.width * ratio));
-        canvas.height = Math.max(1, Math.round(rect.height * ratio));
-        canvas.style.width = `${rect.width}px`;
-        canvas.style.height = `${rect.height}px`;
+        const pixelWidth = Math.max(1, Math.round(rect.width * ratio));
+        const pixelHeight = Math.max(1, Math.round(rect.height * ratio));
+        if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+        if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+        const cssWidth = `${rect.width}px`;
+        const cssHeight = `${rect.height}px`;
+        if (canvas.style.width !== cssWidth) canvas.style.width = cssWidth;
+        if (canvas.style.height !== cssHeight) canvas.style.height = cssHeight;
+        // The map is square in the normal desktop layout, while the old
+        // sidebar used an unrelated vh cap and therefore stopped well before
+        // the bottom of the canvas. Keep both columns on the exact same
+        // measured height; stacked mobile layout keeps its own content cap.
+        if (bigCatSide) {
+            const stacked = window.matchMedia('(max-width: 760px)').matches;
+            const sideHeight = stacked ? '' : cssHeight;
+            if (bigCatSide.style.height !== sideHeight) bigCatSide.style.height = sideHeight;
+        }
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
         clampView();
     };
@@ -1242,6 +1257,9 @@ function mountMap() {
     });
 
     window.addEventListener('resize', resize);
+    if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(() => resize()).observe(viewport);
+    }
     loadMapState().catch((e) => {
         if (loading) loading.textContent = `地图加载失败：${e.message || e}`;
     });

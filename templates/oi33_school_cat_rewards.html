@@ -1,0 +1,212 @@
+{% set page_name = "oi33_school_cat_rewards" %}
+{% extends "layout/basic.html" %}
+{% import "components/paginator.html" as paginator with context %}
+
+{% macro statusLabel(status) -%}
+  {%- if status == 'completed' -%}已完成
+  {%- elif status == 'processing' -%}结算中
+  {%- elif status == 'failed' -%}结算失败
+  {%- elif status == 'rolling_back' -%}回滚中
+  {%- elif status == 'rollback_failed' -%}回滚失败
+  {%- elif status == 'rolled_back' -%}已回滚
+  {%- elif status == 'planned' -%}已生成快照
+  {%- else -%}待结算
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">每周大猫奖励结算</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_school_cat_ranking') }}" class="rounded button">大猫领地榜</a>
+          <a href="{{ url('oi33_admin') }}" class="rounded button">返回管理页</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <blockquote class="note">
+          每次结算保存领地、投喂人数和用户贡献快照，并使用“周期 + 版本”防止重复发放。
+          回滚会按原发放记录逐人扣回罐头并同步修正市场供应；若任何用户余额不足则停止，避免产生负库存或池账不一致。
+          已回滚的当周批次不会被自动任务再次发放，必须在这里手动“重新计算并结算”。
+        </blockquote>
+
+        <h2>结算批次</h2>
+        <div class="data-table-container oi33-reward-table-wrap">
+          <table class="data-table oi33-reward-table">
+            <thead><tr><th>周期（周一）</th><th>版本</th><th>状态</th><th>计划</th><th>实际发放</th><th>时间</th><th>管理</th></tr></thead>
+            <tbody>
+            {% for reward in rewards %}
+              <tr{% if reward._id == selectedPeriod %} class="highlight"{% endif %}>
+                <td>{{ reward._id }}{% if reward._id == currentPeriod %}<small class="oi33-reward-current">本周</small>{% endif %}</td>
+                <td>v{{ reward.revision or 1 }}</td>
+                <td><span class="oi33-reward-status is-{{ reward.status }}">{{ statusLabel(reward.status) }}</span></td>
+                <td>{{ reward.plannedUsers or 0 }} 人 / {{ reward.plannedCans or 0 }} 个</td>
+                <td>{{ reward.issuedUsers or 0 }} 人 / {{ reward.issuedCans or 0 }} 个</td>
+                <td class="oi33-reward-time">
+                  {% if reward.rolledBackAt %}回滚 {{ datetimeSpan(reward.rolledBackAt)|safe }}
+                  {% elif reward.completedAt %}完成 {{ datetimeSpan(reward.completedAt)|safe }}
+                  {% elif reward.createdAt %}创建 {{ datetimeSpan(reward.createdAt)|safe }}
+                  {% else %}—{% endif %}
+                </td>
+                <td><a class="small rounded button" href="{{ url('oi33_school_cat_rewards', query={ period: reward._id }) }}">查看 / 操作</a></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {{ paginator.render(page, upcount, 'period=' + selectedPeriod) }}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">{{ detail._id }} · v{{ detail.revision or 1 }} · {{ statusLabel(detail.status) }}</h2>
+      </div>
+      <div class="section__body">
+        <div class="oi33-reward-summary">
+          <div><span>计划用户</span><strong>{{ detail.plannedUsers or 0 }}</strong></div>
+          <div><span>计划罐头</span><strong>{{ detail.plannedCans or 0 }}</strong></div>
+          <div><span>实际用户</span><strong>{{ detail.issuedUsers or 0 }}</strong></div>
+          <div><span>实际罐头</span><strong>{{ detail.issuedCans or 0 }}</strong></div>
+        </div>
+
+        {% if detail.lastError %}<blockquote class="note warning">上次错误：{{ detail.lastError }}</blockquote>{% endif %}
+        {% if rollbackCheckError %}<blockquote class="note warning">无法核对回滚条件：{{ rollbackCheckError }}</blockquote>{% endif %}
+        {% if rollbackCheck and rollbackCheck.insufficient.length %}
+        <blockquote class="note warning">
+          当前不能安全回滚：{{ rollbackCheck.insufficient.length }} 位用户余额不足。
+          {% for row in rollbackCheck.insufficient.slice(0, 10) %}
+            <span class="oi33-reward-shortfall">UID {{ row.uid }}：需 {{ row.required }}，现有 {{ row.balance if row.balance !== null else '账户不存在' }}</span>
+          {% endfor %}
+        </blockquote>
+        {% endif %}
+
+        <div class="oi33-reward-actions">
+          {% if detail.status == 'completed' or detail.status == 'rollback_failed' %}
+          <form method="post" action="{{ url('oi33_school_cat_reward_rollback', period=detail._id) }}"
+                onsubmit="return confirm('确定回滚 {{ detail._id }} 第 {{ detail.revision or 1 }} 版吗？系统会从原获奖用户扣回罐头并修正市场供应。');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <input class="textbox" type="text" name="reason" maxlength="100" required placeholder="回滚原因（会写入账户明细）">
+            <button type="submit" class="rounded button"
+              {% if rollbackCheckError or not rollbackCheck or rollbackCheck.insufficient.length %}disabled{% endif %}>
+              {% if detail.status == 'rollback_failed' %}继续回滚{% else %}回滚本版结算{% endif %}
+            </button>
+          </form>
+          {% elif detail.status == 'rolled_back' %}
+          <form method="post" action="{{ url('oi33_school_cat_reward_settle', period=detail._id) }}"
+                onsubmit="return confirm('确定按当前领地、当前投喂用户与当前贡献重新生成快照，并结算为第 {{ (detail.revision or 1) + 1 }} 版吗？');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <button type="submit" class="primary rounded button">重新计算并结算 v{{ (detail.revision or 1) + 1 }}</button>
+          </form>
+          {% elif detail.status == 'pending' or detail.status == 'planned' or detail.status == 'failed' %}
+          <form method="post" action="{{ url('oi33_school_cat_reward_settle', period=detail._id) }}"
+                onsubmit="return confirm('确定结算 {{ detail._id }} 第 {{ detail.revision or 1 }} 版吗？');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <button type="submit" class="primary rounded button">{% if detail.status == 'failed' %}重试结算{% else %}立即结算{% endif %}</button>
+          </form>
+          {% else %}
+          <p>该批次正在处理，请稍后刷新。</p>
+          {% endif %}
+          {% if rollbackCheck and rollbackCheck.alreadyRolledBack %}
+          <p>已幂等扣回 {{ rollbackCheck.alreadyRolledBack }} / {{ rollbackCheck.issuedUsers }} 位用户；可安全继续上次回滚。</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if detail.cats.length %}
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">大猫奖励快照</h2></div>
+      <div class="section__body no-padding">
+        <div class="data-table-container oi33-reward-table-wrap">
+          <table class="data-table oi33-reward-table">
+            <thead><tr><th>大猫</th><th>类型</th><th>领地</th><th>投喂人数</th><th>基础奖励</th><th>倍数</th><th>奖池</th></tr></thead>
+            <tbody>{% for cat in detail.cats %}
+              <tr>
+                <td><a href="{{ cat.schoolUrl }}" target="_blank" rel="noopener">{{ cat.schoolDisplay }}</a></td>
+                <td>{% if cat.isAdminCat %}管理员大猫 ★{% else %}普通大猫{% endif %}</td>
+                <td>{{ cat.territoryCount }} 格</td><td>{{ cat.feederCount }} 人</td>
+                <td>{{ cat.baseCans }} 个</td><td>× {{ cat.multiplier }}</td><td><strong>{{ cat.plannedCans }} 个</strong></td>
+              </tr>
+            {% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if detail.allocations.length %}
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">用户分配快照（{{ detail.allocationTotal }} 人）</h2></div>
+      <div class="section__body no-padding">
+        <div class="data-table-container oi33-reward-table-wrap">
+          <table class="data-table oi33-reward-table">
+            <thead><tr><th>UID</th><th>所属大猫</th><th>当前贡献快照</th><th>权重</th><th>奖励</th></tr></thead>
+            <tbody>{% for row in detail.allocations %}
+              <tr>
+                <td><a href="{{ url('user_detail', uid=row.uid) }}">UID {{ row.uid }}</a></td>
+                <td><a href="{{ row.schoolUrl }}" target="_blank" rel="noopener">{{ row.schoolDisplay }}</a>{% if row.isAdminCat %} ★{% endif %}</td>
+                <td>{{ row.contribution }} g</td><td>{{ row.weight }}</td><td><strong>{{ row.amount }} 个</strong></td>
+              </tr>
+            {% endfor %}</tbody>
+          </table>
+        </div>
+        {% if detail.allocationPages > 1 %}
+        <div class="oi33-reward-pager">
+          {% if detail.allocationPage > 1 %}<a class="rounded button" href="{{ url('oi33_school_cat_rewards', query={ period: detail._id, allocationPage: detail.allocationPage - 1 }) }}">上一页</a>{% endif %}
+          <span>{{ detail.allocationPage }} / {{ detail.allocationPages }}</span>
+          {% if detail.allocationPage < detail.allocationPages %}<a class="rounded button" href="{{ url('oi33_school_cat_rewards', query={ period: detail._id, allocationPage: detail.allocationPage + 1 }) }}">下一页</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if detail.history and detail.history.length %}
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">旧版本记录</h2></div>
+      <div class="section__body">
+        <ul class="oi33-reward-history">
+        {% for item in detail.history|reverse %}
+          <li><strong>v{{ item.revision }}</strong>：{{ item.issuedUsers or 0 }} 人 / {{ item.issuedCans or 0 }} 个，{{ statusLabel(item.status) }}{% if item.rollbackReason %}；回滚原因：{{ item.rollbackReason }}{% endif %}</li>
+        {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.oi33-reward-table-wrap { overflow-x:auto; }
+.oi33-reward-table { min-width:760px; table-layout:auto; }
+.oi33-reward-table th, .oi33-reward-table td { vertical-align:middle; }
+.oi33-reward-table td { overflow:visible; white-space:normal; text-overflow:clip; overflow-wrap:anywhere; }
+.oi33-reward-table td:not(:first-child), .oi33-reward-table th:not(:first-child) { text-align:center; }
+.oi33-reward-current { display:inline-block; margin-left:.4rem; color:#39774d; }
+.oi33-reward-status { display:inline-block; padding:.12rem .45rem; border-radius:999px; background:rgba(128,128,128,.13); }
+.oi33-reward-status.is-completed { color:#277344; background:rgba(39,115,68,.12); }
+.oi33-reward-status.is-failed, .oi33-reward-status.is-rollback_failed { color:#b13a31; background:rgba(177,58,49,.11); }
+.oi33-reward-status.is-rolled_back { color:#735f27; background:rgba(174,137,39,.13); }
+.oi33-reward-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.oi33-reward-summary > div { padding:1rem; border-radius:8px; background:rgba(128,128,128,.08); text-align:center; }
+.oi33-reward-summary span, .oi33-reward-summary strong { display:block; }
+.oi33-reward-summary span { color:#687269; }
+.oi33-reward-summary strong { margin-top:.3rem; color:#39774d; font-size:1.4rem; }
+.oi33-reward-actions form { display:flex; align-items:center; flex-wrap:wrap; gap:.6rem; margin:0; }
+.oi33-reward-actions .textbox { width:min(100%,30rem); margin:0; }
+.oi33-reward-actions p { margin:.7rem 0 0; color:#687269; }
+.oi33-reward-shortfall { display:block; margin-top:.25rem; }
+.oi33-reward-pager { display:flex; align-items:center; justify-content:center; gap:1rem; padding:1rem; }
+.oi33-reward-pager .button { margin:0; }
+.oi33-reward-history { margin:0; }
+.oi33-reward-history li { margin:.35rem 0; overflow-wrap:anywhere; }
+@media (max-width:760px) {
+  .oi33-reward-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .oi33-reward-actions form { align-items:stretch; flex-direction:column; }
+  .oi33-reward-actions .textbox, .oi33-reward-actions button { width:100%; }
+}
+</style>
+{% endblock %}

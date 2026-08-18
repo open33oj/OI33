@@ -72,25 +72,30 @@
           <div style="margin-bottom:1.2rem;">
             <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">用户</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="/oi33/users" class="primary rounded button">{{ _('OI33 All Users') }}</a>
+              <a href="{{ url('oi33_users') }}" class="primary rounded button">{{ _('OI33 All Users') }}</a>
               <a href="{{ url('oi33_admin_accounts') }}" class="rounded button">账号与 IP</a>
               <a href="{{ url('oi33_admin_user_create') }}" class="rounded button">新建用户</a>
               <a href="{{ url('oi33_admin_user_password') }}" class="rounded button">重置密码</a>
               <a href="{{ url('oi33_admin_mail_blacklist') }}" class="rounded button">邮箱黑名单</a>
-              <a href="/oi33/requests" class="{% if pendingCount %}primary {% endif %}rounded button">
+              <a href="{{ url('oi33_requests') }}" class="{% if pendingCount %}primary {% endif %}rounded button">
                 {{ _('Pending Requests') }}{% if pendingCount %} ({{ pendingCount }}){% endif %}
               </a>
-              <a href="/oi33/badge/manage" class="rounded button">{{ _('Manage Badges') }}</a>
-              <a href="/oi33/coin/bill/0" class="rounded button">{{ _('All Records') }}</a>
-              <a href="/oi33/at-cf-rating" class="rounded button">AT / CF Rating 排名</a>
+              <a href="{{ url('oi33_birthday_all') }}" class="rounded button">生日列表</a>
+              <a href="{{ url('oi33_badge_show') }}" class="rounded button">徽章列表</a>
+              <a href="{{ url('oi33_badge_manage') }}" class="rounded button">{{ _('Manage Badges') }}</a>
+              <a href="{{ url('oi33_permissions') }}" class="rounded button">权限说明</a>
+              <a href="{{ url('oi33_at_cf_rating') }}" class="rounded button">AT / CF Rating 排名</a>
             </div>
           </div>
 
           <div style="margin-bottom:1.2rem;">
             <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">发放</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="/oi33/coin/inc" class="rounded button">{{ _('Grant Coins') }}</a>
+              <a href="{{ url('oi33_coin_show') }}" class="rounded button">金币概览</a>
+              <a href="{{ url('oi33_coin_inc') }}" class="rounded button">{{ _('Grant Coins') }}</a>
+              <a href="{{ url('oi33_coin_bill', uid=0) }}" class="rounded button">{{ _('All Records') }}</a>
               <a href="{{ url('oi33_cat_food_grant') }}" class="rounded button">调整猫粮 / 罐头</a>
+              <a href="{{ url('oi33_cat_can') }}" class="rounded button">猫罐头市场 / 经济指标</a>
               {% if (handler.user.realname_flag or 0) >= 3 %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放猫粮</a>{% endif %}
               {% if (handler.user.realname_flag or 0) >= 3 %}
               <form method="post" action="{{ url('oi33_admin_cat_asset_purge') }}" style="display:inline;"
@@ -106,7 +111,10 @@
             <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">成就</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
               <a href="{{ url('oi33_achievement_manage') }}" class="rounded button">成就管理</a>
+              <a href="{{ url('oi33_auction_rare') }}" class="rounded button">稀有 / 手动成就目录</a>
               <a href="{{ url('oi33_auction') }}" class="rounded button">成就拍卖</a>
+              <a href="{{ url('oi33_auction_create') }}" class="rounded button">发起拍卖</a>
+              <a href="{{ url('oi33_contracts') }}" class="rounded button">成就合同</a>
             </div>
           </div>
 
@@ -121,12 +129,15 @@
                 AI 审核{% if modPendingCount %} ({{ modPendingCount }}){% endif %}
               </a>
               <a href="{{ url('oi33_ai_bio_review') }}" class="rounded button">简介批量审查</a>
-              <a href="/oi33/paste/all" class="rounded button">{{ _('All Pastes') }}</a>
-              <a href="/oi33/wiki" class="rounded button">{{ _('Wiki Home') }}</a>
-              <a href="/oi33/wiki/create" class="rounded button">{{ _('New Page') }}</a>
-              <a href="/oi33/wiki/categories" class="rounded button">{{ _('Categories') }}</a>
-              <a href="/oi33/wiki/import" class="rounded button">{{ _('Import') }}</a>
-              <a href="/oi33/wiki/export" class="rounded button">{{ _('Export All') }}</a>
+              <a href="{{ url('oi33_paste_all') }}" class="rounded button">{{ _('All Pastes') }}</a>
+              <a href="{{ url('oi33_paste_manage') }}" class="rounded button">我的 Paste</a>
+              <a href="{{ url('oi33_paste_create') }}" class="rounded button">新建 Paste</a>
+              <a href="{{ url('oi33_wiki_main') }}" class="rounded button">{{ _('Wiki Home') }}</a>
+              <a href="{{ url('oi33_wiki_pages') }}" class="rounded button">全部 Wiki 页面</a>
+              <a href="{{ url('oi33_wiki_create') }}" class="rounded button">{{ _('New Page') }}</a>
+              <a href="{{ url('oi33_wiki_categories') }}" class="rounded button">{{ _('Categories') }}</a>
+              <a href="{{ url('oi33_wiki_bulk_import') }}" class="rounded button">{{ _('Import') }}</a>
+              <a href="{{ url('oi33_wiki_bulk_export') }}" class="rounded button">{{ _('Export All') }}</a>
             </div>
           </div>
 
@@ -135,19 +146,32 @@
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
               <a href="{{ url('oi33_cat_can_arena') }}" class="rounded button">猫猫广场</a>
               <a href="{{ url('oi33_school_cat_ranking') }}" class="rounded button">大猫领地榜</a>
+              {% if adminFlag >= 3 %}<a href="{{ url('oi33_school_cat_rewards') }}" class="rounded button">每周大猫奖励结算</a>{% endif %}
               {% if (handler.user.realname_flag or 0) >= 3 %}<a href="{{ url('oi33_cat_map_admin') }}" class="rounded button">像素地图绘图</a>{% endif %}
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.2rem;">
+            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">AI</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              <a href="{{ url('oi33_ai_admin') }}" class="rounded button">AI 总览</a>
+              <a href="{{ url('oi33_ai_access') }}" class="rounded button">AI 用户额度</a>
+              <a href="{{ url('oi33_ai_models') }}" class="rounded button">模型 / Provider</a>
+              <a href="{{ url('oi33_ai_summary') }}" class="rounded button">单题精简题意</a>
+              <a href="{{ url('oi33_ai_summary_batch') }}" class="rounded button">批量精简题意</a>
+              <a href="{{ url('oi33_ai_moderation') }}" class="rounded button">审核配置与记录</a>
+              <a href="{{ url('oi33_ai_bio_review') }}" class="rounded button">简介批量审查</a>
             </div>
           </div>
 
           <div>
             <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">系统</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="/oi33/migrate" class="rounded button">{{ _('Run Migration') }}</a>
-              <a href="/oi33/judge-monitor" class="rounded button">{{ _('Judge Monitor') }}</a>
-              <a href="/oi33/tokens" class="rounded button">{{ _('API Tokens') }}</a>
-              <a href="/oi33/oauth/clients" class="rounded button">{{ _('OAuth Clients') }}</a>
-              <a href="/oi33/permissions" class="rounded button">{{ _('Permissions') }}</a>
-              <a href="/oi33/ai/admin" class="rounded button">{{ _('AI33 Admin') }}</a>
+              <a href="{{ url('oi33_migrate') }}" class="rounded button">{{ _('Run Migration') }}</a>
+              <a href="{{ url('oi33_judge_monitor') }}" class="rounded button">{{ _('Judge Monitor') }}</a>
+              {% if canPrivAll %}<a href="{{ url('oi33_tokens') }}" class="rounded button">{{ _('API Tokens') }}</a>{% endif %}
+              <a href="{{ url('oi33_oauth_clients') }}" class="rounded button">{{ _('OAuth Clients') }}</a>
+              <a href="{{ url('oi33_permissions') }}" class="rounded button">{{ _('Permissions') }}</a>
             </div>
           </div>
         </div>
@@ -267,6 +291,11 @@
                 <span class="oi33-timeline__note">系统向</span>
                 {{ userLink(a.userId) }}
                 <span class="oi33-timeline__amount-pos">+{{ a.canAmount }} 个罐头</span>
+              {% elif a.action == 'school_cat_weekly_reward_rollback' %}
+                {{ userLink(a.sender) }}
+                <span class="oi33-timeline__note">从</span>
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__amount-neg">{{ a.canAmount }} 个罐头（回滚每周奖励）</span>
               {% else %}
               {{ userLink(a.sender) }}
               {% if a.action == 'can_grant' or a.action == 'can_deduct' %}
@@ -361,7 +390,11 @@
 
             {% elif a.type == 'school_cat' %}
               <span class="oi33-timeline__tag">大猫</span>
-              {{ userLink(a.userId) }}
+              {% if a.action == 'weekly_reward_settle' or a.action == 'weekly_reward_rollback' %}
+                {% if a.sender %}{{ userLink(a.sender) }}{% else %}<span class="oi33-timeline__note">自动任务</span>{% endif %}
+              {% else %}
+                {{ userLink(a.userId) }}
+              {% endif %}
               {% if a.reason %}<span class="oi33-timeline__note">{{ a.reason }}</span>{% endif %}
 
             {% elif a.type == 'oauth' %}
