@@ -288,6 +288,11 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     const action = distance === 1 ? 'move' : territoryTeleport ? 'territory_teleport' : 'teleport';
     const foodCost = action === 'move' || action === 'territory_teleport' ? CAT_MAP_MOVE_FOOD_COST : 0;
     const canCost = action === 'teleport' ? CAT_MAP_TELEPORT_CAN_COST : 0;
+    const contributionSchoolId = foodCost > 0
+        && Number.isSafeInteger(user.school_cat) && user.school_cat >= 0
+        ? Number(user.school_cat)
+        : null;
+    if (contributionSchoolId !== null) await ensureSchoolCatRecord(contributionSchoolId, now);
     const cansBefore = Math.max(0, Math.floor(Number(user.cat_can) || 0));
     const minutes = cooldownMinutes(cansBefore - canCost);
     const availableAt = new Date(now.getTime() + minutes * 60 * 1000);
@@ -307,15 +312,23 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     let foodDeducted = false;
     let canDeducted = false;
     let poolUpdated = false;
+    let catContributionUpdated = false;
     let movementLogged = false;
     const movementLogId = new ObjectId();
     try {
         if (foodCost) {
+            const foodFilter: any = { _id: uid, realname_flag: { $gte: 1 }, cat_food: { $gte: foodCost } };
+            const foodIncrements: any = { cat_food: -foodCost };
+            if (contributionSchoolId !== null) {
+                // Keep the binding stable across the balance/contribution write.
+                foodFilter.school_cat = contributionSchoolId;
+                foodIncrements.school_cat_food = foodCost;
+            }
             const result = await userColl.updateOne(
-                { _id: uid, realname_flag: { $gte: 1 }, cat_food: { $gte: foodCost } },
-                { $inc: { cat_food: -foodCost } },
+                foodFilter,
+                { $inc: foodIncrements },
             );
-            if (!result.modifiedCount) throw new Error(`猫粮不足，本次移动需要 ${foodCost}g 猫粮。`);
+            if (!result.modifiedCount) throw new Error(`猫粮不足或大猫绑定刚刚发生变化，本次移动需要 ${foodCost}g 猫粮。`);
             foodDeducted = true;
         }
         if (canCost) {
@@ -334,6 +347,14 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
             { $inc: increments, $set: { updatedAt: now } } as any,
         );
         poolUpdated = !!poolResult.modifiedCount;
+        if (contributionSchoolId !== null) {
+            const catResult = await schoolCatColl.updateOne(
+                { _id: contributionSchoolId } as any,
+                { $inc: { currentWeight: foodCost }, $set: { updatedAt: now } } as any,
+            );
+            if (!catResult.modifiedCount) throw new Error('移动猫粮计入大猫贡献失败，请重试。');
+            catContributionUpdated = true;
+        }
         await logColl.insertOne({
             _id: movementLogId,
             createdAt: now,
@@ -343,6 +364,8 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
             action: `cat_map_${action}`,
             amount: -foodCost,
             canAmount: -canCost,
+            catId: contributionSchoolId === null ? 0 : schoolCatKey(contributionSchoolId),
+            schoolCatContributionCounted: true,
             reason: `从 (${player.y}, ${player.x}) 到 (${targetY}, ${targetX})（行,列）`,
         } as any);
         movementLogged = true;
@@ -364,7 +387,17 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
         if (!moved.modifiedCount) throw new Error('移动锁已失效，请重试。');
     } catch (e) {
         if (movementLogged) await logColl.deleteOne({ _id: movementLogId });
-        if (foodDeducted) await userColl.updateOne({ _id: uid }, { $inc: { cat_food: foodCost } });
+        if (catContributionUpdated && contributionSchoolId !== null) {
+            await schoolCatColl.updateOne(
+                { _id: contributionSchoolId } as any,
+                { $inc: { currentWeight: -foodCost } } as any,
+            );
+        }
+        if (foodDeducted) {
+            const foodRollback: any = { cat_food: foodCost };
+            if (contributionSchoolId !== null) foodRollback.school_cat_food = -foodCost;
+            await userColl.updateOne({ _id: uid }, { $inc: foodRollback });
+        }
         if (canDeducted) await userColl.updateOne({ _id: uid }, { $inc: { cat_can: canCost } });
         if (poolUpdated) {
             const increments: any = {};
@@ -383,6 +416,8 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     return {
         uid, fromX: player.x, fromY: player.y, x: targetX, y: targetY,
         action, foodCost, canCost, territoryTeleport,
+        contributedSchoolId: contributionSchoolId,
+        contributedCatId: contributionSchoolId === null ? 0 : schoolCatKey(contributionSchoolId),
         cans: Math.max(0, Number(updatedUser?.cat_can) || 0),
         food: Math.max(0, Number(updatedUser?.cat_food) || 0),
         cooldownMinutes: minutes, availableAt,

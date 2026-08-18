@@ -807,7 +807,7 @@ function mountMap() {
     };
 
     const isOwnTerritoryTeleport = (me: MapPlayer | null, x: number, y: number) => {
-        if (!me || Math.abs(me.x - x) + Math.abs(me.y - y) === 1) return false;
+        if (!me || Math.abs(me.x - x) + Math.abs(me.y - y) <= 1) return false;
         const ownCatId = bigCats?.boundCatId() || 0;
         if (!ownCatId) return false;
         return cellCatIds[me.y * MAP_WIDTH + me.x] === ownCatId
@@ -816,13 +816,18 @@ function mountMap() {
 
     const openActionDialog = (x: number, y: number) => {
         if (!actionDialog) return;
-        selectedTarget = { x, y };
         const joining = !state.me && state.canJoin;
         if (!state.me && !joining) return;
         const me = state.me;
+        if (me && me.x === x && me.y === y) {
+            Notification.error('小猫已经在这个格子里。');
+            return;
+        }
+        selectedTarget = { x, y };
         const distance = me ? Math.abs(me.x - x) + Math.abs(me.y - y) : 0;
         const adjacent = distance === 1;
         const territoryTeleport = isOwnTerritoryTeleport(me, x, y);
+        const contributes = !!(bigCats?.boundCatId());
         const title = actionDialog.querySelector<HTMLElement>('[data-action-title]');
         const message = actionDialog.querySelector<HTMLElement>('[data-action-message]');
         const confirm = actionDialog.querySelector<HTMLButtonElement>('[data-action-confirm]');
@@ -838,8 +843,8 @@ function mountMap() {
         if (message) {
             if (joining) message.textContent = `是否免费选择（行 ${y}, 列 ${x}）作为小猫的初始位置？首次加入不消耗资源，也不触发冷却。`;
             else if (cooling) message.textContent = `目标（行 ${y}, 列 ${x}）。所有操作共享冷却，可用时间：${new Date(me!.availableAt).toLocaleString('zh-CN')}。`;
-            else if (adjacent) message.textContent = `是否使用 3g 猫粮移动到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。`;
-            else if (territoryTeleport) message.textContent = `起点和目标都在你当前大猫的领地内，是否使用 3g 猫粮传送到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。`;
+            else if (adjacent) message.textContent = `是否使用 3g 猫粮移动到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。${contributes ? '这 3g 会同时计入当前大猫贡献。' : '当前未绑定大猫，本次不计入大猫贡献。'}`;
+            else if (territoryTeleport) message.textContent = `起点和目标都在你当前大猫的领地内，是否使用 3g 猫粮传送到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。这 3g 会同时计入当前大猫贡献。`;
             else message.textContent = `是否使用 3 个猫罐头传送到（行 ${y}, 列 ${x}）？当前持有 ${me!.cans} 个猫罐头。`;
         }
         if (confirm) confirm.disabled = cooling || lacksResource;
@@ -1101,15 +1106,24 @@ function mountMap() {
         button.disabled = true;
         try {
             const joining = !state.me && state.canJoin;
+            if (!joining && state.me
+                && state.me.x === selectedTarget.x && state.me.y === selectedTarget.y) {
+                Notification.error('小猫已经在这个格子里。');
+                actionDialog.close();
+                return;
+            }
             const result = await request.post(joining ? joinUrl : moveUrl, selectedTarget);
             applyPlayerUpdate({ ...result, uid: userId });
             if (joining) state.canJoin = false;
+            const contributionText = result.contributedCatId
+                ? '这 3g 已同时计入当前大猫贡献，'
+                : '当前未绑定大猫，本次未计入大猫贡献，';
             Notification.success(result.action === 'join'
                 ? '加入成功，首次选择位置免费且没有触发冷却。'
                 : result.action === 'move'
-                    ? '移动成功，已销毁 3g 猫粮，并获得 1 次免冷却染色。'
+                    ? `移动成功，已销毁 3g 猫粮；${contributionText}并获得 1 次免冷却染色。`
                     : result.action === 'territory_teleport'
-                        ? '领地内传送成功，已销毁 3g 猫粮，并获得 1 次免冷却染色。'
+                        ? `领地内传送成功，已销毁 3g 猫粮；${contributionText}并获得 1 次免冷却染色。`
                         : '传送成功，3 个猫罐头已回到虚拟储备池，并获得 1 次免冷却染色。');
             actionDialog.close();
         } catch (e: any) {

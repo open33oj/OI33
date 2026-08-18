@@ -26,6 +26,7 @@ const MAX_CONCURRENT_BIO_REVIEWS = 3;
 async function recordBioVerdict(
     uid: number, bio: string, hash: string,
     result: { verdict: 'pass' | 'block' | 'review', source: string, category: string, aiReason?: string },
+    queueForHumanReview = true,
 ) {
     try {
         await oi33Model.modAdd({
@@ -38,7 +39,7 @@ async function recordBioVerdict(
             source: result.source as any,
             category: result.category,
             aiReason: result.aiReason || '',
-            status: result.verdict === 'review' ? 'pending' : 'done',
+            status: result.verdict === 'review' && queueForHumanReview ? 'pending' : 'done',
         });
     } catch (e) {
         console.error('[oi33] bio moderation record failed:', e);
@@ -81,18 +82,20 @@ async function moderateBioAsync(uid: number, bio: string, hash: string) {
             return;
         }
         const result = await runAiVerdict(uid, normalizeText(bio), hash, cfg);
-        await oi33Model.bioSetStatus(uid, hash, result.verdict === 'pass' ? 'approved' : 'rejected');
-        await recordBioVerdict(uid, bio, hash, result);
-        if (result.verdict !== 'pass') await notifyBioRejected(uid, result);
+        const applied = await oi33Model.bioSetStatus(
+            uid, hash, result.verdict === 'pass' ? 'approved' : 'rejected',
+        );
+        await recordBioVerdict(uid, bio, hash, result, applied);
+        if (applied && result.verdict !== 'pass') await notifyBioRejected(uid, result);
     } catch (e: any) {
         console.error('[oi33] bio moderation failed:', e);
-        await oi33Model.bioSetStatus(uid, hash, 'rejected').catch(() => {});
+        const applied = await oi33Model.bioSetStatus(uid, hash, 'rejected').catch(() => false);
         const fallback = {
             verdict: 'review' as const, source: 'error', category: '其他',
             aiReason: String(e?.message || e).slice(0, 200),
         };
-        await recordBioVerdict(uid, bio, hash, fallback);
-        await notifyBioRejected(uid, fallback);
+        await recordBioVerdict(uid, bio, hash, fallback, applied);
+        if (applied) await notifyBioRejected(uid, fallback);
     } finally {
         activeBioReviews--;
     }
@@ -201,7 +204,7 @@ export async function apply(ctx: Context) {
         if (typeof h.args.bio !== 'string') return;
         const uid = Number(h.user?._id) || 0;
         if (!uid) return;
-        if (h.args.bio.trim() === String(h.user.bio || '').trim()) return;
+        if (h.args.bio === String(h.user.bio || '')) return;
         const oi33 = (await oi33Model.getUserDataByUids([uid]))[uid];
         const editedAt = oi33?.bio_edited_at ? new Date(oi33.bio_edited_at).getTime() : 0;
         const remaining = editedAt + BIO_EDIT_COOLDOWN_MS - Date.now();
@@ -211,20 +214,22 @@ export async function apply(ctx: Context) {
     });
 
     // After a successful settings save, detect a bio change and review it.
-    // h.args.bio is exactly what core validated and stored (trimmed content).
+    // h.args.bio is exactly what core validated and stored. Hash that exact
+    // value; trimming here used to make approval hashes disagree with display.
     ctx.on('handler/after/HomeSettings#post', async (h: any) => {
         if (h.args?.category !== 'account') return;
         if (typeof h.args.bio !== 'string') return;
         const uid = Number(h.user?._id) || 0;
         if (!uid) return;
         try {
-            const bio = h.args.bio.trim();
+            const bio = h.args.bio;
+            if (bio === String(h.user.bio || '')) return;
             const hash = bioHashOf(bio);
             const oi33 = (await oi33Model.getUserDataByUids([uid]))[uid];
             if (oi33?.bio_hash === hash) return; // unchanged or already reviewed
             await oi33Model.bioMarkEdited(uid, hash);
             // An emptied bio is trivially displayable (nothing renders).
-            if (!bio) await oi33Model.bioSetStatus(uid, hash, 'approved');
+            if (!bio.trim()) await oi33Model.bioSetStatus(uid, hash, 'approved');
             else moderateBioAsync(uid, bio, hash);
         } catch (e) {
             console.error('[oi33] bio after-hook failed:', e);

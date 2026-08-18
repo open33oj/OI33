@@ -1,0 +1,130 @@
+{% set page_name = "oi33_school_cat_ranking" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">大猫领地榜</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_cat_can_arena') }}" class="rounded button">返回猫猫广场</a>
+          {% if canManage %}<a href="{{ url('oi33_admin') }}" class="rounded button">返回管理页</a>{% endif %}
+        </div>
+      </div>
+      <div class="section__body">
+        <blockquote class="note">
+          仅显示当前体重大于 0 或占领格子数大于 0 的大猫，按占领格子数降序排列，格子数相同时依次比较当前体重和学校编号。
+          管理员大猫以 ★ 显示且不占用数字名次。
+          普通大猫每周奖池为“领地基础奖励 × ⌊当前有效投喂人数 ÷ 3⌋”，再按 ⌊log₂(当前投喂猫粮)⌋ 权重分配；
+          管理员大猫不看领地，每位当前有效投喂者固定获得 5 个猫罐头。
+        </blockquote>
+
+        {% if canManage %}
+        <div class="oi33-bigcat-ranking-admin">
+          <div>
+            <strong>历史移动贡献回算</strong>
+            <p>把尚未计算的旧移动猫粮，按用户现在绑定的大猫计入贡献。未认证或尚未绑定的用户会保留待以后重跑。</p>
+          </div>
+          <form method="post" action="{{ url('oi33_school_cat_move_backfill') }}"
+                onsubmit="return confirm('确定按用户当前绑定的大猫回算全部尚未处理的历史猫粮移动吗？此操作可安全重跑。');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <button type="submit" class="primary rounded button">回算历史移动贡献</button>
+          </form>
+        </div>
+        <div class="oi33-bigcat-ranking-admin">
+          <div>
+            <strong>每周大猫奖励 · {{ rewardStatus._id }}</strong>
+            <p>
+              {% if rewardStatus.status == 'completed' %}
+              已结算：{{ rewardStatus.issuedUsers or 0 }} 位用户，共 {{ rewardStatus.issuedCans or 0 }} 个罐头。
+              {% elif rewardStatus.status == 'processing' %}
+              正在结算，请稍后刷新。
+              {% elif rewardStatus.status == 'failed' %}
+              上次结算失败：{{ rewardStatus.lastError or '未知错误' }}。可以重试。
+              {% else %}
+              尚未结算。系统会自动执行，也可以在这里立即触发。
+              {% endif %}
+            </p>
+          </div>
+          <form method="post" action="{{ url('oi33_school_cat_weekly_reward') }}"
+                onsubmit="return confirm('确定立即结算 {{ rewardStatus._id }} 的每周大猫奖励吗？奖励计划生成后会锁定本周领地、投喂人数和贡献快照，重复执行不会重复发放。');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <button type="submit" class="primary rounded button">{% if rewardStatus.status == 'completed' %}检查结算{% else %}立即结算{% endif %}</button>
+          </form>
+        </div>
+        {% endif %}
+
+        <p class="oi33-bigcat-ranking-count">当前共有 {{ ranking|length }} 只大猫上榜。</p>
+        {% if ranking|length %}
+        <div class="data-table-container">
+          <table class="data-table oi33-bigcat-ranking-table">
+            <thead>
+              <tr>
+                <th>名次</th>
+                <th>大猫</th>
+                <th>领地色</th>
+                <th>占领格子</th>
+                <th>当前体重</th>
+                <th>历史体重</th>
+                {% if canManage %}<th>管理</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for cat in ranking %}
+              <tr{% if cat.isAdminCat %} class="is-admin-cat"{% endif %}>
+                <td class="oi33-bigcat-rank-cell">
+                  {% if cat.isAdminCat %}<span title="管理员大猫，不参与数字排名">★</span>{% else %}{{ cat.rank }}{% endif %}
+                </td>
+                <td><a href="{{ cat.url }}" target="_blank" rel="noopener">{{ cat.display }}</a></td>
+                <td><span class="oi33-bigcat-color" style="background:{{ cat.colorCss }}"></span><code>{{ cat.colorCss }}</code></td>
+                <td><strong>{{ cat.territoryCount }}</strong> 格</td>
+                <td>{{ cat.weight }} g</td>
+                <td>{{ cat.historyWeight }} g</td>
+                {% if canManage %}
+                <td>
+                  <form method="post" action="{{ url('oi33_school_cat_admin_toggle', schoolId=cat.id) }}"
+                        onsubmit="return confirm('{% if cat.isAdminCat %}取消 {{ cat.display }} 的管理员大猫标记？{% else %}将 {{ cat.display }} 设为管理员大猫并排除数字排名？{% endif %}');">
+                    <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                    <input type="hidden" name="enabled" value="{% if cat.isAdminCat %}0{% else %}1{% endif %}">
+                    <button type="submit" class="rounded button">{% if cat.isAdminCat %}取消 ★{% else %}设为 ★{% endif %}</button>
+                  </form>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p>还没有获得当前体重或领地的大猫。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+.oi33-bigcat-ranking-admin { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1rem 0; padding:1rem; border:1px solid rgba(128,128,128,.22); border-radius:8px; background:rgba(57,119,77,.06); }
+.oi33-bigcat-ranking-admin p { margin:.3rem 0 0; color:#687269; }
+.oi33-bigcat-ranking-admin form, .oi33-bigcat-ranking-table form { margin:0; }
+.oi33-bigcat-ranking-count { color:#687269; }
+.oi33-bigcat-ranking-table { width:100%; table-layout:auto; }
+.oi33-bigcat-ranking-table th, .oi33-bigcat-ranking-table td { vertical-align:middle; }
+.oi33-bigcat-ranking-table th:not(:nth-child(2)), .oi33-bigcat-ranking-table td:not(:nth-child(2)) { text-align:center; }
+.oi33-bigcat-ranking-table th:nth-child(2), .oi33-bigcat-ranking-table td:nth-child(2) { text-align:left; }
+.oi33-bigcat-ranking-table th:first-child { width:4.5rem; }
+.oi33-bigcat-ranking-table th:nth-child(3) { width:9rem; }
+.oi33-bigcat-ranking-table th:nth-child(n+4) { width:8rem; white-space:nowrap; }
+.oi33-bigcat-ranking-table td:nth-child(n+4) { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.oi33-bigcat-ranking-table td:nth-child(3) { white-space:nowrap; }
+.oi33-bigcat-ranking-table td:last-child form { display:flex; justify-content:center; }
+.oi33-bigcat-ranking-table tr.is-admin-cat { background:rgba(184,134,11,.08); }
+.oi33-bigcat-rank-cell { width:3rem; color:#667269; font-weight:700; text-align:center; }
+.oi33-bigcat-ranking-table tr.is-admin-cat .oi33-bigcat-rank-cell { color:#b8860b; font-size:1.3rem; }
+.oi33-bigcat-color { display:inline-block; width:1rem; height:1rem; margin-right:.45rem; border:1px solid rgba(0,0,0,.3); border-radius:3px; vertical-align:-.15rem; }
+.theme--dark .oi33-bigcat-ranking-admin { background:rgba(118,189,135,.08); }
+.theme--dark .oi33-bigcat-ranking-admin p, .theme--dark .oi33-bigcat-ranking-count { color:#a5b2a7; }
+@media (max-width:760px) {
+  .oi33-bigcat-ranking-admin { align-items:flex-start; flex-direction:column; }
+}
+</style>
+{% endblock %}

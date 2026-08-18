@@ -10,8 +10,8 @@
       <div class="section__header">
         <h1 class="section__title">猫粮与罐头账户 · UID {{ uid }}</h1>
         <div class="section__tools">
-          {% if canManage %}<a href="{{ url('oi33_cat_food_grant') }}" class="rounded primary button">发放猫粮</a>{% endif %}
-          {% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放</a>{% endif %}
+          {% if canManage %}<a href="{{ url('oi33_cat_food_grant') }}" class="rounded primary button">调整猫资产</a>{% endif %}
+          {% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放猫粮</a>{% endif %}
           <a href="{{ url('user_detail', uid=uid) }}" class="rounded button">返回个人页面</a>
         </div>
       </div>
@@ -64,6 +64,9 @@
               {% elif entry.action == 'grant' %}管理员发放
               {% elif entry.action == 'deduct' %}管理员扣除
               {% elif entry.action == 'bulk_grant' %}行政管理员批量发放
+              {% elif entry.action == 'can_grant' %}管理员发放猫罐头
+              {% elif entry.action == 'can_deduct' %}管理员扣除猫罐头
+              {% elif entry.action == 'school_cat_weekly_reward' %}每周大猫奖励
               {% elif entry.action == 'cat_map_move' %}猫咪地图移动
               {% elif entry.action == 'cat_map_teleport' %}猫咪地图传送
               {% elif entry.action == 'cat_map_territory_teleport' %}大猫领地内传送

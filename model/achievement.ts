@@ -72,6 +72,16 @@ export async function achievementList() {
     return achievements.sort((a, b) => achievementCategoryRank(a) - achievementCategoryRank(b));
 }
 
+// Public catalogue category beside the saleable/rare achievements. Legacy
+// definitions without ruleType are manual by the same convention used by the
+// management UI. Saleable definitions stay exclusively in the rare section.
+export async function achievementListManual() {
+    return await achievementColl.find({
+        saleable: { $ne: true },
+        $or: [{ ruleType: 'manual' }, { ruleType: { $exists: false } }],
+    }).sort({ order: 1, _id: 1 }).toArray();
+}
+
 export async function achievementSave(input: {
     id: string;
     name: string;

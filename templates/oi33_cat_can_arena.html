@@ -58,11 +58,12 @@
                data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
             <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
             <div class="oi33-map-loading">正在生成猫咪世界…</div>
-            <div class="oi33-map-hint">大猫视角按领地归属重新着色 · 同一大猫领地内可花 3g 任意传送 · 全屏后可用方向键浏览 · 拖动、滚轮或双指缩放</div>
+            <div class="oi33-map-hint">大猫视角按领地归属重新着色 · 猫粮移动同时计入当前大猫贡献 · 同一大猫领地内可花 3g 任意传送 · 全屏后可用方向键浏览</div>
           </div>
           <aside class="oi33-bigcat-side">
-            <h2>大猫榜（体重 / 领地）</h2>
+            <h2>大猫领地榜（格子 / 体重）</h2>
             <ol class="oi33-bigcat-ranking" data-bigcat-ranking></ol>
+            <a class="oi33-bigcat-ranking-link" href="{{ url('oi33_school_cat_ranking') }}" data-bigcat-ranking-link>查看完整榜单与规则 →</a>
           </aside>
         </div>
       </div>

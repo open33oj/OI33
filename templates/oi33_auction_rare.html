@@ -50,6 +50,26 @@
         {% else %}
         <p class="rare-help">还没有可售卖的稀有成就。</p>
         {% endif %}
+
+        <section class="manual-achievements">
+          <h2>手动发放成就</h2>
+          {% if manualAchievements.length %}
+          <div class="manual-achievement-grid">
+            {% for achievement in manualAchievements %}
+            <article class="manual-achievement">
+              <img class="manual-achievement__icon" src="{{ achievement.imageData }}" width="48" height="48"
+                alt="{{ achievement.name }}">
+              <div>
+                <h3>{{ achievement.name }}</h3>
+                <p>{{ achievement.description }}</p>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="rare-help">还没有手动发放成就。</p>
+          {% endif %}
+        </section>
       </div>
     </div>
   </div>
@@ -63,5 +83,24 @@
     width:64px; height:64px; vertical-align:middle; object-fit:fill;
     image-rendering:crisp-edges; image-rendering:pixelated;
   }
+  .manual-achievements {
+    margin-top:2rem; padding-top:1.5rem; border-top:1px solid rgba(127,127,127,.2);
+  }
+  .manual-achievements h2 { margin-top:0; }
+  .manual-achievement-grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:.75rem;
+  }
+  .manual-achievement {
+    display:flex; align-items:flex-start; gap:.75rem;
+    padding:.85rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
+  }
+  .manual-achievement__icon {
+    width:48px; height:48px; flex:0 0 48px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .manual-achievement h3 { margin:0 0 .35rem; font-size:1rem; }
+  .manual-achievement p { margin:0; color:#777; white-space:pre-wrap; }
+  .theme--dark .manual-achievement p,
+  [data-mantine-color-scheme=dark] .manual-achievement p { color:#aaa; }
 </style>
 {% endblock %}

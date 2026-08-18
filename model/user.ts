@@ -1,7 +1,7 @@
 import { db } from 'hydrooj';
 import { Oi33User } from './types';
 import { addLog } from './log';
-import { bioHashOf } from './moderate';
+import { bioHashMatches } from './moderate';
 
 export const userColl = db.collection('oi33_user');
 const catCanPoolCounterColl = db.collection('oi33_cat_can_pool');
@@ -146,10 +146,12 @@ export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: 
     const profileHidden = (oi33?.realname_flag ?? 0) < 1;
     udoc.oi33_profile_hidden = profileHidden;
     // Bio display gate, shared by user_detail and the homepage ranking: the
-    // profile must be verified, the bio AI-approved, and the current text
-    // exactly the reviewed version (hash match defeats out-of-band writes).
+    // profile must be verified, the bio AI-approved, and the current normalized
+    // text the reviewed version. The matcher also recognizes the legacy
+    // edit-path hash that ignored leading/trailing whitespace.
     udoc.bio_visible = !profileHidden && !!oi33 && oi33.bio_status === 'approved'
-        && !!udoc.bio && oi33.bio_hash === bioHashOf(String(udoc.bio));
+        && !!String(udoc.bio || '').trim()
+        && bioHashMatches(oi33.bio_hash, String(udoc.bio));
     if (!profileHidden) restoreOi33Identity(udoc);
     if (profileHidden) {
         if (udoc.oi33_original_uname === undefined) setPrivateDisplayField(udoc, 'oi33_original_uname', udoc.uname || '');
@@ -208,10 +210,11 @@ export async function bioMarkEdited(userId: number, bioHash: string) {
 // Resolve an edit-triggered review. Guarded by bio_hash so a verdict arriving
 // late cannot overwrite a newer edit's pending state.
 export async function bioSetStatus(userId: number, bioHash: string, status: 'approved' | 'rejected') {
-    await userColl.updateOne(
+    const result = await userColl.updateOne(
         { _id: userId, bio_hash: bioHash },
         { $set: { bio_status: status } },
     );
+    return result.matchedCount > 0;
 }
 
 // Batch review writes the hash unconditionally (no edit race to guard against)

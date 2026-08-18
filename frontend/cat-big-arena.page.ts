@@ -9,6 +9,7 @@ interface BigCat {
     weight: number;
     historyWeight: number;
     territoryCount: number;
+    isAdminCat: boolean;
 }
 
 interface BigCatMe {
@@ -33,7 +34,10 @@ interface BigCatState {
         color: number;
         weight: number;
         territoryCount: number;
+        isAdminCat: boolean;
+        rank: number | null;
     }>;
+    rankingTotal: number;
     me: BigCatMe | null;
     serverTime: number;
 }
@@ -80,6 +84,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     const detailBaseUrl = viewport.dataset.detailBaseUrl || '/oi33/arena/big/cat';
     const catCount = document.querySelector<HTMLElement>('[data-bigcat-count]');
     const rankingList = document.querySelector<HTMLElement>('[data-bigcat-ranking]');
+    const rankingLink = document.querySelector<HTMLAnchorElement>('[data-bigcat-ranking-link]');
     const detailDialog = document.querySelector<HTMLDialogElement>('[data-bigcat-detail-dialog]');
     const pickerDialog = document.querySelector<HTMLDialogElement>('[data-bigcat-picker-dialog]');
 
@@ -118,6 +123,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             weight: Math.max(0, Number(incoming.weight ?? previous?.weight ?? 0)),
             historyWeight: Math.max(0, Number(incoming.historyWeight ?? previous?.historyWeight ?? 0)),
             territoryCount: Math.max(0, Number(incoming.territoryCount ?? previous?.territoryCount ?? 0)),
+            isAdminCat: incoming.isAdminCat ?? previous?.isAdminCat ?? false,
         };
         const territoryColorChanged = !previous
             || previous.catId !== next.catId
@@ -132,11 +138,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         return next;
     };
 
-    const RANKING_COLLAPSED_COUNT = 32;
-    let rankingExpanded = false;
-    let latestRanking: BigCatState['ranking'] = [];
     const renderRanking = (ranking: BigCatState['ranking']) => {
-        latestRanking = ranking;
         if (!rankingList) return;
         rankingList.replaceChildren();
         if (!ranking.length) {
@@ -146,13 +148,15 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             rankingList.append(empty);
             return;
         }
-        const shown = rankingExpanded ? ranking : ranking.slice(0, RANKING_COLLAPSED_COUNT);
-        shown.forEach((entry, index) => {
+        ranking.forEach((entry) => {
             const item = document.createElement('li');
             if (me?.boundId === entry.id) item.classList.add('is-bound');
+            if (entry.isAdminCat) item.classList.add('is-admin-cat');
+            else if (entry.rank && entry.rank <= 3) item.classList.add(`is-rank-${entry.rank}`);
             const rank = document.createElement('span');
             rank.className = 'oi33-bigcat-ranking-rank';
-            rank.textContent = String(index + 1);
+            rank.textContent = entry.isAdminCat ? '★' : String(entry.rank || '—');
+            rank.title = entry.isAdminCat ? '管理员大猫，不参与数字排名' : `领地排名第 ${entry.rank} 名`;
             const swatch = document.createElement('span');
             swatch.className = 'oi33-bigcat-ranking-swatch';
             swatch.style.background = colorHex(entry.color);
@@ -163,24 +167,11 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             button.addEventListener('click', () => { void openDetail(entry.id); });
             const stats = document.createElement('span');
             stats.className = 'oi33-bigcat-ranking-weight';
-            stats.textContent = `${formatWeight(entry.weight)} · ${entry.territoryCount} 格`;
+            stats.textContent = `${entry.territoryCount} 格 · ${formatWeight(entry.weight)}`;
             stats.title = `${entry.weight} g；占领 ${entry.territoryCount} 格`;
             item.append(rank, swatch, button, stats);
             rankingList.append(item);
         });
-        if (ranking.length > RANKING_COLLAPSED_COUNT) {
-            const more = document.createElement('li');
-            more.className = 'oi33-bigcat-ranking-more';
-            const toggle = document.createElement('button');
-            toggle.type = 'button';
-            toggle.textContent = rankingExpanded ? '收起榜单' : `查看完整榜单（共 ${ranking.length} 只）`;
-            toggle.addEventListener('click', () => {
-                rankingExpanded = !rankingExpanded;
-                renderRanking(latestRanking);
-            });
-            more.append(toggle);
-            rankingList.append(more);
-        }
     };
 
     const BOARD_COLLAPSED_COUNT = 32;
@@ -261,6 +252,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                 historyWeight: result.historyWeight,
                 territoryCount: result.territoryCount,
                 color: result.color,
+                isAdminCat: result.isAdminCat,
             });
             me.food = Math.max(0, Number(result.balance) || 0);
             me.contribution = Math.max(0, Number(result.contribution) || 0);
@@ -366,6 +358,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                 weight: detail.weight,
                 historyWeight: detail.historyWeight,
                 territoryCount: detail.territoryCount,
+                isAdminCat: detail.isAdminCat,
             });
             renderBoard(boardCurrent, detail.current || []);
             renderBoard(boardHistory, detail.history || []);
@@ -525,6 +518,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         });
         me = incoming.me;
         renderRanking(incoming.ranking || []);
+        if (rankingLink) rankingLink.textContent = `查看完整榜单（共 ${incoming.rankingTotal ?? cats.size} 只）→`;
         if (catCount) catCount.textContent = String(cats.size);
         if (removedTerritoryColor) host.onTerritoryColorsChanged();
         host.invalidate();

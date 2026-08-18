@@ -5,9 +5,11 @@ import {
 import { oi33Model } from '../model';
 // normalizeText/hashOf/bioHashOf live in the model layer (shared with bio
 // display hashing); re-exported here so existing handler consumers keep working.
-import { bioHashOf, hashOf, normalizeText } from '../model/moderate';
+import {
+    bioHashMatches, bioHashOf, hashOf, normalizeText,
+} from '../model/moderate';
 
-export { bioHashOf, hashOf, normalizeText };
+export { bioHashMatches, bioHashOf, hashOf, normalizeText };
 import type {
     Oi33AiModeration, Oi33ModerationKind, Oi33ModerationSource, Oi33ModerationTarget,
     Oi33ModerationVerdict,
@@ -600,9 +602,17 @@ class Ai33ModerationHandler extends Handler {
             // review state directly. bioSetStatus is hash-guarded, so a newer
             // edit of the bio is never clobbered by a stale queue decision.
             if (entry.kind === 'bio') {
-                await oi33Model.bioSetStatus(
+                const currentUser = await UserModel.getById(_domainId, entry.uid);
+                if (!currentUser
+                    || !bioHashMatches(entry.contentHash, String(currentUser.bio || ''))) {
+                    throw new ValidationError('该个人简介已被修改，不能处理旧审核记录。请刷新后处理最新记录。');
+                }
+                const applied = await oi33Model.bioSetStatus(
                     entry.uid, entry.contentHash, action === 'approve' ? 'approved' : 'rejected',
                 );
+                if (!applied) {
+                    throw new ValidationError('该个人简介的待审版本已变化，请刷新后处理最新记录。');
+                }
                 if (action === 'reject') {
                     await MessageModel.send(
                         1, entry.uid,

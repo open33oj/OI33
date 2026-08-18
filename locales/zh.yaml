@@ -44,8 +44,9 @@ oi33_school_cat_bind: '绑定大猫'
 oi33_school_cat_feed: '投喂大猫'
 oi33_school_cat_color: '修改大猫领地颜色'
 oi33_school_cat_detail: '大猫详情'
+oi33_school_cat_ranking: '大猫领地榜'
 oi33_cat_account: '猫粮与罐头账户'
-oi33_cat_food_grant: '发放猫粮'
+oi33_cat_food_grant: '调整猫粮与猫罐头'
 oi33_cat_food_bulk: '批量发放猫粮'
 
 # --- Badge ---

@@ -2,6 +2,7 @@ import {
     avatar, Context, ForbiddenError, Handler, PRIV, Types, UserModel, param, query,
 } from 'hydrooj';
 import { oi33Model } from '../model';
+import { checkUserFlag } from './utils';
 
 async function resolveUsernames(entries: Array<{ uid: number; amount: number }>) {
     const uids = entries.map((entry) => entry.uid);
@@ -23,6 +24,90 @@ class SchoolCatStateHandler extends Handler {
     async get() {
         this.response.type = 'application/json';
         this.response.body = await oi33Model.getBigCatWorldState(this.user._id || 0);
+    }
+}
+
+class SchoolCatRankingHandler extends Handler {
+    async get() {
+        const canManage = !!this.user._id && await checkUserFlag(this.user._id) >= 3;
+        const [ranking, rewardStatus] = await Promise.all([
+            oi33Model.getSchoolCatRanking(),
+            oi33Model.getSchoolCatWeeklyRewardStatus(),
+        ]);
+        this.response.template = 'oi33_school_cat_ranking.html';
+        this.response.body = {
+            ranking,
+            rewardStatus,
+            canManage,
+        };
+    }
+}
+
+class SchoolCatAdminToggleHandler extends Handler {
+    @param('schoolId', Types.Int)
+    @param('enabled', Types.Int)
+    async post(domainId: string, schoolId: number, enabled: number) {
+        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以设置管理员大猫。');
+        if (enabled !== 0 && enabled !== 1) throw new ForbiddenError('管理员大猫状态无效。');
+        try {
+            const result = await oi33Model.setSchoolCatAdminCat(this.user._id, schoolId, enabled === 1);
+            (this.ctx as any).broadcast('oi33/cat-map-change', {
+                type: 'bigcat',
+                cat: { id: schoolId, isAdminCat: result.isAdminCat },
+            });
+            this.response.redirect = this.url('oi33_school_cat_ranking', {
+                query: {
+                    notification: `${result.display} 已${result.isAdminCat ? '设为' : '取消'}管理员大猫。`,
+                },
+            });
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '设置管理员大猫失败。');
+        }
+    }
+}
+
+class SchoolCatMoveBackfillHandler extends Handler {
+    async post() {
+        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以回算历史移动贡献。');
+        try {
+            const result = await oi33Model.backfillSchoolCatMoveContributions(this.user._id);
+            for (const id of result.affectedCatIds) {
+                (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'bigcat', cat: { id } });
+            }
+            this.response.redirect = this.url('oi33_school_cat_ranking', {
+                query: {
+                    notification: `已回算 ${result.moves} 次历史移动，共计 ${result.contribution}g 大猫贡献；`
+                        + `另有 ${result.pendingMoves} 次因用户未认证或未绑定而暂不处理。`,
+                },
+            });
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '回算历史移动贡献失败。');
+        }
+    }
+}
+
+class SchoolCatWeeklyRewardHandler extends Handler {
+    async post() {
+        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以手动触发每周大猫奖励。');
+        try {
+            const result = await oi33Model.settleSchoolCatWeeklyRewards(this.user._id);
+            if (result.newlyCompleted && result.awardedUids.length) {
+                for (let offset = 0; offset < result.awardedUids.length; offset += 20) {
+                    await Promise.all(result.awardedUids.slice(offset, offset + 20).map((uid: number) => (
+                        oi33Model.achievementEvaluateUser(uid, { ruleTypes: ['cat_can_balance'] })
+                            .catch((e) => console.error('[oi33] weekly big-cat reward achievement evaluation failed:', e))
+                    )));
+                }
+            }
+            const notification = result.running
+                ? `${result.period} 的每周奖励正在由另一个进程结算，请稍后刷新。`
+                : result.newlyCompleted
+                    ? `${result.period} 每周奖励结算完成：${result.users} 位用户，共发放 ${result.cans} 个猫罐头。`
+                    : `${result.period} 每周奖励已经结算：${result.users} 位用户，共发放 ${result.cans} 个猫罐头。`;
+            this.response.redirect = this.url('oi33_school_cat_ranking', { query: { notification } });
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '每周大猫奖励结算失败。');
+        }
     }
 }
 
@@ -66,6 +151,7 @@ class SchoolCatFeedHandler extends Handler {
                     weight: result.weight,
                     territoryCount: result.territoryCount,
                     color: result.color,
+                    isAdminCat: result.isAdminCat,
                 },
             });
             this.response.type = 'application/json';
@@ -117,6 +203,10 @@ class SchoolCatColorHandler extends Handler {
 
 export async function apply(ctx: Context) {
     ctx.Route('oi33_school_cat_state', '/oi33/arena/big/state', SchoolCatStateHandler);
+    ctx.Route('oi33_school_cat_ranking', '/oi33/arena/big/ranking', SchoolCatRankingHandler);
+    ctx.Route('oi33_school_cat_admin_toggle', '/oi33/arena/big/ranking/:schoolId/admin', SchoolCatAdminToggleHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_school_cat_move_backfill', '/oi33/arena/big/ranking/backfill-moves', SchoolCatMoveBackfillHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_school_cat_weekly_reward', '/oi33/arena/big/ranking/weekly-reward', SchoolCatWeeklyRewardHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_schools', '/oi33/arena/big/schools', SchoolCatSchoolsHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_bind', '/oi33/arena/big/bind', SchoolCatBindHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_feed', '/oi33/arena/big/feed', SchoolCatFeedHandler, PRIV.PRIV_USER_PROFILE);

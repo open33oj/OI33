@@ -5,19 +5,34 @@
   <div class="medium-9 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">发放猫粮</h1>
+        <h1 class="section__title">调整猫粮与猫罐头</h1>
         <div class="section__tools">
-          {% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放</a>{% endif %}
+          {% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放猫粮</a>{% endif %}
           <a href="{{ url('oi33_admin') }}" class="rounded button">返回管理页</a>
         </div>
       </div>
       <div class="section__body">
-        <form method="post">
+        <h2>调整猫粮</h2>
+        <form method="post" action="{{ url('oi33_cat_food_grant') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           {{ form.form_text({ label: '用户 UID 或用户名', name: 'uidOrName', autofocus: true, required: true }) }}
           {{ form.form_text({ label: '猫粮调整数量（基本单位 g，负数表示扣除）', name: 'amount', required: true }) }}
           {{ form.form_text({ label: '调整原因', name: 'reason', required: true }) }}
           <div class="row"><div class="columns"><button type="submit" class="rounded primary button">确认调整</button></div></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">调整猫罐头</h2></div>
+      <div class="section__body">
+        <blockquote class="note">正数表示发放，负数表示扣除；发放对象必须已认证，扣除后余额不能小于 0。</blockquote>
+        <form method="post" action="{{ url('oi33_cat_can_grant') }}">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          {{ form.form_text({ label: '用户 UID 或用户名', name: 'canUidOrName', required: true }) }}
+          {{ form.form_text({ label: '猫罐头调整数量（负数表示扣除）', name: 'canAmount', required: true }) }}
+          {{ form.form_text({ label: '调整原因', name: 'canReason', required: true }) }}
+          <div class="row"><div class="columns"><button type="submit" class="rounded primary button">确认调整猫罐头</button></div></div>
         </form>
       </div>
     </div>

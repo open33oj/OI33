@@ -126,6 +126,11 @@ class CatMapMoveHandler extends Handler {
                 },
             };
             (this.ctx as any).broadcast('oi33/cat-map-change', payload);
+            if (result.contributedSchoolId !== null) {
+                (this.ctx as any).broadcast('oi33/cat-map-change', {
+                    type: 'bigcat', cat: { id: result.contributedSchoolId },
+                });
+            }
             this.response.type = 'application/json';
             this.response.body = { ok: true, ...result };
         } catch (e: any) {

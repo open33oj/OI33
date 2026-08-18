@@ -24,15 +24,16 @@ import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
 import { ensureCatAccountIndexes } from './model/cat-account';
 import { ensureCatMapIndexes, recountSchoolCatTerritories } from './model/cat-map';
-import { ensureSchoolCatIndexes } from './model/school-cat';
+import { ensureSchoolCatIndexes, settleSchoolCatWeeklyRewards } from './model/school-cat';
 import { ensureMeowIndexes } from './model/meow';
-import { ensureAchievementIndexes } from './model/achievement';
+import { achievementEvaluateUser, ensureAchievementIndexes } from './model/achievement';
 import { ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
 import { ensureLogIndexes } from './model/log';
 
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
+let schoolCatRewardRunning = false;
 
 async function maintainCatCanMarket() {
     if (catCanMaintenanceRunning) return;
@@ -41,6 +42,24 @@ async function maintainCatCanMarket() {
         await ensureCurrentCatCanPrice();
     } finally {
         catCanMaintenanceRunning = false;
+    }
+}
+
+async function maintainSchoolCatRewards() {
+    if (schoolCatRewardRunning) return;
+    schoolCatRewardRunning = true;
+    try {
+        const result = await settleSchoolCatWeeklyRewards(0);
+        if (!result.newlyCompleted) return;
+        for (let offset = 0; offset < result.awardedUids.length; offset += 20) {
+            await Promise.all(result.awardedUids.slice(offset, offset + 20).map((uid) => (
+                achievementEvaluateUser(uid, { ruleTypes: ['cat_can_balance'] })
+                    .catch((e) => console.error('[oi33] weekly big-cat reward achievement evaluation failed:', e))
+            )));
+        }
+        console.info(`[oi33] weekly big-cat reward ${result.period}: ${result.users} users, ${result.cans} cans`);
+    } finally {
+        schoolCatRewardRunning = false;
     }
 }
 
@@ -95,9 +114,11 @@ export async function apply(ctx: Context) {
                 await ensureContractIndexes();
                 await ensureLogIndexes();
                 await maintainCatCanMarket();
+                await maintainSchoolCatRewards().catch((e) => console.error('[oi33] weekly big-cat reward failed:', e));
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {
                     maintainCatCanMarket().catch((e) => console.error('[oi33] cat can maintenance failed:', e));
+                    maintainSchoolCatRewards().catch((e) => console.error('[oi33] weekly big-cat reward failed:', e));
                 }, 10 * 60 * 1000);
                 catCanTimer.unref();
             } catch (e) {

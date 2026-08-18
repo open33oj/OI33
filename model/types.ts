@@ -55,6 +55,12 @@ export interface Oi33User {
     school_cat_food?: number;
     school_cat_month?: string;
     school_cat_feed_at?: Date;
+    // Idempotency marker for the most recent weekly big-cat reward applied to
+    // this account. A user can only belong to one current big cat per period.
+    school_cat_reward_period?: string;
+    school_cat_reward_amount?: number;
+    school_cat_reward_school_id?: number;
+    school_cat_reward_at?: Date;
     // Short-lived cross-process lock used to serialize meow submissions.
     meow_post_lock?: ObjectId;
     meow_post_lock_at?: Date;
@@ -110,6 +116,11 @@ export interface Oi33CatCanPool {
     userFoodTotal: number;
     circulatingCans: number;
     balanceCounterVersion: number;
+    // The weekly reward pool update is applied once per Shanghai week. The
+    // matching reward plan remains the source of the per-user breakdown.
+    schoolCatRewardPeriod?: string;
+    schoolCatRewardCans?: number;
+    schoolCatRewardAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -165,6 +176,8 @@ export interface Oi33SchoolCat {
     historyWeight: number;
     territoryColor: number;
     territoryCount: number;
+    // Administrative cats are shown with a star and excluded from numeric ranks.
+    isAdminCat: boolean;
     spawnedAt: Date;
     updatedAt: Date;
 }
@@ -175,6 +188,44 @@ export interface Oi33SchoolFeedHistory {
     schoolId: number;
     amount: number;
     createdAt: Date;
+}
+
+export interface Oi33SchoolCatRewardAllocation {
+    uid: number;
+    schoolId: number;
+    contribution: number;
+    weight: number;
+    amount: number;
+    isAdminCat: boolean;
+}
+
+export interface Oi33SchoolCatRewardSummary {
+    schoolId: number;
+    isAdminCat: boolean;
+    territoryCount: number;
+    feederCount: number;
+    baseCans: number;
+    multiplier: number;
+    plannedCans: number;
+}
+
+export interface Oi33SchoolCatReward {
+    _id: string; // Asia/Shanghai Monday date: YYYY-MM-DD
+    status: 'planned' | 'processing' | 'completed' | 'failed';
+    cats: Oi33SchoolCatRewardSummary[];
+    allocations: Oi33SchoolCatRewardAllocation[];
+    plannedUsers: number;
+    plannedCans: number;
+    issuedUsers?: number;
+    issuedCans?: number;
+    operator: number; // 0 = automatic scheduler
+    createdAt: Date;
+    startedAt?: Date;
+    completedAt?: Date;
+    failedAt?: Date;
+    lastError?: string;
+    lockOwner?: ObjectId;
+    lockUntil?: Date;
 }
 
 export interface Oi33CoinBill {
@@ -314,6 +365,11 @@ export interface Oi33Log {
     y?: number;
     color?: number;
     catId?: number;
+    // Cat-food map moves write this marker when their cost has already been
+    // included in the mover's current big-cat contribution. Legacy logs lack it.
+    schoolCatContributionCounted?: boolean;
+    schoolCatContributionBatch?: ObjectId;
+    schoolCatRewardPeriod?: string;
     rowStart?: number;
     columnStart?: number;
     rowEnd?: number;

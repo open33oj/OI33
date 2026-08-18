@@ -1,5 +1,5 @@
 import { db, ObjectId } from 'hydrooj';
-import { logColl } from './log';
+import { addLog, logColl } from './log';
 import { userColl } from './user';
 
 export const catCanBillColl = db.collection('oi33_cat_can_bill');
@@ -17,6 +17,7 @@ const INITIAL_PRICE = 100;
 // speculation modest while still allowing supply and demand to move the price.
 const MAX_TICK_PERCENT = 3;
 const PRICE_HISTORY_POINTS = 90;
+export const CAT_CAN_ADMIN_ADJUSTMENT_MAX = 1_000_000_000;
 
 interface ShanghaiParts {
     year: number;
@@ -194,6 +195,89 @@ export async function ensureCatCanIndexes() {
 
 export async function getOrCreateCurrentMarket(now = new Date()) {
     return await ensureCurrentCatCanPrice(now);
+}
+
+export async function ensureCatCanPool(now = new Date()) {
+    return await getOrCreatePool(now);
+}
+
+// Administrative grants mint new cans without reducing the market's existing
+// pool inventory: both virtual supply and circulation grow by the grant.
+// Deductions return cans from circulation to the pool and never allow the
+// target balance to become negative.
+export async function adjustCatCans(
+    uid: number, operator: number, amount: number, reason: string, now = new Date(),
+) {
+    if (!Number.isSafeInteger(amount) || amount === 0 || Math.abs(amount) > CAT_CAN_ADMIN_ADJUSTMENT_MAX) {
+        throw new Error(`罐头调整数量必须是 -${CAT_CAN_ADMIN_ADJUSTMENT_MAX}～-1 或 1～${CAT_CAN_ADMIN_ADJUSTMENT_MAX} 的整数。`);
+    }
+    const normalizedReason = reason.trim();
+    if (!normalizedReason || normalizedReason.length > 100) throw new Error('调整原因不能为空且不能超过 100 字。');
+    await getOrCreatePool(now);
+
+    let previousBalance = 0;
+    let nextBalance = 0;
+    let userUpdated = false;
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const user: any = await userColl.findOne({ _id: uid });
+        if (!user) throw new Error('用户猫账户不存在。');
+        if (amount > 0 && (Number(user.realname_flag) || 0) < 1) {
+            throw new Error('该用户未通过认证，无法获得猫罐头。');
+        }
+        previousBalance = Number(user.cat_can) || 0;
+        nextBalance = previousBalance + amount;
+        if (!Number.isSafeInteger(nextBalance)) throw new Error('调整后的罐头余额超出安全范围。');
+        if (nextBalance < 0) throw new Error(`猫罐头余额不足，当前最多可扣除 ${Math.max(0, previousBalance)} 个。`);
+        const balanceFilter = Object.prototype.hasOwnProperty.call(user, 'cat_can')
+            ? { cat_can: user.cat_can }
+            : { cat_can: { $exists: false } };
+        const updated = await userColl.updateOne(
+            { _id: uid, ...balanceFilter, ...(amount > 0 ? { realname_flag: { $gte: 1 } } : {}) } as any,
+            { $inc: { cat_can: amount } },
+        );
+        if (updated.modifiedCount) {
+            userUpdated = true;
+            break;
+        }
+    }
+    if (!userUpdated) throw new Error('用户罐头余额刚刚发生变化，请重试。');
+
+    const poolIncrement: any = { circulatingCans: amount };
+    if (amount > 0) poolIncrement.virtualCanSupply = amount;
+    let poolUpdated = false;
+    try {
+        const poolResult = await catCanPoolColl.updateOne(
+            amount < 0
+                ? { _id: 'main', circulatingCans: { $gte: -amount } } as any
+                : { _id: 'main' } as any,
+            { $inc: poolIncrement, $set: { updatedAt: now } } as any,
+        );
+        if (!poolResult.modifiedCount) throw new Error('猫罐头市场计数器不足或不存在，调整失败。');
+        poolUpdated = true;
+        await addLog({
+            type: 'cat_account', userId: uid, sender: operator,
+            action: amount > 0 ? 'can_grant' : 'can_deduct',
+            amount: 0, canAmount: amount, reason: normalizedReason,
+        } as any);
+    } catch (e) {
+        const rollback = [
+            // Compensate by the exact delta even if another legitimate account
+            // operation happened after this adjustment.
+            userColl.updateOne({ _id: uid }, { $inc: { cat_can: -amount } }),
+        ];
+        if (poolUpdated) {
+            const reversePool: any = { circulatingCans: -amount };
+            if (amount > 0) reversePool.virtualCanSupply = -amount;
+            rollback.push(catCanPoolColl.updateOne(
+                { _id: 'main' } as any,
+                { $inc: reversePool, $set: { updatedAt: new Date() } } as any,
+            ) as any);
+        }
+        await Promise.all(rollback);
+        throw e;
+    }
+    const current: any = await userColl.findOne({ _id: uid }, { projection: { cat_can: 1 } });
+    return { amount, balance: Number(current?.cat_can) || 0 };
 }
 
 export async function getCurrentQuote(now = new Date()) {
@@ -419,6 +503,7 @@ interface CatCanEconomyWindow {
     mintTotal: number;
     burnTotal: number;
     net: number; // 净增发 = 发放 - 销毁
+    cansMinted: number; // 管理员发放 + 每周大猫奖励
     cansBought: number; // 买入（池子售出）
     cansSoldBack: number; // 卖出回池（撤销单按负数量自动冲抵）
     cansOtherBack: number; // 传送/喵喵/拍卖结算回池
@@ -431,6 +516,7 @@ function emptyEconomyWindow(): CatCanEconomyWindow {
         tradeFeeBurn: 0, feedBurn: 0, moveBurn: 0, contractFeeBurn: 0, deductBurn: 0,
         auctionFoodBurn: 0,
         mintTotal: 0, burnTotal: 0, net: 0,
+        cansMinted: 0,
         cansBought: 0, cansSoldBack: 0, cansOtherBack: 0, cansNetOut: 0,
     };
 }
@@ -481,8 +567,14 @@ async function getCatCanEconomy(now = new Date()) {
                     w.moveBurn += Math.max(0, -amount);
                 }
                 else if (action === 'deduct') w.deductBurn += Math.max(0, -amount);
-                // Teleports and meow posts return cans to the pool; refunds take them back.
-                w.cansOtherBack -= canAmount;
+                if (action === 'can_grant' || action === 'school_cat_weekly_reward') {
+                    w.cansMinted += Math.max(0, canAmount);
+                } else {
+                    // Teleports, meow posts, administrative deductions and
+                    // legacy asset cleanup return cans to the pool; refunds
+                    // take them back.
+                    w.cansOtherBack -= canAmount;
+                }
             } else if ((log as any).type === 'contract') {
                 w.contractFeeBurn += Math.max(0, Number((log as any).fee) || 0);
             } else if ((log as any).type === 'auction') {

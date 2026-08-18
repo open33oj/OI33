@@ -38,7 +38,8 @@ import {
 } from './log';
 import {
     getOrCreateCurrentMarket, getCurrentQuote, getCatCanDayChange, ensureCurrentCatCanPrice,
-    ensureCatCanIndexes, buyCatCans, sellCatCans, getCatCanPage,
+    ensureCatCanIndexes, ensureCatCanPool, buyCatCans, sellCatCans, adjustCatCans, getCatCanPage,
+    CAT_CAN_ADMIN_ADJUSTMENT_MAX,
 } from './cat-can';
 import {
     ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
@@ -52,8 +53,11 @@ import {
 } from './cat-map';
 import {
     ensureSchoolCatIndexes, searchSchools, listSchools, getSchool,
-    getBigCatWorldState, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
+    getBigCatWorldState, getSchoolCatRanking, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
     setSchoolCatTerritoryColor, schoolCatKey, schoolIdFromCatKey,
+    setSchoolCatAdminCat, backfillSchoolCatMoveContributions,
+    getSchoolCatWeeklyRewardStatus, settleSchoolCatWeeklyRewards,
+    schoolCatRewardPeriod, schoolCatTerritoryBaseReward,
     schoolCatColorCss, schoolDisplay, schoolUrl, removeSchoolCatBinding,
 } from './school-cat';
 import {
@@ -70,7 +74,7 @@ import {
 import {
     ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
     modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
-    bioHashOf,
+    bioHashMatches, bioHashOf,
 } from './moderate';
 import {
     ensureMeowIndexes, meowDateKey, meowDailyFreeAvailable,
@@ -85,7 +89,7 @@ import {
     MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
 } from './meow';
 import {
-    ensureAchievementIndexes, achievementGet, achievementList, achievementSave,
+    ensureAchievementIndexes, achievementGet, achievementList, achievementListManual, achievementSave,
     achievementDelete, achievementGetUserAwards, achievementListRecentAwards,
     achievementGrant, achievementRevoke, achievementEvaluateUser, achievementEvaluateAll,
     achievementGetAcceptedDomains, achievementSetAcceptedDomains,
@@ -117,7 +121,7 @@ export { logColl } from './log';
 export { catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
 export { catFoodBatchPreviewColl } from './cat-account';
 export { catMapPlayerColl, catMapCellColl } from './cat-map';
-export { schoolCatColl, schoolFeedHistoryColl } from './school-cat';
+export { schoolCatColl, schoolFeedHistoryColl, schoolCatRewardColl } from './school-cat';
 export {
     aiAnalysisColl, aiConfigColl, aiProblemSummaryColl,
     aiProviderColl, aiAccessColl, aiUsageColl,
@@ -136,12 +140,13 @@ const oi33Model = {
     setRealname, getRealnamedUsers,
     doCheckin, getCheckinUser,
     previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
-    bioMarkEdited, bioSetStatus, bioSetReviewed, bioHashOf,
+    bioMarkEdited, bioSetStatus, bioSetReviewed, bioHashMatches, bioHashOf,
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
     getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
     getCatFoodLogCount, getCatFoodLogs,
     getOrCreateCurrentMarket, getCurrentQuote, getCatCanDayChange, ensureCurrentCatCanPrice,
-    ensureCatCanIndexes, buyCatCans, sellCatCans, getCatCanPage,
+    ensureCatCanIndexes, ensureCatCanPool, buyCatCans, sellCatCans, adjustCatCans, getCatCanPage,
+    CAT_CAN_ADMIN_ADJUSTMENT_MAX,
     ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
     createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
     reverseCatCanTransaction, purgeUnverifiedCatAssets,
@@ -149,8 +154,11 @@ const oi33Model = {
     moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
     refreshCatMapTerritories, recountSchoolCatTerritories, getCatMapCooldownMinutes,
     ensureSchoolCatIndexes, searchSchools, listSchools, getSchool,
-    getBigCatWorldState, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
+    getBigCatWorldState, getSchoolCatRanking, bindSchoolCat, feedSchoolCat, getSchoolCatDetail,
     setSchoolCatTerritoryColor, schoolCatKey, schoolIdFromCatKey,
+    setSchoolCatAdminCat, backfillSchoolCatMoveContributions,
+    getSchoolCatWeeklyRewardStatus, settleSchoolCatWeeklyRewards,
+    schoolCatRewardPeriod, schoolCatTerritoryBaseReward,
     schoolCatColorCss, schoolDisplay, schoolUrl, removeSchoolCatBinding,
     submitRequest, directUpdate, approveRequest, rejectRequest,
     getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
@@ -184,7 +192,7 @@ const oi33Model = {
     meowToggleLike, meowLikedMap,
     setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
     MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
-    ensureAchievementIndexes, achievementGet, achievementList, achievementSave,
+    ensureAchievementIndexes, achievementGet, achievementList, achievementListManual, achievementSave,
     achievementDelete, achievementGetUserAwards, achievementListRecentAwards,
     achievementGrant, achievementRevoke, achievementEvaluateUser, achievementEvaluateAll,
     achievementGetAcceptedDomains, achievementSetAcceptedDomains,
@@ -223,6 +231,7 @@ declare module 'hydrooj' {
         oi33_cat_map_cell: import('./types').Oi33CatMapCell;
         oi33_school_cat: import('./types').Oi33SchoolCat;
         oi33_school_feed_history: import('./types').Oi33SchoolFeedHistory;
+        oi33_school_cat_reward: import('./types').Oi33SchoolCatReward;
         oi33_ai_analysis: import('./types').Oi33AiAnalysis;
         oi33_ai_config: import('./types').Oi33AiConfig;
         oi33_ai_problem_summary: import('./types').Oi33AiProblemSummary;

@@ -28,6 +28,16 @@ function parseBatchJson(text: string) {
     });
 }
 
+async function resolveAccountTarget(domainId: string, uidOrName: string) {
+    const anonymousUid = /^UID\s+(\d+)$/i.exec(uidOrName.trim());
+    const lookup = anonymousUid ? anonymousUid[1] : uidOrName.trim();
+    const udoc = await UserModel.getById(domainId, +lookup)
+        || await UserModel.getByUname(domainId, lookup)
+        || await UserModel.getByEmail(domainId, lookup);
+    if (!udoc) throw new NotFoundError(lookup);
+    return udoc;
+}
+
 class CatAccountHandler extends Handler {
     @param('uid', Types.Int)
     @query('page', Types.PositiveInt, true)
@@ -59,12 +69,7 @@ class CatFoodGrantHandler extends Handler {
             throw new ForbiddenError(`调整数量必须是 -${MAX_GRANT_AMOUNT}～-1 或 1～${MAX_GRANT_AMOUNT} 的整数。`);
         }
         if (!reason.trim() || reason.trim().length > 100) throw new ForbiddenError('调整原因不能为空且不能超过 100 字。');
-        const anonymousUid = /^UID\s+(\d+)$/i.exec(uidOrName.trim());
-        const lookup = anonymousUid ? anonymousUid[1] : uidOrName.trim();
-        const udoc = await UserModel.getById(domainId, +lookup)
-            || await UserModel.getByUname(domainId, lookup)
-            || await UserModel.getByEmail(domainId, lookup);
-        if (!udoc) throw new NotFoundError(lookup);
+        const udoc = await resolveAccountTarget(domainId, uidOrName);
         let result: Awaited<ReturnType<typeof oi33Model.grantCatFood>>;
         try {
             result = await oi33Model.grantCatFood(
@@ -82,6 +87,38 @@ class CatFoodGrantHandler extends Handler {
             ? `已从 UID ${udoc._id} 扣除 ${oi33Model.formatCatFood(-amount)}，当前余额 ${oi33Model.formatCatFood(result.balance)}`
             : `已向 UID ${udoc._id} 发放 ${oi33Model.formatCatFood(amount)}，当前余额 ${oi33Model.formatCatFood(result.balance)}`;
         this.response.redirect = this.url('oi33_cat_account', { uid: udoc._id, query: { notification } });
+    }
+}
+
+class CatCanGrantHandler extends Handler {
+    async get() {
+        const role = await checkOi33Admin(this.user._id);
+        this.response.template = 'oi33_cat_food_grant.html';
+        this.response.body = { canBatchGrant: role >= 3 };
+    }
+
+    @param('canUidOrName', Types.UidOrName)
+    @param('canAmount', Types.Int)
+    @param('canReason', Types.String)
+    async post(domainId: string, canUidOrName: string, canAmount: number, canReason: string) {
+        await checkOi33Admin(this.user._id);
+        const udoc = await resolveAccountTarget(domainId, canUidOrName);
+        try {
+            const result = await oi33Model.adjustCatCans(
+                udoc._id, this.user._id, canAmount, canReason,
+            );
+            if (canAmount > 0) {
+                await oi33Model.achievementEvaluateUser(udoc._id, {
+                    ruleTypes: ['cat_can_balance'],
+                }).catch((e) => console.error('[oi33] cat-can achievement evaluation failed:', e));
+            }
+            const notification = canAmount < 0
+                ? `已从 UID ${udoc._id} 扣除 ${-canAmount} 个猫罐头，当前余额 ${result.balance} 个`
+                : `已向 UID ${udoc._id} 发放 ${canAmount} 个猫罐头，当前余额 ${result.balance} 个`;
+            this.response.redirect = this.url('oi33_cat_account', { uid: udoc._id, query: { notification } });
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '猫罐头调整失败。');
+        }
     }
 }
 
@@ -173,6 +210,7 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_cat_can_reverse', '/oi33/cat-account/transaction/:id/reverse', CatCanReverseHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_account', '/oi33/cat-account/:uid', CatAccountHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_food_grant', '/oi33/cat-food/grant', CatFoodGrantHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_cat_can_grant', '/oi33/cat-can/grant', CatCanGrantHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_food_bulk', '/oi33/cat-food/grant/bulk', CatFoodBulkGrantHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_food_bulk_confirm', '/oi33/cat-food/grant/bulk/confirm', CatFoodBulkConfirmHandler, PRIV.PRIV_USER_PROFILE);
 }

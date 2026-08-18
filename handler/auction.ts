@@ -178,7 +178,10 @@ class AuctionRareHandler extends Handler {
     async get() {
         await oi33Model.auctionSettleExpired();
         const now = new Date();
-        const rows = await oi33Model.auctionRareShowcase();
+        const [rows, manualAchievements] = await Promise.all([
+            oi33Model.auctionRareShowcase(),
+            oi33Model.achievementListManual(),
+        ]);
         const udict = await buildUserDict(
             '',
             rows.filter((row) => row.award).map((row) => row.award!.uid),
@@ -189,6 +192,7 @@ class AuctionRareHandler extends Handler {
                 ...row,
                 remainText: row.activeAuction ? remainText(row.activeAuction.endAt, now) : '',
             })),
+            manualAchievements,
             udict,
         };
     }

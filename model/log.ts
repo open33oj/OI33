@@ -4,7 +4,21 @@ import { Oi33Log } from './types';
 export const logColl = db.collection('oi33_log');
 
 export async function ensureLogIndexes() {
-    await logColl.createIndex({ createdAt: 1 });
+    await Promise.all([
+        logColl.createIndex({ createdAt: 1 }),
+        // Supports the one-time/idempotent legacy movement contribution scan.
+        logColl.createIndex({
+            type: 1, action: 1, schoolCatContributionCounted: 1, userId: 1,
+        }),
+        logColl.createIndex({ schoolCatContributionBatch: 1 }, { sparse: true }),
+        logColl.createIndex(
+            { type: 1, action: 1, schoolCatRewardPeriod: 1, userId: 1 },
+            {
+                unique: true,
+                partialFilterExpression: { schoolCatRewardPeriod: { $type: 'string' } },
+            },
+        ),
+    ]);
 }
 
 export async function addLog(entry: Omit<Oi33Log, '_id' | 'createdAt'>) {

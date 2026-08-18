@@ -60,12 +60,14 @@
               </td>
               <td style="white-space:nowrap;">
                 <form method="post" style="display:inline;">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <input type="hidden" name="action" value="approve">
                   <input type="hidden" name="id" value="{{ e._id }}">
                   <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
                 </form>
                 <span style="opacity:0.3;">/</span>
                 <form method="post" style="display:inline;">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <input type="hidden" name="action" value="reject">
                   <input type="hidden" name="id" value="{{ e._id }}">
                   <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
@@ -81,6 +83,7 @@
 
         <h3 style="margin:1.5rem 0 1rem;">{{ _('Moderation Settings') }}</h3>
         <form method="post" style="margin-bottom:2rem;">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="action" value="save_settings">
           <div class="row">
             <div class="columns">

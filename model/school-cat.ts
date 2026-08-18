@@ -2,19 +2,27 @@ import { randomInt } from 'crypto';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { db, ObjectId } from 'hydrooj';
-import { catCanPoolColl } from './cat-can';
-import { addLog } from './log';
-import type { Oi33School } from './types';
+import { catCanPoolColl, ensureCatCanPool } from './cat-can';
+import { addLog, logColl } from './log';
+import type {
+    Oi33School, Oi33SchoolCatRewardAllocation, Oi33SchoolCatRewardSummary,
+} from './types';
 import { userColl } from './user';
 
 export const SCHOOL_CAT_FEED_COOLDOWN_MS = 2 * 60 * 60 * 1000;
 export const SCHOOL_CAT_PAGE_SIZE = 50;
 export const SCHOOL_CAT_COLOR_MAX = 0xFFFFFF;
+export const SCHOOL_CAT_SIDEBAR_RANKING_SIZE = 32;
+export const SCHOOL_CAT_WEEKLY_MIN_TERRITORY = 64;
+export const SCHOOL_CAT_WEEKLY_MAX_BASE_CANS = 12;
+export const SCHOOL_CAT_WEEKLY_FEEDERS_PER_MULTIPLIER = 3;
+export const SCHOOL_CAT_ADMIN_CANS_PER_FEEDER = 5;
 
 const TIME_ZONE = 'Asia/Shanghai';
 
 export const schoolCatColl = db.collection('oi33_school_cat');
 export const schoolFeedHistoryColl = db.collection('oi33_school_feed_history');
+export const schoolCatRewardColl = db.collection('oi33_school_cat_reward');
 
 // Cell ownership uses 0 as the explicit "no big cat" sentinel. OIerDB has a
 // real school #0, so persisted cat ids are encoded as schoolId + 1.
@@ -45,6 +53,26 @@ function shanghaiMonthKey(now = new Date()) {
     });
     const parts = Object.fromEntries(formatter.formatToParts(now).map((part) => [part.type, part.value]));
     return `${parts.year}-${parts.month}`;
+}
+
+export function schoolCatRewardPeriod(now = new Date()) {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    const parts = Object.fromEntries(formatter.formatToParts(now).map((part) => [part.type, part.value]));
+    const localDate = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+    const daysSinceMonday = (localDate.getUTCDay() + 6) % 7;
+    localDate.setUTCDate(localDate.getUTCDate() - daysSinceMonday);
+    return localDate.toISOString().slice(0, 10);
+}
+
+export function schoolCatTerritoryBaseReward(territoryCount: number) {
+    const cells = Math.max(0, Math.floor(Number(territoryCount) || 0));
+    if (cells < SCHOOL_CAT_WEEKLY_MIN_TERRITORY) return 0;
+    return Math.min(
+        SCHOOL_CAT_WEEKLY_MAX_BASE_CANS,
+        1 + Math.floor(Math.log2(cells / SCHOOL_CAT_WEEKLY_MIN_TERRITORY)),
+    );
 }
 
 const schoolDataFile = path.join(__dirname, 'school-cat-data.json');
@@ -78,6 +106,7 @@ export async function ensureSchoolCatRecord(schoolId: number, now = new Date()) 
                 currentWeight: 0,
                 historyWeight: 0,
                 territoryCount: 0,
+                isAdminCat: false,
                 spawnedAt: now,
                 updatedAt: now,
             },
@@ -118,6 +147,10 @@ export async function ensureSchoolCatIndexes() {
         { territoryCount: { $exists: false } },
         { $set: { territoryCount: 0 } } as any,
     );
+    await schoolCatColl.updateMany(
+        { isAdminCat: { $exists: false } },
+        { $set: { isAdminCat: false } } as any,
+    );
 
     // Repair missing/duplicate legacy colors before enforcing uniqueness.
     const colorDocs: any[] = await schoolCatColl.find({}).sort({ _id: 1 })
@@ -147,10 +180,14 @@ export async function ensureSchoolCatIndexes() {
     await Promise.all([
         schoolCatColl.createIndex({ currentWeight: -1 }),
         schoolCatColl.createIndex({ territoryCount: -1 }),
+        schoolCatColl.createIndex({ isAdminCat: 1, territoryCount: -1, currentWeight: -1 }),
         schoolCatColl.createIndex({ territoryColor: 1 }, { unique: true, sparse: true }),
         schoolFeedHistoryColl.createIndex({ schoolId: 1, uid: 1 }),
         schoolFeedHistoryColl.createIndex({ uid: 1, createdAt: -1 }),
         userColl.createIndex({ school_cat: 1, school_cat_food: -1, _id: 1 }),
+        userColl.createIndex({ school_cat_reward_period: 1 }),
+        schoolCatRewardColl.createIndex({ createdAt: -1 }),
+        schoolCatRewardColl.createIndex({ status: 1, createdAt: -1 }),
     ]);
 }
 
@@ -218,49 +255,393 @@ async function getEligibleUser(uid: number) {
 
 function publicCat(cat: any, school: any) {
     const weight = Math.max(0, Math.floor(Number(cat.currentWeight) || 0));
+    const color = Math.max(0, Math.floor(Number(cat.territoryColor) || 0));
     return {
         id: cat._id,
         catId: schoolCatKey(cat._id),
         display: school ? schoolDisplay(school) : `#${cat._id}`,
         url: schoolUrl(cat._id),
-        color: Math.max(0, Math.floor(Number(cat.territoryColor) || 0)),
+        color,
+        colorCss: schoolCatColorCss(color),
         weight,
         historyWeight: Math.max(0, Math.floor(Number(cat.historyWeight) || 0)),
         territoryCount: Math.max(0, Math.floor(Number(cat.territoryCount) || 0)),
+        isAdminCat: cat.isAdminCat === true,
     };
 }
 
+const activeSchoolCatFilter = {
+    $or: [
+        { currentWeight: { $gt: 0 } },
+        { territoryCount: { $gt: 0 } },
+    ],
+};
+
+export async function getSchoolCatRanking() {
+    const cats: any[] = await schoolCatColl.find(activeSchoolCatFilter as any).toArray();
+    const visible = cats.map((cat: any) => publicCat(cat, schoolById.get(cat._id)))
+        .sort((a: any, b: any) => b.territoryCount - a.territoryCount
+            || b.weight - a.weight || a.id - b.id);
+    let numericRank = 0;
+    return visible.map((cat: any) => ({
+        ...cat,
+        // Administrative cats stay visible at their territory-sorted position,
+        // but do not consume a numeric place in the public ranking.
+        rank: cat.isAdminCat ? null : ++numericRank,
+    }));
+}
+
+function rewardTieBreak(period: string, schoolId: number, uid: number) {
+    const text = `${period}:${schoolId}:${uid}`;
+    let hash = 2166136261;
+    for (let index = 0; index < text.length; index++) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+}
+
+async function buildSchoolCatWeeklyRewardPlan(period: string) {
+    const feeders: any[] = await userColl.find({
+        realname_flag: { $gte: 1 },
+        school_cat: { $gte: 0 },
+        school_cat_food: { $gt: 0 },
+    } as any, {
+        projection: { _id: 1, school_cat: 1, school_cat_food: 1 },
+    }).sort({ school_cat: 1, _id: 1 }).toArray();
+    const bySchool = new Map<number, Array<{ uid: number; contribution: number }>>();
+    for (const feeder of feeders) {
+        const schoolId = Number(feeder.school_cat);
+        const contribution = Math.max(0, Math.floor(Number(feeder.school_cat_food) || 0));
+        if (!Number.isSafeInteger(schoolId) || schoolId < 0 || !contribution) continue;
+        const rows = bySchool.get(schoolId) || [];
+        rows.push({ uid: feeder._id, contribution });
+        bySchool.set(schoolId, rows);
+    }
+    const schoolIds = Array.from(bySchool.keys());
+    const catRows: any[] = schoolIds.length
+        ? await schoolCatColl.find({ _id: { $in: schoolIds } } as any).toArray()
+        : [];
+    const catBySchool = new Map<number, any>(catRows.map((cat: any) => [cat._id, cat]));
+    const cats: Oi33SchoolCatRewardSummary[] = [];
+    const allocations: Oi33SchoolCatRewardAllocation[] = [];
+
+    for (const schoolId of schoolIds.sort((a, b) => a - b)) {
+        const cat = catBySchool.get(schoolId);
+        if (!cat) continue;
+        const rows = bySchool.get(schoolId)!;
+        const feederCount = rows.length;
+        const territoryCount = Math.max(0, Math.floor(Number(cat.territoryCount) || 0));
+        const isAdminCat = cat.isAdminCat === true;
+        if (isAdminCat) {
+            const plannedCans = feederCount * SCHOOL_CAT_ADMIN_CANS_PER_FEEDER;
+            cats.push({
+                schoolId, isAdminCat, territoryCount, feederCount,
+                baseCans: SCHOOL_CAT_ADMIN_CANS_PER_FEEDER,
+                multiplier: feederCount, plannedCans,
+            });
+            for (const row of rows) {
+                allocations.push({
+                    ...row, schoolId, isAdminCat,
+                    weight: Math.max(0, Math.floor(Math.log2(row.contribution))),
+                    amount: SCHOOL_CAT_ADMIN_CANS_PER_FEEDER,
+                });
+            }
+            continue;
+        }
+
+        const baseCans = schoolCatTerritoryBaseReward(territoryCount);
+        const multiplier = Math.floor(feederCount / SCHOOL_CAT_WEEKLY_FEEDERS_PER_MULTIPLIER);
+        const weighted = rows.map((row) => ({
+            ...row,
+            weight: Math.max(0, Math.floor(Math.log2(row.contribution))),
+        }));
+        const totalWeight = weighted.reduce((sum, row) => sum + row.weight, 0);
+        // floor(log2(1)) is zero. If every feeder has zero weight there is no
+        // defined proportional recipient, so this cat emits no cans this week.
+        const plannedCans = totalWeight ? baseCans * multiplier : 0;
+        cats.push({
+            schoolId, isAdminCat, territoryCount, feederCount,
+            baseCans, multiplier, plannedCans,
+        });
+        if (!plannedCans) continue;
+        const shares = weighted.map((row) => {
+            const numerator = plannedCans * row.weight;
+            return {
+                ...row,
+                amount: Math.floor(numerator / totalWeight),
+                remainder: numerator % totalWeight,
+                tieBreak: rewardTieBreak(period, schoolId, row.uid),
+            };
+        });
+        let remaining = plannedCans - shares.reduce((sum, row) => sum + row.amount, 0);
+        shares.sort((a, b) => b.remainder - a.remainder || a.tieBreak - b.tieBreak || a.uid - b.uid);
+        for (let index = 0; index < remaining; index++) shares[index].amount++;
+        shares.sort((a, b) => a.uid - b.uid);
+        for (const row of shares) {
+            if (!row.amount) continue;
+            allocations.push({
+                uid: row.uid, schoolId, contribution: row.contribution,
+                weight: row.weight, amount: row.amount, isAdminCat,
+            });
+        }
+    }
+    return {
+        cats,
+        allocations,
+        plannedUsers: allocations.length,
+        plannedCans: allocations.reduce((sum, row) => sum + row.amount, 0),
+    };
+}
+
+async function getOrCreateSchoolCatRewardPlan(period: string, operator: number, now: Date) {
+    let existing: any = await schoolCatRewardColl.findOne({ _id: period } as any);
+    if (existing) return existing;
+    const plan = await buildSchoolCatWeeklyRewardPlan(period);
+    const doc = {
+        _id: period,
+        status: 'planned',
+        ...plan,
+        operator,
+        createdAt: now,
+    };
+    try {
+        await schoolCatRewardColl.insertOne(doc as any);
+        return doc;
+    } catch (e: any) {
+        if (e?.code !== 11000) throw e;
+        existing = await schoolCatRewardColl.findOne({ _id: period } as any);
+        if (!existing) throw e;
+        return existing;
+    }
+}
+
+export async function getSchoolCatWeeklyRewardStatus(now = new Date()) {
+    const period = schoolCatRewardPeriod(now);
+    const row: any = await schoolCatRewardColl.findOne(
+        { _id: period } as any,
+        { projection: { allocations: 0 } },
+    );
+    return row || { _id: period, status: 'pending', plannedUsers: 0, plannedCans: 0 };
+}
+
+async function renewSchoolCatRewardLock(period: string, lockOwner: ObjectId) {
+    const renewed = await schoolCatRewardColl.updateOne(
+        { _id: period, status: 'processing', lockOwner } as any,
+        { $set: { lockUntil: new Date(Date.now() + 30 * 60 * 1000) } } as any,
+    );
+    if (!renewed.matchedCount) throw new Error('每周奖励结算锁已失效。');
+}
+
+// Builds one immutable snapshot per Shanghai week and applies it idempotently.
+// A database lease serializes manual and scheduled runs. Per-user period
+// markers, the pool period marker and idempotent log upserts allow an expired
+// lease to resume safely after a process interruption.
+export async function settleSchoolCatWeeklyRewards(operator = 0, now = new Date()) {
+    const period = schoolCatRewardPeriod(now);
+    let plan: any = await getOrCreateSchoolCatRewardPlan(period, operator, now);
+    if (plan.status === 'completed') {
+        return {
+            period, completed: true, newlyCompleted: false, running: false,
+            users: Number(plan.issuedUsers) || 0,
+            cans: Number(plan.issuedCans) || 0,
+            awardedUids: [] as number[],
+        };
+    }
+
+    const lockOwner = new ObjectId();
+    const lockUntil = new Date(now.getTime() + 30 * 60 * 1000);
+    const locked = await schoolCatRewardColl.updateOne({
+        _id: period,
+        status: { $ne: 'completed' },
+        $or: [
+            { lockUntil: { $exists: false } },
+            { lockUntil: { $lte: now } },
+        ],
+    } as any, {
+        $set: { status: 'processing', operator, startedAt: now, lockOwner, lockUntil },
+        $unset: { failedAt: '', lastError: '' },
+    } as any);
+    if (!locked.modifiedCount) {
+        plan = await schoolCatRewardColl.findOne({ _id: period } as any);
+        return {
+            period,
+            completed: plan?.status === 'completed',
+            newlyCompleted: false,
+            running: plan?.status !== 'completed',
+            users: Number(plan?.issuedUsers) || 0,
+            cans: Number(plan?.issuedCans) || 0,
+            awardedUids: [] as number[],
+        };
+    }
+
+    try {
+        plan = await schoolCatRewardColl.findOne({ _id: period, lockOwner } as any);
+        if (!plan) throw new Error('每周奖励结算锁已失效。');
+        const allocations: Oi33SchoolCatRewardAllocation[] = Array.isArray(plan.allocations)
+            ? plan.allocations.filter((row: any) => Number.isSafeInteger(row?.uid)
+                && Number.isSafeInteger(row?.amount) && row.amount > 0)
+            : [];
+        for (let offset = 0; offset < allocations.length; offset += 500) {
+            const chunk = allocations.slice(offset, offset + 500);
+            await userColl.bulkWrite(chunk.map((row) => ({
+                updateOne: {
+                    filter: {
+                        _id: row.uid,
+                        realname_flag: { $gte: 1 },
+                        school_cat_reward_period: { $ne: period },
+                    },
+                    update: {
+                        $inc: { cat_can: row.amount },
+                        $set: {
+                            school_cat_reward_period: period,
+                            school_cat_reward_amount: row.amount,
+                            school_cat_reward_school_id: row.schoolId,
+                            school_cat_reward_at: now,
+                        },
+                    },
+                },
+            })), { ordered: false });
+            await renewSchoolCatRewardLock(period, lockOwner);
+        }
+
+        const allocationByUid = new Map(allocations.map((row) => [row.uid, row]));
+        const issued: Oi33SchoolCatRewardAllocation[] = [];
+        const uids = Array.from(allocationByUid.keys());
+        for (let offset = 0; offset < uids.length; offset += 2000) {
+            const chunk = uids.slice(offset, offset + 2000);
+            const users: any[] = await userColl.find({
+                _id: { $in: chunk },
+                school_cat_reward_period: period,
+            } as any, {
+                projection: {
+                    school_cat_reward_amount: 1,
+                    school_cat_reward_school_id: 1,
+                },
+            }).toArray();
+            for (const user of users) {
+                const allocation = allocationByUid.get(user._id);
+                if (!allocation) continue;
+                if (Number(user.school_cat_reward_amount) !== allocation.amount
+                    || Number(user.school_cat_reward_school_id) !== allocation.schoolId) {
+                    throw new Error(`UID ${user._id} 的每周奖励幂等标记与奖励计划不一致。`);
+                }
+                issued.push(allocation);
+            }
+            await renewSchoolCatRewardLock(period, lockOwner);
+        }
+        const issuedCans = issued.reduce((sum, row) => sum + row.amount, 0);
+        await ensureCatCanPool(now);
+        const poolUpdated = await catCanPoolColl.updateOne(
+            { _id: 'main', schoolCatRewardPeriod: { $ne: period } } as any,
+            {
+                $inc: { virtualCanSupply: issuedCans, circulatingCans: issuedCans },
+                $set: {
+                    schoolCatRewardPeriod: period,
+                    schoolCatRewardCans: issuedCans,
+                    schoolCatRewardAt: now,
+                    updatedAt: now,
+                },
+            } as any,
+        );
+        if (!poolUpdated.modifiedCount) {
+            const pool: any = await catCanPoolColl.findOne({ _id: 'main' });
+            if (pool?.schoolCatRewardPeriod !== period
+                || Number(pool?.schoolCatRewardCans) !== issuedCans) {
+                throw new Error('每周奖励的市场计数器与奖励计划不一致。');
+            }
+        }
+
+        for (let offset = 0; offset < issued.length; offset += 500) {
+            const chunk = issued.slice(offset, offset + 500);
+            await logColl.bulkWrite(chunk.map((row) => ({
+                updateOne: {
+                    filter: {
+                        type: 'cat_account',
+                        action: 'school_cat_weekly_reward',
+                        schoolCatRewardPeriod: period,
+                        userId: row.uid,
+                    },
+                    update: {
+                        $setOnInsert: {
+                            _id: new ObjectId(),
+                            type: 'cat_account',
+                            action: 'school_cat_weekly_reward',
+                            schoolCatRewardPeriod: period,
+                            userId: row.uid,
+                            sender: operator,
+                            amount: 0,
+                            canAmount: row.amount,
+                            catId: schoolCatKey(row.schoolId),
+                            reason: row.isAdminCat
+                                ? `管理员大猫每周奖励：每位当前投喂者 ${SCHOOL_CAT_ADMIN_CANS_PER_FEEDER} 个`
+                                : `大猫领地每周奖励：当前贡献 ${row.contribution}g，权重 ${row.weight}`,
+                            createdAt: now,
+                        },
+                    },
+                    upsert: true,
+                },
+            })), { ordered: false });
+            await renewSchoolCatRewardLock(period, lockOwner);
+        }
+        const completedAt = new Date();
+        const completed = await schoolCatRewardColl.updateOne(
+            { _id: period, lockOwner } as any,
+            {
+                $set: {
+                    status: 'completed',
+                    issuedUsers: issued.length,
+                    issuedCans,
+                    completedAt,
+                },
+                $unset: { lockOwner: '', lockUntil: '', lastError: '', failedAt: '' },
+            } as any,
+        );
+        if (!completed.modifiedCount) throw new Error('每周奖励已发放，但结算状态写入失败。');
+        return {
+            period, completed: true, newlyCompleted: true, running: false,
+            users: issued.length, cans: issuedCans,
+            awardedUids: issued.map((row) => row.uid),
+        };
+    } catch (e: any) {
+        await schoolCatRewardColl.updateOne(
+            { _id: period, lockOwner } as any,
+            {
+                $set: {
+                    status: 'failed',
+                    failedAt: new Date(),
+                    lastError: e?.message || String(e),
+                },
+                $unset: { lockOwner: '', lockUntil: '' },
+            } as any,
+        );
+        throw e;
+    }
+}
+
 export async function getBigCatWorldState(viewerUid = 0) {
-    const [cats, viewer]: any[] = await Promise.all([
-        schoolCatColl.find({
-            $or: [
-                { currentWeight: { $gt: 0 } },
-                { historyWeight: { $gt: 0 } },
-                { territoryCount: { $gt: 0 } },
-            ],
-        }).toArray(),
+    const [ranking, viewer]: any[] = await Promise.all([
+        getSchoolCatRanking(),
         viewerUid
             ? userColl.findOne({ _id: viewerUid, realname_flag: { $gte: 1 } })
             : Promise.resolve(null),
     ]);
     const boundId = viewer && Number.isSafeInteger(viewer.school_cat) ? viewer.school_cat : null;
-    const visible = cats.map((cat: any) => publicCat(cat, schoolById.get(cat._id)))
-        .sort((a: any, b: any) => b.weight - a.weight
-            || b.territoryCount - a.territoryCount || a.id - b.id);
     let me: any = null;
     if (viewer) {
         const boundSchool = boundId === null ? null : schoolById.get(boundId);
         const boundCat: any = boundId === null
             ? null
-            : cats.find((cat: any) => cat._id === boundId)
+            : ranking.find((cat: any) => cat.id === boundId)
                 || await schoolCatColl.findOne({ _id: boundId } as any);
+        const boundColor = boundCat?.color ?? boundCat?.territoryColor;
         me = {
             food: Math.max(0, Number(viewer.cat_food) || 0),
             boundId,
             boundCatId: boundId === null ? 0 : schoolCatKey(boundId),
             boundDisplay: boundSchool ? schoolDisplay(boundSchool) : null,
             boundUrl: boundId === null ? null : schoolUrl(boundId),
-            boundColor: validTerritoryColor(boundCat?.territoryColor) ? boundCat.territoryColor : null,
+            boundColor: validTerritoryColor(boundColor) ? boundColor : null,
             contribution: Math.max(0, Math.floor(Number(viewer.school_cat_food) || 0)),
             canChange: (viewer.school_cat_month || '') !== shanghaiMonthKey(),
             nextFeedAt: viewer.school_cat_feed_at
@@ -269,8 +650,8 @@ export async function getBigCatWorldState(viewerUid = 0) {
         };
     }
     return {
-        cats: visible,
-        ranking: visible.slice(0, 100).map((cat: any) => ({
+        cats: ranking,
+        ranking: ranking.slice(0, SCHOOL_CAT_SIDEBAR_RANKING_SIZE).map((cat: any) => ({
             id: cat.id,
             catId: cat.catId,
             display: cat.display,
@@ -278,9 +659,165 @@ export async function getBigCatWorldState(viewerUid = 0) {
             color: cat.color,
             weight: cat.weight,
             territoryCount: cat.territoryCount,
+            isAdminCat: cat.isAdminCat,
+            rank: cat.rank,
         })),
+        rankingTotal: ranking.length,
         me,
         serverTime: Date.now(),
+    };
+}
+
+export async function setSchoolCatAdminCat(
+    operator: number, schoolId: number, enabled: boolean, now = new Date(),
+) {
+    const admin: any = await getEligibleUser(operator);
+    if (!admin || (Number(admin.realname_flag) || 0) < 3) {
+        throw new Error('仅行政管理员可以设置管理员大猫。');
+    }
+    const school: any = await getSchool(schoolId);
+    if (!school) throw new Error('该学校不存在。');
+    const cat: any = await ensureSchoolCatRecord(schoolId, now);
+    const previous = cat?.isAdminCat === true;
+    if (previous === enabled) return { ...publicCat(cat, school), changed: false };
+    const stateFilter = previous
+        ? { isAdminCat: true }
+        : { $or: [{ isAdminCat: false }, { isAdminCat: { $exists: false } }] };
+    const result = await schoolCatColl.updateOne(
+        { _id: schoolId, ...stateFilter } as any,
+        { $set: { isAdminCat: enabled, updatedAt: now } } as any,
+    );
+    if (!result.modifiedCount) throw new Error('大猫状态刚刚发生变化，请刷新后重试。');
+    await addLog({
+        type: 'school_cat',
+        userId: operator,
+        sender: operator,
+        action: enabled ? 'admin_cat_enable' : 'admin_cat_disable',
+        catId: schoolCatKey(schoolId),
+        reason: `${enabled ? '设为' : '取消'}管理员大猫：${schoolDisplay(school)}`,
+    } as any);
+    const updated: any = await schoolCatColl.findOne({ _id: schoolId } as any);
+    return { ...publicCat(updated, school), changed: true };
+}
+
+const uncountedMoveContributionFilter = {
+    type: 'cat_account',
+    action: { $in: ['cat_map_move', 'cat_map_territory_teleport'] },
+    amount: { $lt: 0 },
+    schoolCatContributionCounted: { $ne: true },
+};
+
+// Legacy movement logs predate per-move big-cat attribution. This operation
+// claims them per user, aggregates inside MongoDB, then attributes the exact
+// burned food to that user's current binding. Bound/verified users are handled
+// without loading individual movement rows into the application process.
+export async function backfillSchoolCatMoveContributions(operator: number, now = new Date()) {
+    const admin: any = await getEligibleUser(operator);
+    if (!admin || (Number(admin.realname_flag) || 0) < 3) {
+        throw new Error('仅行政管理员可以回算历史移动贡献。');
+    }
+    const candidateValues = await logColl.distinct('userId', uncountedMoveContributionFilter as any);
+    const candidateUids = candidateValues.filter((uid: any): uid is number => Number.isSafeInteger(uid));
+    const eligibleByUid = new Map<number, any>();
+    for (let offset = 0; offset < candidateUids.length; offset += 2000) {
+        const chunk = candidateUids.slice(offset, offset + 2000);
+        const rows: any[] = await userColl.find({
+            _id: { $in: chunk },
+            realname_flag: { $gte: 1 },
+            school_cat: { $gte: 0 },
+        } as any, { projection: { school_cat: 1 } }).toArray();
+        rows.forEach((row: any) => {
+            if (Number.isSafeInteger(row.school_cat)) eligibleByUid.set(row._id, row);
+        });
+    }
+
+    let moves = 0;
+    let contribution = 0;
+    const affectedCatIds = new Set<number>();
+    for (const uid of candidateUids) {
+        const user = eligibleByUid.get(uid);
+        if (!user) continue;
+        const schoolId = Number(user.school_cat);
+        await ensureSchoolCatRecord(schoolId, now);
+        const batchId = new ObjectId();
+        const claimed = await logColl.updateMany({
+            ...uncountedMoveContributionFilter,
+            userId: uid,
+            schoolCatContributionBatch: { $exists: false },
+        } as any, {
+            $set: { schoolCatContributionBatch: batchId, catId: schoolCatKey(schoolId) },
+        } as any);
+        if (!claimed.modifiedCount) continue;
+
+        const summary: any[] = await logColl.aggregate([
+            { $match: { schoolCatContributionBatch: batchId } },
+            {
+                $group: {
+                    _id: null,
+                    amount: { $sum: { $multiply: ['$amount', -1] } },
+                    moves: { $sum: 1 },
+                },
+            },
+        ]).toArray();
+        const amount = Math.max(0, Math.floor(Number(summary[0]?.amount) || 0));
+        const moveCount = Math.max(0, Math.floor(Number(summary[0]?.moves) || 0));
+        let userApplied = false;
+        let catApplied = false;
+        try {
+            if (!amount || !moveCount) throw new Error('历史移动日志金额无效。');
+            const userResult = await userColl.updateOne({
+                _id: uid,
+                realname_flag: { $gte: 1 },
+                school_cat: schoolId,
+            }, { $inc: { school_cat_food: amount } });
+            if (!userResult.modifiedCount) throw new Error(`UID ${uid} 的大猫绑定刚刚发生变化，请重试。`);
+            userApplied = true;
+            const catResult = await schoolCatColl.updateOne(
+                { _id: schoolId } as any,
+                { $inc: { currentWeight: amount }, $set: { updatedAt: now } } as any,
+            );
+            if (!catResult.modifiedCount) throw new Error(`大猫 #${schoolId} 的历史贡献更新失败。`);
+            catApplied = true;
+            const marked = await logColl.updateMany(
+                { schoolCatContributionBatch: batchId } as any,
+                {
+                    $set: { schoolCatContributionCounted: true },
+                    $unset: { schoolCatContributionBatch: '' },
+                } as any,
+            );
+            if (marked.modifiedCount !== moveCount) throw new Error(`UID ${uid} 的历史移动标记不完整。`);
+        } catch (e) {
+            if (catApplied) {
+                await schoolCatColl.updateOne(
+                    { _id: schoolId } as any,
+                    { $inc: { currentWeight: -amount }, $set: { updatedAt: now } } as any,
+                );
+            }
+            if (userApplied) await userColl.updateOne({ _id: uid }, { $inc: { school_cat_food: -amount } });
+            await logColl.updateMany(
+                { schoolCatContributionBatch: batchId } as any,
+                { $unset: { schoolCatContributionBatch: '', catId: '', schoolCatContributionCounted: '' } } as any,
+            );
+            throw e;
+        }
+        moves += moveCount;
+        contribution += amount;
+        affectedCatIds.add(schoolId);
+    }
+    const pendingMoves = await logColl.countDocuments(uncountedMoveContributionFilter as any);
+    await addLog({
+        type: 'school_cat',
+        userId: operator,
+        sender: operator,
+        action: 'move_contribution_backfill',
+        amount: contribution,
+        reason: `按用户当前绑定回算 ${moves} 次历史猫粮移动，共 ${contribution}g；仍有 ${pendingMoves} 次因未认证或未绑定而待处理`,
+    } as any);
+    return {
+        moves,
+        contribution,
+        pendingMoves,
+        affectedCatIds: Array.from(affectedCatIds),
     };
 }
 
@@ -474,6 +1011,7 @@ export async function feedSchoolCat(uid: number, amount: number, now = new Date(
         historyWeight: Math.max(0, Math.floor(Number(updatedCat?.historyWeight) || 0)),
         territoryCount: Math.max(0, Math.floor(Number(updatedCat?.territoryCount) || 0)),
         color: Math.max(0, Math.floor(Number(updatedCat?.territoryColor) || 0)),
+        isAdminCat: updatedCat?.isAdminCat === true,
         contribution: Math.max(0, Math.floor(Number(updatedUser?.school_cat_food) || 0)),
         balance: Math.max(0, Number(updatedUser?.cat_food) || 0),
         nextFeedAt: now.getTime() + SCHOOL_CAT_FEED_COOLDOWN_MS,
@@ -569,6 +1107,7 @@ export async function getSchoolCatDetail(schoolId: number, viewerUid = 0) {
         catId: schoolCatKey(schoolId),
         color: validTerritoryColor(cat?.territoryColor) ? cat.territoryColor : null,
         territoryCount: Math.max(0, Math.floor(Number(cat?.territoryCount) || 0)),
+        isAdminCat: cat?.isAdminCat === true,
         canSetColor: !!viewerUid
             && currentRows.length > 0
             && currentRows[0]._id === viewerUid,

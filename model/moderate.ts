@@ -27,6 +27,18 @@ export function bioHashOf(bio: string): string {
     return hashOf(normalizeText(bio));
 }
 
+// Bio edits created before the exact-text hashing fix were hashed after
+// trimming leading/trailing whitespace, while batch-reviewed bios were hashed
+// verbatim. Accept both representations when checking an already-stored hash
+// so existing approvals recover without weakening checks for real content
+// changes.
+export function bioHashMatches(storedHash: string | undefined, bio: string): boolean {
+    if (!storedHash) return false;
+    if (storedHash === bioHashOf(bio)) return true;
+    const trimmed = bio.trim();
+    return trimmed !== bio && storedHash === bioHashOf(trimmed);
+}
+
 export async function ensureModerationIndexes() {
     await Promise.all([
         moderationColl.createIndex({ contentHash: 1, createdAt: -1 }),
