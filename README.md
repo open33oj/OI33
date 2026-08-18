@@ -274,6 +274,53 @@ hydrooj addon remove frontend-33oj
 - 全站猫粮和罐头总量只在储备池首次升级时汇总一次，之后由签到、发放、交易和撤销的账本增量维护；普通市场访问和交易不会扫描全站用户。每 8 小时价格历史只保存价格与时间。
 - 旧版本的 `oi33_cat_can_batch` 集合不再参与任何库存判断或写入；访问并执行 `/oi33/migrate` 会预览记录数并幂等清除该遗留集合。
 
+## 经济平衡
+
+记账体系：用户余额（`cat_food` 猫粮 / `cat_can` 罐头）与市场池计数器（`userFoodTotal` 全站已认证猫粮、`circulatingCans` 流通罐头、`virtualCanSupply` 虚拟总供应、`reserveFood` 储备粮、`feesBurned` 累计手续费）并行维护，每个操作写一条 `oi33_log` 账本记录。「增发」= 供应增加；「销毁」= 供应减少；「回池」= 罐头从流通回到池子（供应不变）；「托管」= 罐头暂存（仍在流通统计内）。
+
+### 猫粮（g）
+
+| 行为 | 用户猫粮 | userFoodTotal | 储备粮 | 性质 | 说明 |
+|---|---|---|---|---|---|
+| 每日签到 | +100 | +100 | — | **增发** | 连续签到 +150；上线补发同源 |
+| 管理员发放（单人/批量） | +X | +X | — | **增发** | `grant` / `bulk_grant` |
+| 管理员扣除 | −X | −X | — | **销毁** | `deduct`，余额不能为负 |
+| 买入罐头 | −(本金+手续费) | −(本金+手续费) | +本金 | 流转+手续费销毁 | 本金进储备池，手续费 `feesBurned` 销毁 |
+| 卖出罐头 | +(收入−手续费) | 同左 | −收入 | 流转+手续费销毁 | 从储备池支出，手续费销毁 |
+| 地图移动/领地传送 | −3 | −3 | — | **销毁** | 计入当前大猫投喂贡献 |
+| 投喂大猫 | −X | −X | — | **销毁** | 2 小时冷却，大猫当前重量 +X |
+| 成就合同成交 | 买家 −价 / 卖家 +(价−5%) | 同左 | — | 流转+中介费销毁 | 5% 中介费从系统猫粮总量销毁 |
+| 拍卖结算 | — | — | −foodBurn | 储备销毁 | 不来自用户余额，不计净增发 |
+| 未认证资产清理 | −X | −X | — | **销毁** | 记 `deduct` 日志 |
+
+### 猫罐头（个）
+
+| 行为 | 用户罐头 | 流通 circulatingCans | 供应 virtualCanSupply | 性质 | 说明 |
+|---|---|---|---|---|---|
+| 管理员发放 `can_grant` | +X | +X | +X | **增发** | 供应与流通同步增长 |
+| 管理员扣除 `can_deduct` | −X | −X | −X | **销毁** | 不回市场池 |
+| 每周大猫奖励结算 | +X | +X | +X | **增发** | 每用户按分配，幂等 |
+| 每周大猫奖励回滚 | −X | −X | −X | **销毁** | 从用户扣回，供应同步收缩 |
+| 买入罐头 | +X | +X | — | 流转 | 从池子库存流出（池内罐头 −X） |
+| 卖出罐头 | −X | −X | — | 回池 | 罐头回到池内库存 |
+| 地图传送（非领地） | −3 | −3 | — | 回池 | 领地内传送只耗猫粮 |
+| 喵喵发帖 | −1 | −1 | — | 回池 | 每日前几次免费，收费部分回池 |
+| 喵喵审核拒绝 | +1 | +1 | — | 退还 | 发帖成本退回 |
+| 喵喵人工删除 | 不回退 | 不回退 | — | 销毁 | 被删除的帖子罐头不退还 |
+| 拍卖出价 | −X | 不变 | — | **托管** | 罐头存入拍卖托管，仍在流通统计 |
+| 拍卖被超越/流拍/取消退款 | +X | 不变 | — | 退还 | 从托管退回 |
+| 拍卖结算 | 赢家拿成就 | −highestBid | — | 回池+储备销毁 | 托管罐头回池，等值储备粮销毁 |
+| 未认证资产清理 | 清零 | −cans | — | 回池 | 未认证罐头归还储备池 |
+| 交易撤销 | 双向还原 | 双向还原 | — | 还原 | 按原记录反向记账 |
+
+### 关键守恒关系
+
+- **虚拟总供应 = 初始折算基准（`baseVirtualSupply`）+ 累计增发 − 累计销毁**：增发来源为 `can_grant` 与每周奖励结算，销毁来源为 `can_deduct` 与每周奖励回滚；交易、传送、喵喵、拍卖只改变流通，不改变供应。
+- **池内罐头 = 虚拟总供应 − 流通罐头**（买入时减少，卖出/回池时增加）。
+- **储备覆盖 = 储备粮 ÷ 流通罐头**：储备能按现价全额兑付流通罐头时 ≥ 1。
+- **净增发（面板）= 猫粮发放 − 猫粮销毁**；罐头增发/销毁独立成行（系统增发 / 系统销毁）。
+- **校准按钮**（市场页，行政管理员）：按上述守恒式从账本重放全部增发/销毁记录，重建供应、流通、储备、手续费四个计数器，幂等可重复执行。
+
 ## 成就拍卖
 
 - 管理员（OI33 身份 ≥ 2）在 `/oi33/auction` 上架某个成就的拍卖，填写拍卖时长（1–720 小时）和起拍价（≥ 1 个猫罐头）；同一成就同时只能有一个进行中的拍卖。
@@ -331,7 +378,7 @@ hydrooj addon remove frontend-33oj
 
 ## 系统设置
 
-在 Hydro 后台「系统设置」→ `hydrooj` → `homepage` 中配置。以下为完整示例：
+在 Hydro 后台「系统设置」→ `hydrooj` → `homepage` 中配置。示例（完整 luck 文案见代码 `templates`/`locales`）：
 
 ```yaml
 - width: 9
@@ -343,127 +390,40 @@ hydrooj addon remove frontend-33oj
   discussion: 20
 - width: 3
   checkin:
-    luck_type:
-      - text: "大吉"
-        color: "#ED5A65"
-      - text: "吉"
-        color: "#ED5A65"
-      - text: "小吉"
-        color: "#ED5A65"
-      - text: "平"
-        color: "#161823"
-      - text: "小凶"
-        color: "#161823"
-      - text: "小凶"
-        color: "#161823"
-      - text: "大凶"
-        color: "#161823"
-    luck_template:
-      - text: "大吉"
-        color: "#ED5A65"
-      - text: "吉"
-        color: "#ED5A65"
-      - text: "小吉"
-        color: "#ED5A65"
-      - text: "平"
-        color: "#161823"
-      - text: "小凶"
-        color: "#161823"
-      - text: "小凶"
-        color: "#161823"
-      - text: "大凶"
-        color: "#161823"
-    luck_vip:
-      - 1, 2
+    luck_type:            # 7 级运势文字与颜色（checkin_luck 0-6）
+      - { text: "大吉", color: "#ED5A65" }
+      - { text: "吉",   color: "#ED5A65" }
+      - { text: "小吉", color: "#ED5A65" }
+      - { text: "平",   color: "#161823" }
+      - { text: "小凶", color: "#161823" }
+      - { text: "大凶", color: "#161823" }
+    luck_vip: [1, 2]      # VIP UID 始终显示「大吉」
   countdown:
     title: 倒计时
     max_dates: 5
     dates:
-      - name: APIO 2026
-        date: 2026-05-07
-      - name: NOI 2026
-        date: 2026-07-18
-      - name: IOI 2026
-        date: 2026-08-09
-      - name: CSP-J/S 第一轮
-        date: 2026-09-19
-      - name: CSP-J/S 第二轮
-        date: 2026-10-31
-      - name: NOIP & 女生赛
-        date: 2026-11-28
+      - { name: NOI 2026, date: 2026-07-18 }
+      - { name: CSP-J/S 第一轮, date: 2026-09-19 }
   sidebar_nav:
     - title: 常用功能
       urls:
-        - name: 软件下载
-          url: /p/SOFTWARE
-        - name: "三三百科"
-          url: https://wiki.example.com
-        - name: 初学者常用内容
-          url: https://wiki.example.com/w/beginner
-        - name: 题目分享
-          url: https://pan.baidu.com/s/xxxxxxxx
-        - name: 打字练习
-          url: https://type.example.com
-    - title: 33OJ
-      urls:
-        - name: 生日快乐
-          url: /oi33/birthday
-        - name: 管理后台
-          url: /oi33/admin
-        - name: 云剪贴板
-          url: /oi33/paste/manage
+        - { name: 软件下载, url: /p/SOFTWARE }
+        - { name: 生日快乐, url: /oi33/birthday }
     - title: 常用 OJ
       urls:
-        - name: HydroOJ
-          url: https://hydro.ac/
-        - name: 洛谷
-          url: https://www.luogu.com.cn/
-        - name: AtCoder
-          url: https://atcoder.jp/
-        - name: CodeForces
-          url: https://codeforces.com/
-  hitokoto: true
-  starred_problems: 50
-  recent_problems: 10
-  discussion_nodes: true
-  suggestion: true
+        - { name: HydroOJ, url: https://hydro.ac/ }
+        - { name: 洛谷, url: https://www.luogu.com.cn/ }
+  meow: 10                # 喵喵首页模块条数（默认 10，最大 50），放在哪个列就渲染在哪
 ```
 
-### checkin 配置项
+配置项速查：
 
-| 字段 | 说明 |
-|------|------|
-| `luck_type` | 7 级运势的文字和颜色，对应 checkin_luck 0-6 |
-| `luck_template` | 预留，当前与 luck_type 保持一致 |
-| `luck_vip` | VIP 用户 UID 列表，始终显示「大吉」 |
-
-### countdown 配置项
-
-| 字段 | 说明 |
-|------|------|
-| `title` | 倒计时组件标题 |
-| `max_dates` | 最多显示几条倒计时 |
-| `dates` | 倒计时列表，每条含 `name`（名称）和 `date`（日期 YYYY-MM-DD），已过日期自动隐藏 |
-
-### sidebar_nav 配置项
-
-| 字段 | 说明 |
-|------|------|
-| `title` | 链接分组标题 |
-| `urls` | 链接列表，每条含 `name`（显示名）和 `url`（链接地址） |
-
-### meow 配置项
-
-喵喵模块**不会自动注入首页**，需要手动在 `hydrooj.homepage` 配置里放到你想展示的位置：
-
-```yaml
-- width: 3
-  meow: 10          # 数字为展示条数（默认 10，最大 50）
-```
-
-- 放在哪个 `column` 里，就渲染在那一列的那个位置（模块会按配置顺序出现）。
-- 未配置时不展示；同一个首页配置只出现一次，重复配置不会重复渲染。
-- 对应页面 `/oi33/meow`，模块数据来自 `meowHomeFeed`（管理员 + 关注的人 + 自己）。
+| 模块 | 字段 | 说明 |
+|------|------|------|
+| checkin | `luck_type` | 7 级运势文字与颜色，对应 `checkin_luck` 0-6；`luck_vip` 为始终显示「大吉」的 UID 列表 |
+| countdown | `title` / `max_dates` / `dates` | 倒计时标题、最多条数、日期列表（`name` + `date` YYYY-MM-DD，过期自动隐藏） |
+| sidebar_nav | `title` / `urls` | 侧栏链接分组，每组含 `title` 和 `urls`（`name` + `url`） |
+| meow | 数字 | 喵喵首页模块条数；**不会自动注入**，需在 homepage 配置中显式放置；未配置不展示 |
 
 ## AI 代码分析
 
@@ -666,302 +626,42 @@ OI33 内置 Wiki 百科，支持 Markdown 页面 CRUD、多级分类目录和 JS
 
 ## MCP / Agent API 令牌
 
-为外部 MCP 工具、AI Agent 或自动化脚本提供 **只读** 的 Bearer Token 认证机制，使其能够绕过登录直接访问 33OJ 的公开数据。
-
-### 核心设计
+为外部 MCP 工具、AI Agent 或自动化脚本提供**只读** Bearer Token 认证，绕过登录访问 33OJ 公开数据。完整端点与错误码见 [API.md](API.md)。
 
 | 特性 | 说明 |
 |------|------|
-| **Token 格式** | `33tok_<base64url>`（约 50 字符），创建时仅显示一次 |
-| **存储方式** | 数据库存 SHA-256 hash，不存原始值，泄漏后可立即吊销 |
-| **权限模型** | 只读 — 双重拦截：HTTP 方法限制 + 路由白名单 |
-| **方法限制** | 仅允许 `GET` / `HEAD` / `OPTIONS`，其余方法直接拒绝 |
-| **路由白名单** | 仅允许访问明确列入白名单的路由（见下方列表） |
-| **域限制** | 可限定允许访问的域（`"*"` 表示所有域），未授权的域返回 403 |
-| **过期机制** | 支持设置过期时间，过期后自动失效 |
-| **创建权限** | 仅 `PRIV_ALL`（超级管理员）可创建和删除令牌 |
+| Token 格式 | `33tok_<base64url>`，创建时仅显示一次；数据库存 SHA-256 hash |
+| 权限模型 | 只读：HTTP 方法限制（仅 `GET`/`HEAD`/`OPTIONS`）+ 路由白名单双重拦截 |
+| 域限制 | 可限定允许访问的域（`*` 为全部），未授权域返回 403 |
+| 创建权限 | 仅 `PRIV_ALL` 超级管理员，管理入口 `/oi33/tokens` |
 
-### 使用方法
+使用：请求头 `Authorization: Bearer 33tok_xxx`。令牌经 `handler/create` 钩子最早注入，游客无权限的私有域也能正常访问。
 
-在 HTTP 请求 Header 中携带：
+**白名单路由**：Hydro 核心 `/record/*`、`/p`、`/contest/*`、`/homework/*`、`/user/*`、`/ranking`、`/discuss/*`、`/training/*`；OI33 插件 `/oi33/users`、`/oi33/birthday`、`/oi33/badge*`、`/oi33/at-cf-rating`、`/oi33/paste/*`、`/oi33/coin/bill/*`、`/oi33/admin`、`/oi33/requests`、`/oi33/tokens`。**明确禁止**：`/oi33/checkin`（GET 会写入）、`/oi33/badge/manage/*/del`，以及所有未列出的路径。白名单精确匹配或前缀匹配，未命中即拒绝。
 
-```
-Authorization: Bearer 33tok_xxxxxxxx...
-```
-
-令牌认证通过 `handler/create` 事件钩子拦截，在 Hydro v5 的 handler 生命周期中最早执行（早于 `handler/create/http` 的 `PERM_VIEW` 闸门、路由级 `checkPriv`/`checkPerm` 以及 `prepare()`），因此在游客无查看权限的私有域中也能正常注入令牌用户，而不会被先重定向到登录页。认证成功后，请求将以令牌所属用户的身份执行，但写操作会被强制拦截。
-
-### 管理入口
-
-管理员访问 `/oi33/tokens` 创建令牌，可指定：
-
-- **名称**：便于识别的备注（如 `"MCP-Data-Exporter"`）
-- **所属用户 UID**：令牌代表谁的身份（留空为自己）
-- **允许域**：逗号分隔的域 ID（如 `"system,contest"`，`*` 为全部）
-- **过期时间**：可选的到期时间
-
-创建成功后页面会**一次性显示原始令牌**，务必立即复制保存，之后无法再次查看。
-
-### 白名单路由
-
-Token 仅允许访问以下路由（精确匹配或前缀匹配）：
-
-**Hydro 核心**
-- `/record/*` — 提交记录、代码下载
-- `/p`, `/p/*` — 题目（列表路由是 `/p`，不是 `/problem`）
-- `/contest/*`, `/homework/*` — 比赛、作业
-- `/user/*`, `/ranking` — 用户、排名
-- `/discuss/*`, `/training/*` — 讨论、训练
-
-**OI33 插件**
-- `/oi33/users` — 全部用户数据
-- `/oi33/birthday` — 今日生日
-- `/oi33/badge` — 徽章展示
-- `/oi33/badge/manage` — 徽章管理
-- `/oi33/at-cf-rating` — Rating 排名
-- `/oi33/paste/show/*` — 剪贴板内容
-- `/oi33/paste/manage` — 我的剪贴板
-- `/oi33/paste/all` — 全部剪贴板
-- `/oi33/coin/bill/*` — 硬币账单
-- `/oi33/admin` — 管理仪表盘
-- `/oi33/requests` — 审批列表
-- `/oi33/tokens` — Token 管理
-
-**明确禁止**（即使 GET 也会触发写入）：
-- `/oi33/checkin` — GET 内部会写入签到记录
-- `/oi33/badge/manage/*/del` — GET 内部会删除徽章
-- 所有未列出的路径
-
-### 只读保证
-
-1. **HTTP 方法拦截**：`POST` / `PUT` / `DELETE` / `PATCH` 在 `handler/create` 阶段直接抛出 `Read-only token cannot perform write operations`
-2. **路由白名单拦截**：不在白名单中的路径抛出 `This route is not available via token`
-3. 双重拦截均在 handler 方法体执行之前，不会触及任何数据库写操作
-
-### 典型场景
-
-- **AI Agent 数据接入**：让 AI Agent 通过 Token 拉取题目、提交记录、排行榜等数据进行分析
-- **MCP 工具集成**：为 MCP Server 提供安全的只读凭证，避免暴露账号密码
-- **自动化报表脚本**：定时脚本通过 Token 读取 OJ 数据生成统计报表
-- **第三方数据同步**：与其他系统对接时仅暴露只读权限
+典型场景：AI Agent 拉取题目/提交/排行做分析、MCP Server 只读凭证、定时报表脚本、第三方只读对接。
 
 ## OAuth2 登录（33OJ 作为身份提供方）
 
-33OJ 可作为 OAuth2 身份提供方（IdP），让你的其他网站、博客、工具实现「使用 33OJ 登录」——类似「使用 GitHub 登录」。实现的是标准 OAuth2 **Authorization Code** 流程（RFC 6749），支持 PKCE（RFC 7636）和刷新令牌。
+33OJ 可作为 OAuth2 身份提供方（IdP），让其他网站实现「使用 33OJ 登录」——标准 **Authorization Code** 流程（RFC 6749），支持 PKCE（RFC 7636）和刷新令牌。应用详情页 `/oi33/oauth/clients/:id` 自带完整接入指南和可复制端点。
 
 ### 快速接入
 
-#### 1. 在 33OJ 注册应用
-
-管理员访问 `/oi33/oauth/clients` → 填写：
-
-| 字段 | 说明 |
-|------|------|
-| 应用名称 | 显示在授权页上的名字（如「我的博客」） |
-| 回调 URI | 你的网站接收授权码的地址，需精确匹配，多个用逗号或空格分隔（如 `https://blog.example.com/auth/callback`） |
-| 公开客户端 (PKCE) | **No** = 有后端的机密应用（用 client_secret）；**Yes** = 纯前端 SPA/移动端（用 PKCE，无 secret） |
-| Access/Refresh Token TTL | 令牌有效期（秒），留空用默认值（1 小时 / 30 天） |
-
-创建后会**一次性显示 `client_secret`**，立即复制保存（之后只能看到前缀）。应用详情页 `/oi33/oauth/clients/:id` 自带完整的接入指南和端点 URL。
-
-#### 2. 端点
+1. **注册应用**：管理员访问 `/oi33/oauth/clients` → 填写名称、回调 URI（精确匹配，多个用逗号/空格分隔）、是否公开客户端（PKCE）与令牌 TTL。创建后**一次性显示 `client_secret`**，立即保存（数据库只存 SHA-256 hash）。
+2. **端点**：
 
 | 端点 | URL | 说明 |
 |------|-----|------|
-| 授权 | `GET /oi33/oauth/authorize` | 引导用户前往，展示授权同意页 |
-| 换令牌 | `POST /oi33/oauth/token` | 用授权码换 access_token / refresh_token |
-| 用户信息 | `GET /oi33/oauth/userinfo` | 用 access_token 换用户信息 |
-| 吊销 | `POST /oi33/oauth/revoke` | 吊销 access/refresh token |
+| 授权 | `GET /oi33/oauth/authorize` | 引导用户前往（未登录先跳登录页），公开客户端需带 `code_challenge`/`code_challenge_method=S256` |
+| 换令牌 | `POST /oi33/oauth/token` | `grant_type=authorization_code`，机密客户端带 `client_secret`（或 HTTP Basic），PKCE 客户端带 `code_verifier` |
+| 用户信息 | `GET /oi33/oauth/userinfo` | `Authorization: Bearer 33oat_...`，返回 `{sub, uname}`，仅这两个字段 |
+| 刷新 | `POST /oi33/oauth/token` | `grant_type=refresh_token` + `refresh_token=33ojrt_...` |
+| 吊销 | `POST /oi33/oauth/revoke` | `token=33oat_...`（或 `33ojrt_...`） |
 
-> 完整 URL 前缀为你的 33OJ 站点地址（如 `https://oj.33dai.top`），可在应用详情页直接复制。
-
-#### 3. 授权码流程
-
-```
-你的网站                   33OJ                    用户浏览器
-   │                         │                         │
-   │  1. 重定向到 authorize  │◄────────────────────────│
-   │                         │  展示授权同意页          │
-   │                         │────────────────────────►│ 用户点「授权」
-   │  2. 回调带 code         │◄────────────────────────│
-   │                         │                         │
-   │  3. POST /token 换令牌  │────────────────────────►│
-   │     (服务端，带 secret)  │  返回 access_token       │
-   │◄────────────────────────│                         │
-   │                         │                         │
-   │  4. GET /userinfo       │                         │
-   │     (带 Bearer token)   │                         │
-   │  返回用户信息            │                         │
-   │◄────────────────────────│                         │
-```
-
-**第 1 步：引导用户授权**
-
-将用户重定向到：
-
-```
-GET /oi33/oauth/authorize?
-    response_type=code
-    &client_id=YOUR_CLIENT_ID
-    &redirect_uri=YOUR_REDIRECT_URI
-    &state=RANDOM_STRING
-```
-
-- 未登录用户会先跳转到 33OJ 登录页，登录后自动回到授权页
-- `state` 是你生成的随机串，用于防 CSRF，回调时原样带回，务必校验
-- 公开客户端（PKCE）额外传 `code_challenge` 和 `code_challenge_method=S256`
-
-**第 2 步：接收回调**
-
-用户授权后，33OJ 重定向回你的 `redirect_uri`：
-
-```
-https://your-site/callback?code=AUTH_CODE&state=RANDOM_STRING
-```
-
-校验 `state` 与第 1 步一致后，用 `code` 换令牌。
-
-**第 3 步：换令牌（服务端）**
-
-```
-POST /oi33/oauth/token
-Content-Type: application/x-www-form-urlencoded
-
-grant_type=authorization_code
-&code=AUTH_CODE
-&redirect_uri=YOUR_REDIRECT_URI
-&client_id=YOUR_CLIENT_ID
-&client_secret=YOUR_CLIENT_SECRET
-```
-
-> 公开客户端（PKCE）不传 `client_secret`，改传 `code_verifier`（第 1 步 `code_challenge` 的原文）。
->
-> 也可用 HTTP Basic Auth 头传客户端凭据：`Authorization: Basic base64(client_id:client_secret)`
-
-响应：
-
-```json
-{
-  "access_token": "33oat_...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "refresh_token": "33ojrt_...",
-  "scope": "profile"
-}
-```
-
-**第 4 步：获取用户信息**
-
-```
-GET /oi33/oauth/userinfo
-Authorization: Bearer 33oat_...
-```
-
-响应：
-
-```json
-{
-  "sub": "2",
-  "uname": "alice"
-}
-```
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `sub` | string | 用户唯一标识（即 33OJ 的 uid，字符串形式，**不会变**，适合作为主键） |
-| `uname` | string | 用户名（可能改名，不建议作为主键） |
-
-> 只暴露这两个字段。不包含邮箱、硬币、生日等任何 OI33 业务数据。
-
-**第 5 步（可选）：刷新令牌**
-
-access_token 过期后，用 refresh_token 换新的（机密客户端需带 secret）：
-
-```
-POST /oi33/oauth/token
-Content-Type: application/x-www-form-urlencoded
-
-grant_type=refresh_token
-&refresh_token=33ojrt_...
-&client_id=YOUR_CLIENT_ID
-&client_secret=YOUR_CLIENT_SECRET
-```
-
-**吊销令牌**
-
-```
-POST /oi33/oauth/revoke
-Content-Type: application/x-www-form-urlencoded
-
-token=33oat_...   (或 33ojrt_...)
-```
-
-### 代码示例（Node.js / Express）
-
-```javascript
-const express = require('express');
-const session = require('express-session');
-const axios = require('axios');
-const crypto = require('crypto');
-
-const app = express();
-app.use(session({ secret: 'your-session-secret', resave: false, saveUninitialized: true }));
-
-const OJ_BASE = 'https://oj.33dai.top';
-const CLIENT_ID = '33oj_xxxxxxxx';
-const CLIENT_SECRET = '33ojcs_xxxxxxxx';
-const REDIRECT_URI = 'https://your-site/auth/callback';
-
-// 第 1 步：跳转到 33OJ 授权
-app.get('/login', (req, res) => {
-  const state = crypto.randomBytes(16).toString('hex');
-  req.session.oauthState = state;
-  res.redirect(`${OJ_BASE}/oi33/oauth/authorize?response_type=code`
-    + `&client_id=${CLIENT_ID}`
-    + `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
-    + `&state=${state}`);
-});
-
-// 第 2-4 步：回调 → 换令牌 → 取用户信息
-app.get('/auth/callback', async (req, res) => {
-  if (req.query.state !== req.session.oauthState) return res.status(403).send('State mismatch');
-
-  // 换令牌
-  const tokenRes = await axios.post(`${OJ_BASE}/oi33/oauth/token`, new URLSearchParams({
-    grant_type: 'authorization_code',
-    code: req.query.code,
-    redirect_uri: REDIRECT_URI,
-    client_id: CLIENT_ID,
-    client_secret: CLIENT_SECRET,
-  }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-
-  // 取用户信息
-  const userInfo = await axios.get(`${OJ_BASE}/oi33/oauth/userinfo`, {
-    headers: { Authorization: `Bearer ${tokenRes.data.access_token}` },
-  });
-
-  // 用 sub 作为唯一标识登录/注册用户
-  req.session.user = { sub: userInfo.data.sub, uname: userInfo.data.uname };
-  res.redirect('/');
-});
-
-app.listen(3000);
-```
-
-### 客户端类型对比
-
-| | 机密客户端 (Confidential) | 公开客户端 (Public / PKCE) |
-|---|---|---|
-| 适用场景 | 有后端的服务器应用 | SPA、移动端、桌面软件 |
-| 认证方式 | `client_secret` | PKCE（`code_challenge`/`code_verifier`） |
-| secret 安全性 | 存在服务器，不暴露 | 无 secret，靠 PKCE 防截获 |
-| 注册时选 | Public Client (PKCE) = **No** | Public Client (PKCE) = **Yes** |
+3. **流程**：用户重定向到 authorize（带 `state` 防 CSRF）→ 授权后回调带 `code` → 服务端换令牌 → 用 `sub`（uid 字符串，稳定不变）作为用户主键。
 
 ### 安全说明
 
-- `client_secret` 仅在创建时显示一次，数据库存 SHA-256 hash，无法找回
-- 授权码 10 分钟有效且一次性，使用后即作废
-- access_token / refresh_token 均哈希存储，泄漏后可在应用管理页删除客户端吊销其所有令牌
-- `redirect_uri` 必须与注册的完全匹配，防止授权码被发到错误地址
-- `state` 参数防 CSRF，务必校验
-- 所有 OAuth 操作（授权/拒绝/换令牌/刷新/吊销/应用增删）记录在 `oi33_log`，可在管理仪表盘查看
+- `client_secret` 仅创建时显示一次；授权码 10 分钟有效且一次性；token 均哈希存储
+- `redirect_uri` 必须与注册完全匹配；`state` 务必校验
+- 所有 OAuth 操作记录在 `oi33_log`，可在管理仪表盘查看
