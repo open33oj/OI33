@@ -35,6 +35,15 @@
         <h2>结算批次</h2>
         <div class="data-table-container oi33-reward-table-wrap">
           <table class="data-table oi33-reward-table">
+            <colgroup>
+              <col class="oi33-rw-col-period">
+              <col class="oi33-rw-col-rev">
+              <col class="oi33-rw-col-status">
+              <col class="oi33-rw-col-plan">
+              <col class="oi33-rw-col-issue">
+              <col class="oi33-rw-col-time">
+              <col class="oi33-rw-col-action">
+            </colgroup>
             <thead><tr><th>周期（周一）</th><th>版本</th><th>状态</th><th>计划</th><th>实际发放</th><th>时间</th><th>管理</th></tr></thead>
             <tbody>
             {% for reward in rewards %}
@@ -122,6 +131,15 @@
       <div class="section__body no-padding">
         <div class="data-table-container oi33-reward-table-wrap">
           <table class="data-table oi33-reward-table">
+            <colgroup>
+              <col class="oi33-rw-col-cat">
+              <col class="oi33-rw-col-type">
+              <col class="oi33-rw-col-num">
+              <col class="oi33-rw-col-num">
+              <col class="oi33-rw-col-num">
+              <col class="oi33-rw-col-num">
+              <col class="oi33-rw-col-num">
+            </colgroup>
             <thead><tr><th>大猫</th><th>类型</th><th>领地</th><th>投喂人数</th><th>基础奖励</th><th>倍数</th><th>奖池</th></tr></thead>
             <tbody>{% for cat in detail.cats %}
               <tr>
@@ -143,6 +161,13 @@
       <div class="section__body no-padding">
         <div class="data-table-container oi33-reward-table-wrap">
           <table class="data-table oi33-reward-table">
+            <colgroup>
+              <col class="oi33-rw-col-uid">
+              <col class="oi33-rw-col-cat">
+              <col class="oi33-rw-col-num">
+              <col class="oi33-rw-col-num">
+              <col class="oi33-rw-col-num">
+            </colgroup>
             <thead><tr><th>UID</th><th>所属大猫</th><th>当前贡献快照</th><th>权重</th><th>奖励</th></tr></thead>
             <tbody>{% for row in detail.allocations %}
               <tr>
@@ -181,7 +206,19 @@
 
 <style>
 .oi33-reward-table-wrap { overflow-x:auto; }
-.oi33-reward-table { min-width:760px; table-layout:auto; }
+.oi33-reward-table { min-width:760px; }
+/* Core StyledTable splits the thead into a sticky header table; fixed
+   layout plus a colgroup keeps both halves on identical column widths. */
+.oi33-reward-table .oi33-rw-col-period { width:7.5rem; }
+.oi33-reward-table .oi33-rw-col-rev { width:4.5rem; }
+.oi33-reward-table .oi33-rw-col-status { width:7rem; }
+.oi33-reward-table .oi33-rw-col-plan, .oi33-reward-table .oi33-rw-col-issue { width:7.5rem; }
+.oi33-reward-table .oi33-rw-col-time { width:8rem; }
+.oi33-reward-table .oi33-rw-col-action { width:6.5rem; }
+.oi33-reward-table .oi33-rw-col-cat { width:12rem; }
+.oi33-reward-table .oi33-rw-col-type { width:7.5rem; }
+.oi33-reward-table .oi33-rw-col-num { width:6rem; }
+.oi33-reward-table .oi33-rw-col-uid { width:5.5rem; }
 .oi33-reward-table th, .oi33-reward-table td { vertical-align:middle; }
 .oi33-reward-table td { overflow:visible; white-space:normal; text-overflow:clip; overflow-wrap:anywhere; }
 .oi33-reward-table td:not(:first-child), .oi33-reward-table th:not(:first-child) { text-align:center; }

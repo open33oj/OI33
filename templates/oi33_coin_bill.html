@@ -25,7 +25,7 @@
               <col class="col--uid">
               <col class="col--uid">
               <col class="col--amount">
-              <col class="col--text">
+              <col class="col--text" style="width:auto;">
             </colgroup>
             <thead>
               <tr>
@@ -55,4 +55,10 @@
     </div>
   </div>
 </div>
+<style>
+  .page--oi33_coin_bill .data-table td.col--text {
+    overflow: visible; white-space: normal; text-overflow: clip;
+    overflow-wrap: anywhere; word-break: break-word;
+  }
+</style>
 {% endblock %}

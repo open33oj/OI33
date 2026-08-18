@@ -19,6 +19,12 @@
         </div>
         <div class="row" style="padding-left:20px;padding-right: 20px;padding-top: 40px;padding-bottom: 20px;user-select:none;">
           <table class="data-table">
+            <colgroup>
+              <col style="width:12rem;">
+              <col>
+              {%- if all -%}<col style="width:8rem;">{%- endif -%}
+              <col style="width:8rem;">
+            </colgroup>
             <thead>
               <tr>
                 <th style="width: 12rem">{{ _('Actions') }}</th>
@@ -52,4 +58,10 @@
     </div>
   </div>
 </div>
+<style>
+  .page--oi33_paste_manage .data-table td:nth-child(2) {
+    overflow: visible; white-space: normal; text-overflow: clip;
+    overflow-wrap: anywhere; word-break: break-word;
+  }
+</style>
 {% endblock %}

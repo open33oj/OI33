@@ -58,6 +58,15 @@
         {% if ranking|length %}
         <div class="data-table-container">
           <table class="data-table oi33-bigcat-ranking-table">
+            <colgroup>
+              <col class="oi33-bc-col-rank">
+              <col class="oi33-bc-col-cat">
+              <col class="oi33-bc-col-color">
+              <col class="oi33-bc-col-num">
+              <col class="oi33-bc-col-num">
+              <col class="oi33-bc-col-num">
+              {% if canManage %}<col class="oi33-bc-col-action">{% endif %}
+            </colgroup>
             <thead>
               <tr>
                 <th>名次</th>
@@ -107,7 +116,14 @@
 .oi33-bigcat-ranking-admin p { margin:.3rem 0 0; color:#687269; }
 .oi33-bigcat-ranking-admin form, .oi33-bigcat-ranking-table form { margin:0; }
 .oi33-bigcat-ranking-count { color:#687269; }
-.oi33-bigcat-ranking-table { width:100%; table-layout:auto; }
+/* Core StyledTable splits the thead into a sticky header table; fixed
+   layout plus a colgroup keeps both halves on identical column widths. */
+.oi33-bigcat-ranking-table { width:100%; }
+.oi33-bigcat-ranking-table .oi33-bc-col-rank { width:4.5rem; }
+.oi33-bigcat-ranking-table .oi33-bc-col-cat { width:16rem; }
+.oi33-bigcat-ranking-table .oi33-bc-col-color { width:9rem; }
+.oi33-bigcat-ranking-table .oi33-bc-col-num { width:8rem; }
+.oi33-bigcat-ranking-table .oi33-bc-col-action { width:7rem; }
 .oi33-bigcat-ranking-table th, .oi33-bigcat-ranking-table td { vertical-align:middle; }
 .oi33-bigcat-ranking-table th:not(:nth-child(2)), .oi33-bigcat-ranking-table td:not(:nth-child(2)) { text-align:center; }
 .oi33-bigcat-ranking-table th:nth-child(2), .oi33-bigcat-ranking-table td:nth-child(2) { text-align:left; }

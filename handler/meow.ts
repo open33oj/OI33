@@ -10,7 +10,6 @@ import { checkRules, configReviewWords, configWords, hashOf, normalizeText, runA
 
 const MAX_CONTENT_LEN = 256;
 const FEED_PAGE_SIZE = 20;
-const PROFILE_PREVIEW_LIMIT = 8;
 const PROFILE_POST_LIMIT = 5;
 const HOME_FEED_LIMIT = 10;
 const CHAIN_MAX_DEPTH = 5;
@@ -322,8 +321,9 @@ class MeowLikeHandler extends Handler {
 // --- Follow lists ---
 
 // Inject 喵喵 data into the /user/:id page so the profile panel can show
-// the follow button, the user's recent posts, and previews of their following /
-// follower lists. Never throws: a DB hiccup just leaves the panel empty.
+// the follow button and the user's recent posts. Full following / follower
+// lists live on the dedicated 喵喵 page (oi33_meow_user). Never throws: a DB
+// hiccup just leaves the panel empty.
 function registerMeowUserPanel(ctx: Context) {
     ctx.on('handler/after/UserDetail', async (h: any) => {
         try {
@@ -334,14 +334,6 @@ function registerMeowUserPanel(ctx: Context) {
             const viewerUid = Number(h.user?._id) || 0;
             const isSelf = viewerUid === uid;
             const viewerFlag = viewerUid ? await checkUserFlag(viewerUid) : 0;
-            const [followingRaw, followersRaw, followingCount, followerCount] = await Promise.all([
-                oi33Model.meowFollowingList(uid),
-                oi33Model.meowFollowerList(uid),
-                oi33Model.meowFollowingCount(uid),
-                oi33Model.meowFollowerCount(uid),
-            ]);
-            const followingUids = followingRaw.slice(0, PROFILE_PREVIEW_LIMIT).map((f) => f.following);
-            const followerUids = followersRaw.slice(0, PROFILE_PREVIEW_LIMIT).map((f) => f.follower);
             const viewerFollows = viewerUid && !isSelf
                 ? await oi33Model.meowIsFollowing(viewerUid, uid)
                 : false;
@@ -351,28 +343,9 @@ function registerMeowUserPanel(ctx: Context) {
             for (const p of posts) {
                 p.forwardCount = await oi33Model.meowForwardCount(p._id);
             }
-            const allUids = [...new Set([...followingUids, ...followerUids])];
-            const [followingDict, followerDict, mutualFollowing, mutualFollowers, oi33Data] = await Promise.all([
-                followingUids.length ? UserModel.getList('', followingUids) : {},
-                followerUids.length ? UserModel.getList('', followerUids) : {},
-                oi33Model.meowFollowedByMap(uid, followingUids),
-                oi33Model.meowFollowingMap(uid, followerUids),
-                oi33Model.getUserDataByUids(allUids),
-            ]);
-            for (const u of followingUids) {
-                if (!followingDict[u]) continue;
-                oi33Model.mergeOi33Fields(followingDict[u], oi33Data[u]);
-            }
-            for (const u of followerUids) {
-                if (!followerDict[u]) continue;
-                oi33Model.mergeOi33Fields(followerDict[u], oi33Data[u]);
-            }
             body.oi33MeowPanel = {
-                followingUids, followerUids, followingDict, followerDict,
-                followingCount, followerCount,
                 posts, udict: postUdict, likedMap,
                 isSelf, viewerFollows, canSeePosts, viewerFlag,
-                mutualFollowing, mutualFollowers,
             };
         } catch (e) {
             console.error('[oi33] meow profile panel failed:', e);
