@@ -308,6 +308,18 @@
               {% elif a.action == 'school_feed' %}
                 <span class="oi33-timeline__note">投喂大猫</span>
                 <span class="oi33-timeline__amount-neg">{{ catFood.amount(a.amount, true) }}</span>
+              {% elif a.action == 'contract_accept' %}
+                <span class="oi33-timeline__note">成就合同成交</span>
+                {{ userLink(a.userId) }}
+                <span class="{% if a.amount > 0 %}oi33-timeline__amount-pos{% else %}oi33-timeline__amount-neg{% endif %}">{{ catFood.amount(a.amount, true) }}</span>
+              {% elif a.action == 'auction_bid' %}
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__note">出价托管</span>
+                <span class="oi33-timeline__amount-neg">{{ a.canAmount }} 个罐头</span>
+              {% elif a.action == 'auction_refund' %}
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__note">拍卖退款</span>
+                <span class="oi33-timeline__amount-pos">+{{ a.canAmount }} 个罐头</span>
               {% elif a.action == 'deduct' %}
                 <span class="oi33-timeline__note">从</span>
                 {{ userLink(a.userId) }}

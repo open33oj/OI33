@@ -175,6 +175,20 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
         contractId: contract._id.toHexString(), achievementId: contract.achievementId,
         amount: contract.price, fee,
     } as any);
+    // Ledger entries for the account page: the buyer pays the full price, the
+    // seller receives price minus the burned 5% intermediary fee. The fee
+    // burn itself is counted from the type:'contract' accept log above.
+    await addLog({
+        type: 'cat_account', userId: buyer, sender: buyer,
+        action: 'contract_accept', amount: -contract.price, reason: '成就合同成交付款',
+    } as any);
+    if (sellerIncome > 0) {
+        await addLog({
+            type: 'cat_account', userId: contract.seller, sender: buyer,
+            action: 'contract_accept', amount: sellerIncome,
+            reason: `成就合同成交收款（已扣 ${fee} 中介费）`,
+        } as any);
+    }
     return await contractColl.findOne({ _id: contract._id });
 }
 

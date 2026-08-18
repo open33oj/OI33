@@ -88,6 +88,14 @@ async function auctionRefund(uid: number, amount: number, auctionId: ObjectId, r
         type: 'auction', userId: uid, action: 'refund',
         auctionId: auctionId.toHexString(), amount, reason,
     } as any);
+    // Account-page ledger: the refunded cans return to the user balance. They
+    // were escrowed out of circulation accounting on the bid, so this entry is
+    // excluded from the can-flow economy stats.
+    await addLog({
+        type: 'cat_account', userId: uid, sender: uid,
+        action: 'auction_refund', amount: 0, canAmount: amount,
+        reason: `拍卖退款（${reason}）`,
+    } as any);
 }
 
 export async function auctionBid(id: string | ObjectId, uid: number, amount: number, now = new Date()) {
@@ -150,6 +158,15 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
     await addLog({
         type: 'auction', userId: uid, action: 'bid',
         auctionId: auction._id.toHexString(), achievementId: auction.achievementId, amount,
+    } as any);
+    // Account-page ledger: the bid is escrowed out of the user balance but
+    // stays in circulation (the pool counter is untouched), so this entry is
+    // excluded from the can-flow economy stats; the settled outcome is
+    // counted from the type:'auction' settle log.
+    await addLog({
+        type: 'cat_account', userId: uid, sender: uid,
+        action: 'auction_bid', amount: 0, canAmount: -amount,
+        reason: '成就拍卖出价托管',
     } as any);
     if (previous.highestBidder != null && previous.highestBid != null) {
         await auctionRefund(previous.highestBidder, previous.highestBid, auction._id, '被更高出价超越');

@@ -578,6 +578,17 @@ async function getCatCanEconomy(now = new Date()) {
                     // shrink, so they count as burned, not as returning to
                     // the pool.
                     w.cansBurned += Math.max(0, -canAmount);
+                } else if (action === 'auction_bid' || action === 'auction_refund') {
+                    // Auction bids are escrowed out of the user balance but
+                    // stay in circulation (the pool counter is untouched), and
+                    // refunds give them back; neither is a pool return, so
+                    // they are excluded from the can-flow stats. The settled
+                    // outcome is counted from the type:'auction' settle log.
+                } else if (action === 'contract_accept') {
+                    // Contract settlement moves cat food between two users and
+                    // burns the 5% fee; the fee is counted from the
+                    // type:'contract' accept log. The transfer itself is a
+                    // peer-to-peer flow, not a mint or burn.
                 } else {
                     // Teleports, meow posts and auction settlements return cans
                     // to the pool; refunds take them back.
