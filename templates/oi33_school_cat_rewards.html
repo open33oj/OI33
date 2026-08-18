@@ -28,7 +28,8 @@
       <div class="section__body">
         <blockquote class="note">
           每次结算保存领地、投喂人数和用户贡献快照，并使用“周期 + 版本”防止重复发放。
-          回滚会按原发放记录逐人扣回罐头并同步修正市场供应；若任何用户余额不足则停止，避免产生负库存或池账不一致。
+          奖励发放完成后大猫会吃掉全体用户当前投喂贡献的 5%，大猫体重同步减少 5%。
+          回滚会按原发放记录逐人扣回罐头并同步修正市场供应（不恢复已消耗的 5% 猫粮）；若任何用户余额不足则停止，避免产生负库存或池账不一致。
           已回滚的当周批次不会被自动任务再次发放，必须在这里手动“重新计算并结算”。
         </blockquote>
 
@@ -78,6 +79,9 @@
           <div><span>实际用户</span><strong>{{ detail.issuedUsers or 0 }}</strong></div>
           <div><span>实际罐头</span><strong>{{ detail.issuedCans or 0 }}</strong></div>
         </div>
+        {% if detail.foodDecayed %}
+        <blockquote class="note">猫粮消耗：本批次结算时已扣除全体用户当前投喂贡献与大猫体重的 5%（回滚不恢复）。</blockquote>
+        {% endif %}
 
         {% if detail.lastError %}<blockquote class="note warning">上次错误：{{ detail.lastError }}</blockquote>{% endif %}
         {% if rollbackCheckError %}<blockquote class="note warning">无法核对回滚条件：{{ rollbackCheckError }}</blockquote>{% endif %}
@@ -137,13 +141,17 @@
               <col class="oi33-rw-col-num">
               <col class="oi33-rw-col-num">
             </colgroup>
-            <thead><tr><th>大猫</th><th>类型</th><th>领地</th><th>投喂人数</th><th>基础奖励</th><th>倍数</th><th>奖池</th></tr></thead>
+            <thead><tr><th>大猫</th><th>类型</th><th>领地</th><th>投喂人数</th><th>基础奖励</th><th>体重乘数</th><th>奖池</th></tr></thead>
             <tbody>{% for cat in detail.cats %}
               <tr>
-                <td><a href="{{ cat.schoolUrl }}" target="_blank" rel="noopener">{{ cat.schoolDisplay }}</a></td>
+                <td>{% if cat.schoolUrl %}<a href="{{ cat.schoolUrl }}" target="_blank" rel="noopener">{{ cat.schoolDisplay }}</a>{% else %}{{ cat.schoolDisplay }}{% endif %}</td>
                 <td>{% if cat.isAdminCat %}管理员大猫 ★{% else %}普通大猫{% endif %}</td>
                 <td>{{ cat.territoryCount }} 格</td><td>{{ cat.feederCount }} 人</td>
-                <td>{{ cat.baseCans }} 个</td><td>× {{ cat.multiplier }}</td><td><strong>{{ cat.plannedCans }} 个</strong></td>
+                <td>{{ cat.baseCans }} 个</td>
+                <td>{% if cat.isAdminCat %}× {{ cat.multiplier }}（固定/人）
+                {%- elif cat.weightGrams is defined %}× {{ cat.multiplier }}（⌊log2(体重)⌋−10，体重 {{ cat.weightGrams }} g）
+                {%- else %}× {{ cat.multiplier }}{% endif %}</td>
+                <td><strong>{{ cat.plannedCans }} 个</strong></td>
               </tr>
             {% endfor %}</tbody>
           </table>
@@ -167,7 +175,7 @@
             <tbody>{% for row in detail.allocations %}
               <tr>
                 <td><a href="{{ url('user_detail', uid=row.uid) }}">UID {{ row.uid }}</a></td>
-                <td><a href="{{ row.schoolUrl }}" target="_blank" rel="noopener">{{ row.schoolDisplay }}</a>{% if row.isAdminCat %} ★{% endif %}</td>
+                <td>{% if row.schoolUrl %}<a href="{{ row.schoolUrl }}" target="_blank" rel="noopener">{{ row.schoolDisplay }}</a>{% else %}{{ row.schoolDisplay }}{% endif %}{% if row.isAdminCat %} ★{% endif %}</td>
                 <td>{{ row.contribution }} g</td><td>{{ row.weight }}</td><td><strong>{{ row.amount }} 个</strong></td>
               </tr>
             {% endfor %}</tbody>

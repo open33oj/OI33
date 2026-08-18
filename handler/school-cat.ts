@@ -35,8 +35,8 @@ async function decorateRewardSchools(detail: any) {
     for (const cat of detail.cats || []) ids.add(Number(cat.schoolId));
     for (const row of detail.allocations || []) ids.add(Number(row.schoolId));
     const schoolRows = await Promise.all(Array.from(ids)
-        .filter((id) => Number.isSafeInteger(id) && id >= 0)
-        .map(async (id) => [id, await oi33Model.getSchool(id)] as const));
+        .filter((id) => Number.isSafeInteger(id))
+        .map(async (id) => [id, await oi33Model.getSchoolView(id)] as const));
     const schools = new Map(schoolRows);
     const decorate = (row: any) => {
         const school: any = schools.get(Number(row.schoolId));
@@ -63,38 +63,76 @@ class SchoolCatStateHandler extends Handler {
 class SchoolCatRankingHandler extends Handler {
     async get() {
         const canManage = !!this.user._id && await checkUserFlag(this.user._id) >= 3;
-        const [ranking, rewardStatus] = await Promise.all([
+        const [ranking, rewardStatus, specialCats] = await Promise.all([
             oi33Model.getSchoolCatRanking(),
             oi33Model.getSchoolCatWeeklyRewardStatus(),
+            canManage ? oi33Model.listSpecialSchoolCats() : Promise.resolve([]),
         ]);
         this.response.template = 'oi33_school_cat_ranking.html';
         this.response.body = {
             ranking,
             rewardStatus,
             canManage,
+            specialCats,
         };
     }
 }
 
-class SchoolCatAdminToggleHandler extends Handler {
-    @param('schoolId', Types.Int)
-    @param('enabled', Types.Int)
-    async post(domainId: string, schoolId: number, enabled: number) {
-        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以设置管理员大猫。');
-        if (enabled !== 0 && enabled !== 1) throw new ForbiddenError('管理员大猫状态无效。');
+class SchoolCatTransferHandler extends Handler {
+    @param('from', Types.Int)
+    @param('to', Types.Int)
+    async post(domainId: string, from: number, to: number) {
+        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以转移大猫记录。');
         try {
-            const result = await oi33Model.setSchoolCatAdminCat(this.user._id, schoolId, enabled === 1);
-            (this.ctx as any).broadcast('oi33/cat-map-change', {
-                type: 'bigcat',
-                cat: { id: schoolId, isAdminCat: result.isAdminCat },
-            });
+            const result = await oi33Model.transferSchoolCat(this.user._id, from, to);
+            for (const id of [from, to]) {
+                (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'bigcat', cat: { id } });
+            }
             this.response.redirect = this.url('oi33_school_cat_ranking', {
                 query: {
-                    notification: `${result.display} 已${result.isAdminCat ? '设为' : '取消'}管理员大猫。`,
+                    notification: `已把大猫 #${from} 的记录转移到 ${result.display}：`
+                        + `${result.users} 位用户改绑、${result.history} 条投喂历史、${result.cells} 格领地。`,
                 },
             });
         } catch (e: any) {
-            throw new ForbiddenError(e?.message || '设置管理员大猫失败。');
+            throw new ForbiddenError(e?.message || '转移大猫记录失败。');
+        }
+    }
+}
+
+class SchoolCatSpecialCreateHandler extends Handler {
+    @param('name', Types.String)
+    async post(domainId: string, name: string) {
+        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以创建特殊大猫。');
+        try {
+            const result = await oi33Model.createSpecialSchoolCat(this.user._id, name);
+            (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'bigcat', cat: { id: result.id } });
+            this.response.redirect = this.url('oi33_school_cat_ranking', {
+                query: { notification: `已创建特殊大猫 ${result.display}。` },
+            });
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '创建特殊大猫失败。');
+        }
+    }
+}
+
+class SchoolCatSpecialRenameHandler extends Handler {
+    @param('schoolId', Types.Int)
+    @param('name', Types.String)
+    async post(domainId: string, schoolId: number, name: string) {
+        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以重命名特殊大猫。');
+        try {
+            const result = await oi33Model.renameSpecialSchoolCat(this.user._id, schoolId, name);
+            (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'bigcat', cat: { id: schoolId } });
+            this.response.redirect = this.url('oi33_school_cat_ranking', {
+                query: {
+                    notification: result.changed
+                        ? `已将特殊大猫 #${schoolId} 改名为 ${result.display}。`
+                        : `特殊大猫 #${schoolId} 的名字没有变化。`,
+                },
+            });
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '重命名特殊大猫失败。');
         }
     }
 }
@@ -234,7 +272,9 @@ class SchoolCatSchoolsHandler extends Handler {
     async get(domainId: string, q?: string, page?: number) {
         this.response.type = 'application/json';
         if (q !== undefined && q.trim()) {
-            this.response.body = { schools: await oi33Model.searchSchools(q) };
+            // 特殊大猫仅管理员（flag>=2）可以搜索到并绑定。
+            const includeSpecial = await checkUserFlag(this.user._id) >= 2;
+            this.response.body = { schools: await oi33Model.searchSchools(q, 20, includeSpecial) };
             return;
         }
         this.response.body = await oi33Model.listSchools(page || 1);
@@ -338,7 +378,9 @@ class SchoolCatColorHandler extends Handler {
 export async function apply(ctx: Context) {
     ctx.Route('oi33_school_cat_state', '/oi33/arena/big/state', SchoolCatStateHandler);
     ctx.Route('oi33_school_cat_ranking', '/oi33/arena/big/ranking', SchoolCatRankingHandler);
-    ctx.Route('oi33_school_cat_admin_toggle', '/oi33/arena/big/ranking/:schoolId/admin', SchoolCatAdminToggleHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_school_cat_transfer', '/oi33/arena/big/transfer', SchoolCatTransferHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_school_cat_special_create', '/oi33/arena/big/special/create', SchoolCatSpecialCreateHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_school_cat_special_rename', '/oi33/arena/big/special/:schoolId/rename', SchoolCatSpecialRenameHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_move_backfill', '/oi33/arena/big/ranking/backfill-moves', SchoolCatMoveBackfillHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_weekly_reward', '/oi33/arena/big/ranking/weekly-reward', SchoolCatWeeklyRewardHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_school_cat_rewards', '/oi33/admin/school-cat-rewards', SchoolCatRewardAdminHandler, PRIV.PRIV_USER_PROFILE);

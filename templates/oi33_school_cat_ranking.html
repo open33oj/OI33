@@ -52,6 +52,50 @@
           </div>
           <a href="{{ url('oi33_school_cat_rewards', query={ period: rewardStatus._id }) }}" class="primary rounded button">管理结算 / 回滚</a>
         </div>
+        <div class="oi33-bigcat-ranking-admin">
+          <div>
+            <strong>新建特殊大猫</strong>
+            <p>特殊大猫使用负数编号，以 ★ 显示且不占用数字名次；仅管理员（flag≥2）可以搜索并绑定。</p>
+          </div>
+          <form method="post" action="{{ url('oi33_school_cat_special_create') }}">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <input type="text" name="name" maxlength="30" placeholder="特殊大猫名字" required>
+            <button type="submit" class="primary rounded button">创建</button>
+          </form>
+        </div>
+        {% if specialCats|length %}
+        <div class="oi33-bigcat-ranking-admin oi33-bigcat-ranking-admin--column">
+          <div>
+            <strong>特殊大猫（{{ specialCats|length }} 只）</strong>
+            <ul class="oi33-bigcat-special-list">
+              {% for cat in specialCats %}
+              <li>
+                <span class="oi33-bigcat-color" style="background:{{ cat.colorCss }}"></span>
+                <span>{{ cat.display }}</span>
+                <form method="post" action="{{ url('oi33_school_cat_special_rename', schoolId=cat.id) }}">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="text" name="name" maxlength="30" value="{{ cat.name }}" required>
+                  <button type="submit" class="rounded button">改名</button>
+                </form>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+        {% endif %}
+        <div class="oi33-bigcat-ranking-admin">
+          <div>
+            <strong>大猫记录转移</strong>
+            <p>把来源大猫的绑定用户、投喂历史、体重和领地全部转移到目标大猫，来源大猫体重清零。编号填学校编号或特殊大猫负数编号。</p>
+          </div>
+          <form method="post" action="{{ url('oi33_school_cat_transfer') }}"
+                onsubmit="return confirm('确定把来源大猫的全部记录转移到目标大猫吗？此操作不可撤销。');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <input type="number" name="from" step="1" placeholder="来源编号" required>
+            <input type="number" name="to" step="1" placeholder="目标编号" required>
+            <button type="submit" class="primary rounded button">转移</button>
+          </form>
+        </div>
         {% endif %}
 
         <p class="oi33-bigcat-ranking-count">当前共有 {{ ranking|length }} 只大猫上榜。</p>
@@ -64,7 +108,6 @@
               <col class="oi33-bc-col-num">
               <col class="oi33-bc-col-num">
               <col class="oi33-bc-col-num">
-              {% if canManage %}<col class="oi33-bc-col-action">{% endif %}
             </colgroup>
             <thead>
               <tr>
@@ -74,7 +117,6 @@
                 <th>占领格子</th>
                 <th>当前体重</th>
                 <th>历史体重</th>
-                {% if canManage %}<th>管理</th>{% endif %}
               </tr>
             </thead>
             <tbody>
@@ -83,21 +125,11 @@
                 <td class="oi33-bigcat-rank-cell">
                   {% if cat.isAdminCat %}<span title="管理员大猫，不参与数字排名">★</span>{% else %}{{ cat.rank }}{% endif %}
                 </td>
-                <td><a href="{{ cat.url }}" target="_blank" rel="noopener">{{ cat.display }}</a></td>
+                <td>{% if cat.url %}<a href="{{ cat.url }}" target="_blank" rel="noopener">{{ cat.display }}</a>{% else %}{{ cat.display }}{% endif %}</td>
                 <td><span class="oi33-bigcat-color" style="background:{{ cat.colorCss }}"></span><code>{{ cat.colorCss }}</code></td>
                 <td><strong>{{ cat.territoryCount }}</strong> 格</td>
                 <td>{{ cat.weight }} g</td>
                 <td>{{ cat.historyWeight }} g</td>
-                {% if canManage %}
-                <td>
-                  <form method="post" action="{{ url('oi33_school_cat_admin_toggle', schoolId=cat.id) }}"
-                        onsubmit="return confirm('{% if cat.isAdminCat %}取消 {{ cat.display }} 的管理员大猫标记？{% else %}将 {{ cat.display }} 设为管理员大猫并排除数字排名？{% endif %}');">
-                    <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                    <input type="hidden" name="enabled" value="{% if cat.isAdminCat %}0{% else %}1{% endif %}">
-                    <button type="submit" class="rounded button">{% if cat.isAdminCat %}取消 ★{% else %}设为 ★{% endif %}</button>
-                  </form>
-                </td>
-                {% endif %}
               </tr>
               {% endfor %}
             </tbody>
@@ -113,6 +145,10 @@
 .oi33-bigcat-ranking-admin { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1rem 0; padding:1rem; border:1px solid rgba(128,128,128,.22); border-radius:8px; background:rgba(57,119,77,.06); }
 .oi33-bigcat-ranking-admin p { margin:.3rem 0 0; color:#687269; }
 .oi33-bigcat-ranking-admin form, .oi33-bigcat-ranking-table form { margin:0; }
+.oi33-bigcat-ranking-admin form { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.oi33-bigcat-ranking-admin--column { align-items:flex-start; }
+.oi33-bigcat-special-list { list-style:none; margin:.5rem 0 0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
+.oi33-bigcat-special-list li { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
 .oi33-bigcat-ranking-count { color:#687269; }
 /* Core StyledTable splits the thead into a sticky header table; fixed
    layout plus a colgroup keeps both halves on identical column widths. */

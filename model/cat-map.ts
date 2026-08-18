@@ -139,11 +139,13 @@ export async function getCatMapSnapshot() {
 }
 
 function normalizedCatId(value: unknown) {
-    return Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : 0;
+    // Both positive school keys and negative special-cat keys are valid
+    // ownership ids; only 0 means "no big cat".
+    return Number.isSafeInteger(value) && Number(value) !== 0 ? Number(value) : 0;
 }
 
 async function applyTerritoryDeltas(deltas: Map<number, number>, now = new Date()) {
-    const entries = Array.from(deltas.entries()).filter(([catId, delta]) => catId > 0 && delta !== 0);
+    const entries = Array.from(deltas.entries()).filter(([catId, delta]) => catId !== 0 && delta !== 0);
     if (!entries.length) return;
     for (const [catId] of entries) {
         const schoolId = schoolIdFromCatKey(catId);
@@ -168,15 +170,15 @@ async function applyTerritoryDeltas(deltas: Map<number, number>, now = new Date(
 async function moveTerritoryCount(previousCatId: number, nextCatId: number, now = new Date()) {
     if (previousCatId === nextCatId) return false;
     const deltas = new Map<number, number>();
-    if (previousCatId > 0) deltas.set(previousCatId, -1);
-    if (nextCatId > 0) deltas.set(nextCatId, (deltas.get(nextCatId) || 0) + 1);
+    if (previousCatId !== 0) deltas.set(previousCatId, -1);
+    if (nextCatId !== 0) deltas.set(nextCatId, (deltas.get(nextCatId) || 0) + 1);
     await applyTerritoryDeltas(deltas, now);
     return true;
 }
 
 export async function recountSchoolCatTerritories(now = new Date()) {
     const groups: any[] = await catMapCellColl.aggregate([
-        { $match: { catId: { $gt: 0 } } },
+        { $match: { catId: { $ne: 0 } } },
         { $group: { _id: '$catId', count: { $sum: 1 } } },
     ], { allowDiskUse: true } as any).toArray();
     const validGroups: Array<{ catId: number; schoolId: number; count: number }> = [];
@@ -229,7 +231,7 @@ export async function refreshCatMapTerritories(operator: number, now = new Date(
             ).toArray();
             rows.forEach((row: any) => bindings.set(
                 row._id,
-                Number.isSafeInteger(row.school_cat) && row.school_cat >= 0
+                Number.isSafeInteger(row.school_cat)
                     ? schoolCatKey(row.school_cat)
                     : 0,
             ));
@@ -274,7 +276,7 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
 
     const distance = Math.abs(player.x - targetX) + Math.abs(player.y - targetY);
     let territoryTeleport = false;
-    if (distance !== 1 && Number.isSafeInteger(user.school_cat) && user.school_cat >= 0) {
+    if (distance !== 1 && Number.isSafeInteger(user.school_cat)) {
         const ownCatId = schoolCatKey(user.school_cat);
         const endpointIds = [cellId(player.x, player.y), cellId(targetX, targetY)];
         const endpointRows: any[] = await catMapCellColl.find(
@@ -289,7 +291,7 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     const foodCost = action === 'move' || action === 'territory_teleport' ? CAT_MAP_MOVE_FOOD_COST : 0;
     const canCost = action === 'teleport' ? CAT_MAP_TELEPORT_CAN_COST : 0;
     const contributionSchoolId = foodCost > 0
-        && Number.isSafeInteger(user.school_cat) && user.school_cat >= 0
+        && Number.isSafeInteger(user.school_cat)
         ? Number(user.school_cat)
         : null;
     if (contributionSchoolId !== null) await ensureSchoolCatRecord(contributionSchoolId, now);
@@ -432,10 +434,10 @@ export async function setCatMapCellColor(
     if (!validColor(color)) throw new Error('颜色码必须是 0～255 的整数。');
     const user: any = await getEligibleUser(operator);
     if (!user) throw new Error('只有已认证用户可以修改格子颜色。');
-    const catId = Number.isSafeInteger(user.school_cat) && user.school_cat >= 0
+    const catId = Number.isSafeInteger(user.school_cat)
         ? schoolCatKey(user.school_cat)
         : 0;
-    if (catId > 0) await ensureSchoolCatRecord(user.school_cat, now);
+    if (catId !== 0) await ensureSchoolCatRecord(user.school_cat, now);
     const player: any = await catMapPlayerColl.findOne({ _id: operator });
     if (!player || player.x !== x || player.y !== y) throw new Error('只能设置自己小猫当前所在格子的颜色。');
 
@@ -555,10 +557,10 @@ export async function adminPaintCatMap(
     if (rowStart > rowEnd || columnStart > columnEnd) throw new Error('矩形起点必须位于终点的左上方。');
     if (!validColor(color)) throw new Error('颜色码必须是 0～255 的整数。');
 
-    const catId = Number.isSafeInteger(user.school_cat) && user.school_cat >= 0
+    const catId = Number.isSafeInteger(user.school_cat)
         ? schoolCatKey(user.school_cat)
         : 0;
-    if (catId > 0) await ensureSchoolCatRecord(user.school_cat, now);
+    if (catId !== 0) await ensureSchoolCatRecord(user.school_cat, now);
     const priorGroups: any[] = await catMapCellColl.aggregate([
         {
             $match: {
@@ -608,11 +610,11 @@ export async function adminPaintCatMap(
         const groupCount = Math.max(0, Math.floor(Number(group.count) || 0));
         if (previousCatId === catId) {
             alreadyOwned += groupCount;
-        } else if (previousCatId > 0) {
+        } else if (previousCatId !== 0) {
             territoryDeltas.set(previousCatId, (territoryDeltas.get(previousCatId) || 0) - groupCount);
         }
     }
-    if (catId > 0 && count > alreadyOwned) territoryDeltas.set(
+    if (catId !== 0 && count > alreadyOwned) territoryDeltas.set(
         catId,
         (territoryDeltas.get(catId) || 0) + count - alreadyOwned,
     );

@@ -480,9 +480,11 @@ export async function achievementGrant(
     }
 
     // Managers (realname_flag >= 2) do not get an automatic meow post.
+    // Announcements are also limited to rare (saleable) achievements and manual
+    // admin grants; automatic rule, auction and contract grants stay silent.
     const recipient = await userColl.findOne({ _id: uid }, { projection: { realname_flag: 1 } });
     const skipAnnounce = (Number(recipient?.realname_flag) || 0) >= 2;
-    if (announce && !skipAnnounce) {
+    if (announce && !skipAnnounce && (achievement.saleable === true || source === 'manual')) {
         try {
             const post = await meowAchievementPostAdd(uid, achievement);
             await userAchievementColl.updateOne(

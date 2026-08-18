@@ -454,6 +454,24 @@ class MeowAdminDeleteHandler extends Handler {
     }
 }
 
+// Delete a meow post as its author. Managers (flag >= 2) may also delete any
+// post here; semantics match admin deletion (likes removed, forwards detached,
+// no cat can refund).
+class MeowDeleteHandler extends Handler {
+    @param('postId', Types.ObjectId)
+    async post(domainId: string, postId: ObjectId) {
+        const post = await oi33Model.meowGetPost(postId);
+        if (!post) throw new NotFoundError(postId);
+        const flag = await checkUserFlag(this.user._id);
+        if (post.uid !== this.user._id && flag < 2) {
+            throw new ForbiddenError('只能删除自己的喵喵。');
+        }
+        await oi33Model.meowDelete(postId, this.user._id);
+        const referer = this.request.headers.referer || '';
+        this.response.redirect = referer || this.url('oi33_meow_main');
+    }
+}
+
 // --- Homepage module ---
 
 // The 喵喵 homepage module renders only when manually configured in the
@@ -481,6 +499,7 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_meow_followers', '/oi33/meow/followers', MeowFollowersHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_meow_admin', '/oi33/meow/admin', MeowAdminHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_meow_admin_delete', '/oi33/meow/admin/:postId/delete', MeowAdminDeleteHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_meow_delete', '/oi33/meow/delete/:postId', MeowDeleteHandler, PRIV.PRIV_USER_PROFILE);
     // model/meow.ts (meowPostAdd) calls this kicker to run the rules+AI verdict.
     oi33Model.setMeowReviewKicker((uid, postId) => {
         moderateMeowAsync(uid, postId)

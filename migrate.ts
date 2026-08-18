@@ -56,6 +56,7 @@ export async function migrate() {
         meowCollectionsRenamed: 0,
         legacySchoolRecordsDeleted: 0,
         legacySchoolCollectionDropped: false,
+        legacyAdminCatFlagsCleared: 0,
         catFoodUsers: 0,
         catFoodAmount: 0,
         errors: [] as string[],
@@ -317,6 +318,19 @@ export async function migrate() {
         }
     } catch (e: any) {
         result.errors.push(`Step 11 (drop redundant school cache): ${e.message}`);
+    }
+
+    try {
+        // Step 12: Legacy manually-flagged admin cats (isAdminCat) are plain
+        // cats now — only special big cats (negative _id) get admin treatment.
+        // Idempotent: records without the flag are untouched.
+        const cleared = await db.collection('oi33_school_cat').updateMany(
+            { isAdminCat: { $exists: true } } as any,
+            { $unset: { isAdminCat: '' } } as any,
+        );
+        result.legacyAdminCatFlagsCleared = cleared.modifiedCount;
+    } catch (e: any) {
+        result.errors.push(`Step 12 (clear legacy isAdminCat flags): ${e.message}`);
     }
 
     return result;

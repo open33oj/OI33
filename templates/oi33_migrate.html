@@ -55,6 +55,9 @@
               {% if result.legacySchoolCollectionDropped %}
               <tr><td>冗余学校缓存表已删除：</td><td><strong>{{ result.legacySchoolRecordsDeleted }}</strong> 条</td></tr>
               {% endif %}
+              {% if result.legacyAdminCatFlagsCleared %}
+              <tr><td>旧管理员大猫标记已清除：</td><td><strong>{{ result.legacyAdminCatFlagsCleared }}</strong> 只</td></tr>
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">

@@ -4,7 +4,8 @@ interface BigCat {
     id: number;
     catId: number;
     display: string;
-    url: string;
+    // 特殊大猫（负数 id）没有 OIerDB 页面，url 为 null。
+    url: string | null;
     color: number;
     weight: number;
     historyWeight: number;
@@ -30,7 +31,7 @@ interface BigCatState {
         id: number;
         catId: number;
         display: string;
-        url: string;
+        url: string | null;
         color: number;
         weight: number;
         territoryCount: number;
@@ -116,12 +117,15 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     const upsertCat = (incoming: Partial<BigCat> & { id: number }) => {
         const id = Number(incoming.id);
         const previous = cats.get(id);
-        const catId = Math.max(1, Number(incoming.catId ?? previous?.catId ?? id + 1));
+        // 与后端 schoolCatKey 一致：学校 id 编码为 id + 1，特殊大猫沿用负数 id。
+        const fallbackCatId = id >= 0 ? id + 1 : id;
+        const catId = Number(incoming.catId ?? previous?.catId ?? fallbackCatId) || fallbackCatId;
+        const fallbackUrl = id >= 0 ? `https://oier.baoshuo.dev/school/${id}` : null;
         const next: BigCat = {
             id,
             catId,
             display: incoming.display ?? previous?.display ?? `#${id}`,
-            url: incoming.url ?? previous?.url ?? `https://oier.baoshuo.dev/school/${id}`,
+            url: incoming.url ?? previous?.url ?? fallbackUrl,
             color: Math.max(0, Number(incoming.color ?? previous?.color ?? 0)),
             weight: Math.max(0, Number(incoming.weight ?? previous?.weight ?? 0)),
             historyWeight: Math.max(0, Number(incoming.historyWeight ?? previous?.historyWeight ?? 0)),
@@ -250,7 +254,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             const result = await request.post(feedUrl, { amount });
             upsertCat({
                 id: schoolId,
-                catId: schoolId + 1,
+                catId: schoolId >= 0 ? schoolId + 1 : schoolId,
                 weight: result.weight,
                 historyWeight: result.historyWeight,
                 territoryCount: result.territoryCount,
@@ -286,8 +290,18 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         const boardCurrent = detailDialog.querySelector<HTMLElement>('[data-bigcat-board-current]');
         const boardHistory = detailDialog.querySelector<HTMLElement>('[data-bigcat-board-history]');
         const cat = cats.get(schoolId);
+        const setDetailLink = (url: string | null | undefined) => {
+            if (!link) return;
+            if (url) {
+                link.hidden = false;
+                link.href = url;
+            } else {
+                link.hidden = true;
+                link.removeAttribute('href');
+            }
+        };
         if (name) name.textContent = cat?.display || `#${schoolId}`;
-        if (link) link.href = cat?.url || `https://oier.baoshuo.dev/school/${schoolId}`;
+        setDetailLink(cat?.url ?? (schoolId >= 0 ? `https://oier.baoshuo.dev/school/${schoolId}` : null));
         if (summary) summary.textContent = '正在读取榜单…';
         renderBoard(boardCurrent, []);
         renderBoard(boardHistory, []);
@@ -307,7 +321,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         try {
             const detail = await request.get(`${detailBaseUrl}/${schoolId}`);
             if (name) name.textContent = detail.school.display;
-            if (link) link.href = detail.school.url;
+            setDetailLink(detail.school.url);
             const exact = (label: string, value: string, title: string) => {
                 const span = document.createElement('span');
                 span.className = 'oi33-bigcat-exact';
@@ -373,7 +387,9 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     }
 
     const pickerState = { page: 1, upcount: 1, query: '' };
-    const renderPickerList = (schoolRows: Array<{ id: number; display: string; prov?: string; url: string }>) => {
+    const renderPickerList = (schoolRows: Array<{
+        id: number; display: string; prov?: string; url: string | null; special?: boolean;
+    }>) => {
         const list = pickerDialog?.querySelector<HTMLElement>('[data-bigcat-picker-list]');
         if (!list) return;
         list.replaceChildren();
@@ -392,12 +408,20 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                 prov.textContent = school.prov;
                 label.append(prov);
             }
+            if (school.special) {
+                const special = document.createElement('em');
+                special.textContent = '★特殊大猫';
+                label.append(special);
+            }
             label.append(document.createTextNode(school.display));
-            const link = document.createElement('a');
-            link.href = school.url;
-            link.target = '_blank';
-            link.rel = 'noopener';
-            link.textContent = 'OIerDB';
+            let link: HTMLAnchorElement | null = null;
+            if (school.url) {
+                link = document.createElement('a');
+                link.href = school.url;
+                link.target = '_blank';
+                link.rel = 'noopener';
+                link.textContent = 'OIerDB';
+            }
             const bind = document.createElement('button');
             bind.type = 'button';
             bind.className = 'primary rounded button';
@@ -440,7 +464,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                     bind.disabled = false;
                 }
             });
-            item.append(label, link, bind);
+            item.append(...([label, link, bind].filter(Boolean) as HTMLElement[]));
             list.append(item);
         });
     };
@@ -589,18 +613,22 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         },
         labelFor: (catId: number) => {
             if (!catId) return '大猫 0 号（未绑定）';
-            return catsByKey.get(catId)?.display || `大猫 #${catId - 1}`;
+            return catsByKey.get(catId)?.display || `大猫 #${catId > 0 ? catId - 1 : catId}`;
         },
-        schoolIdForCatId: (catId: number) => Number.isSafeInteger(catId) && catId > 0 ? catId - 1 : null,
+        schoolIdForCatId: (catId: number) => {
+            if (!Number.isSafeInteger(catId) || catId === 0) return null;
+            return catId > 0 ? catId - 1 : catId;
+        },
         boundCatId: () => me?.boundCatId || 0,
         openDetail: (schoolId: number) => { void openDetail(schoolId); },
         handleSocketMessage: (payload: any) => {
             if (payload?.type !== 'bigcat') return;
             const incoming = payload.cat || {};
+            const catIdNum = Number(incoming.catId);
             const id = Number.isSafeInteger(Number(incoming.id))
                 ? Number(incoming.id)
-                : Number.isSafeInteger(Number(incoming.catId)) && Number(incoming.catId) > 0
-                    ? Number(incoming.catId) - 1
+                : Number.isSafeInteger(catIdNum) && catIdNum !== 0
+                    ? (catIdNum > 0 ? catIdNum - 1 : catIdNum)
                     : null;
             // A cell update may only carry catId. If this is a new cat, wait
             // for the debounced authoritative refresh instead of inventing a

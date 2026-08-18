@@ -34,6 +34,11 @@
         <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
         <button type="submit" class="meow-action meow-delete-btn" onclick="return confirm('{{ _('Delete this meow?') }}')">🗑 {{ _('Delete') }}</button>
       </form>
+      {% elif handler.user._id and p.uid == handler.user._id %}
+      <form method="post" action="{{ url('oi33_meow_delete', postId=p.pid) }}" style="display:inline;" data-meow-delete>
+        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+        <button type="submit" class="meow-action meow-delete-btn" onclick="return confirm('{{ _('Delete this meow?') }}')">🗑 {{ _('Delete') }}</button>
+      </form>
       {% endif %}
     {% endif %}
     {% if showStatus %}

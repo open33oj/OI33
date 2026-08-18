@@ -184,13 +184,15 @@ export interface Oi33School {
 }
 
 export interface Oi33SchoolCat {
+    // Negative ids are special big cats: custom-named admin cats that live
+    // only in this collection and never collide with OIerDB schools.
     _id: number;
     currentWeight: number;
     historyWeight: number;
     territoryColor: number;
     territoryCount: number;
-    // Administrative cats are shown with a star and excluded from numeric ranks.
-    isAdminCat: boolean;
+    // Only special big cats (negative _id) carry a custom display name.
+    name?: string;
     spawnedAt: Date;
     updatedAt: Date;
 }
@@ -220,6 +222,9 @@ export interface Oi33SchoolCatRewardSummary {
     baseCans: number;
     multiplier: number;
     plannedCans: number;
+    // Big-cat weight in grams at snapshot time. Absent in snapshots planned
+    // before the weight-based multiplier rule; treat as unknown.
+    weightGrams?: number;
 }
 
 export interface Oi33SchoolCatReward {
@@ -233,6 +238,9 @@ export interface Oi33SchoolCatReward {
     plannedCans: number;
     issuedUsers?: number;
     issuedCans?: number;
+    // Set once the 5% weekly food decay has been applied for this batch.
+    // Absent on batches settled before the decay rule existed.
+    foodDecayed?: boolean;
     operator: number; // 0 = automatic scheduler
     createdAt: Date;
     startedAt?: Date;
