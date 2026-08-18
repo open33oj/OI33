@@ -33,7 +33,6 @@
         </blockquote>
 
         <h2>结算批次</h2>
-        <div class="data-table-container oi33-reward-table-wrap">
           <table class="data-table oi33-reward-table">
             <colgroup>
               <col class="oi33-rw-col-period">
@@ -64,7 +63,6 @@
             {% endfor %}
             </tbody>
           </table>
-        </div>
         {{ paginator.render(page, upcount, 'period=' + selectedPeriod) }}
       </div>
     </div>
@@ -129,7 +127,6 @@
     <div class="section">
       <div class="section__header"><h2 class="section__title">大猫奖励快照</h2></div>
       <div class="section__body no-padding">
-        <div class="data-table-container oi33-reward-table-wrap">
           <table class="data-table oi33-reward-table">
             <colgroup>
               <col class="oi33-rw-col-cat">
@@ -150,7 +147,6 @@
               </tr>
             {% endfor %}</tbody>
           </table>
-        </div>
       </div>
     </div>
     {% endif %}
@@ -159,7 +155,6 @@
     <div class="section">
       <div class="section__header"><h2 class="section__title">用户分配快照（{{ detail.allocationTotal }} 人）</h2></div>
       <div class="section__body no-padding">
-        <div class="data-table-container oi33-reward-table-wrap">
           <table class="data-table oi33-reward-table">
             <colgroup>
               <col class="oi33-rw-col-uid">
@@ -177,7 +172,6 @@
               </tr>
             {% endfor %}</tbody>
           </table>
-        </div>
         {% if detail.allocationPages > 1 %}
         <div class="oi33-reward-pager">
           {% if detail.allocationPage > 1 %}<a class="rounded button" href="{{ url('oi33_school_cat_rewards', query={ period: detail._id, allocationPage: detail.allocationPage - 1 }) }}">上一页</a>{% endif %}
@@ -205,7 +199,9 @@
 </div>
 
 <style>
-.oi33-reward-table-wrap { overflow-x:auto; }
+/* StyledTable wraps each data-table in its own .section__table-container
+   (which already provides overflow-x:auto); keep the reward table at its
+   minimum width so the container scrolls horizontally on narrow screens. */
 .oi33-reward-table { min-width:760px; }
 /* Core StyledTable splits the thead into a sticky header table; fixed
    layout plus a colgroup keeps both halves on identical column widths. */

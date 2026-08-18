@@ -52,8 +52,14 @@
       <div class="section__header"><h2 class="section__title">账户明细</h2></div>
       <div class="section__body no-padding">
         {% if entries.length %}
-        <div class="oi33-account-table-wrap">
         <table class="data-table oi33-account-table">
+          <colgroup>
+            <col class="oi33-acc-col-time">
+            <col class="oi33-acc-col-item">
+            <col class="oi33-acc-col-num">
+            <col class="oi33-acc-col-num">
+            {% if canManage %}<col class="oi33-acc-col-manage">{% endif %}
+          </colgroup>
           <thead><tr><th>时间</th><th>事项</th><th>猫粮变化</th><th>罐头变化</th>{% if canManage %}<th>管理</th>{% endif %}</tr></thead>
           <tbody>
           {% for entry in entries %}
@@ -102,7 +108,6 @@
           {% endfor %}
           </tbody>
         </table>
-        </div>
         {{ paginator.render(page, upcount) }}
         {% else %}<div class="oi33-account-empty">{{ nothing.render('还没有账户记录。') }}</div>{% endif %}
       </div>

@@ -56,7 +56,6 @@
 
         <p class="oi33-bigcat-ranking-count">当前共有 {{ ranking|length }} 只大猫上榜。</p>
         {% if ranking|length %}
-        <div class="data-table-container">
           <table class="data-table oi33-bigcat-ranking-table">
             <colgroup>
               <col class="oi33-bc-col-rank">
@@ -103,7 +102,6 @@
               {% endfor %}
             </tbody>
           </table>
-        </div>
         {% else %}
         <p>还没有获得当前体重或领地的大猫。</p>
         {% endif %}

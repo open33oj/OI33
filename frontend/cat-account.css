@@ -21,13 +21,14 @@
 .oi33-account-dot.is-food { fill: var(--account-food); }
 .oi33-account-dot.is-can { fill: var(--account-can); }
 .oi33-account-date { font-size: 10px !important; }
-.oi33-account-table-wrap { width: 100%; overflow-x: auto; }
+.oi33-account-page .section__table-container { width: 100%; }
 .oi33-account-table { min-width: 760px; }
+/* StyledTable splits the thead into a sticky header table; fixed layout plus
+   a colgroup keeps both halves on identical column widths. */
+.oi33-account-table .oi33-acc-col-time { width: 10.5rem; }
+.oi33-account-table .oi33-acc-col-num { width: 8.5rem; }
+.oi33-account-table .oi33-acc-col-manage { width: 15rem; }
 .oi33-account-table th, .oi33-account-table td { vertical-align: middle; }
-.oi33-account-table th:first-child, .oi33-account-table td:first-child { width: 10.5rem; }
-.oi33-account-table th:nth-child(3), .oi33-account-table td:nth-child(3),
-.oi33-account-table th:nth-child(4), .oi33-account-table td:nth-child(4) { width: 8.5rem; }
-.oi33-account-table th:last-child:nth-child(5), .oi33-account-table td:last-child:nth-child(5) { width: 15rem; }
 .oi33-account-table th:nth-child(2), .oi33-account-table td:nth-child(2),
 .oi33-account-table .oi33-account-reason {
   overflow: visible;
