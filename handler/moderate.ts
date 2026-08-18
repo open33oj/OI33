@@ -578,7 +578,11 @@ class Ai33ModerationHandler extends Handler {
     @param('moderation_daily_budget', Types.Float, true)
     @param('moderation_rate_limit', Types.UnsignedInt, true)
     async post(
-        _domainId: string, action: string, id?: ObjectId,
+        // First param must be named domainId* — the framework only injects
+        // args.domainId as the first positional arg when the source name
+        // starts with "domainid" (see @hydrooj/framework decorators.ts);
+        // any other name receives the whole raw args object instead.
+        domainId: string, action: string, id?: ObjectId,
         moderation_enabled?: string, moderation_model?: string, moderation_prompt?: string,
         moderation_words?: string, moderation_review_words?: string,
         moderation_daily_budget = 0, moderation_rate_limit = 0,
@@ -602,7 +606,7 @@ class Ai33ModerationHandler extends Handler {
             // review state directly. bioSetStatus is hash-guarded, so a newer
             // edit of the bio is never clobbered by a stale queue decision.
             if (entry.kind === 'bio') {
-                const currentUser = await UserModel.getById(_domainId, entry.uid);
+                const currentUser = await UserModel.getById(domainId, entry.uid);
                 if (!currentUser
                     || !bioHashMatches(entry.contentHash, String(currentUser.bio || ''))) {
                     throw new ValidationError('该个人简介已被修改，不能处理旧审核记录。请刷新后处理最新记录。');
