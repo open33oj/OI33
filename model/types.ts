@@ -117,6 +117,11 @@ export interface Oi33CatCanPool {
     _id: 'main';
     reserveFood: number;
     virtualCanSupply: number;
+    // Anchor captured on creation (and locked on first calibration): the
+    // supply that existed before any admin grants / weekly rewards / their
+    // rollbacks. Calibration recomputes virtualCanSupply as
+    // baseVirtualSupply + minted - burned from the ledger.
+    baseVirtualSupply?: number;
     feesBurned: number;
     userFoodTotal: number;
     circulatingCans: number;

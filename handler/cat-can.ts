@@ -17,7 +17,10 @@ class CatCanMarketHandler extends Handler {
     async get() {
         const data = await oi33Model.getCatCanPage(this.user._id);
         this.response.template = 'oi33_cat_can.html';
-        this.response.body = data;
+        this.response.body = {
+            ...data,
+            canCalibrate: this.user._id ? await checkUserFlag(this.user._id) >= 3 : false,
+        };
     }
 }
 
@@ -328,8 +331,25 @@ class CatCanSellHandler extends Handler {
     }
 }
 
+class CatCanCalibrateHandler extends Handler {
+    async post() {
+        if (await checkUserFlag(this.user._id) < 3) throw new ForbiddenError('仅行政管理员可以校准罐头市场计数器。');
+        try {
+            const result = await oi33Model.calibrateCatCanPool(this.user._id);
+            const notification = `已按账本校准罐头市场：流通 ${result.before.circulatingCans}→${result.after.circulatingCans} 个，`
+                + `供应 ${result.before.virtualCanSupply}→${result.after.virtualCanSupply} 个，`
+                + `储备 ${oi33Model.formatCatFood(result.before.reserveFood)}→${oi33Model.formatCatFood(result.after.reserveFood)}；`
+                + `累计增发 ${result.minted}、销毁 ${result.burned} 个。`;
+            this.response.redirect = this.url('oi33_cat_can', { query: { notification } });
+        } catch (e: any) {
+            throw new ForbiddenError(e?.message || '校准罐头市场失败。');
+        }
+    }
+}
+
 export async function apply(ctx: Context) {
     ctx.Route('oi33_cat_can', '/oi33/cat-can', CatCanMarketHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_cat_can_calibrate', '/oi33/cat-can/calibrate', CatCanCalibrateHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_can_arena', '/oi33/arena', CatCanArenaHandler);
     ctx.Route('oi33_cat_map_state', '/oi33/arena/state', CatMapStateHandler);
     ctx.Route('oi33_cat_map_join', '/oi33/arena/join', CatMapJoinHandler, PRIV.PRIV_USER_PROFILE);

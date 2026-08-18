@@ -38,7 +38,8 @@ import {
 } from './log';
 import {
     getOrCreateCurrentMarket, getCurrentQuote, getCatCanDayChange, ensureCurrentCatCanPrice,
-    ensureCatCanIndexes, ensureCatCanPool, buyCatCans, sellCatCans, adjustCatCans, getCatCanPage,
+    ensureCatCanIndexes, ensureCatCanPool, buyCatCans, sellCatCans, adjustCatCans, calibrateCatCanPool,
+    getCatCanPage,
     CAT_CAN_ADMIN_ADJUSTMENT_MAX,
 } from './cat-can';
 import {
@@ -147,7 +148,8 @@ const oi33Model = {
     getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
     getCatFoodLogCount, getCatFoodLogs,
     getOrCreateCurrentMarket, getCurrentQuote, getCatCanDayChange, ensureCurrentCatCanPrice,
-    ensureCatCanIndexes, ensureCatCanPool, buyCatCans, sellCatCans, adjustCatCans, getCatCanPage,
+    ensureCatCanIndexes, ensureCatCanPool, buyCatCans, sellCatCans, adjustCatCans, calibrateCatCanPool,
+    getCatCanPage,
     CAT_CAN_ADMIN_ADJUSTMENT_MAX,
     ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
     createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,

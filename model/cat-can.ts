@@ -106,6 +106,7 @@ async function getOrCreatePool(now = new Date()) {
     );
     const doc = {
         _id: 'main', reserveFood, virtualCanSupply,
+        baseVirtualSupply: virtualCanSupply,
         feesBurned,
         userFoodTotal: balances.userFood,
         circulatingCans: balances.userCans,
@@ -203,8 +204,9 @@ export async function ensureCatCanPool(now = new Date()) {
 
 // Administrative grants mint new cans without reducing the market's existing
 // pool inventory: both virtual supply and circulation grow by the grant.
-// Deductions return cans from circulation to the pool and never allow the
-// target balance to become negative.
+// Deductions destroy cans: both virtual supply and circulation shrink by the
+// deducted amount (the cans do not return to the pool), and the target
+// balance never becomes negative.
 export async function adjustCatCans(
     uid: number, operator: number, amount: number, reason: string, now = new Date(),
 ) {
@@ -242,13 +244,14 @@ export async function adjustCatCans(
     }
     if (!userUpdated) throw new Error('用户罐头余额刚刚发生变化，请重试。');
 
-    const poolIncrement: any = { circulatingCans: amount };
-    if (amount > 0) poolIncrement.virtualCanSupply = amount;
+    // Both signs change circulation; only grants grow the virtual supply,
+    // while deductions destroy it (the cans do not flow back into the pool).
+    const poolIncrement: any = { circulatingCans: amount, virtualCanSupply: amount };
     let poolUpdated = false;
     try {
         const poolResult = await catCanPoolColl.updateOne(
             amount < 0
-                ? { _id: 'main', circulatingCans: { $gte: -amount } } as any
+                ? { _id: 'main', circulatingCans: { $gte: -amount }, virtualCanSupply: { $gte: -amount } } as any
                 : { _id: 'main' } as any,
             { $inc: poolIncrement, $set: { updatedAt: now } } as any,
         );
@@ -266,8 +269,7 @@ export async function adjustCatCans(
             userColl.updateOne({ _id: uid }, { $inc: { cat_can: -amount } }),
         ];
         if (poolUpdated) {
-            const reversePool: any = { circulatingCans: -amount };
-            if (amount > 0) reversePool.virtualCanSupply = -amount;
+            const reversePool: any = { circulatingCans: -amount, virtualCanSupply: -amount };
             rollback.push(catCanPoolColl.updateOne(
                 { _id: 'main' } as any,
                 { $inc: reversePool, $set: { updatedAt: new Date() } } as any,
@@ -503,10 +505,11 @@ interface CatCanEconomyWindow {
     mintTotal: number;
     burnTotal: number;
     net: number; // 净增发 = 发放 - 销毁
-    cansMinted: number; // 管理员发放 + 每周大猫奖励
+    cansMinted: number; // 管理员发放 + 每周大猫奖励（增发）
+    cansBurned: number; // 管理员扣除 + 每周大猫奖励回滚（销毁）
     cansBought: number; // 买入（池子售出）
     cansSoldBack: number; // 卖出回池（撤销单按负数量自动冲抵）
-    cansOtherBack: number; // 传送/喵喵/拍卖结算回池
+    cansOtherBack: number; // 传送/喵喵/拍卖结算回池（不含管理扣除与奖励回滚）
     cansNetOut: number; // 池子净售出（负值 = 净回收）
 }
 
@@ -516,7 +519,7 @@ function emptyEconomyWindow(): CatCanEconomyWindow {
         tradeFeeBurn: 0, feedBurn: 0, moveBurn: 0, contractFeeBurn: 0, deductBurn: 0,
         auctionFoodBurn: 0,
         mintTotal: 0, burnTotal: 0, net: 0,
-        cansMinted: 0,
+        cansMinted: 0, cansBurned: 0,
         cansBought: 0, cansSoldBack: 0, cansOtherBack: 0, cansNetOut: 0,
     };
 }
@@ -569,10 +572,15 @@ async function getCatCanEconomy(now = new Date()) {
                 else if (action === 'deduct') w.deductBurn += Math.max(0, -amount);
                 if (action === 'can_grant' || action === 'school_cat_weekly_reward') {
                     w.cansMinted += Math.max(0, canAmount);
+                } else if (action === 'can_deduct' || action === 'school_cat_weekly_reward_rollback') {
+                    // Administrative deductions and weekly-reward rollbacks
+                    // destroy cans: both virtual supply and circulation
+                    // shrink, so they count as burned, not as returning to
+                    // the pool.
+                    w.cansBurned += Math.max(0, -canAmount);
                 } else {
-                    // Teleports, meow posts, administrative deductions and
-                    // legacy asset cleanup return cans to the pool; refunds
-                    // take them back.
+                    // Teleports, meow posts and auction settlements return cans
+                    // to the pool; refunds take them back.
                     w.cansOtherBack -= canAmount;
                 }
             } else if ((log as any).type === 'contract') {
@@ -598,6 +606,106 @@ async function getCatCanEconomy(now = new Date()) {
     finalizeEconomyWindow(w7);
     finalizeEconomyWindow(w30);
     return { days7: w7, days30: w30 };
+}
+
+// Rebuilds the pool counters from the ledger. The economy page shows
+// incremental counters, which drift if any historical operation wrote an
+// inconsistent amount; this recomputes every counter from its ground truth:
+//   - circulatingCans / userFoodTotal   from the verified users' balances
+//   - reserveFood / feesBurned          from the trade bills
+//   - virtualCanSupply                  = baseVirtualSupply + minted - burned,
+//                                        where minted/burned replay every
+//                                        admin grant / weekly reward and their
+//                                        rollbacks from oi33_log
+// baseVirtualSupply is captured at pool creation (and back-filled from the
+// current supply on the first calibration), so repeated runs are idempotent.
+// Returns the before/after snapshot for the confirmation page.
+export async function calibrateCatCanPool(operator = 0, now = new Date()) {
+    const pool: any = await getOrCreatePool(now);
+    const before = {
+        reserveFood: Number(pool?.reserveFood) || 0,
+        virtualCanSupply: Number(pool?.virtualCanSupply) || 0,
+        feesBurned: Number(pool?.feesBurned) || 0,
+        userFoodTotal: Number(pool?.userFoodTotal) || 0,
+        circulatingCans: Number(pool?.circulatingCans) || 0,
+    };
+
+    // Replay every can mint / burn from the account ledger.
+    const ledgers = await logColl.find({
+        type: 'cat_account',
+        action: { $in: ['can_grant', 'can_deduct', 'school_cat_weekly_reward', 'school_cat_weekly_reward_rollback'] },
+    } as any, {
+        projection: { action: 1, canAmount: 1 },
+    }).toArray();
+    let minted = 0;
+    let burned = 0;
+    for (const log of ledgers) {
+        const amount = Number((log as any).canAmount) || 0;
+        const action = (log as any).action;
+        if (action === 'can_grant' || action === 'school_cat_weekly_reward') {
+            minted += Math.max(0, amount);
+        } else if (action === 'can_deduct' || action === 'school_cat_weekly_reward_rollback') {
+            burned += Math.max(0, -amount);
+        }
+    }
+
+    // Trade bills rebuild reserve and fees (same reduce as pool creation).
+    const bills = await catCanBillColl.find({ action: { $in: ['buy', 'sell', 'reverse'] } }).toArray();
+    let feesBurned = 0;
+    const reserveFood = bills.reduce((sum, bill) => {
+        const fee = Number(bill.fee) || 0;
+        feesBurned += fee;
+        const delta = Number(bill.catFoodDelta) || 0;
+        const recorded = Number(bill.tradeAmount);
+        const principal = Math.abs(recorded) || (bill.action === 'buy'
+            ? Math.max(0, -delta - fee)
+            : bill.action === 'sell' ? Math.max(0, delta + fee) : 0);
+        if (bill.action === 'reverse') return sum + (bill.originalAction === 'buy' ? -principal : principal);
+        return sum + (bill.action === 'buy' ? principal : -principal);
+    }, 0);
+
+    const balances = await getGlobalBalances();
+    // First calibration back-fills the anchor from the current supply so that
+    // pre-existing pools converge to the same invariant as new ones.
+    let base = Number(pool?.baseVirtualSupply);
+    if (!Number.isFinite(base) || base <= 0) {
+        base = Math.max(1000, (Number(pool?.virtualCanSupply) || 0) - minted + burned);
+    }
+    const virtualCanSupply = Math.max(1000, base + minted - burned);
+    const circulatingCans = Math.max(0, balances.userCans);
+    const userFoodTotal = Math.max(0, balances.userFood);
+
+    const update: any = {
+        $set: {
+            reserveFood: Math.max(0, reserveFood),
+            virtualCanSupply,
+            baseVirtualSupply: base,
+            feesBurned: Math.max(0, feesBurned),
+            userFoodTotal,
+            circulatingCans,
+            updatedAt: now,
+            balanceCounterVersion: BALANCE_COUNTER_VERSION,
+        },
+    };
+    await catCanPoolColl.updateOne({ _id: 'main' } as any, update);
+
+    const after = {
+        reserveFood: Math.max(0, reserveFood),
+        virtualCanSupply,
+        feesBurned: Math.max(0, feesBurned),
+        userFoodTotal,
+        circulatingCans,
+    };
+    await addLog({
+        type: 'cat_account', userId: 0, sender: operator, action: 'pool_calibrate',
+        amount: 0, canAmount: 0,
+        reason: `校准罐头市场：流通 ${before.circulatingCans}→${after.circulatingCans}，`
+            + `供应 ${before.virtualCanSupply}→${after.virtualCanSupply}，`
+            + `储备 ${before.reserveFood}→${after.reserveFood}，`
+            + `手续费 ${before.feesBurned}→${after.feesBurned}；`
+            + `累计增发 ${minted}，累计销毁 ${burned}`,
+    } as any);
+    return { before, after, minted, burned };
 }
 
 export async function getCatCanPage(uid: number, now = new Date()) {

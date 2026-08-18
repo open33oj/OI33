@@ -19,6 +19,13 @@
       <div class="section__header">
         <h1 class="section__title">猫罐头市场</h1>
         <div class="section__tools">
+          {% if canCalibrate %}
+          <form method="post" action="{{ url('oi33_cat_can_calibrate') }}" style="display:inline;margin:0;"
+                onsubmit="return confirm('将按账本重新校准罐头市场计数器（流通、供应、储备、手续费）。此操作会重放全部增发/销毁记录并修正漂移，可重复执行且幂等。确定校准吗？');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <button type="submit" class="rounded button">校准经济指标</button>
+          </form>
+          {% endif %}
           <a href="{{ url('oi33_auction') }}" class="rounded button">成就拍卖</a>
           <a href="{{ url('oi33_cat_can_arena') }}" class="rounded button">猫猫广场</a>
           <a href="{{ url('oi33_cat_account', uid=handler.user._id) }}" class="rounded button">账户明细</a>
@@ -145,8 +152,9 @@
           <tbody>
             <tr><td>买入（池子售出）</td><td>{{ economy7.cansBought }} 个</td><td>{{ economy30.cansBought }} 个</td></tr>
             <tr><td>系统增发（管理员 / 大猫奖励）</td><td>{{ economy7.cansMinted }} 个</td><td>{{ economy30.cansMinted }} 个</td></tr>
+            <tr><td>系统销毁（管理员扣除 / 大猫回滚）</td><td>{{ economy7.cansBurned }} 个</td><td>{{ economy30.cansBurned }} 个</td></tr>
             <tr><td>卖出回池</td><td>{{ economy7.cansSoldBack }} 个</td><td>{{ economy30.cansSoldBack }} 个</td></tr>
-            <tr><td class="oi33-can-table-wrap">其他回池（传送 / 喵喵 / 拍卖 / 管理扣除）</td><td>{{ economy7.cansOtherBack }} 个</td><td>{{ economy30.cansOtherBack }} 个</td></tr>
+            <tr><td class="oi33-can-table-wrap">其他回池（传送 / 喵喵 / 拍卖结算）</td><td>{{ economy7.cansOtherBack }} 个</td><td>{{ economy30.cansOtherBack }} 个</td></tr>
             <tr>
               <td><strong>池子净售出（负值 = 净回收）</strong></td>
               <td><strong>{{ economy7.cansNetOut }} 个</strong></td>
@@ -183,7 +191,7 @@
             <tr><td>用户持有猫粮</td><td>{{ catFood.amount(market.userFood) }}</td><td>全体用户猫粮余额合计</td></tr>
             <tr><td>系统猫粮总量</td><td>{{ catFood.amount(market.systemFood) }}</td><td>储备粮 + 用户持有猫粮</td></tr>
             <tr><td>流通罐头</td><td>{{ market.userCans }} 个</td><td>全体用户持有的罐头合计</td></tr>
-            <tr><td>虚拟总供应</td><td>{{ market.supply }} 个</td><td>池子创建时按系统猫粮以初始价 {{ market.initialPrice }} 猫粮/个折算</td></tr>
+            <tr><td>虚拟总供应</td><td>{{ market.supply }} 个</td><td>池子创建时按系统猫粮以初始价 {{ market.initialPrice }} 猫粮/个折算；每周大猫奖励结算会按发放量增发，回滚时等量扣回</td></tr>
             <tr><td>池内罐头</td><td>{{ market.poolCans }} 个</td><td>虚拟总供应 − 流通罐头</td></tr>
             <tr><td>AMM 价格</td><td>{{ market.ammPrice | round(2) }} 猫粮/个</td><td>系统猫粮总量 ÷ 池内罐头</td></tr>
             <tr><td>储备支撑价</td><td>{{ market.backingPrice | round(2) }} 猫粮/个</td><td>储备粮 ÷ 流通罐头；流通为 0 时取 AMM 价格</td></tr>
