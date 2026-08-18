@@ -409,7 +409,8 @@ function mountMap() {
         for (let index = 0; index < cellColors.length; index++) {
             const color = cellColors[index] < 0
                 ? 0xFFFFFF
-                : bigCats?.colorValueFor(cellCatIds[index] > 0 ? cellCatIds[index] : 0) ?? 0xB8BCC2;
+                // 已涂色格子的 catId 必为真实归属（0 = 无大猫，负数 = 特殊大猫）。
+                : bigCats?.colorValueFor(cellCatIds[index]) ?? 0xB8BCC2;
             const offset = index * 4;
             data[offset] = color >> 16;
             data[offset + 1] = (color >> 8) & 0xFF;
@@ -426,7 +427,8 @@ function mountMap() {
     const setCell = (x: number, y: number, color: number, catId = 0) => {
         const index = y * MAP_WIDTH + x;
         cellColors[index] = color;
-        cellCatIds[index] = Math.max(0, Number(catId) || 0);
+        const key = Number(catId);
+        cellCatIds[index] = Number.isSafeInteger(key) ? key : 0;
         overviewContext.fillStyle = paletteColor(color);
         overviewContext.fillRect(x, y, 1, 1);
         territoryContext.fillStyle = bigCats?.colorFor(cellCatIds[index]) || '#b8bcc2';
@@ -825,8 +827,13 @@ function mountMap() {
         if (!me || Math.abs(me.x - x) + Math.abs(me.y - y) <= 1) return false;
         const ownCatId = bigCats?.boundCatId() || 0;
         if (!ownCatId) return false;
-        return cellCatIds[me.y * MAP_WIDTH + me.x] === ownCatId
-            && cellCatIds[y * MAP_WIDTH + x] === ownCatId;
+        const fromIndex = me.y * MAP_WIDTH + me.x;
+        const toIndex = y * MAP_WIDTH + x;
+        // 未涂色格子的 cellCatIds 是 -1 哨兵，可能和特殊大猫 -1 的 key 撞车，
+        // 必须确认两格都已涂色再比较归属。
+        return cellColors[fromIndex] >= 0 && cellColors[toIndex] >= 0
+            && cellCatIds[fromIndex] === ownCatId
+            && cellCatIds[toIndex] === ownCatId;
     };
 
     const openActionDialog = (x: number, y: number) => {
@@ -1189,7 +1196,8 @@ function mountMap() {
             if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return;
             const index = y * MAP_WIDTH + x;
             cellColors[index] = color;
-            cellCatIds[index] = Math.max(0, Number(catId) || 0);
+            const key = Number(catId);
+        cellCatIds[index] = Number.isSafeInteger(key) ? key : 0;
         });
         rebuildOverviewLayer();
         rebuildTerritoryLayer();
