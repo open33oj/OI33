@@ -37,6 +37,7 @@
           </div>
           <div class="oi33-map-toggles" role="group" aria-label="地图显示选项">
             <button type="button" data-map-layer="grid" aria-pressed="false">格线</button>
+            <button type="button" data-map-layer="empireBorder" class="is-active" aria-pressed="true">帝国边界</button>
             <button type="button" data-map-layer="bigcats" aria-pressed="false">大猫视角</button>
             <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫</button>
             <button type="button" data-map-layer="names" class="is-active" aria-pressed="true">名字</button>
@@ -59,7 +60,7 @@
                data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
             <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
             <div class="oi33-map-loading">正在生成猫咪世界…</div>
-            <div class="oi33-map-hint">大猫视角按领地归属重新着色 · 猫粮移动同时计入当前大猫贡献 · 同一大猫领地内可花 3g 任意传送 · 全屏后可用方向键浏览</div>
+            <div class="oi33-map-hint">加粗格线内为 00区、外环为帝国区 · 00区内上下左右同属一只大猫的核心格禁止其他小猫进入 · 大猫视角按领地归属重新着色 · 猫粮移动同时计入当前大猫贡献 · 同一大猫领地内可花 3g 任意传送 · 全屏后可用方向键浏览</div>
           </div>
           <aside class="oi33-bigcat-side">
             <h2>大猫领地榜（格子 / 体重）</h2>

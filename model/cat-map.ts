@@ -13,6 +13,16 @@ export const CAT_MAP_MOVE_FOOD_COST = 3;
 export const CAT_MAP_TELEPORT_CAN_COST = 3;
 export const CAT_MAP_MIN_COOLDOWN_MINUTES = 50;
 export const CAT_MAP_BASE_COOLDOWN_MINUTES = 120;
+// 地图分两个区域：帝国区是距离边框 250 格内的环形区域（前/后 250 行、左/右 250 列），
+// 其余中央 500×500 为 00区。00区内上下左右均归属同一大猫的格子是「领地核心」，
+// 禁止其他大猫的小猫进入。
+export const CAT_MAP_CORE_MIN = 250;
+export const CAT_MAP_CORE_MAX = 749;
+
+export function isCatMapCoreZone(x: number, y: number) {
+    return x >= CAT_MAP_CORE_MIN && x <= CAT_MAP_CORE_MAX
+        && y >= CAT_MAP_CORE_MIN && y <= CAT_MAP_CORE_MAX;
+}
 
 export const catMapPlayerColl = db.collection('oi33_cat_map_player');
 export const catMapCellColl = db.collection('oi33_cat_map_cell');
@@ -83,6 +93,10 @@ export async function joinCatMapPlayer(uid: number, x: number, y: number, now = 
     const user: any = await getEligibleUser(uid);
     if (!user) throw new Error('只有已认证用户可以加入猫猫广场。');
     if (await catMapPlayerColl.findOne({ _id: uid })) throw new Error('你的小猫已经加入猫猫广场了。');
+    const fortressCatId = await fortressCatIdAt(x, y);
+    if (fortressCatId && fortressCatId !== boundCatIdOf(user)) {
+        throw new Error('目标格子位于 00区大猫领地核心，上下左右均归属同一大猫，只有绑定该大猫的小猫才能进入。');
+    }
     const doc = { _id: uid, x, y, joinedAt: now, createdAt: now, updatedAt: now };
     try {
         await catMapPlayerColl.insertOne(doc as any);
@@ -142,6 +156,105 @@ function normalizedCatId(value: unknown) {
     // Both positive school keys and negative special-cat keys are valid
     // ownership ids; only 0 means "no big cat".
     return Number.isSafeInteger(value) && Number(value) !== 0 ? Number(value) : 0;
+}
+
+// 00区「领地核心」判定：格子本身已涂色归属某大猫，且上下左右四格全部归属同一大猫。
+// 返回核心格所属的大猫 catId，不是核心格时返回 0。
+async function fortressCatIdAt(x: number, y: number) {
+    if (!isCatMapCoreZone(x, y)) return 0;
+    const ids = [cellId(x, y), cellId(x - 1, y), cellId(x + 1, y), cellId(x, y - 1), cellId(x, y + 1)];
+    const rows: any[] = await catMapCellColl.find(
+        { _id: { $in: ids } } as any,
+        { projection: { catId: 1 } },
+    ).toArray();
+    if (rows.length < ids.length) return 0;
+    const cats = new Map(rows.map((row) => [row._id, normalizedCatId(row.catId)]));
+    const center = cats.get(ids[0]) || 0;
+    if (!center) return 0;
+    return ids.every((id) => cats.get(id) === center) ? center : 0;
+}
+
+function boundCatIdOf(user: any) {
+    return Number.isSafeInteger(user?.school_cat) ? schoolCatKey(user.school_cat) : 0;
+}
+
+async function randomEmpirePosition(avoidX: number, avoidY: number) {
+    for (let attempt = 0; attempt < 64; attempt++) {
+        const x = randomInt(CAT_MAP_WIDTH);
+        const y = randomInt(CAT_MAP_HEIGHT);
+        if (isCatMapCoreZone(x, y)) continue;
+        if (x === avoidX && y === avoidY) continue;
+        return { x, y };
+    }
+    return { x: 0, y: 0 };
+}
+
+// 染色后扫描受影响的 5 格（自身 + 四邻），把滞留在新形成的领地核心格上的
+// 其他大猫的小猫驱逐出去：绑定了大猫的传送到自己大猫领地的随机格子，
+// 未绑定的传送到帝国区随机位置。
+async function displaceFortressIntruders(x: number, y: number, now = new Date()) {
+    const candidates = [
+        [x, y], [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1],
+    ].filter(([cx, cy]) => validCoordinate(cx, cy) && isCatMapCoreZone(cx, cy));
+    const displaced: any[] = [];
+    for (const [cx, cy] of candidates) {
+        const fortressCatId = await fortressCatIdAt(cx, cy);
+        if (!fortressCatId) continue;
+        const intruders: any[] = await catMapPlayerColl.find({
+            x: cx,
+            y: cy,
+            movementLock: { $exists: false },
+        } as any).toArray();
+        for (const intruder of intruders) {
+            const occupant: any = await userColl.findOne(
+                { _id: intruder._id },
+                { projection: { school_cat: 1 } },
+            );
+            const ownCatId = boundCatIdOf(occupant);
+            if (ownCatId === fortressCatId) continue;
+            let destination: { x: number; y: number } | null = null;
+            if (ownCatId) {
+                const samples: any[] = await catMapCellColl.aggregate([
+                    { $match: { catId: ownCatId } },
+                    { $sample: { size: 1 } },
+                ]).toArray();
+                if (samples.length) destination = { x: samples[0].x, y: samples[0].y };
+            }
+            if (!destination) destination = await randomEmpirePosition(cx, cy);
+            const moved = await catMapPlayerColl.updateOne(
+                { _id: intruder._id, x: cx, y: cy } as any,
+                { $set: { x: destination.x, y: destination.y, movedAt: now, updatedAt: now } },
+            );
+            if (!moved.modifiedCount) continue;
+            displaced.push({
+                uid: intruder._id,
+                fromX: cx,
+                fromY: cy,
+                x: destination.x,
+                y: destination.y,
+                availableAt: intruder.availableAt || null,
+                freeColorAvailable: !!intruder.freeColorAvailable,
+            });
+            try {
+                await logColl.insertOne({
+                    _id: new ObjectId(),
+                    createdAt: now,
+                    type: 'cat_map',
+                    userId: intruder._id,
+                    sender: intruder._id,
+                    action: 'fortress_displace',
+                    fromX: cx,
+                    fromY: cy,
+                    x: destination.x,
+                    y: destination.y,
+                    catId: fortressCatId,
+                } as any);
+            } catch (e) {
+                console.error('[oi33] failed to log fortress displacement:', e);
+            }
+        }
+    }
+    return displaced;
 }
 
 async function applyTerritoryDeltas(deltas: Map<number, number>, now = new Date()) {
@@ -275,9 +388,13 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     }
 
     const distance = Math.abs(player.x - targetX) + Math.abs(player.y - targetY);
+    const ownCatId = boundCatIdOf(user);
+    const fortressCatId = await fortressCatIdAt(targetX, targetY);
+    if (fortressCatId && fortressCatId !== ownCatId) {
+        throw new Error('目标格子位于 00区大猫领地核心，上下左右均归属同一大猫，只有绑定该大猫的小猫才能进入。');
+    }
     let territoryTeleport = false;
-    if (distance !== 1 && Number.isSafeInteger(user.school_cat)) {
-        const ownCatId = schoolCatKey(user.school_cat);
+    if (distance !== 1 && ownCatId) {
         const endpointIds = [cellId(player.x, player.y), cellId(targetX, targetY)];
         const endpointRows: any[] = await catMapCellColl.find(
             { _id: { $in: endpointIds } } as any,
@@ -524,6 +641,7 @@ export async function setCatMapCellColor(
         await catMapPlayerColl.updateOne({ _id: operator, movementLock: lock } as any, rollback);
         throw e;
     }
+    const displaced = catId ? await displaceFortressIntruders(x, y, now) : [];
     return {
         _id: id,
         x,
@@ -532,6 +650,7 @@ export async function setCatMapCellColor(
         catId,
         previousCatId,
         territoryChanged: previousCatId !== catId,
+        displaced,
         updatedBy: operator,
         updatedAt: now,
         cooldownMinutes: minutes,

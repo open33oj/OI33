@@ -179,6 +179,9 @@ class CatMapColorHandler extends Handler {
             const result = await oi33Model.setCatMapCellColor(this.user._id, x, y, color);
             const payload = { type: 'cell', cell: [result.x, result.y, result.color, result.catId] };
             (this.ctx as any).broadcast('oi33/cat-map-change', payload);
+            for (const moved of result.displaced || []) {
+                (this.ctx as any).broadcast('oi33/cat-map-change', { type: 'player', player: moved });
+            }
             if (result.territoryChanged) {
                 (this.ctx as any).broadcast('oi33/cat-map-change', {
                     type: 'bigcat',

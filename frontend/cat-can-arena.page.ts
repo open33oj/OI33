@@ -7,6 +7,9 @@ import { mountBigCatLayer } from './cat-big-arena.page';
 
 const MAP_WIDTH = 1000;
 const MAP_HEIGHT = 1000;
+// 帝国区为距边框 250 格的环形区域，中央 500×500 为 00区（与服务端 model/cat-map.ts 同步）。
+const CORE_ZONE_MIN = 250;
+const CORE_ZONE_MAX = MAP_WIDTH - CORE_ZONE_MIN - 1;
 const LEGACY_MAP_WIDTH = 640;
 const LEGACY_MAP_HEIGHT = 480;
 const DEFAULT_GRID_SCALE = 52;
@@ -311,6 +314,7 @@ function mountMap() {
     let showCats = true;
     let showBigCats = false;
     let showNames = true;
+    let showEmpireBorder = true;
     let viewScale = DEFAULT_GRID_SCALE;
     let viewCenterX = MAP_WIDTH / 2;
     let viewCenterY = MAP_HEIGHT / 2;
@@ -621,6 +625,31 @@ function mountMap() {
             }
             context.stroke();
         }
+        // 帝国区与 00区的分界：只画 00区外框的「口」字，由「帝国边界」开关控制。
+        if (showEmpireBorder) {
+            context.strokeStyle = 'rgba(122,74,10,.9)';
+            context.lineWidth = Math.min(6, Math.max(2, viewScale * .12));
+            const edgeStart = CORE_ZONE_MIN * viewScale;
+            const edgeEnd = (MAP_WIDTH - CORE_ZONE_MIN) * viewScale;
+            const clipX0 = Math.max(0, origin.x);
+            const clipX1 = Math.min(width, origin.x + mapWidth);
+            const clipY0 = Math.max(0, origin.y);
+            const clipY1 = Math.min(height, origin.y + mapHeight);
+            context.beginPath();
+            for (const boundary of [CORE_ZONE_MIN, MAP_WIDTH - CORE_ZONE_MIN]) {
+                const bx = snap(origin.x + boundary * viewScale);
+                if (bx >= clipX0 && bx <= clipX1) {
+                    context.moveTo(bx, Math.max(clipY0, origin.y + edgeStart));
+                    context.lineTo(bx, Math.min(clipY1, origin.y + edgeEnd));
+                }
+                const by = snap(origin.y + boundary * viewScale);
+                if (by >= clipY0 && by <= clipY1) {
+                    context.moveTo(Math.max(clipX0, origin.x + edgeStart), by);
+                    context.lineTo(Math.min(clipX1, origin.x + edgeEnd), by);
+                }
+            }
+            context.stroke();
+        }
         context.strokeStyle = showGrid ? 'rgba(0,0,0,.72)' : 'rgba(255,255,255,.12)';
         context.strokeRect(origin.x + .5, origin.y + .5, mapWidth - 1, mapHeight - 1);
         // 底图可在原始 8-bit 颜色与大猫领地颜色之间切换，小猫层保持独立。
@@ -836,6 +865,26 @@ function mountMap() {
             && cellCatIds[toIndex] === ownCatId;
     };
 
+    const isCoreZone = (x: number, y: number) => x >= CORE_ZONE_MIN && x <= CORE_ZONE_MAX
+        && y >= CORE_ZONE_MIN && y <= CORE_ZONE_MAX;
+
+    // 与服务端 fortressCatIdAt 一致的前端预判：00区内上下左右均归属同一大猫的核心格。
+    const fortressCatIdAt = (x: number, y: number) => {
+        if (!isCoreZone(x, y)) return 0;
+        const indices = [
+            y * MAP_WIDTH + x,
+            y * MAP_WIDTH + x - 1,
+            y * MAP_WIDTH + x + 1,
+            (y - 1) * MAP_WIDTH + x,
+            (y + 1) * MAP_WIDTH + x,
+        ];
+        // 未涂色格子是 -1 哨兵，可能和特殊大猫 -1 撞车，必须确认五格都已涂色。
+        if (indices.some((index) => cellColors[index] < 0)) return 0;
+        const center = cellCatIds[indices[0]];
+        if (!center) return 0;
+        return indices.every((index) => cellCatIds[index] === center) ? center : 0;
+    };
+
     const openActionDialog = (x: number, y: number) => {
         if (!actionDialog) return;
         const joining = !state.me && state.canJoin;
@@ -849,27 +898,32 @@ function mountMap() {
         const distance = me ? Math.abs(me.x - x) + Math.abs(me.y - y) : 0;
         const adjacent = distance === 1;
         const territoryTeleport = isOwnTerritoryTeleport(me, x, y);
+        const fortressCatId = fortressCatIdAt(x, y);
+        const fortressBlocked = !!fortressCatId && fortressCatId !== (bigCats?.boundCatId() || 0);
         const contributes = !!(bigCats?.boundCatId());
         const title = actionDialog.querySelector<HTMLElement>('[data-action-title]');
         const message = actionDialog.querySelector<HTMLElement>('[data-action-message]');
         const confirm = actionDialog.querySelector<HTMLButtonElement>('[data-action-confirm]');
         const cooling = !!me && me.availableAt > now();
         const lacksResource = !!me && (adjacent || territoryTeleport ? me.food < 3 : me.cans < 3);
-        if (title) title.textContent = joining
-            ? '加入猫猫广场'
-            : adjacent
-                ? '移动到相邻格'
-                : territoryTeleport
-                    ? '大猫领地内传送'
-                    : '传送到目标格';
+        if (title) title.textContent = fortressBlocked
+            ? '大猫领地核心'
+            : joining
+                ? '加入猫猫广场'
+                : adjacent
+                    ? '移动到相邻格'
+                    : territoryTeleport
+                        ? '大猫领地内传送'
+                        : '传送到目标格';
         if (message) {
-            if (joining) message.textContent = `是否免费选择（行 ${y}, 列 ${x}）作为小猫的初始位置？首次加入不消耗资源，也不触发冷却。`;
+            if (fortressBlocked) message.textContent = `目标（行 ${y}, 列 ${x}）位于 00区大猫领地核心，上下左右均归属同一大猫，只有绑定该大猫的小猫才能进入。`;
+            else if (joining) message.textContent = `是否免费选择（行 ${y}, 列 ${x}）作为小猫的初始位置？首次加入不消耗资源，也不触发冷却。`;
             else if (cooling) message.textContent = `目标（行 ${y}, 列 ${x}）。所有操作共享冷却，可用时间：${new Date(me!.availableAt).toLocaleString('zh-CN')}。`;
             else if (adjacent) message.textContent = `是否使用 3g 猫粮移动到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。${contributes ? '这 3g 会同时计入当前大猫贡献。' : '当前未绑定大猫，本次不计入大猫贡献。'}`;
             else if (territoryTeleport) message.textContent = `起点和目标都在你当前大猫的领地内，是否使用 3g 猫粮传送到（行 ${y}, 列 ${x}）？当前余额 ${me!.food}g。这 3g 会同时计入当前大猫贡献。`;
             else message.textContent = `是否使用 3 个猫罐头传送到（行 ${y}, 列 ${x}）？当前持有 ${me!.cans} 个猫罐头。`;
         }
-        if (confirm) confirm.disabled = cooling || lacksResource;
+        if (confirm) confirm.disabled = fortressBlocked || cooling || lacksResource;
         actionDialog.showModal();
     };
 
@@ -884,12 +938,16 @@ function mountMap() {
         const color = cellDialog.querySelector<HTMLButtonElement>('[data-cell-color]');
         if (title) title.textContent = `格子（行 ${y}，列 ${x}）`;
         const index = y * MAP_WIDTH + x;
+        const zone = isCoreZone(x, y) ? '00区' : '帝国区';
         const occupation = cellColors[index] >= 0
             ? `大猫归属：${bigCats?.labelFor(cellCatIds[index]) || '正在读取'}。`
             : '该格尚未涂色，没有大猫归属。';
+        const fortress = fortressCatIdAt(x, y)
+            ? '该格处于大猫领地核心，非归属大猫的小猫禁止进入。'
+            : '';
         if (summary) summary.textContent = (occupants.length
             ? `这里有 ${occupants.length} 只小猫；地图显示猫罐头最多的 ${occupants[0].uname}。`
-            : '这里暂时没有小猫。') + occupation;
+            : '这里暂时没有小猫。') + `所在区域：${zone}。` + occupation + fortress;
         if (list) {
             list.replaceChildren();
             occupants.forEach((player, index) => {
@@ -911,15 +969,19 @@ function mountMap() {
             const distance = me ? Math.abs(me.x - x) + Math.abs(me.y - y) : 0;
             const adjacent = distance === 1;
             const territoryTeleport = isOwnTerritoryTeleport(me, x, y);
+            const fortressBlocked = !!fortressCatIdAt(x, y)
+                && fortressCatIdAt(x, y) !== (bigCats?.boundCatId() || 0);
             action.hidden = !canAct || sameCell;
-            action.textContent = joining
-                ? '免费加入这里'
-                : adjacent
-                    ? '移动到这里（3g）'
-                    : territoryTeleport
-                        ? '领地传送到这里（3g）'
-                        : '传送到这里（3 个罐头）';
-            action.disabled = false;
+            action.textContent = fortressBlocked
+                ? '禁止进入（大猫领地核心）'
+                : joining
+                    ? '免费加入这里'
+                    : adjacent
+                        ? '移动到这里（3g）'
+                        : territoryTeleport
+                            ? '领地传送到这里（3g）'
+                            : '传送到这里（3 个罐头）';
+            action.disabled = fortressBlocked;
         }
         cellDialog.showModal();
     };
@@ -1060,10 +1122,12 @@ function mountMap() {
         if (layer === 'cats') showCats = !showCats;
         if (layer === 'bigcats') showBigCats = !showBigCats;
         if (layer === 'names') showNames = !showNames;
+        if (layer === 'empireBorder') showEmpireBorder = !showEmpireBorder;
         const active = layer === 'grid' ? showGrid
             : layer === 'cats' ? showCats
                 : layer === 'bigcats' ? showBigCats
-                    : showNames;
+                    : layer === 'empireBorder' ? showEmpireBorder
+                        : showNames;
         button.classList.toggle('is-active', active);
         button.setAttribute('aria-pressed', String(active));
         invalidate();
