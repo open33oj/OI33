@@ -674,3 +674,13 @@ Mutual: '互相关注'
 'Delete this meow?': '确定要删除这条喵喵信息吗？'
 'Prev': '上一页'
 'Next': '下一页'
+
+# --- Contest Rules ---
+'Contest Rule': '赛制规则'
+'One Chance': 'OC 赛制'
+'Ranked by the number of solved problems, then by total penalty time (20 minutes for each failed attempt). Resubmitting after acceptance has no effect. The scoreboard is visible in real time, and records are revealed after the contest.': '按通过题数排名，题数相同时比较总罚时（每次未通过提交罚 20 分钟）；通过后重复提交不影响成绩；成绩榜实时可见，评测记录赛后公开。'
+'Results are hidden during the contest. Each problem is scored by your last in-contest submission. After the contest you can keep practicing, and the scoreboard then shows both scores as "contest score / practice score".': '比赛期间不公布成绩；每道题以比赛期间最后一次提交的分数计分。赛后可继续补题，成绩表中以「赛时分 / 补题分」的形式同时显示。'
+'Each problem takes the highest score across all your in-contest submissions, ranked by total score. Judge results and the scoreboard are visible in real time.': '每道题取比赛期间所有提交的最高分，按总分排名；评测结果与成绩榜实时可见。'
+'Each problem is scored by summing the highest score of every subtask across all your in-contest submissions. The scoreboard and records are revealed only after the contest.': '每道题按各子任务（Subtask）在所有提交中的最高分合并计分，按总分排名；成绩榜与评测记录赛后才公开。'
+'Each problem takes the submission with the highest decayed score: the n-th valid submission is weighted by max(70%, 0.95^(n-1)).': '每道题取衰减后得分最高的一次提交计分：第 n 次有效提交的得分按 max(70%, 0.95^(n-1)) 衰减。'
+'Each problem is scored only by your FIRST in-contest submission, and the rank is determined by the total of these first-submission scores. The parenthesis after each score shows the highest score across all your in-contest submissions for that problem, and the parenthesis after the total shows the sum of these highest scores. Post-contest practice scores are not shown. All other options are identical to IOI: judge results and the scoreboard are visible in real time.': '每道题仅以比赛期间第一次提交的分数计分并据此排名；成绩表中每个分数后的小括号内为该题比赛期间所有提交的最高分，总分后的小括号内为各题最高分之和；不显示赛后补题分数。其余配置与 IOI 赛制一致：评测结果与成绩榜实时可见。'

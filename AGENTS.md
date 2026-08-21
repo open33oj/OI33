@@ -5,7 +5,7 @@
 ## 目录
 
 - `model/` 数据层：`user.ts`（oi33_user 主档：签到/猫粮/实名/徽章）、`cat-*.ts`、`school-cat.ts`、`achievement/auction/contract.ts`、`ai.ts`（AI 配置/用量/批量状态 `oi33_ai_batch`）、`moderate.ts`（审核队列 + `normalizeText`/`hashOf`/`bioHashOf`）、`log.ts`（审计日志，每次写操作都记）。
-- `handler/` 路由与逻辑（`ctx.Route` 注册，路由表看代码）：`user/content/admin/profile/wiki/oauth/cat-*/school-cat/ai/moderate/meow/achievement/auction/contract/bio.ts`；`patches.ts` 所有 monkey-patch；`utils.ts` 的 `checkUserFlag`/`checkOi33Admin`。
+- `handler/` 路由与逻辑（`ctx.Route` 注册，路由表看代码）：`user/content/admin/profile/wiki/oauth/cat-*/school-cat/ai/moderate/meow/achievement/auction/contract/bio.ts`；`contest.ts` 注册 OC（One Chance）赛制（`ContestModel.RULES.oc`，基于 core `ioi` 规则 `buildContestRule`，按每题第一次提交计分、括号显示赛时最高分，编辑页选项靠 `templates/contest_edit.html` 里的 `contest-rule--oc` class 与 IOI 对齐，`templates/contest_detail.html` 追加赛制规则卡片，文案在 `locales/zh.yaml`「Contest Rules」节）；`patches.ts` 所有 monkey-patch；`utils.ts` 的 `checkUserFlag`/`checkOi33Admin`。
 - `templates/` Nunjucks，同名覆盖 core（`user_detail.html`、`components/user.html`、`layout/html5.html` 等）；`frontend/` 客户端 page 脚本；`locales/zh.yaml` i18n。
 
 ## 关键规则（容易踩坑）

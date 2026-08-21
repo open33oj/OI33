@@ -1,0 +1,75 @@
+{% extends "layout/basic.html" %}
+{% import "components/contest.html" as contest with context %}
+{% import "components/record.html" as record with context %}
+{% import "components/problem.html" as problem with context %}
+{% block content %}
+{{ set(UiContext, 'tdoc', tdoc) }}
+{{ set(UiContext, 'tsdoc', tsdoc) }}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header" style="align: center">
+        <h1 class="section__title">{{ tdoc.title }}</h1>
+      </div>
+      <div class="section__body">
+        <span class="problem__tag-item">{{ _(model.contest.statusText(tdoc, tsdoc)) }}</span>
+        <span class="problem__tag-item icon icon-award">{{ _(model.contest.RULES[tdoc.rule].TEXT) }}</span>
+        <span class="problem__tag-item">{{ _('Start at') }}: {{ contest.render_time(tsdoc.startAt or tdoc.beginAt) }}</span>
+        <span class="problem__tag-item icon icon-schedule">{{ contest.render_duration(tdoc) }} {{ _('hour(s)') }}</span>
+        <span class="problem__tag-item">{{ _('Host') }}: {{ user.render_inline(udict[tdoc.owner], badge=false) }}</span>
+        <span class="problem__tag-item icon icon-user--multiple">{{ tdoc['attend']|default(0) }}</span>
+        {% if tsdoc.attend %}
+          <span class="problem__tag-item icon icon-check">{{ _('Attended') }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="section">
+      <div class="section__body typo richmedia">
+        {{ tdoc['content']|markdown|safe }}
+      {% if model.contest.isOngoing(tdoc, tsdoc) %}
+        <blockquote class="warn">
+          <p>{{ _('We will check code similarity after this contest.') }}</p>
+        </blockquote>
+      {% endif %}
+      {% if tdoc.duration %}
+        <blockquote class="note">
+          <p>{{ _('The contest is a flexible time contest. You need to complete the contest within a specified time after you attended.') }}</p>
+        </blockquote>
+      {% endif %}
+      </div>
+    </div>
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('Contest Rule') }}</h1>
+      </div>
+      <div class="section__body typo">
+        <p><span class="problem__tag-item icon icon-award">{{ _(model.contest.RULES[tdoc.rule].TEXT) }}</span></p>
+        {% set oi33_rule_descs = {
+          'acm': _('Ranked by the number of solved problems, then by total penalty time (20 minutes for each failed attempt). Resubmitting after acceptance has no effect. The scoreboard is visible in real time, and records are revealed after the contest.'),
+          'oi': _('Results are hidden during the contest. Each problem is scored by your last in-contest submission. After the contest you can keep practicing, and the scoreboard then shows both scores as "contest score / practice score".'),
+          'ioi': _('Each problem takes the highest score across all your in-contest submissions, ranked by total score. Judge results and the scoreboard are visible in real time.'),
+          'strictioi': _('Each problem is scored by summing the highest score of every subtask across all your in-contest submissions. The scoreboard and records are revealed only after the contest.'),
+          'ledo': _('Each problem takes the submission with the highest decayed score: the n-th valid submission is weighted by max(70%, 0.95^(n-1)).'),
+          'oc': _('Each problem is scored only by your FIRST in-contest submission, and the rank is determined by the total of these first-submission scores. The parenthesis after each score shows the highest score across all your in-contest submissions for that problem, and the parenthesis after the total shows the sum of these highest scores. Post-contest practice scores are not shown. All other options are identical to IOI: judge results and the scoreboard are visible in real time.')
+        } %}
+        {% if oi33_rule_descs[tdoc.rule] %}
+          <p>{{ oi33_rule_descs[tdoc.rule] }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% if files.length %}
+      <div class="section">
+        <div class="section__header">
+          <h1 class="section__title">{{ _('Files') }}</h1>
+        </div>
+        {% set filetype = 'private' %}
+        {% include "partials/files.html" %}
+      </div>
+    {% endif %}
+  </div>
+  <div class="medium-3 columns">
+  {% set owner_udoc = udict[tdoc.owner] %}
+  {% include "partials/contest_sidebar.html" %}
+  </div>
+</div>
+{% endblock %}
