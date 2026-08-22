@@ -1,0 +1,10 @@
+/* OC (One Chance) contest rule tag. Hydro's theme only colors the built-in
+   rules via $contest-color, so contest-type--oc items render a white-on-white
+   tag (invisible "logo") in contest lists. Give it its own color here. */
+.contest-type--oc .contest-type-tag {
+  background: #9b59b6;
+}
+
+.contest-type--oc .contest-type-tag:hover {
+  background: #b07cc6;
+}
