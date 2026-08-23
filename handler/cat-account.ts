@@ -1,5 +1,5 @@
 import {
-    Context, ForbiddenError, Handler, NotFoundError, PRIV, Types, UserModel, param, query,
+    Context, ContestModel, ForbiddenError, Handler, NotFoundError, ObjectId, PRIV, Types, UserModel, param, query,
 } from 'hydrooj';
 import { oi33Model } from '../model';
 import { checkOi33Admin, checkUserFlag } from './utils';
@@ -122,6 +122,82 @@ class CatCanGrantHandler extends Handler {
     }
 }
 
+const CONTEST_URL_RE = /(?:\/d\/([\w-]+))?\/(?:contest|homework)\/([0-9a-fA-F]{24})(?:[/?#]|$)/;
+
+// Accepts a contest/homework page URL (with or without /d/<domain> prefix) or a bare tid.
+function parseContestInput(input: string): { domainId?: string, tid: string } {
+    const text = input.trim();
+    const bare = /^([0-9a-fA-F]{24})$/.exec(text);
+    if (bare) return { tid: bare[1] };
+    const matched = CONTEST_URL_RE.exec(text);
+    if (matched) return { domainId: matched[1], tid: matched[2] };
+    throw new ForbiddenError('无法识别的比赛链接，请粘贴比赛页面 URL 或比赛 ID。');
+}
+
+// Contest reward settlement: read a contest's scoreboard and generate the JSON
+// for the bulk cat-food grant page. This page never touches any balance.
+class CatFoodContestRewardHandler extends Handler {
+    async get() {
+        const role = await checkOi33Admin(this.user._id);
+        this.response.template = 'oi33_cat_food_contest_reward.html';
+        this.response.body = { canBatchGrant: role >= 3 };
+    }
+
+    @param('contestUrl', Types.String)
+    @param('multiplier', Types.Float)
+    @param('reason', Types.String, true)
+    async post(domainId: string, contestUrl: string, multiplier: number, reason = '') {
+        const role = await checkOi33Admin(this.user._id);
+        if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 1_000_000) {
+            throw new ForbiddenError('分数倍率必须是 0～1000000 之间的正数。');
+        }
+        const reasonInput = reason.trim();
+        if (reasonInput.length > 100) throw new ForbiddenError('发放原因不能超过 100 字。');
+        const parsed = parseContestInput(contestUrl);
+        const tdoc = await ContestModel.get(parsed.domainId || domainId, new ObjectId(parsed.tid));
+        const tsdocs = await ContestModel.getMultiStatus(
+            parsed.domainId || domainId, { docId: tdoc.docId, attend: 1 },
+        ).toArray();
+        const grantReason = reasonInput || `《${tdoc.title}》比赛奖励`.slice(0, 100);
+        const rows: any[] = tsdocs
+            .filter((tsdoc: any) => (tsdoc.score || 0) > 0)
+            .map((tsdoc: any) => ({
+                uid: tsdoc.uid,
+                score: tsdoc.score || 0,
+                amount: Math.round((tsdoc.score || 0) * multiplier),
+            }))
+            .filter((row) => row.amount >= 1)
+            .sort((a, b) => b.score - a.score || a.uid - b.uid);
+        if (!rows.length) throw new ForbiddenError('该比赛没有可结算的正分参赛记录。');
+        if (rows.length > MAX_BATCH_ITEMS) {
+            throw new ForbiddenError(`正分参赛者超过批量发放上限 ${MAX_BATCH_ITEMS} 人，请先缩小范围。`);
+        }
+        if (rows.some((row) => row.amount > MAX_GRANT_AMOUNT)) {
+            throw new ForbiddenError('结算金额超出单次发放上限，请降低分数倍率。');
+        }
+        const udict = await UserModel.getList(domainId, rows.map((row) => row.uid));
+        for (const row of rows) {
+            row.displayName = (udict[row.uid] as any)?.oi33_original_uname
+                || udict[row.uid]?.uname || `UID ${row.uid}`;
+        }
+        const jsonText = JSON.stringify(
+            rows.map((row) => ({ uid: row.uid, amount: row.amount, reason: grantReason })), null, 2,
+        );
+        this.response.template = 'oi33_cat_food_contest_reward.html';
+        this.response.body = {
+            canBatchGrant: role >= 3,
+            tdoc,
+            rows,
+            jsonText,
+            grantReason,
+            contestUrl,
+            multiplier,
+            reasonInput,
+            total: rows.reduce((sum, row) => sum + row.amount, 0),
+        };
+    }
+}
+
 class CatFoodBulkGrantHandler extends Handler {
     async get() {
         const role = await checkOi33Admin(this.user._id);
@@ -210,6 +286,7 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_cat_can_reverse', '/oi33/cat-account/transaction/:id/reverse', CatCanReverseHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_account', '/oi33/cat-account/:uid', CatAccountHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_food_grant', '/oi33/cat-food/grant', CatFoodGrantHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_cat_food_contest_reward', '/oi33/cat-food/grant/contest-reward', CatFoodContestRewardHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_can_grant', '/oi33/cat-can/grant', CatCanGrantHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_food_bulk', '/oi33/cat-food/grant/bulk', CatFoodBulkGrantHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_food_bulk_confirm', '/oi33/cat-food/grant/bulk/confirm', CatFoodBulkConfirmHandler, PRIV.PRIV_USER_PROFILE);

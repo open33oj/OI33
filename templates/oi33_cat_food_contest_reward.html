@@ -1,0 +1,49 @@
+{% set page_name = "oi33_cat_food_grant" %}
+{% import "components/cat_food.html" as catFood with context %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row oi33-account-page">
+  <div class="medium-10 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">比赛奖励结算</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_cat_food_grant') }}" class="rounded button">单人发放</a>
+          {% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放</a>{% endif %}
+          <a href="{{ url('oi33_admin') }}" class="rounded button">返回管理页</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p>填写比赛链接与分数倍率，按「比赛得分 × 倍率」四舍五入到 g 生成批量发放猫粮所需的 JSON。本页面只生成文本，不会修改任何余额；生成后请复制 JSON 到批量发放页预览并确认。</p>
+        <form method="post" action="{{ url('oi33_cat_food_contest_reward') }}">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          {{ form.form_text({ label: '比赛链接或比赛 ID', name: 'contestUrl', value: contestUrl, autofocus: true, required: true, placeholder: 'https://…/contest/0123456789abcdef01234567' }) }}
+          {{ form.form_text({ label: '分数倍率（每 1 分兑换的猫粮 g 数）', name: 'multiplier', type: 'float', value: multiplier, required: true, placeholder: '例如 10' }) }}
+          {{ form.form_text({ label: '发放原因（可选，默认为「《比赛名》比赛奖励」）', name: 'reason', value: reasonInput }) }}
+          <div class="row"><div class="columns"><button type="submit" class="rounded primary button">生成 JSON</button></div></div>
+        </form>
+      </div>
+    </div>
+
+    {% if rows %}
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">结算结果：{{ tdoc.title }}</h2></div>
+      <div class="section__body">
+        <p>共 <strong>{{ rows.length }}</strong> 位正分参赛者，合计 <strong>{{ catFood.amount(total) }}</strong>；发放原因：{{ grantReason }}。复制下方 JSON 到{% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}">批量发放页</a>{% else %}批量发放页{% endif %}预览确认；未认证用户会在发放时自动跳过。</p>
+        <textarea class="textbox" rows="10" style="font-family:monospace;" readonly onclick="this.select()">{{ jsonText }}</textarea>
+      </div>
+      <div class="section__body no-padding">
+        <table class="data-table">
+          <thead><tr><th>#</th><th>UID</th><th>用户名</th><th>比赛得分</th><th>猫粮数量</th></tr></thead>
+          <tbody>
+          {% for row in rows %}
+          <tr><td>{{ loop.index }}</td><td>{{ row.uid }}</td><td>{{ row.displayName }}</td><td>{{ row.score }}</td><td>{{ catFood.amount(row.amount, true) }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
