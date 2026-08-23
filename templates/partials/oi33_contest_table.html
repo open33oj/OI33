@@ -1,0 +1,39 @@
+{% import "components/contest.html" as contest with context %}
+{# OI33 shared compact contest table row-group, used by contest_main.html and
+   partials/homepage/contest.html. Each contest takes two rows x three columns:
+     status icon (rowspan 2) | title link                       | participant count
+                             | rule, start ~ end, duration      | (rowspan 2, centered)
+   Rule shows the rule's TEXT, except OC which is shortened to "OC".
+   Status icon: green play = live, blue schedule = upcoming, gray flag = ended. #}
+{% macro render_contest_status(tdoc) %}
+  {%- if model.contest.isOngoing(tdoc, tsdict[tdoc.docId]) -%}
+    <span class="icon icon-play text-green" title="{{ _('Live') }}"></span>
+  {%- elif model.contest.isDone(tdoc, tsdict[tdoc.docId]) -%}
+    <span class="icon icon-flag text-gray" title="{{ _('Ended') }}"></span>
+  {%- else -%}
+    <span class="icon icon-schedule text-blue" title="{{ _('Ready') }}"></span>
+  {%- endif -%}
+{% endmacro %}
+{% macro render_compact_contest(tdoc) %}
+<tbody class="oi33-contest-table__group">
+  <tr>
+    <td class="oi33-contest-table__status" rowspan="2">{{ render_contest_status(tdoc) }}</td>
+    <td class="oi33-contest-table__title">
+      <a href="{{ url('contest_detail', tid=tdoc.docId) }}" data-emoji-enabled>{{ tdoc.title }}</a>
+      {% if tdoc.rated %}<span class="icon icon-star text-orange" title="Rated"></span>{% endif %}
+    </td>
+    <td class="oi33-contest-table__attend" rowspan="2">
+      <span class="icon icon-user--multiple"></span> {{ tdoc['attend']|default(0) }}
+    </td>
+  </tr>
+  <tr>
+    <td class="oi33-contest-table__meta">
+      <span class="icon icon-award"></span> {% if tdoc.rule == 'oc' %}OC{% else %}{{ _(model.contest.RULES[tdoc['rule']].TEXT) }}{% endif %}
+      &middot;
+      <span class="icon icon-calendar"></span> {{ contest.render_time(tsdict[tdoc.docId].startAt or tdoc.beginAt) }} ~ {{ contest.render_time(tsdict[tdoc.docId].endAt or tdoc.endAt) }}
+      &middot;
+      <span class="icon icon-schedule--fill"></span> {{ contest.render_duration(tdoc) }} {{ _('hour(s)') }}
+    </td>
+  </tr>
+</tbody>
+{% endmacro %}

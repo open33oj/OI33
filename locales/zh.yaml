@@ -684,3 +684,6 @@ Mutual: '互相关注'
 'Each problem is scored by summing the highest score of every subtask across all your in-contest submissions. The scoreboard and records are revealed only after the contest.': '每道题按各子任务（Subtask）在所有提交中的最高分合并计分，按总分排名；成绩榜与评测记录赛后才公开。'
 'Each problem takes the submission with the highest decayed score: the n-th valid submission is weighted by max(70%, 0.95^(n-1)).': '每道题取衰减后得分最高的一次提交计分：第 n 次有效提交的得分按 max(70%, 0.95^(n-1)) 衰减。'
 'Each problem is scored only by your FIRST submission within your personal time window, and the rank is determined by the total of these first-submission scores. After your personal time ends you can keep submitting inside the contest as make-up — even after the contest itself ends; make-up submissions never affect the ranking score and only count toward the parenthesized best scores: the parenthesis after each score shows the highest score across all your in-contest submissions (including make-ups) for that problem, and the parenthesis after the total shows the sum of these highest scores. All other options are identical to IOI: judge results and the scoreboard are visible in real time.': '每道题仅以个人时限内第一次提交的分数计分并据此排名；个人时限结束后仍可继续在比赛内提交补题（即使比赛已结束），补题不影响排名分，只计入小括号内的最高分：成绩表中每个分数后的小括号内为该题所有比赛内提交（含补题）的最高分，总分后的小括号内为各题最高分之和。其余配置与 IOI 赛制一致：评测结果与成绩榜实时可见。'
+
+# --- Contest list (compact table) ---
+'Ended': '已结束'

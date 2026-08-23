@@ -1,0 +1,23 @@
+{# OI33: same compact contest table as /contest (see partials/oi33_contest_table.html),
+   replacing core's date-box list items. Homepage payload includes recently ended
+   contests, so the gray "ended" status icon is exercised here. #}
+{% import "partials/oi33_contest_table.html" as oi33contest with context %}
+{% set tdocs = payload[0] %}
+{% set tsdict = payload[1] %}
+{% if tdocs.length %}
+  <div class="section page--contest_main">
+    <div class="section__header">
+      <h1 class="section__title">{{ _('Contest') }}</h1>
+    </div>
+    <div class="section__body no-padding oi33-contest-table__wrap">
+      <table class="oi33-contest-table">
+      {%- for tdoc in tdocs -%}
+        {{ oi33contest.render_compact_contest(tdoc) }}
+      {%- endfor -%}
+      </table>
+    </div>
+    <ul class="pager pager-bottom"><li>
+      <a class="pager__item next link" href="{{ url('contest_main') }}">{{ _('More') }} ></a>
+    </li></ul>
+  </div>
+{% endif %}

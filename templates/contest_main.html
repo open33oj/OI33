@@ -1,0 +1,68 @@
+{% extends "layout/basic.html" %}
+{% import "partials/oi33_contest_table.html" as oi33contest with context %}
+{# OI33: replace core's tall "important contest" cards and the date-box list with
+   one unified compact table (two rows x three columns per contest, see
+   partials/oi33_contest_table.html); ended contests included, status shown via
+   the leading icon. #}
+{% block content %}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('All Contests') if not rule else _('All {0} Contests').format(_(model.contest.RULES[rule].TEXT)) }}</h1>
+        <div class="section__tools">
+          <form method="get" name="filter-form">
+            <input type="text" class="inline compact textbox" name="q" value="{{ q }}" placeholder="{{ _('Search contests...') }}">
+            <select class="inline compact select" name="group">
+              <option value=""{% if not group %} selected{% endif %}>{{ _('All') }}</option>
+              {%- for g in groups -%}
+                <option value="{{ g }}"{% if group == g %} selected{% endif %}>{{ g }}</option>
+              {%- endfor -%}
+              {%- if not groups|length -%}
+                <option disabled>{{ _('No group available') }}</option>
+              {%- endif -%}
+            </select>
+            <select class="inline compact select" name="rule">
+              <option value=""{% if not rule %} selected{% endif %}>{{ _('All') }}</option>
+              {%- for k, v in model.contest.RULES -%}
+                {% if not v.hidden %}
+                  <option value="{{ k }}"{% if rule == k %} selected{% endif %}>{{ _('All {0} Contests').format(v.TEXT) }}</option>
+                {% endif %}
+              {%- endfor -%}
+            </select>
+            <button type="submit" class="button hasjs--hide">
+              {{ _('Search') }}
+            </button>
+          </form>
+        </div>
+      </div>
+      <div class="section__body no-padding oi33-contest-table__wrap">
+      {% if not tdocs.length %}
+        {{ nothing.render('There are no contests...') }}
+      {% else %}
+        <table class="oi33-contest-table">
+        {%- for tdoc in tdocs -%}
+          {{ oi33contest.render_compact_contest(tdoc) }}
+        {%- endfor -%}
+        </table>
+        {{ paginator.render(page, tpcount, add_qs=qs) }}
+      {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="medium-3 columns">
+  {% if handler.user.hasPerm(perm.PERM_CREATE_CONTEST) %}
+    <div class="section side">
+      <div class="section__header">
+        <h1 class="section__title">
+          {{ _('Create Contest') }}
+        </h1>
+      </div>
+      <div class="section__body">
+        <p><a href="{{ url('contest_create') }}" class="expanded primary button">{{ _('Create a contest') }}</a></p>
+      </div>
+    </div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}
