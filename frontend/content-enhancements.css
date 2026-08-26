@@ -18,6 +18,20 @@
 
 .theme--dark .oi33-file-io-tag::before { color: #ff9a85 !important; }
 
+/* Hydro core hardcodes .problem__tag-item as grey bg + near-black text and its
+   dark theme only restyles .problem__tag-link, so every tag on contest pages
+   (contest header, contest problem list/detail) stays black-on-grey in dark
+   mode. Restyle the tag itself here; .oi33-file-io-tag keeps its own colors. */
+.theme--dark .problem__tag-item {
+  background-color: rgba(143, 153, 168, .22);
+  color: #ddd;
+}
+
+.theme--dark .problem__tag-item.interactive:hover {
+  background: rgba(143, 153, 168, .38);
+  color: #eee;
+}
+
 /* Hydro's typography renders headings at font-weight 300–500, so from h3 on
    they are thinner than body text. Restore a clear hierarchy: bold headings,
    a darker green-tinted color, and a GitHub-style underline for h1/h2. */

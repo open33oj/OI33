@@ -97,6 +97,6 @@ function mountAiSummaryTag() {
     menu.append(seperator, li);
 }
 
-addPage(new NamedPage('problem_detail', emphasizeFileIoTag));
+addPage(new NamedPage(['problem_detail', 'contest_detail_problem', 'homework_detail_problem'], emphasizeFileIoTag));
 addPage(new NamedPage('problem_detail', mountAiSummaryTag));
 addPage(new NamedPage(['oi33_wiki_main', 'oi33_wiki_show', 'oi33_paste_show'], mountContentToc));
