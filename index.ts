@@ -20,6 +20,7 @@ import { apply as applyAchievement } from './handler/achievement';
 import { apply as applyAuction } from './handler/auction';
 import { apply as applyContract } from './handler/contract';
 import { apply as applyContest } from './handler/contest';
+import { apply as applyDraw } from './handler/draw';
 import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
@@ -90,6 +91,7 @@ export async function apply(ctx: Context) {
     await applyAuction(ctx);
     await applyContract(ctx);
     await applyContest(ctx);
+    await applyDraw(ctx);
     if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0') {
         ctx.on('app/started', async () => {
             try {

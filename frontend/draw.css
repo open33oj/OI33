@@ -1,0 +1,85 @@
+.oi33-draw-page {
+  --draw-accent: #5f9fd6;
+  --draw-border: rgba(128,128,128,.22);
+  --draw-bg: rgba(255,255,255,.72);
+  --draw-btn: rgba(128,128,128,.1);
+  --draw-btn-hover: rgba(128,128,128,.18);
+}
+.theme--dark .oi33-draw-page, [data-mantine-color-scheme=dark] .oi33-draw-page {
+  --draw-bg: rgba(20,20,20,.35);
+  --draw-border: rgba(255,255,255,.14);
+  --draw-btn: rgba(255,255,255,.07);
+  --draw-btn-hover: rgba(255,255,255,.15);
+}
+
+/* 编辑器整体框架：标题栏 / 主区 / 底栏无缝拼接 */
+.oi33-editor { display: flex; flex-direction: column; background: var(--draw-bg); border: 1px solid var(--draw-border); border-radius: 10px; overflow: hidden; }
+.oi33-editor__titlebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--draw-border); }
+.oi33-editor__title { font-size: 1.25rem; font-weight: 600; }
+.oi33-editor__main { display: flex; align-items: stretch; }
+.oi33-editor__stage { flex: 1; min-width: 0; overflow: auto; display: flex; }
+.oi33-editor__canvas { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; }
+.oi33-editor__side { width: 300px; flex-shrink: 0; border-left: 1px solid var(--draw-border); display: flex; flex-direction: column; }
+.oi33-editor__group { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.oi33-editor__side .oi33-editor__group + .oi33-editor__group { border-top: 1px solid var(--draw-border); }
+.oi33-editor__label { font-size: .85rem; font-weight: 600; opacity: .65; }
+.oi33-editor__bottom { display: flex; align-items: stretch; border-top: 1px solid var(--draw-border); }
+.oi33-editor__bottom .oi33-editor__group + .oi33-editor__group { border-left: 1px solid var(--draw-border); }
+.oi33-editor__group--grow { flex: 1; min-width: 0; }
+
+/* 窄屏：侧栏收到底栏上方，底栏改竖排 */
+@media (max-width: 1100px) {
+  .oi33-editor__main { flex-direction: column; }
+  .oi33-editor__side { width: 100%; border-left: 0; border-top: 1px solid var(--draw-border); }
+}
+@media (max-width: 900px) {
+  .oi33-editor__bottom { flex-direction: column; }
+  .oi33-editor__bottom .oi33-editor__group + .oi33-editor__group { border-left: 0; border-top: 1px solid var(--draw-border); }
+}
+
+.oi33-draw-h2 { margin: 0; font-size: .95rem; font-weight: 600; opacity: .78; border-bottom: 1px solid var(--draw-border); padding-bottom: 5px; }
+.oi33-draw-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.oi33-draw-hint { margin: 0; font-size: .85rem; opacity: .6; font-weight: 400; }
+
+.oi33-draw-page input[type="number"] { width: 60px; }
+.oi33-draw-page #saveName { width: 150px; }
+.oi33-draw-page input[type="color"] { width: 44px; height: 34px; border: 1px solid var(--draw-border); border-radius: 6px; background: none; cursor: pointer; padding: 2px; }
+
+/* 编辑器按钮：方形小按钮，focus 不改变底色，active 始终为高亮 */
+.oi33-draw-page .dbtn { border: 1px solid var(--draw-border); background: var(--draw-btn); color: inherit; border-radius: 5px; padding: 4px 12px; margin: 0; font-size: .85rem; line-height: 1.5; cursor: pointer; }
+.oi33-draw-page .dbtn:hover { background: var(--draw-btn-hover); }
+.oi33-draw-page .dbtn:focus, .oi33-draw-page .dbtn:active { outline: none; box-shadow: none; background: var(--draw-btn); color: inherit; }
+.oi33-draw-page .dbtn:hover:focus { background: var(--draw-btn-hover); }
+.oi33-draw-page .dbtn.active, .oi33-draw-page .dbtn.active:hover, .oi33-draw-page .dbtn.active:focus { background: var(--draw-accent); border-color: var(--draw-accent); color: #fff; }
+.oi33-draw-page .dbtn--primary, .oi33-draw-page .dbtn--primary:focus { background: var(--draw-accent); border-color: var(--draw-accent); color: #fff; }
+.oi33-draw-page .dbtn--primary:hover, .oi33-draw-page .dbtn--primary:hover:focus { background: var(--draw-accent); filter: brightness(1.1); }
+
+/* 方向锚点：编辑器式 3×3 分段选择器（无缝小方格） */
+.oi33-draw-page .anchor-grid { display: grid; grid-template-columns: repeat(3, 24px); grid-auto-rows: 24px; gap: 1px; padding: 1px; background: var(--draw-border); border: 1px solid var(--draw-border); border-radius: 6px; overflow: hidden; }
+.oi33-draw-page .anchor-grid button { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 0; background: var(--draw-btn); color: inherit; font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.oi33-draw-page .anchor-grid button:hover { background: var(--draw-btn-hover); }
+.oi33-draw-page .anchor-grid button:focus { outline: none; box-shadow: none; }
+.oi33-draw-page .anchor-grid button.active, .oi33-draw-page .anchor-grid button.active:hover, .oi33-draw-page .anchor-grid button.active:focus { background: var(--draw-accent); color: #fff; }
+
+.oi33-draw-page canvas { image-rendering: pixelated; cursor: crosshair; background: repeating-conic-gradient(#585b70 0% 25%, #45475a 0% 50%) 0 0 / 20px 20px; }
+
+/* 浮动调色盘：宽度按 8 色一行设计，可拖动/缩放，无滚动条 */
+.oi33-draw-float { position: fixed; z-index: 100; width: 264px; min-width: 140px; min-height: 100px; max-width: 90vw; max-height: 85vh; resize: both; overflow: hidden; border-radius: 10px; background: #fff; border: 1px solid var(--draw-border); box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+.theme--dark .oi33-draw-float, [data-mantine-color-scheme=dark] .oi33-draw-float { background: #242526; box-shadow: 0 8px 24px rgba(0,0,0,.55); }
+/* 右下角缩放手柄提示 */
+.oi33-draw-float::after { content: '◢'; position: absolute; right: 3px; bottom: 1px; font-size: 11px; opacity: .45; pointer-events: none; }
+.oi33-draw-dragbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; background: var(--draw-btn); border-bottom: 1px solid var(--draw-border); cursor: move; user-select: none; font-size: .9rem; }
+.oi33-draw-dragbar .dbtn { padding: 1px 8px; font-size: .8rem; }
+/* 内容容器：面板调窄时整体按比例缩放（zoom 由 JS 设置） */
+.oi33-draw-float-body { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+
+/* 调色板 */
+.oi33-draw-page .palette { display: grid; grid-template-columns: repeat(auto-fill, 24px); gap: 4px; }
+.oi33-draw-page .swatch { width: 24px; height: 24px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; }
+.oi33-draw-page .swatch.selected { border-color: var(--draw-accent); box-shadow: 0 0 0 1px #fff inset; }
+
+/* 历史记录 */
+.oi33-draw-page #historyList { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.oi33-draw-page .history-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-radius: 6px; padding: 6px 8px; font-size: .85rem; background: var(--draw-btn); }
+.oi33-draw-page .history-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oi33-draw-page .history-item .dbtn { padding: 2px 8px; font-size: .8rem; }

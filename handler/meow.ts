@@ -6,7 +6,7 @@ import { HomeHandler } from 'hydrooj/src/handler/home';
 import { oi33Model } from '../model';
 import { addLog } from '../model/log';
 import { checkOi33Admin, checkUserFlag } from './utils';
-import { checkRules, configReviewWords, configWords, hashOf, normalizeText, runAiVerdict } from './moderate';
+import { checkRules, configReviewWords, configWords, hashOf, mathTooDeep, normalizeText, runAiVerdict } from './moderate';
 
 const MAX_CONTENT_LEN = 256;
 const FEED_PAGE_SIZE = 20;
@@ -213,6 +213,8 @@ class MeowPostHandler extends Handler {
         }
         const flag = await checkUserFlag(this.user._id);
         if (flag < 1) throw new ForbiddenError('完成实名认证后才能发布喵喵信息。');
+        // Deep-math KaTeX DoS guard: applies to trusted users too (see moderate.ts).
+        if (mathTooDeep(text)) throw new ValidationError('公式嵌套层数过多，请简化后再发布。');
         const cfg = await oi33Model.aiGetConfig();
         const trusted = flag >= 2 || (cfg.moderation_enabled ?? '1') !== '1';
         if (!trusted) {

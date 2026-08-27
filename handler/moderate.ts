@@ -62,7 +62,32 @@ interface RuleHit {
 // human queue instead of being hard-blocked).
 const REVIEW_WORD_CATEGORY = '待审';
 
+// Deeply nested math ($10^{10^{10^...}}$) makes KaTeX rendering time explode
+// and freezes every page that displays the post — a technical DoS, not a
+// content issue. Cap brace nesting inside $...$ segments; legitimate formulas
+// never get anywhere near this depth.
+const MAX_MATH_DEPTH = 30;
+
+export function mathTooDeep(text: string): boolean {
+    let depth = 0;
+    let inMath = false;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (c === '\\') { i++; continue; } // skip escaped chars (\$, \{, ...)
+        if (c === '$') { inMath = !inMath; continue; }
+        if (!inMath) continue;
+        if (c === '{') {
+            depth++;
+            if (depth > MAX_MATH_DEPTH) return true;
+        } else if (c === '}') {
+            depth = Math.max(0, depth - 1);
+        }
+    }
+    return false;
+}
+
 export function checkRules(normalized: string, words: string[], reviewWords: string[] = []): RuleHit | null {
+    if (mathTooDeep(normalized)) return { verdict: 'block', category: '刷屏', word: '公式嵌套过深' };
     for (const w of words) {
         if (w && normalized.includes(w)) return { verdict: 'block', category: '违禁词', word: w };
     }
@@ -107,6 +132,11 @@ export function configReviewWords(cfg: any): string[] {
 async function syncPrecheck(h: any, kind: Oi33ModerationKind, text: string): Promise<void> {
     const flag = await checkUserFlag(h.user._id);
     if (flag < 1) throw new ForbiddenError('完成实名认证后才能参与讨论。');
+    // Technical limit, not moderation: staff bypass every check below, but a
+    // deep-math post would freeze the site for them all the same.
+    if (mathTooDeep(text)) {
+        throw new ValidationError(`公式嵌套超过 ${MAX_MATH_DEPTH} 层，请简化后再发布。`);
+    }
     // Teachers/admins post freely; their content is trusted.
     if (flag >= 2) return;
     const cfg = await oi33Model.aiGetConfig();
