@@ -1,0 +1,145 @@
+{% set page_name = "oi33_draw" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row oi33-draw-page">
+  <div class="medium-12 columns">
+    <div class="oi33-editor">
+      <!-- 标题栏 -->
+      <div class="oi33-editor__titlebar">
+        <span class="oi33-editor__title">像素画编辑器</span>
+        <span class="oi33-draw-hint">B 画笔 / E 橡皮 / G 填充 / I 取色 / M 选框 · Alt + 点击画布 = 快速取色</span>
+      </div>
+
+      <!-- 主区：左画布 + 右侧工具栏（调色板在浮动面板里） -->
+      <div class="oi33-editor__main">
+        <div class="oi33-editor__stage">
+          <div class="oi33-editor__canvas" id="canvasWrap">
+            <canvas id="board"></canvas>
+          </div>
+        </div>
+
+        <aside class="oi33-editor__side">
+          <div class="oi33-editor__group">
+            <div class="oi33-editor__label">工具</div>
+            <div class="oi33-draw-row">
+              <button class="dbtn tool-btn active" data-tool="pencil">✏️ 画笔</button>
+              <button class="dbtn tool-btn" data-tool="eraser">🧽 橡皮</button>
+              <button class="dbtn tool-btn" data-tool="fill">🪣 填充</button>
+              <button class="dbtn tool-btn" data-tool="picker">💉 取色</button>
+              <button class="dbtn tool-btn" data-tool="select">🔲 选框</button>
+            </div>
+            <div class="oi33-draw-row">
+              <button class="dbtn" id="undoBtn">↩️ 撤销</button>
+              <button class="dbtn" id="redoBtn">↪️ 重做</button>
+              <button class="dbtn" id="clearBtn">🗑️ 清空</button>
+            </div>
+          </div>
+
+          <div class="oi33-editor__group">
+            <div class="oi33-editor__label">选区</div>
+            <div class="oi33-draw-row">
+              <button class="dbtn" id="copyBtn">📋 复制</button>
+              <button class="dbtn" id="cutBtn">✂️ 剪切</button>
+              <button class="dbtn" id="pasteBtn">📥 粘贴</button>
+              <button class="dbtn" id="deselectBtn">✖ 取消选区</button>
+            </div>
+            <p class="oi33-draw-hint">粘贴后拖动虚框调位置，点击框外或按 Enter 确认，Esc 放弃，Delete 删除选区内容。</p>
+          </div>
+
+          <div class="oi33-editor__group">
+            <div class="oi33-editor__label">显示</div>
+            <div class="oi33-draw-row">
+              <label><input type="checkbox" id="gridToggle" checked> 显示网格</label>
+            </div>
+            <div class="oi33-draw-row">
+              <label>背景
+                <select class="select" id="bgSelect">
+                  <option value="dark" selected>深色棋盘格</option>
+                  <option value="light">浅色棋盘格</option>
+                  <option value="dark-sm">深色细格</option>
+                  <option value="light-sm">浅色细格</option>
+                  <option value="solid-dark">纯色·深灰</option>
+                  <option value="solid-light">纯色·浅灰</option>
+                  <option value="solid-white">纯色·白</option>
+                  <option value="none">无背景</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- 底栏：导入导出 / 历史 / 画布尺寸 -->
+      <div class="oi33-editor__bottom">
+        <div class="oi33-editor__group">
+          <div class="oi33-editor__label">导出 / 导入</div>
+          <div class="oi33-draw-row">
+            <button class="dbtn dbtn--primary" id="exportPng">💾 下载 PNG</button>
+            <button class="dbtn dbtn--primary" id="exportSvg">💾 下载 SVG</button>
+            <button class="dbtn" id="importPng">📥 导入 PNG</button>
+            <input type="file" id="importPngFile" accept="image/png" hidden>
+          </div>
+          <p class="oi33-draw-hint">PNG/SVG 按画布原始像素尺寸导出；导入最大 128×128。</p>
+        </div>
+
+        <div class="oi33-editor__group oi33-editor__group--grow">
+          <div class="oi33-editor__label">历史记录（保存在本地浏览器）</div>
+          <div class="oi33-draw-row">
+            <input type="text" class="textbox" id="saveName" placeholder="作品名称">
+            <button class="dbtn dbtn--primary" id="saveLocal">💾 保存当前画布</button>
+          </div>
+          <div id="historyList"></div>
+        </div>
+
+        <div class="oi33-editor__group">
+          <div class="oi33-editor__label">画布尺寸</div>
+          <div class="oi33-draw-row">
+            <button class="dbtn size-btn" data-size="8">8×8</button>
+            <button class="dbtn size-btn active" data-size="16">16×16</button>
+            <button class="dbtn size-btn" data-size="32">32×32</button>
+          </div>
+          <div class="oi33-draw-row">
+            <label>宽 <input type="number" class="textbox" id="customW" value="16" min="1" max="128"></label>
+            <label>高 <input type="number" class="textbox" id="customH" value="16" min="1" max="128"></label>
+            <button class="dbtn" id="applyCustom">应用</button>
+          </div>
+          <div class="oi33-draw-row">
+            <label>方向</label>
+            <div class="anchor-grid" id="anchorGrid">
+              <button data-ax="0" data-ay="0" title="内容固定左上，右侧/下侧增减">↖</button>
+              <button data-ax="0.5" data-ay="0" title="内容固定上方居中">↑</button>
+              <button data-ax="1" data-ay="0" title="内容固定右上">↗</button>
+              <button data-ax="0" data-ay="0.5" title="内容固定左侧居中">←</button>
+              <button class="active" data-ax="0.5" data-ay="0.5" title="内容居中，四周均匀增减">•</button>
+              <button data-ax="1" data-ay="0.5" title="内容固定右侧居中">→</button>
+              <button data-ax="0" data-ay="1" title="内容固定左下">↙</button>
+              <button data-ax="0.5" data-ay="1" title="内容固定下方居中">↓</button>
+              <button data-ax="1" data-ay="1" title="内容固定右下">↘</button>
+            </div>
+          </div>
+          <p class="oi33-draw-hint">改尺寸不会清空画布：内容固定在所选方向，其余侧边按需裁去或添加。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 浮动面板：纯调色板，拖动标题栏移动，拖右下角缩放 -->
+    <div class="oi33-draw-float" id="palettePanel">
+      <div class="oi33-draw-dragbar" id="paletteDrag">
+        <span>🎨 调色盘</span>
+        <button class="dbtn" id="paletteReset" title="放回右侧">复位</button>
+      </div>
+      <div class="oi33-draw-float-body" id="paletteBody">
+        <h2 class="oi33-draw-h2">当前颜色</h2>
+        <div class="oi33-draw-row">
+          <input type="color" id="colorPicker" value="#e64545">
+        </div>
+        <h2 class="oi33-draw-h2">调色板</h2>
+        <div class="palette" id="palette"></div>
+        <h2 class="oi33-draw-h2">最近使用</h2>
+        <div class="palette" id="recentPalette"></div>
+        <p class="oi33-draw-hint">取色或用过的颜色会自动记录。拖动标题栏移动，拖右下角调整大小。</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
