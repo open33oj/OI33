@@ -1,9 +1,12 @@
 import { db } from 'hydrooj';
 import { Oi33User } from './types';
 import { addLog } from './log';
-import { bioHashMatches } from './moderate';
+import { bioHashMatches, bioQueueState, moderationColl } from './moderate';
 
 export const userColl = db.collection('oi33_user');
+// Hydro stores the bio on the core user document (setting_info/bio), so bio
+// moderation has to read that collection directly.
+const coreUserColl = db.collection('user');
 const catCanPoolCounterColl = db.collection('oi33_cat_can_pool');
 const catMapPlayerCleanupColl = db.collection('oi33_cat_map_player');
 
@@ -198,13 +201,64 @@ export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: 
 // --- Bio AI moderation state ---
 
 // An edit through the settings page: record the new version as pending and
-// stamp the cooldown clock.
+// stamp the cooldown clock. The edit also supersedes whatever version is still
+// waiting in the human queue: that record describes text that no longer exists,
+// so it can never be approved or rejected and used to sit in the queue forever
+// (every click on it errored out). Closing it here keeps the queue at most one
+// pending bio record per user — the one created for this edit below.
 export async function bioMarkEdited(userId: number, bioHash: string) {
     await userColl.updateOne(
         { _id: userId },
         { $set: { bio_hash: bioHash, bio_status: 'pending', bio_edited_at: new Date() } },
         { upsert: true },
     );
+    await expirePendingBioEntries(userId);
+}
+
+// Mark a user's still-pending bio records as superseded ('stale'). Only the
+// queue is touched — the bio state written by the caller stays untouched.
+export async function expirePendingBioEntries(userId: number) {
+    const res = await moderationColl.updateMany(
+        { uid: userId, kind: 'bio', status: 'pending' },
+        { $set: { status: 'stale', handledAt: new Date(), handler: 0 } },
+    );
+    return res.modifiedCount;
+}
+
+// Live bio text, read straight from the core user collection. The moderation
+// queue must judge the text that is stored right now, never a cached User
+// instance. `null` means the account no longer exists.
+export async function getLiveBios(uids: number[]): Promise<Record<number, string | null>> {
+    const dict: Record<number, string | null> = {};
+    for (const uid of new Set(uids.map(Number).filter(Number.isFinite))) dict[uid] = null;
+    const ids = Object.keys(dict).map(Number);
+    if (!ids.length) return dict;
+    const docs = await coreUserColl.find({ _id: { $in: ids } }, { projection: { bio: 1 } }).toArray();
+    for (const doc of docs) dict[doc._id as number] = String((doc as any).bio ?? '');
+    return dict;
+}
+
+export async function getLiveBio(uid: number): Promise<string | null> {
+    return (await getLiveBios([uid]))[Number(uid)] ?? null;
+}
+
+// Bulk cleanup for the moderation page: close every pending bio record whose
+// reviewed version is no longer the live bio (records accumulated before edits
+// started superseding them). Entries that can still be decided — the same
+// classification the queue shows — are left alone. Returns how many were closed.
+export async function expireStaleBioEntries(handlerUid = 0): Promise<number> {
+    const entries = await moderationColl.find({ kind: 'bio', status: 'pending' }).toArray();
+    if (!entries.length) return 0;
+    const bios = await getLiveBios(entries.map((e) => e.uid));
+    const ids = entries
+        .filter((e) => bioQueueState(e, bios[e.uid]) === 'stale')
+        .map((e) => e._id);
+    if (!ids.length) return 0;
+    const res = await moderationColl.updateMany(
+        { _id: { $in: ids }, status: 'pending' },
+        { $set: { status: 'stale', handledAt: new Date(), handler: handlerUid } },
+    );
+    return res.modifiedCount;
 }
 
 // Resolve an edit-triggered review. Guarded by bio_hash so a verdict arriving
@@ -217,8 +271,10 @@ export async function bioSetStatus(userId: number, bioHash: string, status: 'app
     return result.matchedCount > 0;
 }
 
-// Batch review writes the hash unconditionally (no edit race to guard against)
-// and deliberately does not touch bio_edited_at — reviewing is not an edit.
+// Batch review and the human queue when the stored hash drifted: writes the
+// hash unconditionally and deliberately does not touch bio_edited_at —
+// reviewing is not an edit. Callers must have verified that the hash belongs
+// to the live bio text (the queue does exactly that before calling this).
 export async function bioSetReviewed(userId: number, bioHash: string, status: 'approved' | 'rejected') {
     await userColl.updateOne(
         { _id: userId },

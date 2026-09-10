@@ -396,6 +396,9 @@ export function applyPatches(_ctx: Context) {
         /^\/oi33\/paste\/all(\/|$)/,
         /^\/oi33\/coin\/bill\//,
         /^\/oi33\/cat-food\/bill\//,
+        // Medal catalogue / per-user medal list are read-only views.
+        /^\/oi33\/medals\/catalogue$/,
+        /^\/oi33\/medals\/user\//,
         /^\/oi33\/admin(\/|$)/,
         /^\/oi33\/requests(\/|$)/,
         /^\/oi33\/tokens(\/|$)/,

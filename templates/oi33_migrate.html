@@ -15,16 +15,16 @@
 
       <div class="section__body">
 
-        {% if achievementDone %}
+        {% if medalDone %}
           <blockquote class="note typo" style="padding:1.2rem 1.5rem;margin-bottom:1.5rem;">
-            <h3 style="margin-top:0;">初始成就导入完成</h3>
+            <h3 style="margin-top:0;">初始奖章导入完成</h3>
             <p>
-              共处理 <strong>{{ achievementImport.total }}</strong> 项；
-              新增 <strong>{{ achievementImport.inserted }}</strong> 项，
-              已有 <strong>{{ achievementImport.existing }}</strong> 项，
-              实际更新 <strong>{{ achievementImport.modified }}</strong> 项。
+              共处理 <strong>{{ medalImport.total }}</strong> 项；
+              新增 <strong>{{ medalImport.inserted }}</strong> 项，
+              已有 <strong>{{ medalImport.existing }}</strong> 项，
+              实际更新 <strong>{{ medalImport.modified }}</strong> 项。
             </p>
-            <p style="margin-bottom:0;">该操作仅导入成就定义，不扫描用户，也不会发布成就喵喵。</p>
+            <p style="margin-bottom:0;">该操作仅导入奖章定义，不扫描用户，也不会发布奖章喵喵。</p>
           </blockquote>
         {% endif %}
 
@@ -57,6 +57,24 @@
               {% endif %}
               {% if result.legacyAdminCatFlagsCleared %}
               <tr><td>旧管理员大猫标记已清除：</td><td><strong>{{ result.legacyAdminCatFlagsCleared }}</strong> 只</td></tr>
+              {% endif %}
+              {% if result.medalCollectionsRenamed %}
+              <tr><td>成就集合已改名为奖章集合：</td><td><strong>{{ result.medalCollectionsRenamed }}</strong> 个</td></tr>
+              {% endif %}
+              {% if result.medalDocumentsCopied %}
+              <tr><td>奖章数据逐条复制：</td><td><strong>{{ result.medalDocumentsCopied }}</strong> 条</td></tr>
+              {% endif %}
+              {% if result.medalFieldsRenamed %}
+              <tr><td>奖章字段已改名：</td><td><strong>{{ result.medalFieldsRenamed }}</strong> 处</td></tr>
+              {% endif %}
+              {% if result.medalLegacyIndexesDropped %}
+              <tr><td>旧字段索引已清理并重建：</td><td><strong>{{ result.medalLegacyIndexesDropped }}</strong> 个</td></tr>
+              {% endif %}
+              {% if result.medalLogsRenamed %}
+              <tr><td>奖章日志 / 喵喵来源已改名：</td><td><strong>{{ result.medalLogsRenamed }}</strong> 条</td></tr>
+              {% endif %}
+              {% if result.medalDomainsMigrated %}
+              <tr><td>AC 统计域配置已迁移：</td><td><strong>{{ result.medalDomainsMigrated }}</strong> 个域</td></tr>
               {% endif %}
             </table>
             {% if result.errors.length %}
@@ -120,6 +138,12 @@
               <td><strong>{{ preview.legacySchoolCount }}</strong></td>
             </tr>
             {% endif %}
+            {% if preview.legacyMedalCollections.length %}
+            <tr>
+              <td style="padding:0.5rem 0;">待改名的旧成就集合：</td>
+              <td><strong>{{ preview.legacyMedalCollections.join('、') }}</strong></td>
+            </tr>
+            {% endif %}
           </table>
 
           <form method="post" style="display:inline-block;margin-right:.5rem;">
@@ -129,10 +153,10 @@
         {% endif %}
 
         <form method="post" style="display:inline-block;"
-          onsubmit="return confirm('将使用插件内置的十二档图片，幂等导入 60 项初始成就。空库也可直接导入；该操作不会扫描用户或发布喵喵。确定继续吗？');">
+          onsubmit="return confirm('将使用插件内置的十二档图片，幂等导入 60 项初始奖章。空库也可直接导入；该操作不会扫描用户或发布喵喵。确定继续吗？');">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-          <input type="hidden" name="action" value="import_achievements">
-          <button type="submit" class="rounded button">导入初始成就</button>
+          <input type="hidden" name="action" value="import_medals">
+          <button type="submit" class="rounded button">导入初始奖章</button>
         </form>
 
       </div>

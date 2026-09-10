@@ -243,13 +243,13 @@ class MigrateHandler extends Handler {
     async post() {
         await checkOi33Admin(this.user._id);
         const action = String((this.request.body as any)?.action || 'migrate');
-        if (action === 'import_achievements') {
-            const [achievementImport, preview] = await Promise.all([
-                oi33Model.achievementImportInitialDefinitions(this.user._id),
+        if (action === 'import_medals') {
+            const [medalImport, preview] = await Promise.all([
+                oi33Model.medalImportInitialDefinitions(this.user._id),
                 previewMigration(),
             ]);
             this.response.template = 'oi33_migrate.html';
-            this.response.body = { achievementImport, achievementDone: true, preview };
+            this.response.body = { medalImport, medalDone: true, preview };
             return;
         }
         const result = await migrate();

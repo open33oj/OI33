@@ -32,6 +32,7 @@
             {% if loggedIn %}
             <button type="button" class="rounded button" data-bigcat-bind>绑定大猫</button>
             <button type="button" class="rounded button" data-bigcat-find>投喂我的大猫</button>
+            <button type="button" class="rounded button" data-plan-toggle aria-expanded="false">路径规划</button>
             {% endif %}
             <button type="button" class="oi33-map-fullscreen rounded button" data-map-fullscreen aria-pressed="false">全屏</button>
           </div>
@@ -43,12 +44,36 @@
             <button type="button" data-map-layer="names" class="is-active" aria-pressed="true">名字</button>
           </div>
         </div>
+        {% if loggedIn %}
+        <div class="oi33-map-plan" data-map-plan hidden>
+          <div class="oi33-map-plan__head">
+            <strong>路径规划</strong>
+            <span class="oi33-map-plan__state" data-plan-status>尚未规划</span>
+            <span class="oi33-map-plan__count" data-plan-count>0 / 10 步</span>
+            <button type="button" class="rounded button" data-plan-close>收起</button>
+          </div>
+          <ol class="oi33-map-plan__steps" data-plan-steps></ol>
+          <p class="oi33-map-plan__hint" data-plan-hint>
+            每步 = 移动到相邻格并涂色（3g 猫粮，正好用掉当次免冷却染色）。路径必须连续：点「添加步骤」后依次点击相邻格。
+            冷却结束后自动执行下一步；猫粮不足、核心格被占、被手动操作或驱逐时会自动停止并私信通知。
+          </p>
+          <div class="oi33-map-plan__actions">
+            <button type="button" class="rounded button" data-plan-add>添加步骤</button>
+            <button type="button" class="rounded button" data-plan-undo>撤销上一步</button>
+            <button type="button" class="rounded button" data-plan-clear>清空</button>
+            <button type="button" class="primary rounded button" data-plan-save>保存并开始</button>
+            <button type="button" class="rounded button" data-plan-cancel hidden>取消运行中的计划</button>
+          </div>
+        </div>
+        {% endif %}
         <div class="oi33-bigcat-main">
           <div class="oi33-map-viewport"
                data-state-url="{{ url('oi33_cat_map_state') }}"
                data-join-url="{{ url('oi33_cat_map_join') }}"
                data-move-url="{{ url('oi33_cat_map_move') }}"
                data-color-url="{{ url('oi33_cat_map_color') }}"
+               data-plan-url="{{ url('oi33_cat_map_plan') }}"
+               data-plan-cancel-url="{{ url('oi33_cat_map_plan_cancel') }}"
                data-big-state-url="{{ url('oi33_school_cat_state') }}"
                data-schools-url="{{ url('oi33_school_cat_schools') }}"
                data-bind-url="{{ url('oi33_school_cat_bind') }}"
@@ -73,7 +98,7 @@
 
     <div class="section oi33-arena-market">
       <div class="section__header">
-        <h2 class="section__title">罐头行情与成就拍卖</h2>
+        <h2 class="section__title">罐头行情与奖章拍卖</h2>
         <div class="section__tools">
           <a href="{{ url('oi33_cat_can') }}" class="rounded button">罐头交易</a>
           <a href="{{ url('oi33_auction') }}" class="rounded button">全部拍卖</a>
@@ -96,12 +121,12 @@
           </a>
           {% for auction in arenaAuctions %}
           <a class="oi33-arena-auction" href="{{ url('oi33_auction_detail', id=auction._id) }}">
-            {% if auction.achievement %}
-            <img class="oi33-arena-auction__icon" src="{{ auction.achievement.imageData }}"
-              alt="{{ auction.achievement.name }}">
+            {% if auction.medal %}
+            <img class="oi33-arena-auction__icon" src="{{ auction.medal.imageData }}"
+              alt="{{ auction.medal.name }}">
             {% endif %}
             <span class="oi33-arena-auction__body">
-              <span class="oi33-arena-auction__name">{{ auction.achievement.name if auction.achievement else auction.achievementId }}</span>
+              <span class="oi33-arena-auction__name">{{ auction.medal.name if auction.medal else auction.medalId }}</span>
               <span class="oi33-arena-auction__meta">
                 {% if auction.highestBid != null %}当前价 <strong>{{ auction.highestBid }}</strong> 罐头
                 {% else %}起拍价 {{ auction.startPrice }} 罐头{% endif %}
@@ -113,7 +138,7 @@
           {% if not arenaAuctions.length %}
           <a class="oi33-arena-auction oi33-arena-auction--empty" href="{{ url('oi33_auction') }}">
             <span class="oi33-arena-auction__body">
-              <span class="oi33-arena-auction__name">成就拍卖</span>
+              <span class="oi33-arena-auction__name">奖章拍卖</span>
               <span class="oi33-arena-auction__meta">暂时没有进行中的拍卖，去看看已结束的拍卖 →</span>
             </span>
           </a>
@@ -191,6 +216,23 @@
     <div class="oi33-map-dialog-actions">
       <button value="cancel" class="rounded button">取消</button>
       <button type="button" class="primary rounded button" data-color-confirm>设置颜色</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="oi33-map-dialog oi33-map-color-dialog" data-map-plan-step-dialog>
+  <form method="dialog">
+    <h2 data-plan-step-title>添加计划步骤</h2>
+    <p data-plan-step-summary></p>
+    <div class="oi33-map-color-selected">
+      <span data-color-preview></span>
+      <label>颜色码 <input type="number" min="0" max="255" value="34" data-color-input></label>
+    </div>
+    <div class="oi33-map-palette" data-palette aria-label="8-bit 颜色码参考表"></div>
+    <p class="oi33-map-palette-note">0～15：标准色 · 16～231：6×6×6 色立方 · 232～255：灰阶</p>
+    <div class="oi33-map-dialog-actions">
+      <button value="cancel" class="rounded button">取消</button>
+      <button type="button" class="primary rounded button" data-plan-step-confirm>加入计划</button>
     </div>
   </form>
 </dialog>

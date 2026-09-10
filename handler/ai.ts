@@ -791,7 +791,7 @@ async function runSummaryBatch(domainId: string, problems: any[]) {
             counters.done++;
             await oi33Model.aiBatchSaveStatus({ ...counters, currentSort: sortText });
             // Stay sequential and yield so a large batch cannot monopolize
-            // the Hydro process (same discipline as the achievement scan).
+            // the Hydro process (same discipline as the medal scan).
             await new Promise<void>((resolve) => setImmediate(resolve));
         }
         await oi33Model.aiBatchSaveStatus({ finishedAt: new Date() });

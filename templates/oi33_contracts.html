@@ -10,14 +10,14 @@
   <div class="medium-12 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">成就交易合同</h1>
+        <h1 class="section__title">奖章交易合同</h1>
         <div class="section__tools">
-          <a href="{{ url('oi33_auction') }}" class="rounded button">成就拍卖</a>
+          <a href="{{ url('oi33_auction') }}" class="rounded button">奖章拍卖</a>
         </div>
       </div>
       <div class="section__body">
         <p class="contract-help">
-          拍卖或合同交易中获得的可售卖成就可以通过合同转售给指定用户：对方接受后，成就转给对方、对方的猫粮转给你。
+          拍卖或合同交易中获得的可售卖奖章可以通过合同转售给指定用户：对方接受后，奖章转给对方、对方的猫粮转给你。
           成交时收取成交价 {{ feePercent }}% 的中介费（向上取整），从卖家到账中扣除并销毁。
           你当前持有 <strong>{{ catFood.amount(viewerFood) }}</strong> 猫粮。
         </p>
@@ -37,10 +37,10 @@
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <div class="row">
               <div class="medium-5 columns form__item">
-                <label>出售成就</label>
-                <select class="select" name="achievementId" required>
-                  {% for achievement in sellable %}
-                  <option value="{{ achievement._id }}">{{ achievement.name }}（{{ achievement._id }}）</option>
+                <label>出售奖章</label>
+                <select class="select" name="medalId" required>
+                  {% for medal in sellable %}
+                  <option value="{{ medal._id }}">{{ medal.name }}（{{ medal._id }}）</option>
                   {% endfor %}
                 </select>
               </div>
@@ -56,23 +56,23 @@
             <button type="submit" class="rounded primary button">创建合同</button>
           </form>
           {% else %}
-          <p class="contract-help">你目前没有可转售的成就。只有通过拍卖或交易合同获得、且被标记为可售卖的成就才能创建合同。</p>
+          <p class="contract-help">你目前没有可转售的奖章。只有通过拍卖或交易合同获得、且被标记为可售卖的奖章才能创建合同。</p>
           {% endif %}
         </div>
 
         <h2>待我接受（{{ incoming.length }}）</h2>
         {% if incoming.length %}
         <table class="data-table">
-          <thead><tr><th>成就</th><th>卖家</th><th>价格</th><th>发起时间</th><th></th></tr></thead>
+          <thead><tr><th>奖章</th><th>卖家</th><th>价格</th><th>发起时间</th><th></th></tr></thead>
           <tbody>
           {% for contract in incoming %}
-            {% set achievement = achievementDict[contract.achievementId] %}
+            {% set medal = medalDict[contract.medalId] %}
             <tr>
               <td>
-                {% if achievement %}
-                <img class="contract-icon" src="{{ achievement.imageData }}" alt="{{ achievement.name }}">
-                {{ achievement.name }}
-                {% else %}{{ contract.achievementId }}{% endif %}
+                {% if medal %}
+                <img class="contract-icon" src="{{ medal.imageData }}" alt="{{ medal.name }}">
+                {{ medal.name }}
+                {% else %}{{ contract.medalId }}{% endif %}
               </td>
               <td>{% if udict[contract.seller] %}{{ user.render_inline(udict[contract.seller]) }}{% else %}UID {{ contract.seller }}{% endif %}</td>
               <td>{{ catFood.amount(contract.price, true) }}</td>
@@ -80,7 +80,7 @@
               <td>
                 {% if verified %}
                 <form method="post" action="{{ url('oi33_contract_accept', id=contract._id) }}" class="contract-inline-form"
-                  onsubmit="return confirm('接受后将支付 {{ model.oi33.formatCatFood(contract.price) }} 猫粮并获得该成就。确定接受吗？');">
+                  onsubmit="return confirm('接受后将支付 {{ model.oi33.formatCatFood(contract.price) }} 猫粮并获得该奖章。确定接受吗？');">
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <button type="submit" class="rounded primary button">接受</button>
                 </form>
@@ -101,17 +101,17 @@
         <h2>我发起的（{{ outgoing.length }}）</h2>
         {% if outgoing.length %}
         <table class="data-table">
-          <thead><tr><th>成就</th><th>买家</th><th>价格</th><th>状态</th><th>发起时间</th><th></th></tr></thead>
+          <thead><tr><th>奖章</th><th>买家</th><th>价格</th><th>状态</th><th>发起时间</th><th></th></tr></thead>
           <tbody>
           {% for contract in outgoing %}
-            {% set achievement = achievementDict[contract.achievementId] %}
+            {% set medal = medalDict[contract.medalId] %}
             {% set cfee = contract.fee if contract.fee is defined else ((contract.price * feePercent / 100) | round(0, 'ceil')) %}
             <tr>
               <td>
-                {% if achievement %}
-                <img class="contract-icon" src="{{ achievement.imageData }}" alt="{{ achievement.name }}">
-                {{ achievement.name }}
-                {% else %}{{ contract.achievementId }}{% endif %}
+                {% if medal %}
+                <img class="contract-icon" src="{{ medal.imageData }}" alt="{{ medal.name }}">
+                {{ medal.name }}
+                {% else %}{{ contract.medalId }}{% endif %}
               </td>
               <td>{% if udict[contract.buyer] %}{{ user.render_inline(udict[contract.buyer]) }}{% else %}UID {{ contract.buyer }}{% endif %}</td>
               <td>
@@ -142,13 +142,13 @@
         {% if resolved.length %}
         <h2>最近已结束</h2>
         <table class="data-table">
-          <thead><tr><th>成就</th><th>卖家</th><th>买家</th><th>价格</th><th>结果</th><th>处理时间</th></tr></thead>
+          <thead><tr><th>奖章</th><th>卖家</th><th>买家</th><th>价格</th><th>结果</th><th>处理时间</th></tr></thead>
           <tbody>
           {% for contract in resolved %}
-            {% set achievement = achievementDict[contract.achievementId] %}
+            {% set medal = medalDict[contract.medalId] %}
             {% set cfee = contract.fee if contract.fee is defined else ((contract.price * feePercent / 100) | round(0, 'ceil')) %}
             <tr>
-              <td>{{ achievement.name if achievement else contract.achievementId }}</td>
+              <td>{{ medal.name if medal else contract.medalId }}</td>
               <td>{% if udict[contract.seller] %}{{ user.render_inline(udict[contract.seller]) }}{% else %}UID {{ contract.seller }}{% endif %}</td>
               <td>{% if udict[contract.buyer] %}{{ user.render_inline(udict[contract.buyer]) }}{% else %}UID {{ contract.buyer }}{% endif %}</td>
               <td>

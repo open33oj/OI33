@@ -6,12 +6,12 @@ import { oi33Model } from '../model';
 // normalizeText/hashOf/bioHashOf live in the model layer (shared with bio
 // display hashing); re-exported here so existing handler consumers keep working.
 import {
-    bioHashMatches, bioHashOf, hashOf, normalizeText,
+    bioHashMatches, bioHashOf, bioQueueState, hashOf, normalizeText,
 } from '../model/moderate';
 
 export { bioHashMatches, bioHashOf, hashOf, normalizeText };
 import type {
-    Oi33AiModeration, Oi33ModerationKind, Oi33ModerationSource, Oi33ModerationTarget,
+    Oi33ModerationKind, Oi33ModerationSource, Oi33ModerationTarget,
     Oi33ModerationVerdict,
 } from '../model/types';
 import { checkOi33Admin, checkUserFlag } from './utils';
@@ -585,6 +585,26 @@ class Ai33ModerationHandler extends Handler {
         ]);
         const uids = [...new Set([...pending, ...recent].map((e) => e.uid))];
         const udict = uids.length ? await UserModel.getList('', uids) : {};
+        // Flag queued bio versions that are no longer the live bio: they can
+        // only be closed, and the bulk button clears them all at once.
+        const bioEntries = pending.filter((e) => e.kind === 'bio');
+        const liveBios = bioEntries.length
+            ? await oi33Model.getLiveBios([...new Set(bioEntries.map((e) => e.uid))])
+            : {};
+        let staleBioCount = 0;
+        for (const entry of bioEntries) {
+            const state = bioQueueState(entry, liveBios[entry.uid]);
+            (entry as any).bioState = state;
+            if (state === 'stale') staleBioCount++;
+        }
+        const args = (this as any).args || {};
+        let notice = '';
+        if (args.expired) {
+            notice = '该审核记录对应的简介已被本人修改（或账号不存在），记录已标记为失效；'
+                + '用户的简介状态未被改动。';
+        } else if (args.closed !== undefined) {
+            notice = `已清理 ${Number(args.closed) || 0} 条失效的个人简介审核记录。`;
+        }
         this.response.template = 'oi33_ai_moderation.html';
         this.response.body = {
             pending,
@@ -595,6 +615,8 @@ class Ai33ModerationHandler extends Handler {
             udict,
             kindLabels: KIND_LABELS,
             defaultPrompt: DEFAULT_MODERATION_PROMPT,
+            staleBioCount,
+            notice,
         };
     }
 
@@ -611,7 +633,9 @@ class Ai33ModerationHandler extends Handler {
         // First param must be named domainId* — the framework only injects
         // args.domainId as the first positional arg when the source name
         // starts with "domainid" (see @hydrooj/framework decorators.ts);
-        // any other name receives the whole raw args object instead.
+        // any other name receives the whole raw args object instead. The bio
+        // branch reads the bio straight from the core user collection, so the
+        // value itself is only needed for this injection contract.
         domainId: string, action: string, id?: ObjectId,
         moderation_enabled?: string, moderation_model?: string, moderation_prompt?: string,
         moderation_words?: string, moderation_review_words?: string,
@@ -629,23 +653,66 @@ class Ai33ModerationHandler extends Handler {
                 moderation_daily_budget: Math.max(0, moderation_daily_budget || 0),
                 moderation_rate_limit: Math.max(0, moderation_rate_limit || 0),
             });
+        } else if (action === 'expire' && id) {
+            // Close a record without deciding it. Only records that can never
+            // be applied qualify: bio versions the user already replaced, and
+            // discussion entries whose target is gone (the same ones the page
+            // closes by itself when it loads). A decidable entry must be
+            // approved or rejected, never silently dropped.
+            const entry = await oi33Model.modGet(id);
+            if (!entry || entry.status !== 'pending') throw new ValidationError('该条目已被处理。');
+            const expirable = entry.kind === 'bio'
+                || !entry.target || !await targetExists(entry.target);
+            if (!expirable) throw new ValidationError('该条目仍可处理，请选择通过或驳回。');
+            await oi33Model.modExpireEntries([id], this.user._id);
+            this.response.redirect = this.url('oi33_ai_moderation', { query: { expired: '1' } });
+            return;
+        } else if (action === 'expire_stale_bio') {
+            // Bulk cleanup of every queued bio version that is no longer live.
+            const closed = await oi33Model.expireStaleBioEntries(this.user._id);
+            this.response.redirect = this.url('oi33_ai_moderation', { query: { closed: String(closed) } });
+            return;
         } else if ((action === 'approve' || action === 'reject') && id) {
             const entry = await oi33Model.modGet(id);
             if (!entry || entry.status !== 'pending') throw new ValidationError('该条目已被处理。');
-            // Bio entries have no discussion target: flip the stored bio
-            // review state directly. bioSetStatus is hash-guarded, so a newer
-            // edit of the bio is never clobbered by a stale queue decision.
+            // Bio entries have no discussion target: they flip the stored bio
+            // review state directly. The decision is tied to the bio version
+            // the record was created for, so it is only applied while that
+            // version still is the live bio.
             if (entry.kind === 'bio') {
-                const currentUser = await UserModel.getById(domainId, entry.uid);
-                if (!currentUser
-                    || !bioHashMatches(entry.contentHash, String(currentUser.bio || ''))) {
-                    throw new ValidationError('该个人简介已被修改，不能处理旧审核记录。请刷新后处理最新记录。');
+                const liveBio = await oi33Model.getLiveBio(entry.uid);
+                const state = bioQueueState(entry, liveBio);
+                if (state === 'stale') {
+                    // The user edited the bio again (or cleared it, or the
+                    // account is gone) after this record was created, so the
+                    // record can never be applied. Close it as stale instead of
+                    // failing: the queue stays usable and the current bio is
+                    // left exactly as it is (the newer edit has its own record).
+                    console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}) is stale: `
+                        + `reviewed version no longer matches the live bio (live length ${liveBio?.length ?? -1})`);
+                    await oi33Model.modExpireEntries([id], this.user._id);
+                    this.response.redirect = this.url('oi33_ai_moderation', { query: { expired: '1' } });
+                    return;
                 }
-                const applied = await oi33Model.bioSetStatus(
-                    entry.uid, entry.contentHash, action === 'approve' ? 'approved' : 'rejected',
-                );
-                if (!applied) {
-                    throw new ValidationError('该个人简介的待审版本已变化，请刷新后处理最新记录。');
+                const status = action === 'approve' ? 'approved' : 'rejected';
+                // The hash guard keeps a concurrent edit safe. When the write
+                // did not match, re-read once: an edit landing in between makes
+                // the record stale, while a merely drifted hash (e.g. written
+                // by an older batch run) still describes this exact text — then
+                // the reviewed text is authoritative and its hash is rewritten,
+                // otherwise an approval would leave the bio invisible.
+                if (!await oi33Model.bioSetStatus(entry.uid, entry.contentHash, status)) {
+                    const liveAgain = await oi33Model.getLiveBio(entry.uid);
+                    if (bioQueueState(entry, liveAgain) === 'stale') {
+                        console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}): bio changed during the decision, `
+                            + 'closing the record as stale');
+                        await oi33Model.modExpireEntries([id], this.user._id);
+                        this.response.redirect = this.url('oi33_ai_moderation', { query: { expired: '1' } });
+                        return;
+                    }
+                    console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}): stored bio_hash drifted, `
+                        + 'applying the decision to the verified live text');
+                    await oi33Model.bioSetReviewed(entry.uid, bioHashOf(liveAgain as string), status);
                 }
                 if (action === 'reject') {
                     await MessageModel.send(
@@ -654,7 +721,7 @@ class Ai33ModerationHandler extends Handler {
                         + '可在「账号设置」中修改后重新提交（两次修改间隔 2 小时）。',
                     ).catch(() => {});
                 }
-                await oi33Model.modSetStatus(id, action === 'approve' ? 'approved' : 'rejected', this.user._id);
+                await oi33Model.modSetStatus(id, status, this.user._id);
                 this.response.redirect = this.url('oi33_ai_moderation');
                 return;
             }

@@ -3,11 +3,11 @@ import {
 } from 'hydrooj';
 import type { Oi33Contract } from './types';
 import { addLog } from './log';
-import { achievementColl, achievementGrant, userAchievementColl } from './achievement';
+import { medalColl, medalGrant, userMedalColl } from './medal';
 import { catCanPoolColl } from './cat-can';
 import { userColl } from './user';
 
-export const contractColl = db.collection('oi33_achievement_contract');
+export const contractColl = db.collection('oi33_medal_contract');
 
 // 5% intermediary fee on the contract price, deducted from the seller's
 // proceeds and burned at settlement — a cat-food sink. Ceiled so every
@@ -21,7 +21,7 @@ export async function ensureContractIndexes() {
     await Promise.all([
         contractColl.createIndex({ buyer: 1, status: 1 }),
         contractColl.createIndex({ seller: 1, status: 1 }),
-        contractColl.createIndex({ seller: 1, achievementId: 1, status: 1 }),
+        contractColl.createIndex({ seller: 1, medalId: 1, status: 1 }),
         contractColl.createIndex({ createdAt: -1 }),
     ]);
 }
@@ -36,53 +36,53 @@ export async function contractGet(id: string | ObjectId) {
     return await contractColl.findOne({ _id: objectId });
 }
 
-// A user's award is sellable when the achievement definition allows reselling
+// A user's award is sellable when the medal definition allows reselling
 // AND this copy came from a trade (auction win or a previous contract), so
 // contract-bought copies can be resold again.
 export const TRADE_AWARD_SOURCES = ['auction', 'contract'];
 
 export async function contractListSellableAwards(uid: number) {
-    const awards = await userAchievementColl.find({
+    const awards = await userMedalColl.find({
         uid, source: { $in: TRADE_AWARD_SOURCES },
     }).toArray();
     if (!awards.length) return [];
-    const definitions = await achievementColl.find({
-        _id: { $in: awards.map((award) => award.achievementId) },
+    const definitions = await medalColl.find({
+        _id: { $in: awards.map((award) => award.medalId) },
         saleable: true,
     }).toArray();
     const pending = await contractColl.find({
         seller: uid, status: 'pending',
-    }, { projection: { achievementId: 1 } }).toArray();
-    const pendingIds = new Set(pending.map((contract) => contract.achievementId));
+    }, { projection: { medalId: 1 } }).toArray();
+    const pendingIds = new Set(pending.map((contract) => contract.medalId));
     return definitions.filter((definition) => !pendingIds.has(definition._id));
 }
 
 export async function contractCreate(input: {
-    achievementId: string;
+    medalId: string;
     seller: number;
     buyer: number;
     price: number;
 }) {
-    const { achievementId, seller, buyer, price } = input;
-    if (seller === buyer) throw new ValidationError('不能把成就卖给自己。');
+    const { medalId, seller, buyer, price } = input;
+    if (seller === buyer) throw new ValidationError('不能把奖章卖给自己。');
     if (!Number.isSafeInteger(price) || price < 1) {
         throw new ValidationError('猫粮价格必须是不少于 1 的整数。');
     }
-    const achievement = await achievementColl.findOne({ _id: achievementId });
-    if (!achievement) throw new ValidationError('成就不存在。');
-    if (!achievement.saleable) throw new ValidationError('该成就不可售卖。');
-    const award = await userAchievementColl.findOne({
-        uid: seller, achievementId, source: { $in: TRADE_AWARD_SOURCES },
+    const medal = await medalColl.findOne({ _id: medalId });
+    if (!medal) throw new ValidationError('奖章不存在。');
+    if (!medal.saleable) throw new ValidationError('该奖章不可售卖。');
+    const award = await userMedalColl.findOne({
+        uid: seller, medalId, source: { $in: TRADE_AWARD_SOURCES },
     });
-    if (!award) throw new ValidationError('只有拍卖或交易合同获得的成就才能转售。');
-    const buyerAward = await userAchievementColl.findOne({ uid: buyer, achievementId });
-    if (buyerAward) throw new ValidationError('对方已经拥有这个成就。');
-    const running = await contractColl.findOne({ seller, achievementId, status: 'pending' });
-    if (running) throw new ValidationError('该成就已有一份待处理的合同。');
+    if (!award) throw new ValidationError('只有拍卖或交易合同获得的奖章才能转售。');
+    const buyerAward = await userMedalColl.findOne({ uid: buyer, medalId });
+    if (buyerAward) throw new ValidationError('对方已经拥有这个奖章。');
+    const running = await contractColl.findOne({ seller, medalId, status: 'pending' });
+    if (running) throw new ValidationError('该奖章已有一份待处理的合同。');
     const now = new Date();
     const doc: Oi33Contract = {
         _id: new ObjectId(),
-        achievementId,
+        medalId,
         seller,
         buyer,
         price,
@@ -93,7 +93,7 @@ export async function contractCreate(input: {
     await contractColl.insertOne(doc as any);
     await addLog({
         type: 'contract', userId: seller, uid: buyer, action: 'create',
-        contractId: doc._id.toHexString(), achievementId, amount: price,
+        contractId: doc._id.toHexString(), medalId, amount: price,
     } as any);
     return doc;
 }
@@ -103,17 +103,17 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
     if (!contract) throw new NotFoundError(String(id));
     if (contract.buyer !== buyer) throw new ValidationError('只有合同指定的用户可以接受。');
     if (contract.status !== 'pending') throw new ValidationError('合同已处理。');
-    const achievement = await achievementColl.findOne({ _id: contract.achievementId });
-    if (!achievement?.saleable) throw new ValidationError('该成就已不可售卖，合同失效。');
-    const award = await userAchievementColl.findOne({
-        uid: contract.seller, achievementId: contract.achievementId,
+    const medal = await medalColl.findOne({ _id: contract.medalId });
+    if (!medal?.saleable) throw new ValidationError('该奖章已不可售卖，合同失效。');
+    const award = await userMedalColl.findOne({
+        uid: contract.seller, medalId: contract.medalId,
         source: { $in: TRADE_AWARD_SOURCES },
     });
-    if (!award) throw new ValidationError('卖家已经不再拥有该成就，合同失效。');
-    const buyerAward = await userAchievementColl.findOne({
-        uid: buyer, achievementId: contract.achievementId,
+    if (!award) throw new ValidationError('卖家已经不再拥有该奖章，合同失效。');
+    const buyerAward = await userMedalColl.findOne({
+        uid: buyer, medalId: contract.medalId,
     });
-    if (buyerAward) throw new ValidationError('你已经拥有这个成就。');
+    if (buyerAward) throw new ValidationError('你已经拥有这个奖章。');
     // Claim the contract first so a double click cannot settle twice.
     const flipped = await contractColl.updateOne(
         { _id: contract._id, status: 'pending' },
@@ -153,8 +153,8 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
             );
             feeBurned = true;
         }
-        await userAchievementColl.deleteOne({ _id: award._id });
-        await achievementGrant(buyer, contract.achievementId, 0, 'contract', true);
+        await userMedalColl.deleteOne({ _id: award._id });
+        await medalGrant(buyer, contract.medalId, 0, 'contract', true);
     } catch (e) {
         await userColl.updateOne({ _id: buyer }, { $inc: { cat_food: contract.price } });
         if (sellerCredited) {
@@ -164,7 +164,7 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
             await catCanPoolColl.updateOne({ _id: 'main' }, { $inc: { userFoodTotal: fee } });
         }
         // Best-effort restore of the seller's award if it was already removed.
-        await userAchievementColl.insertOne(award as any).catch(() => {});
+        await userMedalColl.insertOne(award as any).catch(() => {});
         await contractColl.updateOne(
             { _id: contract._id }, { $set: { status: 'pending' }, $unset: { resolvedAt: '' } },
         );
@@ -172,7 +172,7 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
     }
     await addLog({
         type: 'contract', userId: buyer, uid: contract.seller, action: 'accept',
-        contractId: contract._id.toHexString(), achievementId: contract.achievementId,
+        contractId: contract._id.toHexString(), medalId: contract.medalId,
         amount: contract.price, fee,
     } as any);
     // Ledger entries for the account page: the buyer pays the full price, the
@@ -180,13 +180,13 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
     // burn itself is counted from the type:'contract' accept log above.
     await addLog({
         type: 'cat_account', userId: buyer, sender: buyer,
-        action: 'contract_accept', amount: -contract.price, reason: '成就合同成交付款',
+        action: 'contract_accept', amount: -contract.price, reason: '奖章合同成交付款',
     } as any);
     if (sellerIncome > 0) {
         await addLog({
             type: 'cat_account', userId: contract.seller, sender: buyer,
             action: 'contract_accept', amount: sellerIncome,
-            reason: `成就合同成交收款（已扣 ${fee} 中介费）`,
+            reason: `奖章合同成交收款（已扣 ${fee} 中介费）`,
         } as any);
     }
     return await contractColl.findOne({ _id: contract._id });
@@ -210,7 +210,7 @@ async function contractResolve(
     await addLog({
         type: 'contract', userId: actor, uid: role === 'buyer' ? contract.seller : contract.buyer,
         action: status === 'declined' ? 'decline' : 'cancel',
-        contractId: contract._id.toHexString(), achievementId: contract.achievementId,
+        contractId: contract._id.toHexString(), medalId: contract.medalId,
         amount: contract.price,
     } as any);
     return await contractColl.findOne({ _id: contract._id });

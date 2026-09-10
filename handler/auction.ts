@@ -2,7 +2,8 @@ import {
     Context, ForbiddenError, Handler, NotFoundError, PRIV, Types, UserModel, ValidationError,
     param, query,
 } from 'hydrooj';
-import { oi33Model, userAchievementColl } from '../model';
+import { oi33Model, userMedalColl } from '../model';
+import { remainText } from '../model/auction';
 import type { Oi33Auction } from '../model/types';
 import { checkOi33Admin, checkUserFlag } from './utils';
 
@@ -17,18 +18,6 @@ async function getViewerInfo(uid: number): Promise<{ flag: number; cans: number 
     return { flag: data?.realname_flag ?? 0, cans: Number(data?.cat_can) || 0 };
 }
 
-export function remainText(endAt: Date, now: Date): string {
-    const ms = endAt.getTime() - now.getTime();
-    if (ms <= 0) return '已结束';
-    const minutes = Math.floor(ms / 60000);
-    const days = Math.floor(minutes / 1440);
-    const hours = Math.floor((minutes % 1440) / 60);
-    const rest = minutes % 60;
-    if (days) return `${days} 天 ${hours} 小时`;
-    if (hours) return `${hours} 小时 ${rest} 分钟`;
-    return `${Math.max(1, rest)} 分钟`;
-}
-
 async function buildUserDict(domainId: string, uids: number[]) {
     const unique = [...new Set(uids.filter((uid) => Number.isSafeInteger(uid) && uid > 0))];
     if (!unique.length) return {};
@@ -41,17 +30,17 @@ async function buildUserDict(domainId: string, uids: number[]) {
 }
 
 class AuctionListHandler extends Handler {
-    @query('achievement', Types.String, true)
+    @query('medal', Types.String, true)
     async get(domainId: string, preselect = '') {
         await oi33Model.auctionSettleExpired();
         const now = new Date();
-        const [active, finished, achievements] = await Promise.all([
+        const [active, finished, medals] = await Promise.all([
             oi33Model.auctionListActive(now),
             oi33Model.auctionListRecentFinished(),
-            oi33Model.achievementList(),
+            oi33Model.medalList(),
         ]);
-        const achievementDict = Object.fromEntries(
-            achievements.map((achievement) => [achievement._id, achievement]),
+        const medalDict = Object.fromEntries(
+            medals.map((medal) => [medal._id, medal]),
         );
         const viewer = await getViewerInfo(this.user._id);
         const uids: number[] = [];
@@ -60,10 +49,10 @@ class AuctionListHandler extends Handler {
             if (auction.winner) uids.push(auction.winner);
         }
         const udict = await buildUserDict(domainId, uids);
-        // The create form only offers saleable achievements that have never
+        // The create form only offers saleable medals that have never
         // been successfully auctioned and are not currently held.
-        const rareRows = viewer.flag >= 2 ? await oi33Model.auctionRareShowcase() : [];
-        const auctionable = rareRows.filter((row) => row.status === 'pending').map((row) => row.achievement);
+        const rareRows = viewer.flag >= 2 ? await oi33Model.auctionSaleableShowcase() : [];
+        const auctionable = rareRows.filter((row) => row.status === 'pending').map((row) => row.medal);
         const decorate = (auction: Oi33Auction) => ({
             ...auction,
             remainText: auction.status === 'active' ? remainText(auction.endAt, now) : '',
@@ -72,11 +61,11 @@ class AuctionListHandler extends Handler {
         this.response.body = {
             active: active.map(decorate),
             finished: finished.map(decorate),
-            achievementDict,
+            medalDict,
             udict,
             canManage: viewer.flag >= 2,
             viewerFlag: viewer.flag,
-            achievements: auctionable,
+            medals: auctionable,
             preselect,
             viewerCans: viewer.cans,
         };
@@ -92,11 +81,11 @@ class AuctionDetailHandler extends Handler {
             const settled = await oi33Model.auctionSettle(id);
             if (settled) auction = settled;
         }
-        // 成就定义可能已被删除（历史拍卖保留可读，且管理员仍需能打开页面取消它）。
-        const achievement = (await oi33Model.achievementGet(auction.achievementId)) || {
-            _id: auction.achievementId,
-            name: `${auction.achievementId}（已删除）`,
-            description: '该成就定义已被删除。',
+        // 奖章定义可能已被删除（历史拍卖保留可读，且管理员仍需能打开页面取消它）。
+        const medal = (await oi33Model.medalGet(auction.medalId)) || {
+            _id: auction.medalId,
+            name: `${auction.medalId}（已删除）`,
+            description: '该奖章定义已被删除。',
             rule: '—',
             imageData: '',
             saleable: false,
@@ -109,14 +98,14 @@ class AuctionDetailHandler extends Handler {
         if (auction.winner) uids.push(auction.winner);
         const udict = await buildUserDict(domainId, uids);
         const viewerOwned = this.user._id
-            ? !!(await userAchievementColl.findOne({
-                uid: this.user._id, achievementId: auction.achievementId,
+            ? !!(await userMedalColl.findOne({
+                uid: this.user._id, medalId: auction.medalId,
             }))
             : false;
         this.response.template = 'oi33_auction_detail.html';
         this.response.body = {
             auction,
-            achievement,
+            medal,
             bids,
             udict,
             now,
@@ -149,14 +138,14 @@ class AuctionCreateHandler extends Handler {
     async post() {
         await checkOi33Admin(this.user._id);
         const body = this.request.body as any;
-        const achievementId = field(body, 'achievementId');
+        const medalId = field(body, 'medalId');
         const startPrice = Number(field(body, 'startPrice'));
         const hours = Number(field(body, 'hours'));
         if (!Number.isFinite(hours) || hours < 1 || hours > 720) {
             throw new ValidationError('拍卖时长应在 1–720 小时之间。');
         }
         await oi33Model.auctionCreate({
-            achievementId,
+            medalId,
             startPrice,
             durationMs: Math.round(hours * 3600 * 1000),
             operator: this.user._id,
@@ -174,33 +163,8 @@ class AuctionCancelHandler extends Handler {
     }
 }
 
-class AuctionRareHandler extends Handler {
-    async get() {
-        await oi33Model.auctionSettleExpired();
-        const now = new Date();
-        const [rows, manualAchievements] = await Promise.all([
-            oi33Model.auctionRareShowcase(),
-            oi33Model.achievementListManual(),
-        ]);
-        const udict = await buildUserDict(
-            '',
-            rows.filter((row) => row.award).map((row) => row.award!.uid),
-        );
-        this.response.template = 'oi33_auction_rare.html';
-        this.response.body = {
-            rows: rows.map((row) => ({
-                ...row,
-                remainText: row.activeAuction ? remainText(row.activeAuction.endAt, now) : '',
-            })),
-            manualAchievements,
-            udict,
-        };
-    }
-}
-
 export async function apply(ctx: Context) {
     ctx.Route('oi33_auction', '/oi33/auction', AuctionListHandler);
-    ctx.Route('oi33_auction_rare', '/oi33/achievements/rare', AuctionRareHandler);
     ctx.Route('oi33_auction_create', '/oi33/auction/create', AuctionCreateHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_auction_detail', '/oi33/auction/:id', AuctionDetailHandler);
     ctx.Route('oi33_auction_bid', '/oi33/auction/:id/bid', AuctionBidHandler, PRIV.PRIV_USER_PROFILE);

@@ -1,11 +1,68 @@
 import { db, ObjectId } from 'hydrooj';
 import { backfillAllCatFood, previewCatFoodBackfill } from './model/user';
 import { dropLegacyAi33Collections } from './model/ai';
+import { medalMigrateAcceptedDomains, ensureMedalIndexes } from './model/medal';
+import { ensureAuctionIndexes } from './model/auction';
+import { ensureContractIndexes } from './model/contract';
+import { ensureMeowIndexes } from './model/meow';
 
 // hydrooj's `db` export is a Proxy over MongoService, which only exposes
 // `collection()` etc. — the raw mongodb Db (with listCollections / admin) is
 // reachable through any collection handle.
 const rawDb = db.collection('oi33_log').db as any;
+
+async function collectionExists(name: string) {
+    try {
+        return (await rawDb.listCollections({ name }).toArray()).length > 0;
+    } catch {
+        return false;
+    }
+}
+
+// Document-level fallback for the collection renames: used when the target
+// namespace already holds data (a previous run that copied but did not drop),
+// so the migration stays idempotent instead of silently skipping.
+async function copyDocuments(from: string, to: string) {
+    let copied = 0;
+    const cursor = rawDb.collection(from).find({});
+    while (await cursor.hasNext()) {
+        const doc = await cursor.next();
+        if (!doc) break;
+        await rawDb.collection(to).replaceOne({ _id: doc._id }, doc, { upsert: true });
+        copied++;
+    }
+    return copied;
+}
+
+// Indexes keyed by the pre-rename field names have to go BEFORE the fields are
+// renamed: `oi33_user_achievement` carries a non-sparse unique index on
+// (uid, achievementId), and once `achievementId` disappears every document of
+// the same user collapses to the key (uid, null) — the rename would abort with
+// a duplicate-key error for anyone holding two or more medals. The medal-keyed
+// indexes are recreated right after the rename (and by the models at startup).
+const LEGACY_MEDAL_INDEX_COLLECTIONS = [
+    'oi33_user_medal', 'oi33_medal_contract', 'oi33_auction', 'oi33_meow_post', 'oi33_user',
+];
+
+async function dropLegacyMedalIndexes() {
+    let dropped = 0;
+    for (const name of LEGACY_MEDAL_INDEX_COLLECTIONS) {
+        if (!(await collectionExists(name))) continue;
+        let indexes: any[] = [];
+        try {
+            indexes = await rawDb.collection(name).listIndexes().toArray();
+        } catch {
+            continue;
+        }
+        for (const index of indexes) {
+            const keys = Object.keys(index?.key || {});
+            if (!keys.some((key) => key === 'achievementId' || key === 'achievement_showcase')) continue;
+            await rawDb.collection(name).dropIndex(index.name).catch(() => {});
+            dropped++;
+        }
+    }
+    return dropped;
+}
 
 export async function previewMigration() {
     const [
@@ -16,6 +73,7 @@ export async function previewMigration() {
         oauthLogCount,
         legacyCatCanBatchCount,
         legacySchoolCount,
+        legacyMedalCollections,
         catFoodPreview,
     ] = await Promise.all([
         db.collection('coin').countDocuments(),
@@ -33,11 +91,16 @@ export async function previewMigration() {
         db.collection('oi33_log').countDocuments({ type: 'oauth' }),
         db.collection('oi33_cat_can_batch').countDocuments(),
         rawDb.collection('oi33_school').countDocuments(),
+        // Legacy 成就 collections still waiting for the 奖章 rename.
+        Promise.all([
+            'oi33_achievement', 'oi33_user_achievement', 'oi33_achievement_contract',
+        ].map(async (name) => ((await collectionExists(name)) ? name : null))),
         previewCatFoodBackfill(),
     ]);
     return {
         billCount, pasteCount, birthdayCount, userCount, oauthLogCount, legacyCatCanBatchCount,
         legacySchoolCount,
+        legacyMedalCollections: legacyMedalCollections.filter(Boolean),
         catFoodUsers: catFoodPreview.users,
         catFoodAmount: catFoodPreview.amount,
     };
@@ -57,6 +120,12 @@ export async function migrate() {
         legacySchoolRecordsDeleted: 0,
         legacySchoolCollectionDropped: false,
         legacyAdminCatFlagsCleared: 0,
+        medalCollectionsRenamed: 0,
+        medalDocumentsCopied: 0,
+        medalFieldsRenamed: 0,
+        medalLogsRenamed: 0,
+        medalLegacyIndexesDropped: 0,
+        medalDomainsMigrated: 0,
         catFoodUsers: 0,
         catFoodAmount: 0,
         errors: [] as string[],
@@ -331,6 +400,89 @@ export async function migrate() {
         result.legacyAdminCatFlagsCleared = cleared.modifiedCount;
     } catch (e: any) {
         result.errors.push(`Step 12 (clear legacy isAdminCat flags): ${e.message}`);
+    }
+
+    try {
+        // Step 13: the 成就 (achievement) system is now the 奖章 (medal) system.
+        // Rename the collections, then rewrite the document field names.
+        // Startup index creation may have already created the (empty) target
+        // collections, so an empty target is dropped before renaming; a target
+        // that already holds data falls back to a document-level copy.
+        const renames = [
+            ['oi33_achievement', 'oi33_medal'],
+            ['oi33_user_achievement', 'oi33_user_medal'],
+            ['oi33_achievement_contract', 'oi33_medal_contract'],
+        ];
+        for (const [from, to] of renames) {
+            if (!(await collectionExists(from))) continue;
+            if (await collectionExists(to)) {
+                const targetCount = await rawDb.collection(to).countDocuments();
+                if (targetCount) {
+                    result.medalDocumentsCopied += await copyDocuments(from, to);
+                    await rawDb.collection(from).drop();
+                    result.medalCollectionsRenamed++;
+                    continue;
+                }
+                await rawDb.collection(to).drop();
+            }
+            try {
+                await rawDb.admin().command({
+                    renameCollection: `${rawDb.databaseName}.${from}`,
+                    to: `${rawDb.databaseName}.${to}`,
+                });
+                result.medalCollectionsRenamed++;
+            } catch (e: any) {
+                if (e?.codeName !== 'NamespaceExists') throw e;
+                result.medalDocumentsCopied += await copyDocuments(from, to);
+                await rawDb.collection(from).drop();
+                result.medalCollectionsRenamed++;
+            }
+        }
+
+        // Rename the medal reference fields inside every collection that
+        // carries one. `$rename` is a no-op when the field is already gone,
+        // which keeps this step idempotent. The legacy indexes must be dropped
+        // first (see dropLegacyMedalIndexes) or the unique (uid, achievementId)
+        // index would reject the second medal of every user.
+        result.medalLegacyIndexesDropped = await dropLegacyMedalIndexes();
+        const fieldRenames: Array<[string, Record<string, string>]> = [
+            ['oi33_user_medal', { achievementId: 'medalId' }],
+            ['oi33_medal_contract', { achievementId: 'medalId' }],
+            ['oi33_auction', { achievementId: 'medalId' }],
+            ['oi33_meow_post', { achievementId: 'medalId' }],
+            ['oi33_log', { achievementId: 'medalId' }],
+            ['oi33_user', { achievement_showcase: 'medal_showcase' }],
+        ];
+        for (const [name, rename] of fieldRenames) {
+            if (!(await collectionExists(name))) continue;
+            const updated = await rawDb.collection(name).updateMany({}, { $rename: rename });
+            result.medalFieldsRenamed += updated.modifiedCount || 0;
+        }
+
+        // Log/source discriminators that named the old feature.
+        const logType = await db.collection('oi33_log').updateMany(
+            { type: 'achievement' } as any, { $set: { type: 'medal' } } as any,
+        );
+        result.medalLogsRenamed += logType.modifiedCount || 0;
+        const logAction = await db.collection('oi33_log').updateMany(
+            { type: 'meow', action: 'achievement' } as any, { $set: { action: 'medal' } } as any,
+        );
+        result.medalLogsRenamed += logAction.modifiedCount || 0;
+        const meowSource = await db.collection('oi33_meow_post').updateMany(
+            { source: 'achievement' } as any, { $set: { source: 'medal' } } as any,
+        );
+        result.medalLogsRenamed += meowSource.modifiedCount || 0;
+        // Recreate the medal-keyed indexes immediately: the dropped legacy
+        // indexes included the uniqueness guard on (uid, medalId).
+        await ensureMedalIndexes();
+        await ensureAuctionIndexes();
+        await ensureContractIndexes();
+        await ensureMeowIndexes();
+        // The AC-statistics domain list lives in the global system settings
+        // under the old 成就 key; copy it across so the configuration survives.
+        result.medalDomainsMigrated = await medalMigrateAcceptedDomains();
+    } catch (e: any) {
+        result.errors.push(`Step 13 (rename achievement → medal): ${e.message}`);
     }
 
     return result;
