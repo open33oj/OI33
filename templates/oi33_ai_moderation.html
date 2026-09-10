@@ -18,6 +18,7 @@
           </p>
         {% endif %}
         <p class="ai33-desc">{{ _('ai_moderation_help') }}</p>
+        {% if notice %}<p class="ai33-notice">{{ notice }}</p>{% endif %}
 
         <h3 style="margin-bottom:1rem;">{{ _('Today') }}</h3>
         <p>
@@ -47,7 +48,7 @@
             <tr>
               <td style="white-space:nowrap;">{{ datetimeSpan(e.createdAt)|safe }}</td>
               <td>{% if udict[e.uid] %}{{ user.render_inline(udict[e.uid]) }}{% else %}UID {{ e.uid }}{% endif %}</td>
-              <td>{{ kindLabels[e.kind] or e.kind }}</td>
+              <td>{{ kindLabels[e.kind] or e.kind }}{% if e.bioState === 'stale' %}<span class="ai33-status-stale">简介已变更，仅可标记失效</span>{% elif e.bioState === 'text' %}<span class="ai33-status-warn">哈希异常，按当前简介处理</span>{% endif %}</td>
               <td>{{ e.category }}<span class="ai33-subtitle">{{ e.source }}</span></td>
               <td class="ai33-content-cell">
                 <details>
@@ -59,6 +60,14 @@
                 {% if e.aiReason %}<div class="ai33-reason">{{ e.aiReason }}</div>{% endif %}
               </td>
               <td style="white-space:nowrap;">
+                {% if e.bioState === 'stale' %}
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="action" value="expire">
+                  <input type="hidden" name="id" value="{{ e._id }}">
+                  <a href="javascript:void(0)" onclick="return confirm('该记录对应的简介已被本人修改，无法通过或驳回。标记为失效只会把它移出队列，不会改动该用户的简介状态。确定吗？') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">标记失效</a>
+                </form>
+                {% else %}
                 <form method="post" style="display:inline;">
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <input type="hidden" name="action" value="approve">
@@ -72,11 +81,19 @@
                   <input type="hidden" name="id" value="{{ e._id }}">
                   <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
                 </form>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
+        {% if staleBioCount %}
+        <form method="post" style="margin:1rem 0 0;" onsubmit="return confirm('确定清理这 {{ staleBioCount }} 条失效的个人简介审核记录吗？只会把它们移出队列，不会改动任何用户的简介状态。');">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <input type="hidden" name="action" value="expire_stale_bio">
+          <button class="rounded button" type="submit">清理失效的简介记录（{{ staleBioCount }}）</button>
+        </form>
+        {% endif %}
         {% else %}
         <p>{{ _('Nothing pending.') }}</p>
         {% endif %}
@@ -171,7 +188,8 @@
                 {% else %}<span class="ai33-warn">{{ _('Review') }}</span>{% endif %}
                 <span class="ai33-subtitle">{{ e.source }}</span>
                 {% if e.status === 'approved' %}<span class="ai33-status-ok">{{ _('Approved') }}</span>
-                {% elif e.status === 'rejected' %}<span class="ai33-status-bad">{{ _('Rejected') }}</span>{% endif %}
+                {% elif e.status === 'rejected' %}<span class="ai33-status-bad">{{ _('Rejected') }}</span>
+                {% elif e.status === 'stale' %}<span class="ai33-status-stale">已失效</span>{% endif %}
               </td>
               <td class="ai33-content-cell ai33-content-cell-wide">
                 <details>
@@ -211,6 +229,12 @@
 .theme--dark .ai33-status-ok, [data-mantine-color-scheme=dark] .ai33-status-ok { color: #6fcf76; }
 .ai33-status-bad { color: #c00; margin-left: 0.5rem; font-size: 0.85em; }
 .theme--dark .ai33-status-bad, [data-mantine-color-scheme=dark] .ai33-status-bad { color: #ff6b6b; }
+.ai33-status-stale { color: #b8860b; margin-left: 0.5rem; font-size: 0.85em; }
+.theme--dark .ai33-status-stale, [data-mantine-color-scheme=dark] .ai33-status-stale { color: #e0b341; }
+.ai33-status-warn { color: #8a6d1f; margin-left: 0.5rem; font-size: 0.85em; }
+.theme--dark .ai33-status-warn, [data-mantine-color-scheme=dark] .ai33-status-warn { color: #d8c07a; }
+.ai33-notice { color: #2a7d2a; }
+.theme--dark .ai33-notice, [data-mantine-color-scheme=dark] .ai33-notice { color: #6fcf76; }
 .ai33-content-cell { max-width: 22rem; }
 .ai33-content-cell-wide { max-width: 36rem; }
 .ai33-content-cell summary { cursor: pointer; word-break: break-all; }

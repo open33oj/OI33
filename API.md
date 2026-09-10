@@ -225,6 +225,25 @@ curl -H "Authorization: Bearer 33tok_xxx" \
 |------|------|------|
 | `GET /oi33/admin?noTemplate=1` | 最近动态时间线 | 管理员 |
 
+### 2.9 奖章（Medal）
+
+| 端点 | 说明 | 权限 |
+|------|------|------|
+| `GET /oi33/medals/catalogue?noTemplate=1` | 公开奖章目录：四个系列全部奖章，认证系列列出完整等级阶梯与各级持有者人数，可售卖奖章显示持有者/拍卖状态 | 公开 |
+| `GET /oi33/medals/user/:uid?noTemplate=1` | 某用户的全部奖章（认证奖章显示当前持有的等级） | 公开 |
+
+```bash
+# 公开奖章目录
+curl -H "Authorization: Bearer 33tok_xxx" \
+     "https://oj-domain/oi33/medals/catalogue?noTemplate=1"
+
+# 某用户的奖章
+curl -H "Authorization: Bearer 33tok_xxx" \
+     "https://oj-domain/oi33/medals/user/2?noTemplate=1"
+```
+
+> 奖章目录与用户奖章列表均为只读视图，已加入 Token 白名单：`/oi33/medals/catalogue` 精确匹配，`/oi33/medals/user/:uid` 前缀匹配（见 §4.3）。奖章的写操作路由（`/oi33/medals/grant`、`/oi33/medals/revoke`、`/oi33/medals/level`、`/oi33/medals/save`、`/oi33/medals/:id/delete`、`/oi33/medals/scan`、`/oi33/medals/config`）**不可**通过 Token 访问。
+
 ---
 
 ## 三、Token 管理 API
@@ -290,6 +309,9 @@ const READONLY_ROUTE_PATTERNS = [
     /^\/oi33\/paste\/all(\/|$)/,
     /^\/oi33\/coin\/bill\//,
     /^\/oi33\/cat-food\/bill\//,
+    // 奖章目录 / 用户奖章列表为只读视图
+    /^\/oi33\/medals\/catalogue$/,
+    /^\/oi33\/medals\/user\//,
     /^\/oi33\/admin(\/|$)/,
     /^\/oi33\/requests(\/|$)/,
     /^\/oi33\/tokens(\/|$)/,
@@ -320,10 +342,13 @@ if (!READONLY_ROUTE_PATTERNS.some((re) => re.test(h.request.path))) {
 | `/oi33/paste/show/*` | ✅ 允许 | 剪贴板查看 |
 | `/oi33/at-cf-rating` | ✅ 允许 | Rating 排名 |
 | `/oi33/cat-food/bill/*` | ✅ 允许 | 猫粮奖励明细（自己或管理员） |
+| `/oi33/medals/catalogue` | ✅ 允许 | 公开奖章目录（精确匹配） |
+| `/oi33/medals/user/*` | ✅ 允许 | 某用户的奖章列表（前缀匹配） |
 | `/oi33/admin`, `/oi33/requests` | ✅ 允许 | 管理/审批页（仍需对应页面权限） |
 | `/oi33/tokens` | ✅ 允许 | Token 列表 |
 | `/oi33/checkin` | ❌ 禁止 | POST 会写入签到记录 |
 | `/oi33/badge/manage/*/del` | ❌ 禁止 | GET 内部会删除徽章 |
+| `/oi33/medals/grant`、`/oi33/medals/revoke`、`/oi33/medals/level`、`/oi33/medals/save`、`/oi33/medals/:id/delete`、`/oi33/medals/scan`、`/oi33/medals/config` | ❌ 禁止 | 奖章写操作路由（非白名单，且 POST 会被方法拦截） |
 | `/oi33/coin/inc` | ❌ 禁止 | 非白名单（且 POST 会被方法拦截） |
 | `/oi33/profile/edit/*` | ❌ 禁止 | 非白名单（且 POST 会被方法拦截） |
 | 其他未列出的路径 | ❌ 禁止 | 默认不在白名单中 |

@@ -1,6 +1,6 @@
 import { db, ObjectId, ValidationError } from 'hydrooj';
 import type {
-    Oi33Achievement, Oi33MeowPost, Oi33MeowStatus,
+    Oi33Medal, Oi33MeowPost, Oi33MeowStatus,
     Oi33ModerationSource, Oi33ModerationVerdict,
 } from './types';
 import { addLog, logColl } from './log';
@@ -31,6 +31,10 @@ export async function ensureMeowIndexes() {
     // Posting is now governed by a 2-hour cooldown + cat-can cost, so the old
     // unique index must be dropped or nobody could post twice on one day.
     await meowPostColl.dropIndex('uid_1_dateKey_1').catch(() => {});
+    // Medal announcements were keyed by `achievementId` before the rename to
+    // 奖章. Dropping the legacy index keeps only the medal-keyed one; the
+    // document fields themselves are renamed by the /oi33/migrate step.
+    await meowPostColl.dropIndex('uid_1_achievementId_1').catch(() => {});
     await Promise.all([
         meowPostColl.createIndex({ uid: 1, createdAt: -1, _id: -1 }),
         meowPostColl.createIndex({ uid: 1, status: 1, createdAt: -1 }),
@@ -46,8 +50,8 @@ export async function ensureMeowIndexes() {
             },
         ),
         meowPostColl.createIndex(
-            { uid: 1, achievementId: 1 },
-            { unique: true, partialFilterExpression: { source: 'achievement' } },
+            { uid: 1, medalId: 1 },
+            { unique: true, partialFilterExpression: { source: 'medal' } },
         ),
         meowFollowColl.createIndex({ follower: 1, following: 1 }, { unique: true }),
         meowFollowColl.createIndex({ following: 1, createdAt: -1 }),
@@ -76,7 +80,7 @@ export async function meowGetPost(id: ObjectId): Promise<Oi33MeowPost | null> {
 // A user's most recent 喵喵信息 (any status) — used for display only.
 export async function meowLastPost(uid: number): Promise<Oi33MeowPost | null> {
     return await meowPostColl.findOne(
-        { uid, source: { $ne: 'achievement' } },
+        { uid, source: { $ne: 'medal' } },
         { sort: { createdAt: -1, _id: -1 } },
     );
 }
@@ -86,7 +90,7 @@ export async function meowLastPost(uid: number): Promise<Oi33MeowPost | null> {
 // locked out — the user can immediately post again after a rejection.
 export async function meowCooldownAnchorPost(uid: number): Promise<Oi33MeowPost | null> {
     return await meowPostColl.findOne(
-        { uid, status: { $ne: 'rejected' }, source: { $ne: 'achievement' } },
+        { uid, status: { $ne: 'rejected' }, source: { $ne: 'medal' } },
         { sort: { createdAt: -1, _id: -1 } },
     );
 }
@@ -274,26 +278,40 @@ export async function meowPostAdd(
 
 // System-generated personal announcement. It is immediately visible, costs no
 // cans, does not use the daily free slot, and is ignored by the user cooldown.
-export async function meowAchievementPostAdd(
+//
+// Exactly one announcement exists per (user, medal). `view` carries the
+// resolved display record, so re-announcing a certification medal whose level
+// changed rewrites the existing post's text in place instead of leaving a
+// second, stale post behind.
+export async function meowMedalPostAdd(
     uid: number,
-    achievement: Pick<Oi33Achievement, '_id' | 'name' | 'description'>,
+    medal: Pick<Oi33Medal, '_id' | 'name'>,
+    view?: { name?: string; description?: string; levelName?: string },
 ): Promise<Oi33MeowPost> {
+    const displayName = view?.name || medal.name;
+    const fullContent = `🏆 获得奖章「${displayName}」：${view?.description || ''}`;
+    const content = [...fullContent].slice(0, 256).join('');
     const existing = await meowPostColl.findOne({
-        uid, source: 'achievement', achievementId: achievement._id,
+        uid, source: 'medal', medalId: medal._id,
     });
-    if (existing) return existing;
+    if (existing) {
+        if (existing.content !== content) {
+            await meowPostColl.updateOne({ _id: existing._id }, { $set: { content } });
+            existing.content = content;
+        }
+        return existing;
+    }
     const now = new Date();
-    const fullContent = `🏆 获得成就「${achievement.name}」：${achievement.description}`;
     const doc: Oi33MeowPost = {
         _id: new ObjectId(),
         uid,
-        content: [...fullContent].slice(0, 256).join(''),
+        content,
         dateKey: meowDateKey(now),
         status: 'approved',
         likeCount: 0,
         canCost: 0,
-        source: 'achievement',
-        achievementId: achievement._id,
+        source: 'medal',
+        medalId: medal._id,
         createdAt: now,
     };
     try {
@@ -301,19 +319,19 @@ export async function meowAchievementPostAdd(
     } catch (e: any) {
         if (e?.code !== 11000) throw e;
         const raced = await meowPostColl.findOne({
-            uid, source: 'achievement', achievementId: achievement._id,
+            uid, source: 'medal', medalId: medal._id,
         });
         if (!raced) throw e;
         return raced;
     }
     try {
         await addLog({
-            type: 'meow', userId: uid, action: 'achievement',
+            type: 'meow', userId: uid, action: 'medal',
             postId: doc._id.toHexString(), status: 'approved',
-            achievementId: achievement._id,
+            medalId: medal._id,
         });
     } catch (e) {
-        console.error('[oi33] achievement meow log failed:', e);
+        console.error('[oi33] medal meow log failed:', e);
     }
     return doc;
 }

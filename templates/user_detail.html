@@ -182,34 +182,34 @@
         </div>
       </div>
     </div>
-    {% if oi33AchievementPanel %}
-    <div class="section oi33-achievements">
+    {% if oi33MedalPanel %}
+    <div class="section oi33-medals">
       <div class="section__header">
-        <h2 class="section__title">成就展示柜</h2>
+        <h2 class="section__title">奖章展示柜</h2>
         <div class="section__tools">
-          {% if oi33AchievementPanel.isSelf %}
-          <a href="{{ url('oi33_achievement_showcase') }}" class="rounded button">编辑展示柜</a>
+          {% if oi33MedalPanel.isSelf %}
+          <a href="{{ url('oi33_medal_showcase') }}" class="rounded button">编辑展示柜</a>
           {% endif %}
-          {% if oi33AchievementPanel.canManage %}
-          <a href="{{ url('oi33_achievement_manage', query={uid:udoc._id}) }}" class="rounded button">管理成就</a>
+          {% if oi33MedalPanel.canManage %}
+          <a href="{{ url('oi33_medal_manage', query={uid:udoc._id}) }}" class="rounded button">管理奖章</a>
           {% endif %}
         </div>
       </div>
       <div class="section__body">
-        {% if oi33AchievementPanel.showcaseAwards.length %}
+        {% if oi33MedalPanel.showcaseAwards.length %}
         <div class="oi33-showcase-grid">
-          {% for award in oi33AchievementPanel.showcaseAwards %}
-          <div class="oi33-showcase-badge" title="{{ award.achievement.name }}：{{ award.achievement.description }}">
-            <img class="oi33-showcase-pixel" src="{{ award.achievement.imageData }}" width="64" height="64"
-              alt="{{ award.achievement.name }}">
-            <span class="oi33-showcase-name">{{ award.achievement.name }}</span>
+          {% for award in oi33MedalPanel.showcaseAwards %}
+          <div class="oi33-showcase-badge" title="{{ award.view.name }}：{{ award.view.description }}">
+            <img class="oi33-showcase-pixel" src="{{ award.view.imageData }}" width="64" height="64"
+              alt="{{ award.view.name }}">
+            <span class="oi33-showcase-name">{{ award.view.name }}</span>
           </div>
           {% endfor %}
         </div>
-        {% elif oi33AchievementPanel.isSelf %}
-        <p class="oi33-achievement-empty">还没有布置成就展示柜，<a href="{{ url('oi33_achievement_showcase') }}">去编辑</a>选择要展示的徽章（最多 16 个）。</p>
+        {% elif oi33MedalPanel.isSelf %}
+        <p class="oi33-medal-empty">还没有布置奖章展示柜，<a href="{{ url('oi33_medal_showcase') }}">去编辑</a>选择要展示的奖章（最多 16 个）。</p>
         {% else %}
-        <p class="oi33-achievement-empty">TA 还没有布置成就展示柜。</p>
+        <p class="oi33-medal-empty">TA 还没有布置奖章展示柜。</p>
         {% endif %}
       </div>
     </div>
@@ -268,28 +268,29 @@
               </div>
             </li>
             {% endif %}
-            {% if oi33AchievementPanel %}
+            {% if oi33MedalPanel %}
             <li class="section__tab-item">
-              <h1 class="section__tab-title">成就（{{ oi33AchievementPanel.awards.length }}）</h1>
+              <h1 class="section__tab-title">奖章（{{ oi33MedalPanel.awards.length }}）</h1>
               <div class="section__tab-main">
                 <div class="typo section__body no-media">
-                  {% if oi33AchievementPanel.awards.length %}
-                  <ul class="oi33-achievement-list">
-                    {% for award in oi33AchievementPanel.awards.slice(0, 50) %}
-                    <li class="oi33-achievement-list__row">
-                      <img class="oi33-achievement-list__icon" src="{{ award.achievement.imageData }}"
-                        alt="{{ award.achievement.name }}">
-                      <span class="oi33-achievement-list__name">{{ award.achievement.name }}</span>
-                      <span class="oi33-achievement-list__desc"
-                        title="{{ award.achievement.description }}">{{ award.achievement.description }}</span>
+                  {% if oi33MedalPanel.awards.length %}
+                  <ul class="oi33-medal-list">
+                    {% for award in oi33MedalPanel.awards.slice(0, 50) %}
+                    <li class="oi33-medal-list__row">
+                      <img class="oi33-medal-list__icon" src="{{ award.view.imageData }}"
+                        alt="{{ award.view.name }}">
+                      <span class="oi33-medal-list__name">{{ award.view.name }}</span>
+                      <span class="oi33-medal-list__tag oi33-medal-list__tag--{{ award.view.category }}">{{ award.view.categoryName }}</span>
+                      <span class="oi33-medal-list__desc"
+                        title="{{ award.view.description }}">{{ award.view.description }}</span>
                     </li>
                     {% endfor %}
                   </ul>
-                  {% if oi33AchievementPanel.awards.length > 50 %}
-                  <p><a href="{{ url('oi33_achievement_user', uid=udoc._id) }}">查看所有成就（共 {{ oi33AchievementPanel.awards.length }} 个）</a></p>
+                  {% if oi33MedalPanel.awards.length > 50 %}
+                  <p><a href="{{ url('oi33_medal_user', uid=udoc._id) }}">查看所有奖章（共 {{ oi33MedalPanel.awards.length }} 个）</a></p>
                   {% endif %}
                   {% else %}
-                  <p>还没有获得成就。</p>
+                  <p>还没有获得奖章。</p>
                   {% endif %}
                 </div>
               </div>
@@ -464,29 +465,38 @@
     margin-top:.5rem; font-size:.85rem; max-width:100%;
     overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
   }
-  .oi33-achievement-list { list-style:none; margin:0; padding:0; }
-  .oi33-achievement-list__row {
+  .oi33-medal-list { list-style:none; margin:0; padding:0; }
+  .oi33-medal-list__row {
     display:flex; align-items:baseline; gap:.6rem; padding:.25rem 0; min-width:0;
     border-bottom:1px dashed rgba(127,127,127,.15);
   }
-  .oi33-achievement-list__row:last-child { border-bottom:none; }
-  .oi33-achievement-list__icon {
+  .oi33-medal-list__row:last-child { border-bottom:none; }
+  .oi33-medal-list__icon {
     width:1em; height:1em; flex:0 0 1em; align-self:center; object-fit:fill;
     image-rendering:crisp-edges; image-rendering:pixelated;
   }
-  .oi33-achievement-list__name { flex:0 0 auto; font-weight:600; }
-  .oi33-achievement-list__desc {
+  .oi33-medal-list__name { flex:0 0 auto; font-weight:600; }
+  .oi33-medal-list__tag {
+    flex:0 0 auto; font-size:.72em; padding:.05rem .45rem; border-radius:999px;
+    border:1px solid rgba(127,127,127,.4); color:#777;
+  }
+  .oi33-medal-list__tag--oj { border-color:#4c8bf5; color:#3a6fd0; }
+  .oi33-medal-list__tag--saleable { border-color:#d99b2b; color:#a8761a; }
+  .oi33-medal-list__tag--certification { border-color:#2fa36b; color:#1f7d50; }
+  .oi33-medal-list__desc {
     flex:1 1 auto; min-width:0; color:#777; font-size:.85em;
     overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
   }
-  .oi33-achievement-empty { color:#777; font-size:.85em; }
+  .oi33-medal-empty { color:#777; font-size:.85em; }
   .oi33-bio-hint { color:#777; font-size:.85em; margin:0; }
   .theme--dark .oi33-bio-hint,
   [data-mantine-color-scheme=dark] .oi33-bio-hint { color:#aaa; }
-  .theme--dark .oi33-achievement-list__desc,
-  [data-mantine-color-scheme=dark] .oi33-achievement-list__desc { color:#aaa; }
-  .theme--dark .oi33-achievement-empty,
-  [data-mantine-color-scheme=dark] .oi33-achievement-empty { color:#aaa; }
+  .theme--dark .oi33-medal-list__desc,
+  [data-mantine-color-scheme=dark] .oi33-medal-list__desc { color:#aaa; }
+  .theme--dark .oi33-medal-list__tag,
+  [data-mantine-color-scheme=dark] .oi33-medal-list__tag { color:#bbb; }
+  .theme--dark .oi33-medal-empty,
+  [data-mantine-color-scheme=dark] .oi33-medal-empty { color:#aaa; }
   /* The tab panel is its own section now (no profile-header image behind it):
      undo the stock negative margin that used to pull the tabs up over the
      profile header image, and give the immersive strip a real bar. */

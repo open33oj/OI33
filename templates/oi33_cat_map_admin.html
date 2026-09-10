@@ -23,6 +23,21 @@
             </div>
           </div>
         </form>
+        <form method="post" action="{{ url('oi33_cat_map_admin_settings') }}"
+          onsubmit="return confirm('保存猫猫广场配置？');">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <div class="row">
+            <div class="medium-8 columns">
+              <label>路径规划步数上限（1～{{ planStepLimit }}）
+                <input type="number" name="planMaxSteps" min="1" max="{{ planStepLimit }}" value="{{ planMaxSteps }}" required>
+              </label>
+            </div>
+            <div class="medium-4 columns">
+              <label>&nbsp;<button type="submit" class="expanded rounded button">保存配置</button></label>
+            </div>
+          </div>
+          <span class="help-text">每步 = 移动到相邻格并涂色；该上限同时约束前端的步骤添加与后端的保存校验。</span>
+        </form>
         <form method="post" action="{{ url('oi33_cat_map_admin_refresh_territories') }}"
           onsubmit="return confirm('将把全部有色格子的归属更新为最后绘图者当前绑定的大猫；原始 8-bit 颜色不会改变。确定继续吗？');">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">

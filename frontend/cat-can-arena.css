@@ -24,6 +24,35 @@
 .oi33-map-viewport { position: relative; height: min(72vh, 720px); min-height: 480px; overflow: hidden; touch-action: none; cursor: grab; background: rgb(68,68,68); }
 .oi33-map-viewport::after { position: absolute; z-index: 20; inset: 0; box-sizing: border-box; border: 1px solid rgba(28,48,34,.38); content: ''; pointer-events: none; }
 .oi33-map-viewport.is-dragging { cursor: grabbing; }
+/* 路径规划：拾取模式下用十字光标提示「点格子即加一步」。 */
+.oi33-map-viewport.is-plan-picking { cursor: crosshair; }
+.oi33-map-plan { padding: 10px 12px 12px; border-bottom: 1px solid rgba(128,128,128,.16); background: rgba(250,248,240,.96); }
+.oi33-map-plan[hidden] { display: none; }
+.oi33-map-plan__head { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.oi33-map-plan__head strong { font-size: 14px; }
+.oi33-map-plan__state { color: #7a5a1c; font-size: 12px; }
+.oi33-map-plan__count { margin-left: auto; color: #607065; font-size: 12px; font-variant-numeric: tabular-nums; }
+.oi33-map-plan__steps { display: flex; overflow-x: auto; gap: 7px; margin: 9px 0 0; padding: 0 0 2px; list-style: none; }
+.oi33-map-plan__steps li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid rgba(128,128,128,.28); border-radius: 999px; font-size: 12px; white-space: nowrap; background: rgba(255,255,255,.9); }
+.oi33-map-plan__steps li.is-executed { opacity: .55; }
+.oi33-map-plan__steps li.is-next { border-color: #d63c3c; box-shadow: 0 0 0 2px rgba(214,60,60,.18); }
+.oi33-map-plan__steps li.is-draft { border-style: dashed; }
+.oi33-map-plan__steps li.oi33-map-plan__empty { border-style: dashed; color: #7d8a80; }
+.oi33-map-plan__order { color: #7a5a1c; font-weight: 600; }
+.oi33-map-plan__swatch { width: 12px; height: 12px; border: 1px solid rgba(0,0,0,.35); border-radius: 3px; }
+.oi33-map-plan__note { color: #7d8a80; }
+.oi33-map-plan__hint { margin: 9px 0 0; color: #6c7a70; font-size: 12px; line-height: 1.6; }
+.oi33-map-plan__hint.is-picking { color: #a2500f; font-weight: 600; }
+.oi33-map-plan__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.oi33-map-plan__actions .button { height: 32px; margin: 0; }
+.oi33-map-plan__actions .button.is-active { color: #fff; background: #39774d; }
+.theme--dark .oi33-map-plan { background: rgba(38,42,38,.96); }
+.theme--dark .oi33-map-plan__state, .theme--dark .oi33-map-plan__order { color: #e0b667; }
+.theme--dark .oi33-map-plan__count, .theme--dark .oi33-map-plan__hint { color: #a9b6ac; }
+.theme--dark .oi33-map-plan__steps li { background: rgba(52,58,52,.95); }
+@media (max-width: 760px) {
+  .oi33-map-plan__count { margin-left: 0; }
+}
 .oi33-map-body:fullscreen { display: flex; height: 100vh; min-height: 0; flex-direction: column; padding: 0 !important; background: #eef2ee; }
 .oi33-map-body:fullscreen .oi33-map-toolbar { flex: 0 0 auto; }
 .oi33-map-body:fullscreen .oi33-map-navigation { flex: 0 0 auto; }

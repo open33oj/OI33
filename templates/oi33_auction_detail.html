@@ -6,20 +6,20 @@
   <div class="medium-12 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">成就拍卖 · {{ achievement.name }}</h1>
+        <h1 class="section__title">奖章拍卖 · {{ medal.name }}</h1>
         <div class="section__tools">
           <a href="{{ url('oi33_auction') }}" class="rounded button">返回拍卖列表</a>
         </div>
       </div>
       <div class="section__body">
         <div class="auction-detail">
-          {% if achievement.imageData %}
-          <img class="auction-pixel" src="{{ achievement.imageData }}" width="96" height="96" alt="{{ achievement.name }}">
+          {% if medal.imageData %}
+          <img class="auction-pixel" src="{{ medal.imageData }}" width="96" height="96" alt="{{ medal.name }}">
           {% endif %}
           <div class="auction-detail__body">
-            <h2>{{ achievement.name }}</h2>
-            <p>{{ achievement.description }}</p>
-            <p class="auction-meta"><strong>达成规则：</strong>{{ achievement.rule }}</p>
+            <h2>{{ medal.name }}</h2>
+            <p>{{ medal.description }}</p>
+            <p class="auction-meta"><strong>达成规则：</strong>{{ medal.rule }}</p>
             <p class="auction-meta">
               起拍价 {{ auction.startPrice }} 罐头 · {{ datetimeSpan(auction.startAt)|safe }} 开始 ·
               {{ datetimeSpan(auction.endAt)|safe }} 结束
@@ -41,8 +41,8 @@
               {% if auction.winner %}
               <p class="auction-price">已成交：<strong>{{ auction.settlePrice }}</strong> 罐头，赢家
                 {% if udict[auction.winner] %}{{ user.render_inline(udict[auction.winner]) }}{% else %}UID {{ auction.winner }}{% endif %}。</p>
-              {% if achievement.saleable and auction.winner == handler.user._id %}
-              <p><a href="{{ url('oi33_contracts') }}">该成就可售卖，前往「我的交易合同」创建转售合同 →</a></p>
+              {% if medal.saleable and auction.winner == handler.user._id %}
+              <p><a href="{{ url('oi33_contracts') }}">该奖章可售卖，前往「我的交易合同」创建转售合同 →</a></p>
               {% endif %}
               {% else %}
               <p class="auction-price">已流拍：没有人出价。</p>
@@ -68,7 +68,7 @@
             <p class="auction-help">出价立即托管扣除猫罐头；被更高出价超越时自动全额退款；每次有效出价后至少保留 1 分钟竞价时间。</p>
           </form>
           {% elif viewerOwned %}
-          <p class="auction-help">你已经拥有这个成就，无需竞拍。</p>
+          <p class="auction-help">你已经拥有这个奖章，无需竞拍。</p>
           {% elif auction.highestBidder == handler.user._id %}
           <p class="auction-help">你已经是当前最高出价者，静候结果即可。</p>
           {% else %}

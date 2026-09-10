@@ -16,7 +16,7 @@ import { apply as applyAi } from './handler/ai';
 import { apply as applyModerate } from './handler/moderate';
 import { apply as applyBio } from './handler/bio';
 import { apply as applyMeow } from './handler/meow';
-import { apply as applyAchievement } from './handler/achievement';
+import { apply as applyMedal } from './handler/medal';
 import { apply as applyAuction } from './handler/auction';
 import { apply as applyContract } from './handler/contract';
 import { apply as applyContest } from './handler/contest';
@@ -25,10 +25,10 @@ import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
 import { ensureCatAccountIndexes } from './model/cat-account';
-import { ensureCatMapIndexes, recountSchoolCatTerritories } from './model/cat-map';
+import { ensureCatMapIndexes, recountSchoolCatTerritories, runCatMapPlansDue } from './model/cat-map';
 import { ensureSchoolCatIndexes, settleSchoolCatWeeklyRewards } from './model/school-cat';
 import { ensureMeowIndexes } from './model/meow';
-import { achievementEvaluateUser, ensureAchievementIndexes } from './model/achievement';
+import { medalEvaluateUser, ensureMedalIndexes } from './model/medal';
 import { ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
 import { ensureLogIndexes } from './model/log';
@@ -36,6 +36,27 @@ import { ensureLogIndexes } from './model/log';
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
 let schoolCatRewardRunning = false;
+let catMapPlanTimer: NodeJS.Timeout | undefined;
+let catMapPlanRunning = false;
+
+// Cat map plans: every 30s advance the plans whose cooldown has expired. The
+// step itself (move + paint, costs, cooldown, auto-stop) lives in the model;
+// here we only run the tick and fan the resulting events out over the socket
+// channel. Only instance 0 runs it (see the NODE_APP_INSTANCE guard below) and
+// the per-plan database lease keeps a plan from being executed twice.
+const CAT_MAP_PLAN_TICK_MS = 30 * 1000;
+
+async function maintainCatMapPlans(ctx: Context) {
+    if (catMapPlanRunning) return;
+    catMapPlanRunning = true;
+    try {
+        const result = await runCatMapPlansDue();
+        for (const event of result.events) (ctx as any).broadcast('oi33/cat-map-change', event);
+        if (result.advanced) console.info(`[oi33] cat map plans advanced: ${result.advanced}`);
+    } finally {
+        catMapPlanRunning = false;
+    }
+}
 
 async function maintainCatCanMarket() {
     if (catCanMaintenanceRunning) return;
@@ -55,8 +76,8 @@ async function maintainSchoolCatRewards() {
         if (!result.newlyCompleted) return;
         for (let offset = 0; offset < result.awardedUids.length; offset += 20) {
             await Promise.all(result.awardedUids.slice(offset, offset + 20).map((uid) => (
-                achievementEvaluateUser(uid, { ruleTypes: ['cat_can_balance'] })
-                    .catch((e) => console.error('[oi33] weekly big-cat reward achievement evaluation failed:', e))
+                medalEvaluateUser(uid, { ruleTypes: ['cat_can_balance'] })
+                    .catch((e) => console.error('[oi33] weekly big-cat reward medal evaluation failed:', e))
             )));
         }
         console.info(`[oi33] weekly big-cat reward ${result.period}: ${result.users} users, ${result.cans} cans`);
@@ -87,7 +108,7 @@ export async function apply(ctx: Context) {
     await applyModerate(ctx);
     await applyBio(ctx);
     await applyMeow(ctx);
-    await applyAchievement(ctx);
+    await applyMedal(ctx);
     await applyAuction(ctx);
     await applyContract(ctx);
     await applyContest(ctx);
@@ -113,18 +134,24 @@ export async function apply(ctx: Context) {
                 await recountSchoolCatTerritories();
                 await ensureModerationIndexes();
                 await ensureMeowIndexes();
-                await ensureAchievementIndexes();
+                await ensureMedalIndexes();
                 await ensureAuctionIndexes();
                 await ensureContractIndexes();
                 await ensureLogIndexes();
                 await maintainCatCanMarket();
                 await maintainSchoolCatRewards().catch((e) => console.error('[oi33] weekly big-cat reward failed:', e));
+                await maintainCatMapPlans(ctx).catch((e) => console.error('[oi33] cat map plans failed:', e));
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {
                     maintainCatCanMarket().catch((e) => console.error('[oi33] cat can maintenance failed:', e));
                     maintainSchoolCatRewards().catch((e) => console.error('[oi33] weekly big-cat reward failed:', e));
                 }, 10 * 60 * 1000);
                 catCanTimer.unref();
+                if (catMapPlanTimer) clearInterval(catMapPlanTimer);
+                catMapPlanTimer = setInterval(() => {
+                    maintainCatMapPlans(ctx).catch((e) => console.error('[oi33] cat map plans failed:', e));
+                }, CAT_MAP_PLAN_TICK_MS);
+                catMapPlanTimer.unref();
             } catch (e) {
                 console.error('[oi33] cat can initialization failed:', e);
             }

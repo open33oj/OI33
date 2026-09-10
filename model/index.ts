@@ -8,6 +8,7 @@ import {
     previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
     getAllUsersData, getRatedUsers,
     bioMarkEdited, bioSetStatus, bioSetReviewed,
+    expirePendingBioEntries, expireStaleBioEntries, getLiveBio, getLiveBios,
 } from './user';
 import {
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
@@ -51,6 +52,10 @@ import {
     ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
     moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
     refreshCatMapTerritories, recountSchoolCatTerritories, getCatMapCooldownMinutes,
+    getCatMapConfig, saveCatMapConfig, getCatMapPlan, getCatMapPlanView,
+    saveCatMapPlan, stopCatMapPlan, advanceCatMapPlan, runCatMapPlansDue,
+    buildCatMapPlanView, validateCatMapPlanShape, normalizeCatMapPlanMaxSteps,
+    CAT_MAP_PLAN_MAX_STEPS_DEFAULT, CAT_MAP_PLAN_MAX_STEPS_LIMIT, CAT_MAP_PLAN_RETRY_LIMIT,
 } from './cat-map';
 import {
     ensureSchoolCatIndexes, searchSchools, listSchools, getSchool, getSchoolView,
@@ -77,13 +82,14 @@ import {
 } from './ai';
 import {
     ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
-    modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
-    bioHashMatches, bioHashOf,
+    modListRecent, modSetStatus, modExpireEntries,
+    modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
+    bioHashMatches, bioHashOf, bioQueueState, sameBioText,
 } from './moderate';
 import {
     ensureMeowIndexes, meowDateKey, meowDailyFreeAvailable,
     meowGetPost, meowLastPost, meowCooldownAnchorPost, meowCooldownRemaining, meowCooldownText, meowRefundCan,
-    meowPostAdd, meowAchievementPostAdd, meowFeed, meowUserPosts,
+    meowPostAdd, meowMedalPostAdd, meowFeed, meowUserPosts,
     meowResolveVerdict, meowForwardCount, meowListPending, meowListRecent, meowListAll, meowDelete, meowTodayStats, meowSetStatus,
     meowFollow, meowUnfollow, meowIsFollowing,
     meowFollowingList, meowFollowerList, meowFollowingCount, meowFollowerCount,
@@ -93,16 +99,19 @@ import {
     MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
 } from './meow';
 import {
-    ensureAchievementIndexes, achievementGet, achievementList, achievementListManual, achievementSave,
-    achievementDelete, achievementGetUserAwards, achievementListRecentAwards,
-    achievementGrant, achievementRevoke, achievementEvaluateUser, achievementEvaluateAll,
-    achievementGetAcceptedDomains, achievementSetAcceptedDomains,
-    achievementAcceptedDomainIncluded, achievementImportInitialDefinitions,
-} from './achievement';
+    ensureMedalIndexes, medalGet, medalList, medalCatalogue, medalSave,
+    medalDelete, medalGetUserAwards, medalListRecentAwards, medalAwardStats,
+    medalGrant, medalRevoke, medalEvaluateUser, medalEvaluateAll, medalSetLevel,
+    medalCategoryOf, medalCategoryName, medalCategoryRank, medalGroupByCategory,
+    medalLevelOf, medalDisplayRung, medalSortedLevels, medalAwardView,
+    MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES,
+    medalGetAcceptedDomains, medalSetAcceptedDomains,
+    medalAcceptedDomainIncluded, medalImportInitialDefinitions,
+} from './medal';
 import {
     ensureAuctionIndexes, auctionGet, auctionCreate, auctionBid, auctionSettle,
     auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
-    auctionGetBids, auctionRareShowcase,
+    auctionGetBids, auctionSaleableShowcase,
 } from './auction';
 import {
     ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
@@ -124,7 +133,7 @@ export {
 export { logColl } from './log';
 export { catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
 export { catFoodBatchPreviewColl } from './cat-account';
-export { catMapPlayerColl, catMapCellColl } from './cat-map';
+export { catMapPlayerColl, catMapCellColl, catMapPlanColl, catMapConfigColl } from './cat-map';
 export { schoolCatColl, schoolFeedHistoryColl, schoolCatRewardColl } from './school-cat';
 export {
     aiAnalysisColl, aiConfigColl, aiProblemSummaryColl,
@@ -132,7 +141,7 @@ export {
 } from './ai';
 export { moderationColl } from './moderate';
 export { meowPostColl, meowFollowColl, meowLikeColl } from './meow';
-export { achievementColl, userAchievementColl } from './achievement';
+export { medalColl, userMedalColl } from './medal';
 export { auctionColl, auctionBidColl } from './auction';
 export { contractColl } from './contract';
 
@@ -144,7 +153,8 @@ const oi33Model = {
     setRealname, getRealnamedUsers,
     doCheckin, getCheckinUser,
     previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
-    bioMarkEdited, bioSetStatus, bioSetReviewed, bioHashMatches, bioHashOf,
+    bioMarkEdited, bioSetStatus, bioSetReviewed, bioHashMatches, bioHashOf, bioQueueState, sameBioText,
+    expirePendingBioEntries, expireStaleBioEntries, getLiveBio, getLiveBios,
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
     getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
     getCatFoodLogCount, getCatFoodLogs,
@@ -158,6 +168,10 @@ const oi33Model = {
     ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
     moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
     refreshCatMapTerritories, recountSchoolCatTerritories, getCatMapCooldownMinutes,
+    getCatMapConfig, saveCatMapConfig, getCatMapPlan, getCatMapPlanView,
+    saveCatMapPlan, stopCatMapPlan, advanceCatMapPlan, runCatMapPlansDue,
+    buildCatMapPlanView, validateCatMapPlanShape, normalizeCatMapPlanMaxSteps,
+    CAT_MAP_PLAN_MAX_STEPS_DEFAULT, CAT_MAP_PLAN_MAX_STEPS_LIMIT, CAT_MAP_PLAN_RETRY_LIMIT,
     ensureSchoolCatIndexes, searchSchools, listSchools, getSchool, getSchoolView,
     getBigCatWorldState, getSchoolCatRanking, bindSchoolCat, unbindSchoolCat, feedSchoolCat, getSchoolCatDetail,
     setSchoolCatTerritoryColor, schoolCatKey, schoolIdFromCatKey,
@@ -189,10 +203,11 @@ const oi33Model = {
     aiAddUsage, aiGetUsageStats, aiGetUsedMap,
     aiGetConfig, aiSaveConfig,
     ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
-    modListRecent, modSetStatus, modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
+    modListRecent, modSetStatus, modExpireEntries,
+    modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
     ensureMeowIndexes, meowDateKey, meowDailyFreeAvailable,
     meowGetPost, meowLastPost, meowCooldownAnchorPost, meowCooldownRemaining, meowCooldownText, meowRefundCan,
-    meowPostAdd, meowAchievementPostAdd, meowFeed, meowUserPosts,
+    meowPostAdd, meowMedalPostAdd, meowFeed, meowUserPosts,
     meowResolveVerdict, meowForwardCount, meowListPending, meowListRecent, meowListAll, meowDelete, meowTodayStats, meowSetStatus,
     meowFollow, meowUnfollow, meowIsFollowing,
     meowFollowingList, meowFollowerList, meowFollowingCount, meowFollowerCount,
@@ -200,14 +215,17 @@ const oi33Model = {
     meowToggleLike, meowLikedMap,
     setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
     MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
-    ensureAchievementIndexes, achievementGet, achievementList, achievementListManual, achievementSave,
-    achievementDelete, achievementGetUserAwards, achievementListRecentAwards,
-    achievementGrant, achievementRevoke, achievementEvaluateUser, achievementEvaluateAll,
-    achievementGetAcceptedDomains, achievementSetAcceptedDomains,
-    achievementAcceptedDomainIncluded, achievementImportInitialDefinitions,
+    ensureMedalIndexes, medalGet, medalList, medalCatalogue, medalSave,
+    medalDelete, medalGetUserAwards, medalListRecentAwards, medalAwardStats,
+    medalGrant, medalRevoke, medalEvaluateUser, medalEvaluateAll, medalSetLevel,
+    medalCategoryOf, medalCategoryName, medalCategoryRank, medalGroupByCategory,
+    medalLevelOf, medalDisplayRung, medalSortedLevels, medalAwardView,
+    MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES,
+    medalGetAcceptedDomains, medalSetAcceptedDomains,
+    medalAcceptedDomainIncluded, medalImportInitialDefinitions,
     ensureAuctionIndexes, auctionGet, auctionCreate, auctionBid, auctionSettle,
     auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
-    auctionGetBids, auctionRareShowcase,
+    auctionGetBids, auctionSaleableShowcase,
     ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
     contractAccept, contractDecline, contractCancel, contractListIncoming,
     contractListOutgoing, contractListRecentResolved,
@@ -237,6 +255,8 @@ declare module 'hydrooj' {
         oi33_cat_food_batch_preview: import('./types').Oi33CatFoodBatchPreview;
         oi33_cat_map_player: import('./types').Oi33CatMapPlayer;
         oi33_cat_map_cell: import('./types').Oi33CatMapCell;
+        oi33_cat_map_plan: import('./types').Oi33CatMapPlan;
+        oi33_cat_map_config: import('./types').Oi33CatMapConfig;
         oi33_school_cat: import('./types').Oi33SchoolCat;
         oi33_school_feed_history: import('./types').Oi33SchoolFeedHistory;
         oi33_school_cat_reward: import('./types').Oi33SchoolCatReward;
@@ -250,11 +270,11 @@ declare module 'hydrooj' {
         oi33_meow_post: import('./types').Oi33MeowPost;
         oi33_meow_follow: import('./types').Oi33MeowFollow;
         oi33_meow_like: import('./types').Oi33MeowLike;
-        oi33_achievement: import('./types').Oi33Achievement;
-        oi33_user_achievement: import('./types').Oi33UserAchievement;
+        oi33_medal: import('./types').Oi33Medal;
+        oi33_user_medal: import('./types').Oi33UserMedal;
         oi33_auction: import('./types').Oi33Auction;
         oi33_auction_bid: import('./types').Oi33AuctionBid;
-        oi33_achievement_contract: import('./types').Oi33Contract;
+        oi33_medal_contract: import('./types').Oi33Contract;
     }
 }
 

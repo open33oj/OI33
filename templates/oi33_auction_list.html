@@ -6,12 +6,12 @@
   <div class="medium-12 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">成就拍卖</h1>
+        <h1 class="section__title">奖章拍卖</h1>
         <div class="section__tools">
-          <a href="{{ url('oi33_auction_rare') }}" class="rounded button">稀有成就</a>
+          <a href="{{ url('oi33_medal_catalogue') }}" class="rounded button">可售卖奖章</a>
           {% if handler.user._id %}<a href="{{ url('oi33_contracts') }}" class="rounded button">我的交易合同</a>{% endif %}
           {% if canManage %}
-          <a href="{{ url('oi33_achievement_manage') }}" class="rounded button">成就管理</a>
+          <a href="{{ url('oi33_medal_manage') }}" class="rounded button">奖章管理</a>
           {% endif %}
         </div>
       </div>
@@ -19,24 +19,24 @@
         <p class="auction-help">
           出价立即托管扣除猫罐头，被超越时自动退款；每次出价至少比当前最高价多 1 个罐头。
           实际结束时间取管理员设定时间与最后一次有效出价后 1 分钟中的较晚者。
-          成交后赢家获得成就，支付的罐头回流罐头池，同时按当前卖价销毁等值储备粮；流拍或取消则全额退款。
-          稀有成就只拍卖一次，成交后只能通过交易合同转让。
+          成交后赢家获得奖章，支付的罐头回流罐头池，同时按当前卖价销毁等值储备粮；流拍或取消则全额退款。
+          可售卖奖章只拍卖一次，成交后只能通过交易合同转让。
           {% if handler.user._id %}你当前持有 <strong>{{ viewerCans }}</strong> 个猫罐头。{% endif %}
         </p>
 
         {% if canManage %}
         <div class="auction-create">
           <h2>上架拍卖</h2>
-          <p class="auction-help">只有可售卖且从未拍出的稀有成就可以上架；每个稀有成就只拍卖一次。</p>
-          {% if achievements.length %}
+          <p class="auction-help">只有「可售卖奖章」中从未拍出的奖章可以上架；每个可售卖奖章只拍卖一次。</p>
+          {% if medals.length %}
           <form method="post" action="{{ url('oi33_auction_create') }}">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <div class="row">
               <div class="medium-5 columns form__item">
-                <label>成就</label>
-                <select class="select" name="achievementId" required>
-                  {% for achievement in achievements %}
-                  <option value="{{ achievement._id }}" {% if preselect == achievement._id %}selected{% endif %}>{{ achievement.name }}（{{ achievement._id }}）</option>
+                <label>奖章</label>
+                <select class="select" name="medalId" required>
+                  {% for medal in medals %}
+                  <option value="{{ medal._id }}" {% if preselect == medal._id %}selected{% endif %}>{{ medal.name }}（{{ medal._id }}）</option>
                   {% endfor %}
                 </select>
               </div>
@@ -52,7 +52,7 @@
             <button type="submit" class="rounded primary button">上架拍卖</button>
           </form>
           {% else %}
-          <p>暂无可以上架的稀有成就。请在成就管理中创建可售卖的成就；已拍出或已被持有的成就只能等待合同转让。</p>
+          <p>暂无可以上架的奖章。请在奖章管理中创建「可售卖奖章」；已拍出或已被持有的奖章只能等待合同转让。</p>
           {% endif %}
         </div>
         {% endif %}
@@ -61,13 +61,13 @@
         {% if active.length %}
         <div class="auction-grid">
           {% for auction in active %}
-          {% set achievement = achievementDict[auction.achievementId] %}
+          {% set medal = medalDict[auction.medalId] %}
           <article class="auction-card">
-            {% if achievement %}
-            <img class="auction-pixel" src="{{ achievement.imageData }}" width="64" height="64" alt="{{ achievement.name }}">
+            {% if medal %}
+            <img class="auction-pixel" src="{{ medal.imageData }}" width="64" height="64" alt="{{ medal.name }}">
             {% endif %}
             <div class="auction-card__body">
-              <h3><a href="{{ url('oi33_auction_detail', id=auction._id) }}">{{ achievement.name if achievement else auction.achievementId }}</a></h3>
+              <h3><a href="{{ url('oi33_auction_detail', id=auction._id) }}">{{ medal.name if medal else auction.medalId }}</a></h3>
               <p class="auction-meta">起拍价 {{ auction.startPrice }} 罐头 · 剩余 {{ auction.remainText }}</p>
               <p class="auction-price">
                 {% if auction.highestBid != null %}
@@ -89,15 +89,15 @@
         {% if finished.length %}
         <h2>最近结束的拍卖</h2>
         <table class="data-table">
-          <thead><tr><th>成就</th><th>结果</th><th>成交价</th><th>赢家</th><th>结束时间</th><th></th></tr></thead>
+          <thead><tr><th>奖章</th><th>结果</th><th>成交价</th><th>赢家</th><th>结束时间</th><th></th></tr></thead>
           <tbody>
           {% for auction in finished %}
             <tr>
               <td>
-                {% if achievementDict[auction.achievementId] %}
-                  {{ achievementDict[auction.achievementId].name }}
+                {% if medalDict[auction.medalId] %}
+                  {{ medalDict[auction.medalId].name }}
                 {% else %}
-                  {{ auction.achievementId }}
+                  {{ auction.medalId }}
                 {% endif %}
               </td>
               <td>{{ '已取消' if auction.status == 'cancelled' else ('成交' if auction.winner else '流拍') }}</td>

@@ -69,8 +69,8 @@ export interface Oi33User {
     // Short-lived cross-process lock used to serialize meow submissions.
     meow_post_lock?: ObjectId;
     meow_post_lock_at?: Date;
-    // User-picked achievement ids shown in the profile showcase grid (max 16).
-    achievement_showcase?: string[];
+    // User-picked medal ids shown in the profile showcase grid (max 16).
+    medal_showcase?: string[];
     // Bio AI moderation: status of the bio version identified by bio_hash.
     // Only approved + hash-matching bios are displayed; edits re-review.
     bio_status?: 'pending' | 'approved' | 'rejected';
@@ -174,6 +174,47 @@ export interface Oi33CatMapCell {
     // 0 = no big cat; otherwise OIerDB school id + 1 (school #0 stays usable).
     catId: number;
     updatedBy: number;
+    updatedAt: Date;
+}
+
+// One planned step = move to the adjacent cell (x, y) and then paint it.
+export interface Oi33CatMapPlanStep {
+    x: number;
+    y: number;
+    color: number;
+}
+
+// Planned route of one user. _id is the uid, so a user can only ever have one
+// plan; finished/stopped documents stay around to show their stop reason and
+// are overwritten by the next plan.
+export interface Oi33CatMapPlan {
+    _id: number;
+    steps: Oi33CatMapPlanStep[];
+    // Index of the next step to execute; steps before it are already done.
+    cursor: number;
+    status: 'active' | 'done' | 'stopped';
+    // Cell the cat stood on when the plan was (re)built: the continuity base of
+    // cursor 0 (later steps are anchored on steps[cursor - 1]).
+    originX: number;
+    originY: number;
+    // Earliest time the next step may run (= the player's availableAt).
+    nextAt: Date;
+    // Consecutive retryable failures (concurrent movement lock contention).
+    attempts?: number;
+    failReason?: string;
+    // Execution lease, same idea as the weekly school-cat reward lock.
+    lockOwner?: ObjectId;
+    lockUntil?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+    startedAt?: Date;
+    finishedAt?: Date;
+}
+
+export interface Oi33CatMapConfig {
+    _id: string;
+    // Maximum number of steps in one cat map plan (clamped on write).
+    planMaxSteps: number;
     updatedAt: Date;
 }
 
@@ -372,7 +413,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'achievement' | 'auction' | 'contract' | 'admin';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'medal' | 'auction' | 'contract' | 'admin';
     sender?: number;
     operator?: number;
     receiver?: number;
@@ -416,36 +457,62 @@ export interface Oi33Log {
     columnStart?: number;
     rowEnd?: number;
     columnEnd?: number;
-    achievementId?: string;
+    medalId?: string;
+    // Certification medals (奖项认证奖章) log the rung that was granted or
+    // moved to, so the admin timeline can show the ladder movement.
+    level?: number;
     auctionId?: string;
     contractId?: string;
 }
 
-// --- Achievements ---
+// --- Medals ---
 
-export type Oi33AchievementImageSize = 8 | 16 | 24 | 32;
-export type Oi33AchievementRuleType =
+export type Oi33MedalImageSize = 8 | 16 | 24 | 32;
+export type Oi33MedalRuleType =
     | 'manual'
     | 'accepted_problems'
     | 'checkin_streak'
     | 'checkin_total'
     | 'cat_food_balance'
-    | 'cat_can_balance';
+    | 'cat_can_balance'
+    | 'certification';
+
+// The four public medal families. `category` is never stored: it is derived
+// from `ruleType` + `saleable` by `medalCategoryOf()` so the definition stays
+// the single source of truth.
+//   oj            OJ 成就奖章     — granted automatically by a rule evaluator
+//   saleable      可售卖奖章     — auctioned / traded between users
+//   manual        一般奖章       — granted by hand by an administrator
+//   certification 奖项认证奖章   — one series per contest, upgradable by level
+export type Oi33MedalCategory = 'oj' | 'saleable' | 'manual' | 'certification';
+
+// One rung of a certification series (奖项认证奖章). `level` is 1-based and
+// ascending: the higher the number, the better the award it certifies.
+export interface Oi33MedalLevel {
+    level: number;
+    name: string;
+    description?: string;
+    imageData: string;
+    imageSize: Oi33MedalImageSize;
+}
 
 // Definitions are deliberately data-driven. `rule` is a stable, human-readable
 // condition for now; future automatic evaluators can dispatch by `_id` while all
 // awards continue to flow through the same idempotent grant function.
-export interface Oi33Achievement {
+export interface Oi33Medal {
     _id: string;
     name: string;
     description: string;
     rule: string;
-    ruleType: Oi33AchievementRuleType;
+    ruleType: Oi33MedalRuleType;
     threshold?: number;
     imageData: string;
-    imageSize: Oi33AchievementImageSize;
+    imageSize: Oi33MedalImageSize;
+    // Certification series only: the ordered level ladder. The base
+    // `imageData`/`imageSize` stay as the series icon used in admin lists.
+    levels?: Oi33MedalLevel[];
     order: number;
-    // When true, a user who won this achievement at auction may resell it
+    // When true, a user who won this medal at auction may resell it
     // through a direct trade contract.
     saleable?: boolean;
     createdAt: Date;
@@ -453,21 +520,28 @@ export interface Oi33Achievement {
     createdBy: number;
 }
 
-export interface Oi33UserAchievement {
+// Definition plus its derived category, as returned by every model list/get
+// helper so templates never have to re-derive the classification.
+export type Oi33MedalView = Oi33Medal & { category: Oi33MedalCategory };
+
+export interface Oi33UserMedal {
     _id: ObjectId;
     uid: number;
-    achievementId: string;
+    medalId: string;
     earnedAt: Date;
     grantedBy: number;
     source: string;
+    // 奖项认证奖章 only: the currently held rung. Absent on every other
+    // family, where the medal is held or not held at all.
+    level?: number;
     announcementPostId?: ObjectId;
 }
 
-// --- Achievement auctions ---
+// --- Medal auctions ---
 
 export interface Oi33Auction {
     _id: ObjectId;
-    achievementId: string;
+    medalId: string;
     startPrice: number;
     startAt: Date;
     // The administrator-selected deadline. `endAt` is the effective deadline
@@ -499,11 +573,11 @@ export interface Oi33AuctionBid {
     createdAt: Date;
 }
 
-// --- Achievement trade contracts ---
+// --- Medal trade contracts ---
 
 export interface Oi33Contract {
     _id: ObjectId;
-    achievementId: string;
+    medalId: string;
     seller: number;
     buyer: number;
     // Cat food price in grams.
@@ -564,7 +638,11 @@ export interface Oi33AiConfig {
 export type Oi33ModerationKind = 'topic' | 'reply' | 'tailreply' | 'topic_edit' | 'reply_edit' | 'tailreply_edit' | 'bio';
 export type Oi33ModerationVerdict = 'pass' | 'block' | 'review';
 export type Oi33ModerationSource = 'rules' | 'ai' | 'cache' | 'fuse' | 'ratelimit' | 'error';
-export type Oi33ModerationStatus = 'done' | 'pending' | 'approved' | 'rejected';
+// 'stale' = closed without a decision because the entry can never be applied
+// any more (the reviewed version of the bio is gone, or the record was
+// superseded by a newer edit). Without it those records stayed 'pending'
+// forever and every click on them failed, clogging the queue.
+export type Oi33ModerationStatus = 'done' | 'pending' | 'approved' | 'rejected' | 'stale';
 
 // Where a moderation entry points to; used to hide / unhide / delete the content.
 export interface Oi33ModerationTarget {
@@ -603,12 +681,12 @@ export interface Oi33MeowPost {
     // Forward chain: this post forwards `ref` (author cached as `refUid`).
     ref?: ObjectId;
     refUid?: number;
-    // User submissions consume the daily free slot or one can. Achievement
+    // User submissions consume the daily free slot or one can. Medal
     // announcements are system posts and affect neither balance nor cooldown.
     canCost?: number;
     dailyFree?: boolean;
-    source?: 'achievement';
-    achievementId?: string;
+    source?: 'medal';
+    medalId?: string;
 }
 
 // One-way follow relationship (Twitter-style): `follower` follows `following`.

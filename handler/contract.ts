@@ -20,14 +20,14 @@ class ContractListHandler extends Handler {
             oi33Model.contractListSellableAwards(uid),
             oi33Model.getUserDataByUids([uid]),
         ]);
-        const achievementIds = [...new Set([
-            ...incoming.map((contract) => contract.achievementId),
-            ...outgoing.map((contract) => contract.achievementId),
-            ...resolved.map((contract) => contract.achievementId),
+        const medalIds = [...new Set([
+            ...incoming.map((contract) => contract.medalId),
+            ...outgoing.map((contract) => contract.medalId),
+            ...resolved.map((contract) => contract.medalId),
         ])];
-        const achievements = achievementIds.length ? await oi33Model.achievementList() : [];
-        const achievementDict = Object.fromEntries(
-            achievements.map((achievement) => [achievement._id, achievement]),
+        const medals = medalIds.length ? await oi33Model.medalList() : [];
+        const medalDict = Object.fromEntries(
+            medals.map((medal) => [medal._id, medal]),
         );
         const uids = [...new Set([
             ...incoming.map((contract) => contract.seller),
@@ -42,7 +42,7 @@ class ContractListHandler extends Handler {
         this.response.template = 'oi33_contracts.html';
         this.response.body = {
             incoming, outgoing, resolved, sellable,
-            achievementDict, udict,
+            medalDict, udict,
             viewerFood: Number(oi33Data[uid]?.cat_food) || 0,
             verified: (oi33Data[uid]?.realname_flag ?? 0) >= 1,
             feePercent: oi33Model.CONTRACT_FEE_PERCENT,
@@ -56,13 +56,13 @@ class ContractCreateHandler extends Handler {
             throw new ForbiddenError('只有通过认证的用户才能创建交易合同。');
         }
         const body = this.request.body as any;
-        const achievementId = field(body, 'achievementId');
+        const medalId = field(body, 'medalId');
         const buyer = Number(field(body, 'buyer'));
         const price = Number(field(body, 'price'));
         if (!Number.isSafeInteger(buyer) || buyer <= 0) throw new ValidationError('买家 UID 无效。');
         if (!(await UserModel.getById('', buyer))) throw new NotFoundError(buyer);
         await oi33Model.contractCreate({
-            achievementId, seller: this.user._id, buyer, price,
+            medalId, seller: this.user._id, buyer, price,
         });
         this.response.redirect = this.url('oi33_contracts', {
             query: { notification: '交易合同已创建，等待对方接受' },
@@ -78,7 +78,7 @@ class ContractAcceptHandler extends Handler {
         }
         await oi33Model.contractAccept(id, this.user._id);
         this.response.redirect = this.url('oi33_contracts', {
-            query: { notification: '合同已成交，成就已转入你的账户' },
+            query: { notification: '合同已成交，奖章已转入你的账户' },
         });
     }
 }

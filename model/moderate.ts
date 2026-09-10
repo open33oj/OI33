@@ -39,6 +39,34 @@ export function bioHashMatches(storedHash: string | undefined, bio: string): boo
     return trimmed !== bio && storedHash === bioHashOf(trimmed);
 }
 
+// Was the copy stored in an entry the same text as `live`? Same legacy-trim
+// tolerance as bioHashMatches, and the same reason: an entry created before the
+// exact-text hashing fix stored the trimmed bio.
+export function sameBioText(recorded: string | undefined, live: string): boolean {
+    const text = String(recorded ?? '');
+    return text === live || text.trim() === live.trim();
+}
+
+// What can the admin still do with a queued bio entry, given the bio text that
+// is live right now (null/undefined = the account is gone)?
+//   'ok'    — the reviewed version still is the live bio: approve/reject apply.
+//   'text'  — same text but a different hash (bio_hash drifted, e.g. written by
+//             an older batch run): the decision applies to this very text.
+//   'stale' — the bio changed after the entry was created, so the entry can
+//             never be applied any more and may only be closed. Leaving it
+//             pending is what used to dead-end the queue with a validation
+//             error on every click.
+export type BioQueueState = 'ok' | 'text' | 'stale';
+
+export function bioQueueState(
+    entry: Pick<Oi33AiModeration, 'content' | 'contentHash'>,
+    live: string | null | undefined,
+): BioQueueState {
+    if (typeof live !== 'string') return 'stale';
+    if (bioHashMatches(entry.contentHash, live)) return 'ok';
+    return sameBioText(entry.content, live) ? 'text' : 'stale';
+}
+
 export async function ensureModerationIndexes() {
     await Promise.all([
         moderationColl.createIndex({ contentHash: 1, createdAt: -1 }),
@@ -83,6 +111,20 @@ export async function modSetStatus(id: ObjectId, status: Oi33ModerationStatus, h
         { _id: id },
         { $set: { status, handledAt: new Date(), handler: handlerUid } },
     );
+}
+
+// Close entries that can never be decided any more (the reviewed content is
+// gone, or a newer version superseded them) as 'stale'. Only pending entries
+// are touched, so a record another admin already handled is left alone.
+// Closing never changes the moderated content itself — it only clears the
+// queue, which is why both the individual and the bulk cleanup use it.
+export async function modExpireEntries(ids: ObjectId[], handlerUid = 0) {
+    if (!ids.length) return 0;
+    const res = await moderationColl.updateMany(
+        { _id: { $in: ids }, status: 'pending' },
+        { $set: { status: 'stale', handledAt: new Date(), handler: handlerUid } },
+    );
+    return res.modifiedCount;
 }
 
 // Verdict cache: same normalized content reuses a recent final verdict,
@@ -130,7 +172,7 @@ export async function modStats() {
     };
     for (const row of rows) {
         if (row._id.status === 'pending') stats.pending += row.count;
-        else if (row._id.status === 'approved' || row._id.status === 'rejected') stats.handled += row.count;
+        else if (row._id.status === 'approved' || row._id.status === 'rejected' || row._id.status === 'stale') stats.handled += row.count;
         else if (row._id.verdict === 'pass') stats.pass += row.count;
         else if (row._id.verdict === 'block') stats.block += row.count;
         else if (row._id.verdict === 'review') stats.review += row.count;

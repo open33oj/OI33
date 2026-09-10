@@ -158,11 +158,11 @@ class CheckinHandler extends Handler {
         const result = await oi33Model.doCheckin(uid, now);
         if (result.checkedIn) {
             try {
-                await oi33Model.achievementEvaluateUser(uid, {
+                await oi33Model.medalEvaluateUser(uid, {
                     ruleTypes: ['checkin_streak', 'checkin_total', 'cat_food_balance'],
                 });
             } catch (e) {
-                console.error('[oi33] checkin achievement evaluation failed:', e);
+                console.error('[oi33] checkin medal evaluation failed:', e);
             }
             const notification = result.cat_food_reward
                 ? this.translate('Check-in succeeded, cat food +{0}')

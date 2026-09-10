@@ -3,7 +3,7 @@ import {
 } from 'hydrooj';
 import type { Oi33Auction } from './types';
 import { addLog } from './log';
-import { achievementColl, achievementGrant, userAchievementColl } from './achievement';
+import { medalColl, medalGrant, userMedalColl } from './medal';
 import { catCanPoolColl, ensureCurrentCatCanPrice } from './cat-can';
 import { userColl } from './user';
 
@@ -11,10 +11,24 @@ export const auctionColl = db.collection('oi33_auction');
 export const auctionBidColl = db.collection('oi33_auction_bid');
 export const AUCTION_BID_EXTENSION_MS = 60 * 1000;
 
+// Human-readable remaining time, shared by the auction pages and the medal
+// catalogue (which surfaces the live auction of each saleable medal).
+export function remainText(endAt: Date, now: Date): string {
+    const ms = endAt.getTime() - now.getTime();
+    if (ms <= 0) return '已结束';
+    const minutes = Math.floor(ms / 60000);
+    const days = Math.floor(minutes / 1440);
+    const hours = Math.floor((minutes % 1440) / 60);
+    const rest = minutes % 60;
+    if (days) return `${days} 天 ${hours} 小时`;
+    if (hours) return `${hours} 小时 ${rest} 分钟`;
+    return `${Math.max(1, rest)} 分钟`;
+}
+
 export async function ensureAuctionIndexes() {
     await Promise.all([
         auctionColl.createIndex({ status: 1, endAt: 1 }),
-        auctionColl.createIndex({ achievementId: 1, status: 1 }),
+        auctionColl.createIndex({ medalId: 1, status: 1 }),
         auctionColl.createIndex({ createdAt: -1 }),
         auctionBidColl.createIndex({ auctionId: 1, createdAt: -1 }),
     ]);
@@ -31,37 +45,37 @@ export async function auctionGet(id: string | ObjectId) {
 }
 
 export async function auctionCreate(input: {
-    achievementId: string;
+    medalId: string;
     startPrice: number;
     durationMs: number;
     operator: number;
 }) {
-    const achievement = await achievementColl.findOne({ _id: input.achievementId });
-    if (!achievement) throw new ValidationError('成就不存在。');
-    if (!achievement.saleable) throw new ValidationError('只有标记为可售卖的稀有成就才能拍卖。');
+    const medal = await medalColl.findOne({ _id: input.medalId });
+    if (!medal) throw new ValidationError('奖章不存在。');
+    if (!medal.saleable) throw new ValidationError('只有「可售卖奖章」才能拍卖。');
     if (!Number.isSafeInteger(input.startPrice) || input.startPrice < 1) {
         throw new ValidationError('起拍价必须是不少于 1 的整数个猫罐头。');
     }
-    // Rare achievements are unique and auctioned at most once: after a
+    // Rare medals are unique and auctioned at most once: after a
     // successful sale they can only change hands via trade contracts.
     const [settled, held] = await Promise.all([
-        auctionColl.findOne({ achievementId: input.achievementId, status: 'settled', winner: { $ne: null } }),
-        userAchievementColl.findOne({
-            achievementId: input.achievementId, source: { $in: ['auction', 'contract'] },
+        auctionColl.findOne({ medalId: input.medalId, status: 'settled', winner: { $ne: null } }),
+        userMedalColl.findOne({
+            medalId: input.medalId, source: { $in: ['auction', 'contract'] },
         }),
     ]);
     if (settled || held) {
-        throw new ValidationError('该成就已经拍卖过。稀有成就只拍卖一次，之后只能通过交易合同转让。');
+        throw new ValidationError('该奖章已经拍卖过。可售卖奖章只拍卖一次，之后只能通过交易合同转让。');
     }
     const running = await auctionColl.findOne({
-        achievementId: input.achievementId, status: 'active',
+        medalId: input.medalId, status: 'active',
     });
-    if (running) throw new ValidationError('该成就已有进行中的拍卖，结束后才能再次上架。');
+    if (running) throw new ValidationError('该奖章已有进行中的拍卖，结束后才能再次上架。');
     const now = new Date();
     const scheduledEndAt = new Date(now.getTime() + input.durationMs);
     const doc: Oi33Auction = {
         _id: new ObjectId(),
-        achievementId: input.achievementId,
+        medalId: input.medalId,
         startPrice: input.startPrice,
         startAt: now,
         scheduledEndAt,
@@ -76,7 +90,7 @@ export async function auctionCreate(input: {
     await auctionColl.insertOne(doc as any);
     await addLog({
         type: 'auction', userId: input.operator, action: 'create',
-        auctionId: doc._id.toHexString(), achievementId: doc.achievementId,
+        auctionId: doc._id.toHexString(), medalId: doc.medalId,
         amount: doc.startPrice,
     } as any);
     return doc;
@@ -108,8 +122,8 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
     }
     if (auction.highestBidder === uid) throw new ValidationError('你已经是当前最高出价者。');
     if (!Number.isSafeInteger(amount) || amount < 1) throw new ValidationError('出价无效。');
-    const owned = await userAchievementColl.findOne({ uid, achievementId: auction.achievementId });
-    if (owned) throw new ValidationError('你已经拥有这个成就，无需竞拍。');
+    const owned = await userMedalColl.findOne({ uid, medalId: auction.medalId });
+    if (owned) throw new ValidationError('你已经拥有这个奖章，无需竞拍。');
     const minBid = auction.highestBid != null ? auction.highestBid + 1 : auction.startPrice;
     if (amount < minBid) throw new ValidationError(`出价至少需要 ${minBid} 个猫罐头。`);
 
@@ -157,7 +171,7 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
     } as any);
     await addLog({
         type: 'auction', userId: uid, action: 'bid',
-        auctionId: auction._id.toHexString(), achievementId: auction.achievementId, amount,
+        auctionId: auction._id.toHexString(), medalId: auction.medalId, amount,
     } as any);
     // Account-page ledger: the bid is escrowed out of the user balance but
     // stays in circulation (the pool counter is untouched), so this entry is
@@ -166,7 +180,7 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
     await addLog({
         type: 'cat_account', userId: uid, sender: uid,
         action: 'auction_bid', amount: 0, canAmount: -amount,
-        reason: '成就拍卖出价托管',
+        reason: '奖章拍卖出价托管',
     } as any);
     if (previous.highestBidder != null && previous.highestBid != null) {
         await auctionRefund(previous.highestBidder, previous.highestBid, auction._id, '被更高出价超越');
@@ -190,7 +204,7 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
     if (!settledAuction) return await auctionColl.findOne({ _id: auction._id });
     if (settledAuction.highestBidder != null && settledAuction.highestBid != null) {
         try {
-            await achievementGrant(settledAuction.highestBidder, settledAuction.achievementId, 0, 'auction', true);
+            await medalGrant(settledAuction.highestBidder, settledAuction.medalId, 0, 'auction', true);
             // The winning cans return to the AMM pool, and the pool burns
             // reserve food equal to their current sell value — exactly as if
             // the winner sold the cans back and the proceeds were destroyed
@@ -221,19 +235,19 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
             );
             await addLog({
                 type: 'auction', userId: settledAuction.highestBidder, action: 'settle',
-                auctionId: auction._id.toHexString(), achievementId: settledAuction.achievementId,
+                auctionId: auction._id.toHexString(), medalId: settledAuction.medalId,
                 amount: settledAuction.highestBid, foodBurn,
             } as any);
         } catch (e) {
             // Never leave the escrowed cans stuck: if the grant fails (e.g.
-            // the achievement was deleted mid-auction) refund the leader.
+            // the medal was deleted mid-auction) refund the leader.
             console.error(`[oi33] auction settle grant failed for ${auction._id}:`, e);
             await auctionRefund(settledAuction.highestBidder, settledAuction.highestBid, auction._id, '结算失败退款');
         }
     } else {
         await addLog({
             type: 'auction', userId: settledAuction.createdBy, action: 'settle_unsold',
-            auctionId: auction._id.toHexString(), achievementId: settledAuction.achievementId,
+            auctionId: auction._id.toHexString(), medalId: settledAuction.medalId,
         } as any);
     }
     return await auctionColl.findOne({ _id: auction._id });
@@ -276,7 +290,7 @@ export async function auctionCancel(id: string | ObjectId, operator: number, now
     }
     await addLog({
         type: 'auction', userId: operator, action: 'cancel',
-        auctionId: auction._id.toHexString(), achievementId: auction.achievementId,
+        auctionId: auction._id.toHexString(), medalId: auction.medalId,
     } as any);
     return await auctionColl.findOne({ _id: auction._id });
 }
@@ -296,30 +310,30 @@ export async function auctionGetBids(auctionId: ObjectId, limit = 50) {
         .sort({ createdAt: -1, _id: -1 }).limit(limit).toArray();
 }
 
-// Rare (saleable) achievements are unique: auctioned at most once, afterwards
+// Saleable medals (可售卖奖章) are unique: auctioned at most once, afterwards
 // they can only change hands via trade contracts. Each row reports who holds
 // the single copy, or that it is on/awaiting its one auction.
-export async function auctionRareShowcase() {
-    const achievements = await achievementColl.find({ saleable: true }).toArray();
-    if (!achievements.length) return [];
-    const ids = achievements.map((achievement) => achievement._id);
+export async function auctionSaleableShowcase() {
+    const medals = await medalColl.find({ saleable: true }).toArray();
+    if (!medals.length) return [];
+    const ids = medals.map((medal) => medal._id);
     const [awards, auctions] = await Promise.all([
-        userAchievementColl.find({
-            achievementId: { $in: ids }, source: { $in: ['auction', 'contract'] },
+        userMedalColl.find({
+            medalId: { $in: ids }, source: { $in: ['auction', 'contract'] },
         }).toArray(),
-        auctionColl.find({ achievementId: { $in: ids } }).toArray(),
+        auctionColl.find({ medalId: { $in: ids } }).toArray(),
     ]);
-    return achievements.map((achievement) => {
-        const award = awards.find((a) => a.achievementId === achievement._id) || null;
+    return medals.map((medal) => {
+        const awarded = awards.find((a) => a.medalId === medal._id) || null;
         const activeAuction = auctions.find(
-            (a) => a.achievementId === achievement._id && a.status === 'active',
+            (a) => a.medalId === medal._id && a.status === 'active',
         ) || null;
         const settledAuction = auctions
-            .filter((a) => a.achievementId === achievement._id && a.status === 'settled' && a.winner != null)
+            .filter((a) => a.medalId === medal._id && a.status === 'settled' && a.winner != null)
             .sort((a, b) => (b.settledAt?.getTime() || 0) - (a.settledAt?.getTime() || 0))[0] || null;
-        const status = award ? 'held' : activeAuction ? 'auction' : 'pending';
+        const status = awarded ? 'held' : activeAuction ? 'auction' : 'pending';
         return {
-            achievement, award, activeAuction, settledAuction, status,
+            medal, award: awarded, activeAuction, settledAuction, status,
         };
     });
 }

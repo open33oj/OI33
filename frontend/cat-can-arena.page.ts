@@ -34,6 +34,26 @@ interface MapPlayer {
     freeColorAvailable: boolean;
 }
 
+interface MapPlanStep {
+    index: number;
+    x: number;
+    y: number;
+    color: number;
+    executed: boolean;
+}
+
+interface MapPlan {
+    status: 'active' | 'done' | 'stopped';
+    cursor: number;
+    steps: MapPlanStep[];
+    maxSteps: number;
+    originX: number;
+    originY: number;
+    nextAt: number;
+    failReason: string;
+    updatedAt: number;
+}
+
 interface MapState {
     width: number;
     height: number;
@@ -41,6 +61,8 @@ interface MapState {
     cells: [number, number, number, number][];
     me: MapPlayer | null;
     canJoin: boolean;
+    plan?: MapPlan | null;
+    planMaxSteps?: number;
     serverTime: number;
 }
 
@@ -63,6 +85,22 @@ function paletteColorValue(code: number) {
 
 function paletteColor(code: number) {
     return `#${paletteColorValue(code).toString(16).padStart(6, '0')}`;
+}
+
+// 计划编号要压在颜色圆圈上：按 WCAG 相对亮度取黑/白中对比度更高的那个，
+// 深色底用白字、浅色底用黑字。
+function paletteTextColor(code: number) {
+    const value = paletteColorValue(code);
+    const channel = (raw: number) => {
+        const scaled = raw / 255;
+        return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = 0.2126 * channel((value >> 16) & 0xff)
+        + 0.7152 * channel((value >> 8) & 0xff)
+        + 0.0722 * channel(value & 0xff);
+    const againstBlack = (luminance + 0.05) / 0.05;
+    const againstWhite = 1.05 / (luminance + 0.05);
+    return againstBlack >= againstWhite ? '#111111' : '#ffffff';
 }
 
 const PALETTE_VALUES = new Uint32Array(Array.from({ length: 256 }, (_, code) => paletteColorValue(code)));
@@ -274,6 +312,8 @@ function mountMap() {
     const joinUrl = viewport.dataset.joinUrl || '/oi33/arena/join';
     const moveUrl = viewport.dataset.moveUrl || '/oi33/arena/move';
     const colorUrl = viewport.dataset.colorUrl || '/oi33/arena/color';
+    const planUrl = viewport.dataset.planUrl || '/oi33/arena/plan';
+    const planCancelUrl = viewport.dataset.planCancelUrl || '/oi33/arena/plan/cancel';
     const connectionUrl = viewport.dataset.connUrl || '/oi33/arena/conn';
     const loading = viewport.querySelector<HTMLElement>('.oi33-map-loading');
     const coordinate = document.querySelector<HTMLElement>('[data-map-coordinate]');
@@ -287,8 +327,24 @@ function mountMap() {
     const cellDialog = document.querySelector<HTMLDialogElement>('[data-map-cell-dialog]');
     const actionDialog = document.querySelector<HTMLDialogElement>('[data-map-action-dialog]');
     const colorDialog = document.querySelector<HTMLDialogElement>('[data-map-color-dialog]');
+    const planPanel = document.querySelector<HTMLElement>('[data-map-plan]');
+    const planToggle = document.querySelector<HTMLButtonElement>('[data-plan-toggle]');
+    const planCloseButton = document.querySelector<HTMLButtonElement>('[data-plan-close]');
+    const planStatus = document.querySelector<HTMLElement>('[data-plan-status]');
+    const planCount = document.querySelector<HTMLElement>('[data-plan-count]');
+    const planStepsList = document.querySelector<HTMLElement>('[data-plan-steps]');
+    const planHint = document.querySelector<HTMLElement>('[data-plan-hint]');
+    const planAddButton = document.querySelector<HTMLButtonElement>('[data-plan-add]');
+    const planUndoButton = document.querySelector<HTMLButtonElement>('[data-plan-undo]');
+    const planClearButton = document.querySelector<HTMLButtonElement>('[data-plan-clear]');
+    const planSaveButton = document.querySelector<HTMLButtonElement>('[data-plan-save]');
+    const planCancelButton = document.querySelector<HTMLButtonElement>('[data-plan-cancel]');
+    const planStepDialog = document.querySelector<HTMLDialogElement>('[data-map-plan-step-dialog]');
 
-    let state: MapState = { width: MAP_WIDTH, height: MAP_HEIGHT, players: [], cells: [], me: null, canJoin: false, serverTime: Date.now() };
+    let state: MapState = {
+        width: MAP_WIDTH, height: MAP_HEIGHT, players: [], cells: [], me: null, canJoin: false,
+        plan: null, planMaxSteps: 10, serverTime: Date.now(),
+    };
     const players = new Map<number, MapPlayer>();
     const playerBuckets = new Map<string, Set<number>>();
     const playersByCell = new Map<string, Set<number>>();
@@ -330,6 +386,10 @@ function mountMap() {
     let lastRenderAt = performance.now();
     let selectedTarget: { x: number; y: number } | null = null;
     let selectedColorCell: { x: number; y: number } | null = null;
+    // 路径规划：planDraft 是尚未提交的步骤（整体替换时为新计划，运行中计划则为待追加步骤）。
+    let planPicking = false;
+    let planStepTarget: { x: number; y: number } | null = null;
+    const planDraft: { x: number; y: number; color: number }[] = [];
     let clockOffset = 0;
     let renderDirty = true;
     let lastIdleFrame = -1;
@@ -527,7 +587,8 @@ function mountMap() {
             ? `冷却 ${String(Math.floor(totalSeconds / 3600)).padStart(2, '0')}:${String(Math.floor(totalSeconds / 60) % 60).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
             : '现在可操作';
         const freeColor = state.me.freeColorAvailable ? ' · 免冷却染色 1 次' : '';
-        const text = `猫粮余额 ${state.me.food}g · 猫罐头余额 ${state.me.cans} 个 · ${cooldown}${freeColor}`;
+        const planned = activePlan() ? ` · 计划 ${activePlan()!.cursor}/${activePlan()!.steps.length} 步` : '';
+        const text = `猫粮余额 ${state.me.food}g · 猫罐头余额 ${state.me.cans} 个 · ${cooldown}${freeColor}${planned}`;
         if (meStatus.textContent !== text) meStatus.textContent = text;
     };
 
@@ -652,6 +713,8 @@ function mountMap() {
         }
         context.strokeStyle = showGrid ? 'rgba(0,0,0,.72)' : 'rgba(255,255,255,.12)';
         context.strokeRect(origin.x + .5, origin.y + .5, mapWidth - 1, mapHeight - 1);
+        // 自己的计划路径画在底图之上、小猫之下（未开启小猫层时也要能看到）。
+        drawPlanOverlay(origin);
         // 底图可在原始 8-bit 颜色与大猫领地颜色之间切换，小猫层保持独立。
         const renderCats = showCats && viewScale >= MIN_CAT_RENDER_SCALE;
         if (!renderCats && !showNames) return;
@@ -885,6 +948,256 @@ function mountMap() {
         return indices.every((index) => cellCatIds[index] === center) ? center : 0;
     };
 
+    // --- 路径规划面板 -----------------------------------------------------
+    const activePlan = () => (state.plan && state.plan.status === 'active' ? state.plan : null);
+    const planLimit = () => Math.max(1, Number(state.planMaxSteps) || 10);
+    const planLabel = (x: number, y: number) => `（行 ${y}，列 ${x}）`;
+
+    // 路径连续性的基准：接着运行中计划的最后一步（或有草稿时接草稿末步），
+    // 否则从计划起点 / 小猫当前位置出发。
+    const planBase = () => {
+        const plan = activePlan();
+        if (plan && plan.steps.length) {
+            const last = plan.steps[plan.steps.length - 1];
+            return { x: last.x, y: last.y };
+        }
+        if (planDraft.length) {
+            const last = planDraft[planDraft.length - 1];
+            return { x: last.x, y: last.y };
+        }
+        if (plan) return { x: plan.originX, y: plan.originY };
+        return state.me ? { x: state.me.x, y: state.me.y } : null;
+    };
+
+    const formatPlanWait = (milliseconds: number) => {
+        const total = Math.max(0, Math.ceil(milliseconds / 1000));
+        return `${String(Math.floor(total / 3600)).padStart(2, '0')}:${String(Math.floor(total / 60) % 60).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+    };
+
+    const planStatusText = () => {
+        const plan = activePlan();
+        if (plan) {
+            if (plan.cursor >= plan.steps.length) return `计划已完成（${plan.steps.length} 步）`;
+            const remaining = plan.nextAt - now();
+            const waiting = remaining > 0 ? `等待 ${formatPlanWait(remaining)}` : '即将执行';
+            return `计划 ${plan.cursor}/${plan.steps.length} 步 · ${waiting}第 ${plan.cursor + 1} 步`;
+        }
+        if (state.plan && state.plan.status === 'stopped') {
+            return `上次计划已停止${state.plan.failReason ? `：${state.plan.failReason}` : ''}`;
+        }
+        if (state.plan && state.plan.status === 'done') return `上次计划已完成（${state.plan.steps.length} 步）`;
+        return '尚未规划';
+    };
+
+    const renderPlanPanel = () => {
+        if (!planPanel) return;
+        const plan = activePlan();
+        const total = (plan ? plan.steps.length : 0) + planDraft.length;
+        if (planStatus) planStatus.textContent = planStatusText();
+        if (planCount) planCount.textContent = `${total} / ${planLimit()} 步`;
+        if (planStepsList) {
+            planStepsList.replaceChildren();
+            const appendItem = (
+                index: number, x: number, y: number, color: number, options: { executed?: boolean; next?: boolean; draft?: boolean },
+            ) => {
+                const item = document.createElement('li');
+                if (options.executed) item.classList.add('is-executed');
+                if (options.next) item.classList.add('is-next');
+                if (options.draft) item.classList.add('is-draft');
+                const order = document.createElement('span');
+                order.className = 'oi33-map-plan__order';
+                order.textContent = `#${index + 1}`;
+                const swatch = document.createElement('span');
+                swatch.className = 'oi33-map-plan__swatch';
+                swatch.style.background = paletteColor(color);
+                const text = document.createElement('span');
+                text.textContent = `${planLabel(x, y)} 颜色码 ${color}`;
+                const note = document.createElement('span');
+                note.className = 'oi33-map-plan__note';
+                note.textContent = options.executed ? '已执行' : options.draft ? '待保存' : '等待执行';
+                item.append(order, swatch, text, note);
+                planStepsList.append(item);
+            };
+            if (plan) {
+                plan.steps.forEach((step, index) => appendItem(index, step.x, step.y, step.color, {
+                    executed: step.executed,
+                    next: !step.executed && index === plan.cursor,
+                }));
+            }
+            planDraft.forEach((step, index) => appendItem(
+                (plan ? plan.steps.length : 0) + index, step.x, step.y, step.color, { draft: true },
+            ));
+            if (!plan && !planDraft.length) {
+                const empty = document.createElement('li');
+                empty.className = 'oi33-map-plan__empty';
+                empty.textContent = '还没有步骤：点「添加步骤」后在地图上依次点击相邻格。';
+                planStepsList.append(empty);
+            }
+        }
+        if (planHint) {
+            planHint.classList.toggle('is-picking', planPicking);
+            planHint.textContent = planPicking
+                ? '正在拾取：请点击地图上与上一步相邻的格子（再次点「添加步骤」或按 Esc 退出）。'
+                : `每步 = 移动到相邻格并涂色（3g 猫粮，正好用掉当次免冷却染色），最多 ${planLimit()} 步且路径必须连续。`
+                + '冷却结束后自动执行下一步；猫粮不足、目标格是其他大猫的领地核心、被手动操作或驱逐时会自动停止并私信通知。';
+        }
+        if (planSaveButton) {
+            planSaveButton.textContent = plan ? '追加到运行中的计划' : '保存并开始';
+            planSaveButton.disabled = !planDraft.length;
+        }
+        if (planAddButton) {
+            planAddButton.classList.toggle('is-active', planPicking);
+            planAddButton.textContent = planPicking ? '退出拾取' : '添加步骤';
+            planAddButton.disabled = total >= planLimit() && !planPicking;
+        }
+        if (planUndoButton) planUndoButton.disabled = !planDraft.length;
+        if (planClearButton) planClearButton.disabled = !planDraft.length;
+        if (planCancelButton) planCancelButton.hidden = !plan;
+        // 显式收起优先；显式展开次之；否则「有计划/草稿/正在拾取」时自动显示。
+        if (planPanel) {
+            planPanel.hidden = planPanel.dataset.closed === '1'
+                ? true
+                : planPanel.dataset.opened !== '1' && !plan && !planDraft.length && !planPicking;
+        }
+    };
+
+    const setPlanPicking = (on: boolean) => {
+        planPicking = on;
+        viewport.classList.toggle('is-plan-picking', on);
+        renderPlanPanel();
+    };
+
+    // 与 openActionDialog 相同的核心格判断：目标格是别的大猫的领地核心则进不去。
+    const planCellBlocked = (x: number, y: number) => {
+        const fortressCatId = fortressCatIdAt(x, y);
+        return !!fortressCatId && fortressCatId !== (bigCats?.boundCatId() || 0);
+    };
+
+    const openPlanStepDialog = (x: number, y: number) => {
+        if (!planStepDialog) return;
+        const total = (activePlan()?.steps.length || 0) + planDraft.length;
+        if (total >= planLimit()) {
+            Notification.error(`计划最多 ${planLimit()} 步。`);
+            return;
+        }
+        planStepTarget = { x, y };
+        const title = planStepDialog.querySelector<HTMLElement>('[data-plan-step-title]');
+        const summary = planStepDialog.querySelector<HTMLElement>('[data-plan-step-summary]');
+        if (title) title.textContent = `添加第 ${total + 1} 步`;
+        if (summary) {
+            const me = state.me;
+            const cost = me ? `当前猫粮 ${me.food}g` : '尚未加入广场';
+            summary.textContent = `目标 ${planLabel(x, y)}（与上一步相邻）· 这一步会消耗 3g 猫粮并把该格涂成所选颜色。${cost}。`;
+        }
+        const input = planStepDialog.querySelector<HTMLInputElement>('[data-color-input]');
+        if (input) {
+            const currentColor = cellColors[y * MAP_WIDTH + x];
+            input.value = String(currentColor >= 0 ? currentColor : 34);
+            input.dispatchEvent(new Event('input'));
+        }
+        planStepDialog.showModal();
+    };
+
+    const applyPlanView = (plan: MapPlan | null) => {
+        state.plan = plan;
+        if (plan && typeof plan.maxSteps === 'number') state.planMaxSteps = plan.maxSteps;
+        renderPlanPanel();
+        updateMeStatus();
+        invalidate();
+    };
+
+    const savePlan = async () => {
+        if (!planDraft.length) return;
+        if (!state.me) {
+            Notification.error('请先加入猫猫广场再规划路线。');
+            return;
+        }
+        const plan = activePlan();
+        if (planSaveButton) planSaveButton.disabled = true;
+        try {
+            const response = await request.post(planUrl, {
+                steps: JSON.stringify(planDraft),
+                mode: plan ? 'append' : 'replace',
+            });
+            const executed = response?.result?.step;
+            planDraft.length = 0;
+            setPlanPicking(false);
+            applyPlanView(response?.plan || null);
+            if (executed) {
+                Notification.success(`计划已开始：第 ${executed.index + 1} 步已执行——移动到${planLabel(executed.x, executed.y)}并涂色 ${executed.color}。`);
+            } else {
+                Notification.success('计划已保存，冷却结束后会自动执行下一步。');
+            }
+        } catch (e: any) {
+            Notification.error(e.message || String(e));
+        } finally {
+            renderPlanPanel();
+        }
+    };
+
+    const cancelPlan = async () => {
+        if (planCancelButton) planCancelButton.disabled = true;
+        try {
+            const response = await request.post(planCancelUrl, {});
+            planDraft.length = 0;
+            setPlanPicking(false);
+            applyPlanView(response?.plan || null);
+            Notification.success('已取消路径计划。');
+        } catch (e: any) {
+            Notification.error(e.message || String(e));
+        } finally {
+            if (planCancelButton) planCancelButton.disabled = false;
+            renderPlanPanel();
+        }
+    };
+
+    // 计划叠加：不画任何连线，只在每个计划格上放一个编号圆圈——圆圈底色就是
+    // 该步的颜色码，编号用黑/白中更清楚的那个（深底白字、浅底黑字）。
+    // 同一个格子只显示一个编号：路径允许折返，重复编号会互相覆盖。
+    const drawPlanOverlay = (origin: { x: number; y: number }) => {
+        const plan = state.plan;
+        const points: Array<{ x: number; y: number; color: number; next: boolean; draft: boolean; label: number }> = [];
+        const seen = new Set<string>();
+        const push = (x: number, y: number, color: number, next: boolean, draft: boolean, label: number) => {
+            const key = cellKey(x, y);
+            if (seen.has(key)) return;
+            seen.add(key);
+            points.push({
+                x, y, color, next, draft, label,
+            });
+        };
+        if (plan) {
+            plan.steps.forEach((step) => push(
+                step.x, step.y, step.color, !step.executed && step.index === plan.cursor, false, step.index + 1,
+            ));
+        }
+        planDraft.forEach((step, index) => push(
+            step.x, step.y, step.color, false, true, (plan ? plan.steps.length : 0) + index + 1,
+        ));
+        if (!points.length) return;
+        const radius = Math.max(6, Math.min(16, viewScale * .34));
+        context.save();
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.font = `bold ${Math.max(8, radius)}px sans-serif`;
+        for (const point of points) {
+            const px = origin.x + (point.x + .5) * viewScale;
+            const py = origin.y + (point.y + .5) * viewScale;
+            context.beginPath();
+            context.arc(px, py, point.next ? radius * 1.18 : radius, 0, Math.PI * 2);
+            context.fillStyle = paletteColor(point.color);
+            context.fill();
+            context.setLineDash(point.draft ? [Math.max(2, radius * .35), Math.max(2, radius * .28)] : []);
+            context.lineWidth = point.next ? 3 : Math.max(1, radius * .14);
+            context.strokeStyle = point.next ? 'rgba(214,60,60,.95)' : 'rgba(0,0,0,.55)';
+            context.stroke();
+            context.setLineDash([]);
+            context.fillStyle = paletteTextColor(point.color);
+            context.fillText(String(point.label), px, py);
+        }
+        context.restore();
+    };
+
     const openActionDialog = (x: number, y: number) => {
         if (!actionDialog) return;
         const joining = !state.me && state.canJoin;
@@ -988,6 +1301,28 @@ function mountMap() {
 
     const clickCell = (x: number, y: number) => {
         if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return;
+        // 规划拾取模式：点格子即添加一步；校验连续性，非法时只提示不改动。
+        if (planPicking) {
+            if (!state.me) {
+                Notification.error('请先加入猫猫广场再规划路线。');
+                return;
+            }
+            const base = planBase();
+            if (!base) {
+                Notification.error('暂时无法确定计划起点。');
+                return;
+            }
+            if (Math.abs(base.x - x) + Math.abs(base.y - y) !== 1) {
+                Notification.error(`计划路径必须连续：${planLabel(x, y)} 与上一步${planLabel(base.x, base.y)}不相邻。`);
+                return;
+            }
+            if (planCellBlocked(x, y)) {
+                Notification.error(`${planLabel(x, y)} 是其他大猫的领地核心，只有绑定该大猫的小猫才能进入。`);
+                return;
+            }
+            openPlanStepDialog(x, y);
+            return;
+        }
         openCellDialog(x, y);
     };
 
@@ -1160,7 +1495,7 @@ function mountMap() {
     }
     document.addEventListener('keydown', (event) => {
         if (!canvas.isConnected || document.fullscreenElement !== fullscreenRoot || event.defaultPrevented) return;
-        if (event.altKey || event.ctrlKey || event.metaKey || cellDialog?.open || actionDialog?.open || colorDialog?.open || bigCats?.isDialogOpen()) return;
+        if (event.altKey || event.ctrlKey || event.metaKey || cellDialog?.open || actionDialog?.open || colorDialog?.open || planStepDialog?.open || bigCats?.isDialogOpen()) return;
         const target = event.target as HTMLElement | null;
         if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift'].includes(event.key)) return;
@@ -1173,6 +1508,75 @@ function mountMap() {
     document.querySelector<HTMLButtonElement>('[data-map-find-me]')?.addEventListener('click', () => {
         if (!state.me) return Notification.error('当前账号还没有可定位的小猫。');
         centerAt(state.me.x, state.me.y);
+    });
+    const openPlanPanel = (open: boolean) => {
+        if (!planPanel) return;
+        if (open) {
+            planPanel.dataset.opened = '1';
+            delete planPanel.dataset.closed;
+        } else {
+            planPanel.dataset.closed = '1';
+            delete planPanel.dataset.opened;
+        }
+        planToggle?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        renderPlanPanel();
+    };
+    planToggle?.addEventListener('click', () => openPlanPanel(!!planPanel?.hidden));
+    planCloseButton?.addEventListener('click', () => openPlanPanel(false));
+    planAddButton?.addEventListener('click', () => {
+        openPlanPanel(true);
+        if (planPicking) {
+            setPlanPicking(false);
+            return;
+        }
+        if (!state.me) {
+            Notification.error('请先加入猫猫广场再规划路线。');
+            return;
+        }
+        const total = (activePlan()?.steps.length || 0) + planDraft.length;
+        if (total >= planLimit()) {
+            Notification.error(`计划最多 ${planLimit()} 步。`);
+            return;
+        }
+        setPlanPicking(true);
+        const base = planBase();
+        if (base) {
+            centerAt(base.x, base.y);
+            Notification.success(`请点击${planLabel(base.x, base.y)}相邻的格子来添加第 ${total + 1} 步。`);
+        }
+    });
+    planUndoButton?.addEventListener('click', () => {
+        planDraft.pop();
+        renderPlanPanel();
+    });
+    planClearButton?.addEventListener('click', () => {
+        planDraft.length = 0;
+        renderPlanPanel();
+    });
+    planSaveButton?.addEventListener('click', () => { savePlan(); });
+    planCancelButton?.addEventListener('click', () => {
+        if (!window.confirm('取消当前路径计划？已经执行的步骤不会回滚。')) return;
+        cancelPlan();
+    });
+    planStepDialog?.querySelector<HTMLButtonElement>('[data-plan-step-confirm]')?.addEventListener('click', () => {
+        const input = planStepDialog?.querySelector<HTMLInputElement>('[data-color-input]');
+        if (!planStepTarget || !input) return;
+        const color = Math.max(0, Math.min(255, Math.floor(Number(input.value) || 0)));
+        planDraft.push({ x: planStepTarget.x, y: planStepTarget.y, color });
+        planStepDialog?.close();
+        renderPlanPanel();
+        const total = (activePlan()?.steps.length || 0) + planDraft.length;
+        if (total >= planLimit()) {
+            setPlanPicking(false);
+            Notification.success(`已添加第 ${total} 步，达到步数上限 ${planLimit()} 步，已退出拾取模式。`);
+        } else {
+            Notification.success(`已添加第 ${total} 步，请继续点击相邻格（按 Esc 退出拾取）。`);
+        }
+    });
+    document.addEventListener('keydown', (event) => {
+        if (!planPicking || event.key !== 'Escape') return;
+        if (planStepDialog?.open) return;
+        setPlanPicking(false);
     });
     cellDialog?.querySelector<HTMLButtonElement>('[data-cell-action]')?.addEventListener('click', () => {
         if (!selectedTarget) return;
@@ -1266,6 +1670,10 @@ function mountMap() {
         rebuildOverviewLayer();
         rebuildTerritoryLayer();
         state.me = userId ? players.get(userId) || null : null;
+        if (typeof incoming.planMaxSteps === 'number') state.planMaxSteps = incoming.planMaxSteps;
+        // 运行中的计划可以接着追加，所以刷新状态时必须保留尚未提交的草稿。
+        state.plan = incoming.plan || null;
+        renderPlanPanel();
         if (firstMapLoad) {
             const focusedPlayer = focusUserId ? players.get(focusUserId) : null;
             if (focusedPlayer) {
@@ -1325,6 +1733,16 @@ function mountMap() {
         if (payload.type === 'cooldown' && Number(payload.uid) === userId && state.me) {
             state.me.availableAt = payload.availableAt ? new Date(payload.availableAt).getTime() : 0;
             state.me.freeColorAvailable = !!payload.freeColorAvailable;
+        }
+        // 计划是私密数据：服务端只把 targetUid 的事件发给本人，这里再确认一次。
+        if (payload.type === 'plan' && Number(payload.targetUid) === userId) {
+            applyPlanView(payload.plan || null);
+            if (payload.stopped) {
+                Notification.error(`路径计划已停止：${payload.reason || '未知原因'}`);
+            } else if (payload.step) {
+                Notification.success(`计划第 ${payload.step.index + 1} 步：已移动到${planLabel(payload.step.x, payload.step.y)}并涂色 ${payload.step.color}。`);
+            }
+            if (payload.finished) Notification.success('路径计划已全部执行完成。');
         }
     });
 

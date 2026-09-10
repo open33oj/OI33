@@ -115,26 +115,46 @@ async function runBioReviewBatch(users: { _id: number, bio: string }[]) {
         const oi33Dict = await oi33Model.getUserDataByUids(users.map((u) => u._id));
         for (const u of users) {
             try {
-                const bio = String(u.bio || '');
+                // The user list is a snapshot taken before the loop, so re-read
+                // the live bio: a user editing meanwhile would otherwise be
+                // judged on — and overwritten with — the older text, leaving a
+                // bio_hash that can never match the stored bio again.
+                const live = await oi33Model.getLiveBio(u._id);
+                const bio = live ?? '';
                 const hash = bioHashOf(bio);
                 const cur = oi33Dict[u._id];
                 // Idempotent: a bio whose current version already has a final
                 // verdict is left untouched, so the batch is safe to re-run.
-                if (cur?.bio_hash === hash
+                if (live === null || cur?.bio_hash === hash
                     && (cur.bio_status === 'approved' || cur.bio_status === 'rejected')) {
+                    counters.skipped++;
+                } else if (!bio.trim()) {
+                    // Emptied meanwhile: nothing displays, so nothing to judge.
+                    await oi33Model.bioSetReviewed(u._id, hash, 'approved');
                     counters.skipped++;
                 } else {
                     let approved = true;
+                    let applied = false;
                     if (enabled) {
                         const result = await runAiVerdict(u._id, normalizeText(bio), hash, cfg);
                         approved = result.verdict === 'pass';
-                        await oi33Model.bioSetReviewed(u._id, hash, approved ? 'approved' : 'rejected');
-                        await recordBioVerdict(u._id, bio, hash, result);
-                        if (!approved) await notifyBioRejected(u._id, result);
+                        // The verdict was computed from the text read above and
+                        // the AI call takes seconds: re-read before writing, so a
+                        // user editing meanwhile is never overwritten by this
+                        // older verdict (their edit re-queued the newer version
+                        // on its own).
+                        if (await oi33Model.getLiveBio(u._id) === bio) {
+                            await oi33Model.bioSetReviewed(u._id, hash, approved ? 'approved' : 'rejected');
+                            applied = true;
+                            await recordBioVerdict(u._id, bio, hash, result);
+                            if (!approved) await notifyBioRejected(u._id, result);
+                        }
                     } else {
                         await oi33Model.bioSetReviewed(u._id, hash, 'approved');
+                        applied = true;
                     }
-                    if (approved) counters.generated++;
+                    if (!applied) counters.skipped++;
+                    else if (approved) counters.generated++;
                     else counters.applied++;
                 }
             } catch (e: any) {

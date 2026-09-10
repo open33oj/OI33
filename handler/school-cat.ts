@@ -20,11 +20,11 @@ async function resolveUsernames(entries: Array<{ uid: number; amount: number }>)
     });
 }
 
-async function evaluateWeeklyRewardAchievements(uids: number[]) {
+async function evaluateWeeklyRewardMedals(uids: number[]) {
     for (let offset = 0; offset < uids.length; offset += 20) {
         await Promise.all(uids.slice(offset, offset + 20).map((uid: number) => (
-            oi33Model.achievementEvaluateUser(uid, { ruleTypes: ['cat_can_balance'] })
-                .catch((e) => console.error('[oi33] weekly big-cat reward achievement evaluation failed:', e))
+            oi33Model.medalEvaluateUser(uid, { ruleTypes: ['cat_can_balance'] })
+                .catch((e) => console.error('[oi33] weekly big-cat reward medal evaluation failed:', e))
         )));
     }
 }
@@ -163,7 +163,7 @@ class SchoolCatWeeklyRewardHandler extends Handler {
         try {
             const result = await oi33Model.settleSchoolCatWeeklyRewards(this.user._id);
             if (result.newlyCompleted && result.awardedUids.length) {
-                await evaluateWeeklyRewardAchievements(result.awardedUids);
+                await evaluateWeeklyRewardMedals(result.awardedUids);
             }
             const notification = result.running
                 ? `${result.period} 的每周奖励正在由另一个进程结算，请稍后刷新。`
@@ -231,7 +231,7 @@ class SchoolCatRewardSettleHandler extends Handler {
         try {
             const result = await oi33Model.settleSchoolCatWeeklyRewards(this.user._id, new Date(), period);
             if (result.newlyCompleted && result.awardedUids.length) {
-                await evaluateWeeklyRewardAchievements(result.awardedUids);
+                await evaluateWeeklyRewardMedals(result.awardedUids);
             }
             const notification = result.running
                 ? `${result.period} 第 ${result.revision} 版正在由另一个进程结算。`

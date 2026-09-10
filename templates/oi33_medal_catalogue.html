@@ -1,0 +1,207 @@
+{% set page_name = "oi33_medal_catalogue" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% macro medalCard(medal, stat) %}
+<article class="catalogue-medal">
+  <img class="catalogue-medal__icon" src="{{ medal.imageData }}" width="48" height="48" alt="{{ medal.name }}">
+  <div class="catalogue-medal__body">
+    <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人获得</small>{% endif %}</h3>
+    <p>{{ medal.description }}</p>
+    {% if medal.rule %}<p class="catalogue-rule">{{ medal.rule }}</p>{% endif %}
+  </div>
+</article>
+{% endmacro %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">奖章目录</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_auction') }}" class="rounded button">奖章拍卖</a>
+          {% if handler.user._id %}<a href="{{ url('oi33_contracts') }}" class="rounded button">我的交易合同</a>{% endif %}
+          {% if handler.user._id %}<a href="{{ url('oi33_medal_showcase') }}" class="rounded button">我的奖章展示柜</a>{% endif %}
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="catalogue-help">
+          奖章分为四类：<strong>OJ 成就奖章</strong>由系统按做题与活跃指标自动发放；
+          <strong>可售卖奖章</strong>全服唯一，经拍卖与交易合同流转；
+          <strong>一般奖章</strong>由管理员按活动与贡献发放；
+          <strong>奖项认证奖章</strong>记录你在各类比赛中取得过的最高奖项，可随成绩提升而升级。
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">奖项认证奖章（{{ groups.certification.length }}）</h2>
+      </div>
+      <div class="section__body">
+        <p class="catalogue-help">
+          每类比赛一个系列，系列内的等级由低到高排列。下方的浅色等级表示还没有人达到。
+        </p>
+        {% for medal in groups.certification %}
+        {% set stat = stats[medal._id] %}
+        <article class="certification-series">
+          <div class="certification-series__head">
+            <img class="certification-series__icon" src="{{ medal.imageData }}" width="64" height="64" alt="{{ medal.name }}">
+            <div class="certification-series__meta">
+              <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人获得认证</small>{% endif %}</h3>
+              <p>{{ medal.description }}</p>
+            </div>
+          </div>
+          <ol class="certification-series__levels">
+            {% for level in (medal.levels or []) %}
+            {% set holders = (stat.byLevel[level.level|string] if stat else 0) or 0 %}
+            <li class="certification-series__level{% if not holders %} certification-series__level--empty{% endif %}">
+              <img class="certification-series__level-icon" src="{{ level.imageData }}" width="32" height="32" alt="{{ level.name }}">
+              <div class="certification-series__level-body">
+                <span class="certification-series__level-name">Lv.{{ level.level }} {{ level.name }}</span>
+                {% if level.description %}<span class="certification-series__level-desc">{{ level.description }}</span>{% endif %}
+                <span class="certification-series__level-count">{% if holders %}{{ holders }} 人{% else %}暂无{% endif %}</span>
+              </div>
+            </li>
+            {% endfor %}
+          </ol>
+        </article>
+        {% else %}
+        <p class="catalogue-help">还没有奖项认证奖章。</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">OJ 成就奖章（{{ groups.oj.length }}）</h2>
+      </div>
+      <div class="section__body">
+        <p class="catalogue-help">通过题目、连续与累计登录、猫粮与猫罐头等指标自动发放，无需申请。</p>
+        <div class="catalogue-grid">
+          {% for medal in groups.oj %}{{ medalCard(medal, stats[medal._id]) }}{% endfor %}
+        </div>
+        {% if not groups.oj.length %}<p class="catalogue-help">还没有 OJ 成就奖章。</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">可售卖奖章（{{ groups.saleable.length }}）</h2>
+      </div>
+      <div class="section__body">
+        <p class="catalogue-help">
+          可售卖奖章全服唯一：只拍卖一次，成交后只能通过交易合同在玩家之间转让，不会再次上架。
+        </p>
+        {% if rows.length %}
+        <table class="data-table">
+          <thead>
+            <tr><th>奖章</th><th>状态</th><th>持有者 / 拍卖</th><th>成交价</th></tr>
+          </thead>
+          <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>
+                <img class="rare-icon" src="{{ row.medal.imageData }}" width="64" height="64" alt="{{ row.medal.name }}">
+                {{ row.medal.name }}
+                <br><small class="rare-desc">{{ row.medal.description }}</small>
+              </td>
+              <td>
+                {% if row.status == 'held' %}持有中
+                {% elif row.status == 'auction' %}<a href="{{ url('oi33_auction_detail', id=row.activeAuction._id) }}">拍卖中</a>
+                {% else %}待拍卖{% endif %}
+              </td>
+              <td>
+                {% if row.status == 'held' %}
+                  {% if udict[row.award.uid] %}{{ user.render_inline(udict[row.award.uid]) }}{% else %}UID {{ row.award.uid }}{% endif %}
+                  <br><small class="rare-desc">{{ datetimeSpan(row.award.earnedAt)|safe }}获得{% if row.award.source == 'contract' %}（合同转让）{% endif %}</small>
+                {% elif row.status == 'auction' %}
+                  当前价 {{ row.activeAuction.highestBid or row.activeAuction.startPrice }} 罐头，剩余 {{ row.remainText }}
+                {% else %}—{% endif %}
+              </td>
+              <td>{% if row.settledAuction %}{{ row.settledAuction.settlePrice }} 罐头{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="catalogue-help">还没有可售卖奖章。</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">一般奖章（{{ groups.manual.length }}）</h2>
+      </div>
+      <div class="section__body">
+        <p class="catalogue-help">由管理员按活动结果、长期贡献等规则手动发放。</p>
+        <div class="catalogue-grid">
+          {% for medal in groups.manual %}{{ medalCard(medal, stats[medal._id]) }}{% endfor %}
+        </div>
+        {% if not groups.manual.length %}<p class="catalogue-help">还没有一般奖章。</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .catalogue-help { color:#777; }
+  .theme--dark .catalogue-help, [data-mantine-color-scheme=dark] .catalogue-help { color:#aaa; }
+  .rare-desc { display:block; overflow:visible; color:#888; white-space:normal; text-overflow:clip; overflow-wrap:anywhere; word-break:break-word; }
+  .theme--dark .rare-desc, [data-mantine-color-scheme=dark] .rare-desc { color:#aaa; }
+  .rare-icon {
+    width:64px; height:64px; vertical-align:middle; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .data-table td:first-child { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; word-break: break-word; }
+  .catalogue-count { font-size:.7em; font-weight:400; color:#888; }
+  .theme--dark .catalogue-count, [data-mantine-color-scheme=dark] .catalogue-count { color:#aaa; }
+  .catalogue-grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:.75rem;
+  }
+  .catalogue-medal {
+    display:flex; align-items:flex-start; gap:.75rem;
+    padding:.85rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
+  }
+  .catalogue-medal__icon {
+    width:48px; height:48px; flex:0 0 48px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .catalogue-medal h3 { margin:0 0 .35rem; font-size:1rem; }
+  .catalogue-medal__body { min-width:0; }
+  .catalogue-medal p { margin:.2rem 0; color:#777; white-space:pre-wrap; }
+  .catalogue-rule { font-size:.85em; }
+  .theme--dark .catalogue-medal p, [data-mantine-color-scheme=dark] .catalogue-medal p { color:#aaa; }
+  .certification-series {
+    border:1px solid rgba(127,127,127,.2); border-radius:8px; padding:1rem; margin-bottom:1rem;
+  }
+  .certification-series__head { display:flex; align-items:flex-start; gap:1rem; }
+  .certification-series__icon {
+    width:64px; height:64px; flex:0 0 64px; object-fit:fill; image-rendering:pixelated;
+  }
+  .certification-series__meta { min-width:0; }
+  .certification-series__meta h3 { margin:0 0 .35rem; }
+  .certification-series__meta p { margin:0; color:#777; white-space:pre-wrap; }
+  .theme--dark .certification-series__meta p,
+  [data-mantine-color-scheme=dark] .certification-series__meta p { color:#aaa; }
+  .certification-series__levels {
+    list-style:none; margin:1rem 0 0; padding:0;
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:.5rem;
+  }
+  .certification-series__level {
+    display:flex; align-items:flex-start; gap:.6rem;
+    padding:.5rem .6rem; border:1px solid rgba(47,163,107,.45); border-radius:6px;
+  }
+  .certification-series__level--empty { border-color:rgba(127,127,127,.25); opacity:.55; }
+  .certification-series__level-icon {
+    width:32px; height:32px; flex:0 0 32px; object-fit:fill; image-rendering:pixelated;
+  }
+  .certification-series__level-body { display:flex; flex-direction:column; min-width:0; }
+  .certification-series__level-name { font-weight:600; font-size:.92em; }
+  .certification-series__level-desc { color:#777; font-size:.82em; white-space:pre-wrap; }
+  .certification-series__level-count { color:#888; font-size:.78em; }
+  .theme--dark .certification-series__level-desc,
+  [data-mantine-color-scheme=dark] .certification-series__level-desc { color:#aaa; }
+  .theme--dark .certification-series__level-count,
+  [data-mantine-color-scheme=dark] .certification-series__level-count { color:#999; }
+</style>
+{% endblock %}
