@@ -49,7 +49,7 @@ class CatAccountHandler extends Handler {
         if (!udoc) throw new NotFoundError(String(uid));
         const data = await oi33Model.getCatAccountPage(uid, page);
         this.response.template = 'oi33_cat_account.html';
-        this.response.body = { ...data, uid, udoc, page, canManage: viewerRole >= 2, canBatchGrant: viewerRole >= 3 };
+        this.response.body = { ...data, uid, udoc, page, canManage: viewerRole >= 2, canBatchGrant: viewerRole >= 2 };
     }
 }
 
@@ -57,7 +57,7 @@ class CatFoodGrantHandler extends Handler {
     async get() {
         const role = await checkOi33Admin(this.user._id);
         this.response.template = 'oi33_cat_food_grant.html';
-        this.response.body = { canBatchGrant: role >= 3 };
+        this.response.body = { canBatchGrant: role >= 2 };
     }
 
     @param('uidOrName', Types.UidOrName)
@@ -94,7 +94,7 @@ class CatCanGrantHandler extends Handler {
     async get() {
         const role = await checkOi33Admin(this.user._id);
         this.response.template = 'oi33_cat_food_grant.html';
-        this.response.body = { canBatchGrant: role >= 3 };
+        this.response.body = { canBatchGrant: role >= 2 };
     }
 
     @param('canUidOrName', Types.UidOrName)
@@ -140,7 +140,7 @@ class CatFoodContestRewardHandler extends Handler {
     async get() {
         const role = await checkOi33Admin(this.user._id);
         this.response.template = 'oi33_cat_food_contest_reward.html';
-        this.response.body = { canBatchGrant: role >= 3 };
+        this.response.body = { canBatchGrant: role >= 2 };
     }
 
     @param('contestUrl', Types.String)
@@ -185,7 +185,7 @@ class CatFoodContestRewardHandler extends Handler {
         );
         this.response.template = 'oi33_cat_food_contest_reward.html';
         this.response.body = {
-            canBatchGrant: role >= 3,
+            canBatchGrant: role >= 2,
             tdoc,
             rows,
             jsonText,
@@ -200,16 +200,14 @@ class CatFoodContestRewardHandler extends Handler {
 
 class CatFoodBulkGrantHandler extends Handler {
     async get() {
-        const role = await checkOi33Admin(this.user._id);
-        if (role < 3) throw new ForbiddenError('仅行政管理员可以批量发放猫粮。');
+        await checkOi33Admin(this.user._id);
         this.response.template = 'oi33_cat_food_bulk.html';
         this.response.body = {};
     }
 
     @param('jsonText', Types.String)
     async post(domainId: string, jsonText: string) {
-        const role = await checkOi33Admin(this.user._id);
-        if (role < 3) throw new ForbiddenError('仅行政管理员可以批量发放猫粮。');
+        await checkOi33Admin(this.user._id);
         const items = parseBatchJson(jsonText);
         const uids = items.map((item) => item.uid);
         const udict = await UserModel.getList(domainId, uids);
@@ -239,8 +237,7 @@ class CatFoodBulkGrantHandler extends Handler {
 class CatFoodBulkConfirmHandler extends Handler {
     @param('previewId', Types.String)
     async post(domainId: string, previewId: string) {
-        const role = await checkOi33Admin(this.user._id);
-        if (role < 3) throw new ForbiddenError('仅行政管理员可以批量发放猫粮。');
+        await checkOi33Admin(this.user._id);
         try {
             const preview = await oi33Model.getCatFoodBatchPreview(previewId, this.user._id);
             if (!preview || preview.status !== 'pending') throw new Error('该预览不存在、已确认或已失效。');

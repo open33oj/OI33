@@ -4,11 +4,14 @@
      status icon (rowspan 2) | title link                       | participant count
                              | rule, start ~ end, duration      | (rowspan 2, centered)
    Rule shows the rule's TEXT, except OC which is shortened to "OC".
-   Status icon: green play = live, blue schedule = upcoming, gray flag = ended. #}
+   Status icon and time range are whole-contest level (tdoc.beginAt~endAt only, so all
+   viewers see the same state): green play = live, blue schedule = upcoming, gray flag
+   = ended. The viewer's personal window / early finish (tsdoc.endAt) is only shown on
+   contest_detail. #}
 {% macro render_contest_status(tdoc) %}
-  {%- if model.contest.isOngoing(tdoc, tsdict[tdoc.docId]) -%}
+  {%- if model.contest.isOngoing(tdoc) -%}
     <span class="icon icon-play text-green" title="{{ _('Live') }}"></span>
-  {%- elif model.contest.isDone(tdoc, tsdict[tdoc.docId]) -%}
+  {%- elif model.contest.isDone(tdoc) -%}
     <span class="icon icon-flag text-gray" title="{{ _('Ended') }}"></span>
   {%- else -%}
     <span class="icon icon-schedule text-blue" title="{{ _('Ready') }}"></span>
@@ -30,7 +33,7 @@
     <td class="oi33-contest-table__meta">
       <span class="icon icon-award"></span> {% if tdoc.rule == 'oc' %}OC{% else %}{{ _(model.contest.RULES[tdoc['rule']].TEXT) }}{% endif %}
       &middot;
-      <span class="icon icon-calendar"></span> {{ contest.render_time(tsdict[tdoc.docId].startAt or tdoc.beginAt) }} ~ {{ contest.render_time(tsdict[tdoc.docId].endAt or tdoc.endAt) }}
+      <span class="icon icon-calendar"></span> {{ contest.render_time(tdoc.beginAt) }} ~ {{ contest.render_time(tdoc.endAt) }}
       &middot;
       <span class="icon icon-schedule--fill"></span> {{ contest.render_duration(tdoc) }} {{ _('hour(s)') }}
     </td>
