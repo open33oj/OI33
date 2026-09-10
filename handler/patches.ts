@@ -259,6 +259,23 @@ export function applyPatches(_ctx: Context) {
         return origGetTemplate.call(this, name, ...rest);
     };
 
+    // (f2) HomeHandler.prototype.getContest — trim the homepage section payload
+    // to the tdoc list. The oi33 override of partials/homepage/contest.html
+    // renders every row from the tdoc alone (whole-contest status plus
+    // tdoc.beginAt~endAt, see partials/oi33_contest_table.html), so core's
+    // per-user status dict (payload[1]) is dead payload here. Core's own
+    // partial tolerates its absence as well — nunjucks resolves the missing
+    // tsdict lookup to undefined, it only drops the "Attended" badge — so the
+    // startup window where core's partial may still be the compiled one (guard
+    // above) stays safe. Core's getContest is still called rather than
+    // reimplemented, so its getListStatus query still runs; duplicating its
+    // permission and group query here would only let it drift from core.
+    const origGetContest = HomeHandler.prototype.getContest;
+    HomeHandler.prototype.getContest = async function getContest(this: any, domainId: string, limit = 10) {
+        const res: any = await origGetContest.call(this, domainId, limit);
+        return Array.isArray(res) ? [res[0]] : res;
+    };
+
     // Keep user-detail JSON/template data anonymous. The original username/avatar
     // are stored as non-enumerable fields for the OI33 manager template exception.
     _ctx.on('handler/after/UserDetail', (h: any) => {
