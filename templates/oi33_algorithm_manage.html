@@ -1,0 +1,232 @@
+{% set page_name = "oi33_algorithm_manage" %}
+{% extends "layout/basic.html" %}
+{% import "partials/oi33_algorithm.html" as alg with context %}
+
+{% macro itemRow(item) %}
+<tr>
+  <td>
+    <div class="oi33-alg-admin-name">{{ item.text }}</div>
+    {% if item.note %}<div class="oi33-alg-admin-note">{{ item.note }}</div>{% endif %}
+    <code class="oi33-alg-admin-id">{{ item._id }}</code>
+    {% if item.source == 'custom' %}<span class="oi33-alg-admin-tag">自定义</span>{% endif %}
+  </td>
+  <td>{{ alg.difficulty(item.difficulty) }}</td>
+  <td>{{ item.sectionName }}{% if item.subsectionName %} / {{ item.subsectionName }}{% endif %}</td>
+  <td>{{ item.order }}</td>
+  <td>
+    {% if item.enabled %}<span class="oi33-alg-admin-on">启用</span>
+    {% else %}<span class="oi33-alg-admin-off">停用</span>{% endif %}
+  </td>
+  <td class="oi33-alg-admin-actions">
+    <a class="rounded button" href="{{ url('oi33_algorithm_manage', query={edit:item._id}) }}#alg-item-form">编辑</a>
+    <form method="post" action="{{ url('oi33_algorithm_item_toggle') }}">
+      <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+      <input type="hidden" name="id" value="{{ item._id }}">
+      <input type="hidden" name="enabled" value="{{ 0 if item.enabled else 1 }}">
+      <button type="submit" class="rounded button">{{ '停用' if item.enabled else '启用' }}</button>
+    </form>
+    <form method="post" action="{{ url('oi33_algorithm_item_delete') }}"
+      onsubmit="return confirm('删除该算法项目会同时删除所有用户对它的掌握程度记录，确定吗？');">
+      <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+      <input type="hidden" name="id" value="{{ item._id }}">
+      <button type="submit" class="rounded button">删除</button>
+    </form>
+  </td>
+</tr>
+{% endmacro %}
+
+{% block content %}
+<style>
+.oi33-alg-admin-grid { display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:1rem; }
+.oi33-alg-admin-card {
+  flex:1 1 320px; padding:1rem; border:1px solid rgba(127,127,127,.25); border-radius:8px; min-width:280px;
+}
+.oi33-alg-admin-card h3 { margin:0 0 .5rem; font-size:1rem; }
+.oi33-alg-admin-card p { margin:.25rem 0 .6rem; color:#777; font-size:.88em; }
+.oi33-alg-admin-card form { margin:0 0 .6rem; }
+.oi33-alg-admin-card label { display:block; margin-bottom:.4rem; font-size:.88em; }
+.oi33-alg-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.6rem; margin-bottom:.6rem; }
+.oi33-alg-grid label { display:block; font-size:.85em; color:#666; }
+.oi33-alg-grid input, .oi33-alg-form-note input { width:100%; }
+.oi33-alg-form-note { display:block; font-size:.85em; color:#666; margin-bottom:.6rem; }
+.oi33-alg-admin-group { border:1px solid rgba(127,127,127,.25); border-radius:8px; margin-bottom:.75rem; }
+.oi33-alg-admin-group > summary {
+  cursor:pointer; padding:.55rem .85rem; font-weight:600; background:rgba(127,127,127,.06);
+  display:flex; align-items:center; gap:.6rem;
+}
+.oi33-alg-admin-group__count { color:#999; font-weight:400; font-size:.85em; }
+.oi33-alg-admin-tools { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; padding:.5rem .85rem; }
+.oi33-alg-admin-tools form { margin:0; }
+.oi33-alg-admin-section__title { padding:.5rem .85rem .2rem; font-weight:600; font-size:.92em; color:#555; }
+.oi33-alg-admin-section__title code { color:#999; font-weight:400; }
+.oi33-alg-admin-name { font-weight:600; }
+.oi33-alg-admin-note { color:#888; font-size:.85em; }
+.oi33-alg-admin-id { color:#aaa; font-size:.75em; }
+.oi33-alg-admin-tag { margin-left:.4rem; font-size:.72em; padding:.05rem .4rem; border-radius:999px; border:1px solid rgba(76,139,245,.5); color:#3a6fd0; }
+.oi33-alg-admin-on { color:#1f7d50; }
+.oi33-alg-admin-off { color:#a8761a; }
+.oi33-alg-admin-actions { white-space:nowrap; }
+.oi33-alg-admin-actions form { display:inline-block; margin:0 0 0 .25rem; }
+.oi33-alg-admin-table td { vertical-align:middle; }
+.theme--dark .oi33-alg-admin-card, [data-mantine-color-scheme=dark] .oi33-alg-admin-card,
+.theme--dark .oi33-alg-admin-group, [data-mantine-color-scheme=dark] .oi33-alg-admin-group { border-color:rgba(160,160,160,.28); }
+.theme--dark .oi33-alg-admin-section__title, [data-mantine-color-scheme=dark] .oi33-alg-admin-section__title { color:#ccc; }
+.theme--dark .oi33-alg-admin-note, [data-mantine-color-scheme=dark] .oi33-alg-admin-note { color:#aaa; }
+</style>
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">算法项目管理</h1>
+        <div class="section__tools">
+          <a class="rounded button" href="{{ url('oi33_algorithm_user', uid=handler.user._id) }}">我的掌握面板</a>
+          <a class="rounded button" href="{{ url('oi33_admin') }}">返回后台</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <div class="oi33-alg-admin-grid">
+          <div class="oi33-alg-admin-card">
+            <h3>NOI 大纲</h3>
+            <p>
+              {{ meta.title }}（{{ meta.edition }}），共 {{ meta.itemCount }} 项。<br>
+              当前已配置 {{ stats.total }} 项，其中启用 {{ stats.enabled }} 项。
+              {% if config.lastImportAt %}上次导入：{{ datetimeSpan(config.lastImportAt)|safe }}。{% endif %}
+            </p>
+            <form method="post" action="{{ url('oi33_algorithm_import') }}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <label>
+                <input type="checkbox" name="overwrite"> 覆盖已有项目的名称 / 分组 / 难度 / 排序
+              </label>
+              <button type="submit" class="rounded primary button">导入 / 更新 NOI 2025 大纲</button>
+            </form>
+          </div>
+
+          <div class="oi33-alg-admin-card">
+            <h3>全局设置</h3>
+            <form method="post" action="{{ url('oi33_algorithm_config') }}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <label>
+                <input type="checkbox" name="selfEdit" {% if config.selfEdit %}checked{% endif %}>
+                允许学生自行评价掌握程度（关闭后学生面板只读，仅老师可设置）
+              </label>
+              <p style="color:#777;font-size:.85em;margin:.2rem 0 .6rem;">
+                学生在页面上改完整份面板后一次提交，每个自然月只能提交一次；老师随时可改，
+                不受月度限制。若要让学生本月再改一次，请打开该学生的面板点「重置该学生本月额度」。
+              </p>
+              <button type="submit" class="rounded button">保存设置</button>
+            </form>
+            <form method="get" action="{{ url('oi33_algorithm') }}">
+              <label>打开某位用户的掌握面板</label>
+              <input type="number" name="uid" min="1" placeholder="用户 UID" style="width:8rem;">
+              <button type="submit" class="rounded button">打开</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="oi33-alg-admin-card" id="alg-item-form">
+          <h3>{% if editing %}编辑算法项目：{{ editing.text }}{% else %}新增自定义项目{% endif %}</h3>
+          <form method="post" action="{{ url('oi33_algorithm_item_save') }}">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            {% if editing %}<input type="hidden" name="id" value="{{ editing._id }}">{% endif %}
+            <div class="oi33-alg-grid">
+              <label>名称
+                <input name="text" required maxlength="200" value="{{ editing.text if editing else '' }}">
+              </label>
+              <label>级别
+                <input name="levelName" list="alg-level-names" required maxlength="60"
+                  value="{{ editing.levelName if editing else (levelNames[0] or '入门级') }}">
+              </label>
+              <label>板块
+                <input name="sectionName" list="alg-section-names" required maxlength="60"
+                  value="{{ editing.sectionName if editing else '' }}">
+              </label>
+              <label>子板块（可选）
+                <input name="subsectionName" list="alg-subsection-names" maxlength="60"
+                  value="{{ editing.subsectionName or '' if editing else '' }}">
+              </label>
+              <label>难度系数（0-10）
+                <input type="number" name="difficulty" min="0" max="{{ maxDifficulty }}"
+                  value="{{ editing.difficulty if editing else 0 }}">
+              </label>
+              <label>排序
+                <input type="number" name="order" step="0.5" value="{{ editing.order if editing else nextOrder }}">
+              </label>
+            </div>
+            <label class="oi33-alg-form-note">
+              <input type="checkbox" name="enabled" {% if not editing or editing.enabled %}checked{% endif %}>
+              在学生面板中显示
+            </label>
+            <label class="oi33-alg-form-note">备注（可选，会显示在知识点旁边）
+              <input name="note" maxlength="500" value="{{ editing.note or '' if editing else '' }}">
+            </label>
+            <button type="submit" class="rounded primary button">{{ '保存修改' if editing else '新增项目' }}</button>
+            {% if editing %}
+            <a class="rounded button" href="{{ url('oi33_algorithm_manage') }}#alg-item-form">取消编辑</a>
+            {% endif %}
+          </form>
+          <datalist id="alg-level-names">
+            {% for name in levelNames %}<option value="{{ name }}"></option>{% endfor %}
+          </datalist>
+          <datalist id="alg-section-names">
+            {% for name in sectionNames %}<option value="{{ name }}"></option>{% endfor %}
+          </datalist>
+          <datalist id="alg-subsection-names">
+            {% for name in subsectionNames %}<option value="{{ name }}"></option>{% endfor %}
+          </datalist>
+        </div>
+
+        {% for group in groups %}
+        <details class="oi33-alg-admin-group" open>
+          <summary>
+            <span>{{ group.name }}</span>
+            <span class="oi33-alg-admin-group__count">
+              {{ group.sections|length }} 个板块
+            </span>
+          </summary>
+          <div class="oi33-alg-admin-tools">
+            <form method="post" action="{{ url('oi33_algorithm_bulk') }}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <input type="hidden" name="levelId" value="{{ group.id }}">
+              <input type="hidden" name="enabled" value="1">
+              <button type="submit" class="rounded button">全部启用</button>
+            </form>
+            <form method="post" action="{{ url('oi33_algorithm_bulk') }}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <input type="hidden" name="levelId" value="{{ group.id }}">
+              <input type="hidden" name="enabled" value="0">
+              <button type="submit" class="rounded button">全部停用</button>
+            </form>
+          </div>
+          {% for section in group.sections %}
+          <div class="oi33-alg-admin-section">
+            <div class="oi33-alg-admin-section__title">{{ section.name }} <code>{{ section.id }}</code></div>
+            <table class="data-table oi33-alg-admin-table">
+              <thead>
+                <tr>
+                  <th>知识点</th>
+                  <th style="width:6rem;">难度</th>
+                  <th style="width:14rem;">分组</th>
+                  <th style="width:5rem;">排序</th>
+                  <th style="width:5rem;">状态</th>
+                  <th style="width:14rem;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in section.items %}{{ itemRow(item) }}{% endfor %}
+                {% for subsection in section.subsections %}
+                  {% for item in subsection.items %}{{ itemRow(item) }}{% endfor %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endfor %}
+        </details>
+        {% else %}
+        <p class="oi33-alg-empty">还没有算法项目。可以点击上方「导入 / 更新 NOI 2025 大纲」一键导入默认内容，或手动新增。</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{{ alg.style() }}
+{% endblock %}

@@ -121,6 +121,21 @@ import {
     contractListOutgoing, contractListRecentResolved,
     CONTRACT_FEE_PERCENT, contractFeeAmount,
 } from './contract';
+import {
+    ensureAlgorithmIndexes, algorithmGetConfig, algorithmSaveConfig,
+    algorithmListItems, algorithmGetItem, algorithmCountItems,
+    algorithmGroupItems, algorithmComputeStats,
+    algorithmProfileView, algorithmSetLevels,
+    algorithmMonthKey, algorithmNextUpdateDate,
+    algorithmGetSelfQuota, algorithmClaimSelfQuota, algorithmReleaseSelfQuota, algorithmResetSelfQuota,
+    algorithmSaveItem, algorithmDeleteItem, algorithmSetItemEnabled, algorithmBulkSetEnabled,
+    algorithmImportOutline, algorithmEnsureOutlineImported, algorithmMigrateOutlineIds,
+    algorithmOutlineData, algorithmOutlineMeta, normalizeOutlineId,
+    algorithmNormalizeLevel, algorithmLevelName,
+    ALGORITHM_LEVELS, ALGORITHM_LEVEL_NAMES, ALGORITHM_MAX_LEVEL,
+    ALGORITHM_MAX_TEXT, ALGORITHM_MAX_NOTE, ALGORITHM_MAX_GROUP_NAME, ALGORITHM_MAX_ITEMS,
+    ALGORITHM_CONFIG_ID,
+} from './algorithm';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -146,6 +161,7 @@ export { meowPostColl, meowFollowColl, meowLikeColl } from './meow';
 export { medalColl, userMedalColl } from './medal';
 export { auctionColl, auctionBidColl } from './auction';
 export { contractColl } from './contract';
+export { algorithmItemColl, userAlgorithmColl, algorithmConfigColl } from './algorithm';
 
 const oi33Model = {
     getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
@@ -234,6 +250,19 @@ const oi33Model = {
     contractAccept, contractDecline, contractCancel, contractListIncoming,
     contractListOutgoing, contractListRecentResolved,
     CONTRACT_FEE_PERCENT, contractFeeAmount,
+    ensureAlgorithmIndexes, algorithmGetConfig, algorithmSaveConfig,
+    algorithmListItems, algorithmGetItem, algorithmCountItems,
+    algorithmGroupItems, algorithmComputeStats,
+    algorithmProfileView, algorithmSetLevels,
+    algorithmMonthKey, algorithmNextUpdateDate,
+    algorithmGetSelfQuota, algorithmClaimSelfQuota, algorithmReleaseSelfQuota, algorithmResetSelfQuota,
+    algorithmSaveItem, algorithmDeleteItem, algorithmSetItemEnabled, algorithmBulkSetEnabled,
+    algorithmImportOutline, algorithmEnsureOutlineImported, algorithmMigrateOutlineIds,
+    algorithmOutlineData, algorithmOutlineMeta, normalizeOutlineId,
+    algorithmNormalizeLevel, algorithmLevelName,
+    ALGORITHM_LEVELS, ALGORITHM_LEVEL_NAMES, ALGORITHM_MAX_LEVEL,
+    ALGORITHM_MAX_TEXT, ALGORITHM_MAX_NOTE, ALGORITHM_MAX_GROUP_NAME, ALGORITHM_MAX_ITEMS,
+    ALGORITHM_CONFIG_ID,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -279,6 +308,9 @@ declare module 'hydrooj' {
         oi33_auction: import('./types').Oi33Auction;
         oi33_auction_bid: import('./types').Oi33AuctionBid;
         oi33_medal_contract: import('./types').Oi33Contract;
+        oi33_algorithm_item: import('./types').Oi33AlgorithmItem;
+        oi33_user_algorithm: import('./types').Oi33UserAlgorithm;
+        oi33_algorithm_config: import('./types').Oi33AlgorithmConfig;
     }
 }
 

@@ -76,6 +76,11 @@ export interface Oi33User {
     bio_status?: 'pending' | 'approved' | 'rejected';
     bio_hash?: string;
     bio_edited_at?: Date; // last actual bio change, drives the 2h edit cooldown
+    // Algorithm mastery: the Asia/Shanghai month ('YYYY-MM') a student already
+    // spent their once-per-month self-assessment submit on, plus when. Cleared
+    // by the admin "reset this student's month" action. Teachers are exempt.
+    algorithm_self_month?: string;
+    algorithm_self_at?: Date;
 }
 
 export interface Oi33CatCanBill {
@@ -413,7 +418,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'medal' | 'auction' | 'contract' | 'admin';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'medal' | 'auction' | 'contract' | 'algorithm' | 'admin';
     sender?: number;
     operator?: number;
     receiver?: number;
@@ -601,6 +606,74 @@ export interface Oi33Contract {
     status: 'pending' | 'accepted' | 'declined' | 'cancelled';
     createdAt: Date;
     resolvedAt?: Date;
+}
+
+// --- Algorithm mastery (算法掌握程度) ---
+
+// One item of the algorithm syllabus (算法项目). The default set is imported
+// from the bundled NOI 2025 outline; administrators may add, edit, disable or
+// re-order items. `_id` is the stable outline id (normalized, e.g. `1.1.12` for
+// the raw `2.1.1-12`; see `normalizeOutlineId`) for imported
+// items and a generated `custom-*` id for hand-made ones.
+export interface Oi33AlgorithmItem {
+    _id: string;
+    text: string;
+    // Optional administrator note shown as a hint on the mastery panel.
+    note?: string;
+    // Level (级) / section (板块) / subsection (子板块) the item belongs to.
+    // Level and section ids come from the outline for imported items and are
+    // derived from the names (`c:<name>`) for custom ones.
+    levelId: string;
+    levelName: string;
+    sectionId: string;
+    sectionName: string;
+    // `null` (not undefined) is persisted for items that hang directly off a
+    // section, matching the outline importer.
+    subsectionId?: string | null;
+    subsectionName?: string | null;
+    // NOI difficulty coefficient 1-10 (0 = unlabelled).
+    difficulty: number;
+    // Global display order; the outline index for imported items.
+    order: number;
+    // Disabled items stay in the admin list but disappear from user panels.
+    enabled: boolean;
+    source: 'noi2025' | 'custom';
+    // Id-format version. 2 = normalized (`1.1.12`). Absent/1 means the row was
+    // written before normalization, so /oi33/migrate rewrites it exactly once
+    // (the transform is not safely re-appliable: `2.1.12` is a valid new-format
+    // id that would lose another `2.`).
+    idVersion?: number;
+    createdAt: Date;
+    updatedAt: Date;
+    createdBy: number;
+}
+
+// One user's mastery rating for one item. The 4-level scale is shared by both
+// the student's self-assessment and the teacher's assessment; `source` records
+// who wrote the current value purely for display (the teacher badge), not as a
+// permission — a student may overwrite a teacher-set value (once per month),
+// and doing so flips `source` back to 'self'.
+export interface Oi33UserAlgorithm {
+    _id: ObjectId;
+    uid: number;
+    itemId: string;
+    // 0 没学 / 1 了解概念 / 2 会模板题 / 3 熟练掌握
+    level: number;
+    source: 'self' | 'teacher';
+    updatedBy: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface Oi33AlgorithmConfig {
+    _id: string; // 'main'
+    // When false, students may not edit their own ratings (teachers still can).
+    selfEdit: boolean;
+    // Bookkeeping for the bundled outline import.
+    outlineVersion?: string;
+    lastImportAt?: Date;
+    updatedAt: Date;
+    updatedBy?: number;
 }
 
 export interface Oi33AiAnalysis {
