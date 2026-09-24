@@ -103,10 +103,21 @@ class ContractCancelHandler extends Handler {
     }
 }
 
+class ContractDeleteHandler extends Handler {
+    @param('id', Types.String)
+    async post(domainId: string, id: string) {
+        await oi33Model.contractDelete(id, this.user._id);
+        this.response.redirect = this.url('oi33_contracts', {
+            query: { notification: '已删除该合同' },
+        });
+    }
+}
+
 export async function apply(ctx: Context) {
     ctx.Route('oi33_contracts', '/oi33/contracts', ContractListHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_contract_create', '/oi33/contracts/create', ContractCreateHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_contract_accept', '/oi33/contracts/:id/accept', ContractAcceptHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_contract_decline', '/oi33/contracts/:id/decline', ContractDeclineHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_contract_cancel', '/oi33/contracts/:id/cancel', ContractCancelHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_contract_delete', '/oi33/contracts/:id/delete', ContractDeleteHandler, PRIV.PRIV_USER_PROFILE);
 }

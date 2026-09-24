@@ -242,7 +242,7 @@ curl -H "Authorization: Bearer 33tok_xxx" \
      "https://oj-domain/oi33/medals/user/2?noTemplate=1"
 ```
 
-> 奖章目录与用户奖章列表均为只读视图，已加入 Token 白名单：`/oi33/medals/catalogue` 精确匹配，`/oi33/medals/user/:uid` 前缀匹配（见 §4.3）。奖章的写操作路由（`/oi33/medals/grant`、`/oi33/medals/revoke`、`/oi33/medals/level`、`/oi33/medals/save`、`/oi33/medals/:id/delete`、`/oi33/medals/scan`、`/oi33/medals/config`）**不可**通过 Token 访问。
+> 奖章目录与用户奖章列表均为只读视图，已加入 Token 白名单：`/oi33/medals/catalogue` 精确匹配，`/oi33/medals/user/:uid` 前缀匹配（见 §4.3）。奖章的管理路由（`/oi33/medals/grant`、`/oi33/medals/revoke`、`/oi33/medals/level`、`/oi33/medals/save`、`/oi33/medals/:id/delete`、`/oi33/medals/scan`、`/oi33/medals/config`、`/oi33/medals/export`、`/oi33/medals/import`）**不可**通过 Token 访问。
 
 ---
 

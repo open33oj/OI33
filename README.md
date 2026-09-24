@@ -184,7 +184,7 @@
 | `/oi33/meow/admin` | OI33 身份 ≥ 2 | 喵喵审核（今日统计 / 待审队列 / 全部喵喵列表，可按状态筛选、分页） |
 | `/oi33/meow/admin/:postId/delete` | OI33 身份 ≥ 2 | 删除喵喵（POST；管理员在信息卡上看到删除按钮） |
 | `/oi33/meow/delete/:postId` | `PRIV_USER_PROFILE`（仅本人，或 OI33 身份 ≥ 2） | 删除自己的喵喵（POST；不退还罐头） |
-| `/oi33/medals` | OI33 身份 ≥ 2 | 奖章管理：奖章定义、四类奖章、自动指标、像素图、认证等级阶梯、手动授予与撤销 |
+| `/oi33/medals` | OI33 身份 ≥ 2 | 奖章管理：奖章定义、四类奖章、自动指标、像素图、等级阶梯、手动授予与撤销、奖章定义导入 / 导出 |
 | `/oi33/medals/save` | OI33 身份 ≥ 2 | 创建/修改奖章定义（POST，`category` 为 `oj`/`saleable`/`manual`/`certification`；认证奖章提交 `levels_json` 与各级 PNG，PNG 原始尺寸仅 8/16/24/32） |
 | `/oi33/medals/config` | OI33 身份 ≥ 2 | 保存 AC 统计域全局配置（POST；留空为全部域，不同域按题目 `sort` 跨域去重） |
 | `/oi33/medals/grant`、`/oi33/medals/revoke` | OI33 身份 ≥ 2 | 授予/撤销用户奖章（POST；认证奖章在表单里同时选等级） |
@@ -393,6 +393,13 @@ hydrooj addon remove frontend-33oj
 - 页面从 `/oi33/achievements*` 迁移到 `/oi33/medals*`。旧链接仍可用：`/oi33/achievements`、`/oi33/achievements/rare`、`/oi33/achievements/showcase`、`/oi33/achievements/user/:uid` 会自动重定向到对应的新路由。
 - 升级后需执行一次 `/oi33/migrate`：Step 13 会把 `oi33_achievement` / `oi33_user_achievement` / `oi33_achievement_contract` 重命名为 `oi33_medal` / `oi33_user_medal` / `oi33_medal_contract`，并把 `achievementId`、`achievement_showcase` 等字段与日志、喵喵的旧判别符改写为 medal 命名；Step 14 把旧的「一个阈值一个自动奖章」定义合并为「一个指标一个可升级系列」，并把每个用户同一指标的多枚奖章折叠为最高等级的一条记录（幂等，可重复执行）。
 - 「导入初始奖章」现在幂等创建 5 个 OJ 成就奖章系列（`ac` / `streak` / `login` / `food` / `can`，每系列 12 级），已存在的系列不会被覆盖。
+
+### 奖章定义的导入 / 导出
+
+- **导出**：奖章管理页的「导出全部奖章定义（JSON）」下载一个 `oi33-medals` 文件，内含全部奖章定义（名称、描述、达成规则、像素画与等级阶梯）。文件**不含**任何用户持有记录、公告或审核状态，可在不同 OI33 实例之间搬运，也能直接查看 / 手工编辑。
+- **导入**：同一区域支持上传 JSON 文件或直接粘贴 JSON，可选「覆盖同 ID 的定义」或「仅新增（跳过已存在）」，并可填写 **ID 前缀**（如 `ext-`）避免与本地奖章冲突以导入其他 OJ 的奖章集。
+- **兼容处理**：其他 OJ 的 ID 会转成小写、非法字符替换为连字符并截断到 64 位；未知 `ruleType` 按一般奖章导入；缺失 / 非法像素图退回默认图标；自动系列按阈值排序、忽略没有阈值的等级并给出提示；只有一般奖章允许 `saleable`。导入只写 `oi33_medal`，**不会影响任何已发放的奖章**；结果会在页面上列出新增 / 更新 / 跳过 / 失败数量与逐条提示。
+- 单次最多导入 500 枚、文件不超过 8 MiB；写入会记一条 `definition_import` 审计日志。
 
 ### 可升级奖章系列（OJ 成就奖章 / 奖项认证奖章）
 

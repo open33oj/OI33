@@ -100,7 +100,9 @@ import {
 } from './meow';
 import {
     ensureMedalIndexes, medalGet, medalList, medalCatalogue, medalSave,
-    medalDelete, medalGetUserAwards, medalListRecentAwards, medalAwardStats,
+    medalDelete, medalGetUserAwards, medalListRecentAwards, medalListAwardsPaginated, medalAwardStats,
+    medalListLevelHolders,
+    medalExportDefinitions, medalImportDefinitions,
     medalGrant, medalRevoke, medalEvaluateUser, medalEvaluateAll, medalSetLevel,
     medalCategoryOf, medalCategoryName, medalCategoryRank, medalGroupByCategory,
     medalLevelOf, medalDisplayRung, medalSortedLevels, medalAwardView,
@@ -117,7 +119,7 @@ import {
 } from './auction';
 import {
     ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
-    contractAccept, contractDecline, contractCancel, contractListIncoming,
+    contractAccept, contractDecline, contractCancel, contractDelete, contractListIncoming,
     contractListOutgoing, contractListRecentResolved,
     CONTRACT_FEE_PERCENT, contractFeeAmount,
 } from './contract';
@@ -234,7 +236,9 @@ const oi33Model = {
     setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
     MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
     ensureMedalIndexes, medalGet, medalList, medalCatalogue, medalSave,
-    medalDelete, medalGetUserAwards, medalListRecentAwards, medalAwardStats,
+    medalDelete, medalGetUserAwards, medalListRecentAwards, medalListAwardsPaginated, medalAwardStats,
+    medalListLevelHolders,
+    medalExportDefinitions, medalImportDefinitions,
     medalGrant, medalRevoke, medalEvaluateUser, medalEvaluateAll, medalSetLevel,
     medalCategoryOf, medalCategoryName, medalCategoryRank, medalGroupByCategory,
     medalLevelOf, medalDisplayRung, medalSortedLevels, medalAwardView,
@@ -247,7 +251,7 @@ const oi33Model = {
     auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
     auctionGetBids, auctionSaleableShowcase,
     ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
-    contractAccept, contractDecline, contractCancel, contractListIncoming,
+    contractAccept, contractDecline, contractCancel, contractDelete, contractListIncoming,
     contractListOutgoing, contractListRecentResolved,
     CONTRACT_FEE_PERCENT, contractFeeAmount,
     ensureAlgorithmIndexes, algorithmGetConfig, algorithmSaveConfig,

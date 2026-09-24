@@ -1,0 +1,66 @@
+{% set page_name = "oi33_medal_level_users" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title level-medal-title">
+          <img class="level-medal-icon" src="{{ rung.imageData }}" width="40" height="40" alt="{{ rung.name }}">
+          {{ medal.name }} · Lv.{{ rung.level }} {{ rung.name }}
+        </h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_medal_catalogue') }}" class="rounded button">返回奖章目录</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="level-medal-help">
+          {{ medal.description }}
+          {% if rung.description %}（本等级：{{ rung.description }}）{% endif %}
+          共 <strong>{{ awards.length }}</strong> 人获得该等级。
+        </p>
+        <div class="level-medal-switch">
+          {% for level in levels %}
+          <a class="rounded button{% if level.level == rung.level %} primary{% endif %}"
+            href="{{ url('oi33_medal_level_users', id=medal._id, level=level.level) }}">Lv.{{ level.level }} {{ level.name }}</a>
+          {% endfor %}
+        </div>
+        {% if awards.length %}
+        <ul class="level-medal-list">
+          {% for award in awards %}
+          <li class="level-medal-list__row">
+            <span class="level-medal-list__user">
+              {% if udict[award.uid] %}{{ user.render_inline(udict[award.uid]) }}{% else %}UID {{ award.uid }}{% endif %}
+            </span>
+            <span class="level-medal-list__time">{{ datetimeSpan(award.earnedAt)|safe }}获得</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="level-medal-help">目前还没有人获得该等级。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .level-medal-title { display:flex; align-items:center; gap:.6rem; }
+  .level-medal-icon {
+    width:40px; height:40px; flex:0 0 40px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .level-medal-help { color:#777; }
+  .theme--dark .level-medal-help, [data-mantine-color-scheme=dark] .level-medal-help { color:#aaa; }
+  .level-medal-switch { display:flex; flex-wrap:wrap; gap:.35rem; margin:0 0 1rem; }
+  .level-medal-list { list-style:none; margin:0; padding:0; }
+  .level-medal-list__row {
+    display:flex; align-items:baseline; justify-content:space-between; gap:.75rem;
+    padding:.35rem 0; border-bottom:1px dashed rgba(127,127,127,.15); min-width:0; flex-wrap:wrap;
+  }
+  .level-medal-list__user { min-width:0; }
+  .level-medal-list__time { color:#888; font-size:.8em; flex:0 0 auto; }
+  .theme--dark .level-medal-list__time,
+  [data-mantine-color-scheme=dark] .level-medal-list__time { color:#aaa; }
+</style>
+{% endblock %}

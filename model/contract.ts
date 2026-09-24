@@ -224,6 +224,25 @@ export async function contractCancel(id: string | ObjectId, seller: number) {
     return await contractResolve(id, seller, 'seller', 'cancelled');
 }
 
+// A cancelled contract is dead weight: nothing changed hands and the medal was
+// never locked. Only the seller who created it may remove it, and only while it
+// is still cancelled, so a later state can never be erased.
+export async function contractDelete(id: string | ObjectId, actor: number) {
+    const contract = await contractGet(id);
+    if (!contract) throw new NotFoundError(String(id));
+    if (contract.status !== 'cancelled') throw new ValidationError('只有已取消的合同才能删除。');
+    if (contract.seller !== actor) throw new ValidationError('只有合同发起人可以删除该合同。');
+    const result = await contractColl.deleteOne({ _id: contract._id, status: 'cancelled' });
+    if (result.deletedCount) {
+        await addLog({
+            type: 'contract', userId: actor, uid: contract.buyer, action: 'delete',
+            contractId: contract._id.toHexString(), medalId: contract.medalId,
+            amount: contract.price,
+        } as any);
+    }
+    return !!result.deletedCount;
+}
+
 export async function contractListIncoming(buyer: number) {
     return await contractColl.find({ buyer, status: 'pending' }).sort({ createdAt: -1 }).toArray();
 }

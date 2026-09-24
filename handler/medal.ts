@@ -174,66 +174,93 @@ function buildLevels(
     });
 }
 
+interface MedalManageViewParams {
+    edit?: string;
+    targetUid?: number;
+    preselect?: string;
+    page?: number;
+    importResult?: any;
+}
+
+// Shared by the management page and the import POST so both render the same
+// definition lists; an import re-renders here with its per-medal result.
+async function buildMedalManageView(domainId: string, params: MedalManageViewParams = {}) {
+    const edit = params.edit || '';
+    const targetUid = params.targetUid;
+    const preselect = params.preselect || '';
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const [medals, awardPage] = await Promise.all([
+        oi33Model.medalList(),
+        oi33Model.medalListAwardsPaginated(page),
+    ]);
+    const recentAwards = awardPage.awards;
+    const acceptedDomains = oi33Model.medalGetAcceptedDomains();
+    const editing = edit ? await oi33Model.medalGet(edit) : null;
+    if (edit && !editing) throw new NotFoundError(edit);
+    const uids = [...new Set([
+        ...recentAwards.map((award) => award.uid),
+        ...(targetUid ? [targetUid] : []),
+    ])];
+    const udict = uids.length ? await UserModel.getList(domainId, uids) : {};
+    const medalDict = Object.fromEntries(
+        medals.map((medal) => [medal._id, medal]),
+    );
+    // A definition is a level series when it belongs to an upgradable
+    // family and actually carries a ladder; everything else (including a
+    // not-yet-migrated flat OJ medal) is a plain definition.
+    const leveled = medals.filter((medal) => oi33Model.medalIsLevelSeries(medal));
+    const plain = medals.filter((medal) => !oi33Model.medalIsLevelSeries(medal));
+    const ojMedals = leveled.filter((medal) => medal.category === 'oj');
+    const certificationMedals = leveled.filter((medal) => medal.category === 'certification');
+    // Plain definitions are split by family so the page can list them in the
+    // global order 可售卖 → 奖项认证 → 一般 → OJ 自动.
+    const saleableMedals = plain.filter((medal) => medal.category === 'saleable');
+    const manualMedals = plain.filter((medal) => medal.category === 'manual');
+    const legacyOjMedals = plain.filter((medal) => medal.category === 'oj');
+    // The level picker on the grant form needs every upgradable series and
+    // its ladder; shipped as one JSON blob so the client can switch without
+    // a round trip.
+    const medalLevels = Object.fromEntries(leveled.map((medal) => [medal._id,
+        oi33Model.medalSortedLevels(medal).map((level) => ({
+            level: level.level,
+            name: level.name,
+            ...(Number(level.threshold) > 0 ? { threshold: Number(level.threshold) } : {}),
+        }))]));
+    return {
+        medalTotal: medals.length,
+        medals: plain,
+        saleableMedals,
+        manualMedals,
+        legacyOjMedals,
+        ojMedals,
+        certificationMedals,
+        medalDict, recentAwards, udict, editing,
+        awardPage: page,
+        awardPageCount: awardPage.tpcount,
+        awardTotal: awardPage.total,
+        targetUid: targetUid || '',
+        ruleOptions: RULE_OPTIONS,
+        categoryOptions: CATEGORY_OPTIONS,
+        medalLevels,
+        preselectCategory: CATEGORY_SET.has(preselect as Oi33MedalCategory)
+            ? preselect
+            : 'oj',
+        acceptedDomainsText: acceptedDomains.join(', '),
+        ...(params.importResult ? { importResult: params.importResult } : {}),
+    };
+}
+
 class MedalManageHandler extends Handler {
     @query('edit', Types.String, true)
     @query('uid', Types.Int, true)
     @query('category', Types.String, true)
-    async get(domainId: string, edit = '', targetUid?: number, preselect = '') {
+    @query('page', Types.PositiveInt, true)
+    async get(domainId: string, edit = '', targetUid?: number, preselect = '', page = 1) {
         await checkOi33Admin(this.user._id);
-        const [medals, recentAwards] = await Promise.all([
-            oi33Model.medalList(),
-            oi33Model.medalListRecentAwards(),
-        ]);
-        const acceptedDomains = oi33Model.medalGetAcceptedDomains();
-        const editing = edit ? await oi33Model.medalGet(edit) : null;
-        if (edit && !editing) throw new NotFoundError(edit);
-        const uids = [...new Set([
-            ...recentAwards.map((award) => award.uid),
-            ...(targetUid ? [targetUid] : []),
-        ])];
-        const udict = uids.length ? await UserModel.getList(domainId, uids) : {};
-        const medalDict = Object.fromEntries(
-            medals.map((medal) => [medal._id, medal]),
-        );
-        // A definition is a level series when it belongs to an upgradable
-        // family and actually carries a ladder; everything else (including a
-        // not-yet-migrated flat OJ medal) is a plain definition.
-        const leveled = medals.filter((medal) => oi33Model.medalIsLevelSeries(medal));
-        const plain = medals.filter((medal) => !oi33Model.medalIsLevelSeries(medal));
-        const ojMedals = leveled.filter((medal) => medal.category === 'oj');
-        const certificationMedals = leveled.filter((medal) => medal.category === 'certification');
-        // Plain definitions are split by family so the page can list them in the
-        // global order 可售卖 → 奖项认证 → 一般 → OJ 自动.
-        const saleableMedals = plain.filter((medal) => medal.category === 'saleable');
-        const manualMedals = plain.filter((medal) => medal.category === 'manual');
-        const legacyOjMedals = plain.filter((medal) => medal.category === 'oj');
-        // The level picker on the grant form needs every upgradable series and
-        // its ladder; shipped as one JSON blob so the client can switch without
-        // a round trip.
-        const medalLevels = Object.fromEntries(leveled.map((medal) => [medal._id,
-            oi33Model.medalSortedLevels(medal).map((level) => ({
-                level: level.level,
-                name: level.name,
-                ...(Number(level.threshold) > 0 ? { threshold: Number(level.threshold) } : {}),
-            }))]));
         this.response.template = 'oi33_medal_manage.html';
-        this.response.body = {
-            medals: plain,
-            saleableMedals,
-            manualMedals,
-            legacyOjMedals,
-            ojMedals,
-            certificationMedals,
-            medalDict, recentAwards, udict, editing,
-            targetUid: targetUid || '',
-            ruleOptions: RULE_OPTIONS,
-            categoryOptions: CATEGORY_OPTIONS,
-            medalLevels,
-            preselectCategory: CATEGORY_SET.has(preselect as Oi33MedalCategory)
-                ? preselect
-                : 'oj',
-            acceptedDomainsText: acceptedDomains.join('\n'),
-        };
+        this.response.body = await buildMedalManageView(domainId, {
+            edit, targetUid, preselect, page,
+        });
     }
 }
 
@@ -250,6 +277,56 @@ class MedalConfigHandler extends Handler {
         this.response.redirect = this.url('oi33_medal_manage', {
             query: { notification: '奖章全局配置已保存' },
         });
+    }
+}
+
+class MedalExportHandler extends Handler {
+    // Definition-only download: award / announcement state is never exported.
+    async get() {
+        await checkOi33Admin(this.user._id);
+        const payload = await oi33Model.medalExportDefinitions();
+        const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        this.response.disposition = `attachment; filename="oi33-medals-${stamp}.json"`;
+        this.response.type = 'application/json';
+        this.response.body = JSON.stringify(payload, null, 2);
+    }
+}
+
+class MedalImportHandler extends Handler {
+    // Accepts the exported JSON either as an upload or pasted into the form.
+    // Existing awards are never touched; only definitions are written.
+    async post() {
+        await checkOi33Admin(this.user._id);
+        const body = this.request.body as any;
+        const files = (this.request as any).files || {};
+        const mode = field(body, 'mode') === 'insert' ? 'insert' : 'merge';
+        const idPrefix = field(body, 'idPrefix');
+        const file = fileOf(files, 'file');
+        let raw = field(body, 'json');
+        if (hasUpload(file)) {
+            const filepath = file?.filepath || file?.path;
+            if (!filepath) throw new ValidationError('无法读取上传的文件。');
+            if (Number(file.size) > 8 * 1024 * 1024) {
+                throw new ValidationError('导入文件不能超过 8 MiB。');
+            }
+            raw = readFileSync(filepath, 'utf8');
+        }
+        if (!raw.trim()) throw new ValidationError('请选择 JSON 文件，或直接粘贴 JSON 内容。');
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(raw);
+        } catch {
+            throw new ValidationError('JSON 解析失败，请检查文件内容是否为合法 JSON。');
+        }
+        const importResult = await oi33Model.medalImportDefinitions(parsed, {
+            mode: mode as 'merge' | 'insert',
+            idPrefix,
+            operator: this.user._id,
+        });
+        // Re-render the management page so per-medal errors / warnings stay
+        // visible instead of being lost behind a redirect.
+        this.response.template = 'oi33_medal_manage.html';
+        this.response.body = await buildMedalManageView('', { importResult });
     }
 }
 
@@ -563,6 +640,32 @@ class MedalUserHandler extends Handler {
     }
 }
 
+// Public page backing a certification level in the catalogue: everybody who
+// currently holds that exact rung. The catalogue links each rung here so the
+// holder count is not a dead end.
+class MedalLevelUsersHandler extends Handler {
+    @param('id', Types.String)
+    @param('level', Types.Int)
+    async get(domainId: string, id: string, level: number) {
+        const medal = await oi33Model.medalGet(id);
+        if (!medal || oi33Model.medalCategoryOf(medal) !== 'certification') {
+            throw new NotFoundError(id);
+        }
+        const rung = oi33Model.medalLevelOf(medal, level);
+        if (!rung) throw new NotFoundError(String(level));
+        const awards = await oi33Model.medalListLevelHolders(id, Number(rung.level));
+        const udict = await buildUserDict(domainId, awards.map((award) => award.uid));
+        this.response.template = 'oi33_medal_level_users.html';
+        this.response.body = {
+            medal,
+            rung,
+            awards,
+            udict,
+            levels: oi33Model.medalSortedLevels(medal),
+        };
+    }
+}
+
 async function buildUserDict(domainId: string, uids: number[]) {
     const unique = [...new Set(uids.filter((uid) => Number.isSafeInteger(uid) && uid > 0))];
     if (!unique.length) return {};
@@ -659,6 +762,18 @@ export async function apply(ctx: Context) {
         PRIV.PRIV_USER_PROFILE,
     );
     ctx.Route(
+        'oi33_medal_export',
+        '/oi33/medals/export',
+        MedalExportHandler,
+        PRIV.PRIV_USER_PROFILE,
+    );
+    ctx.Route(
+        'oi33_medal_import',
+        '/oi33/medals/import',
+        MedalImportHandler,
+        PRIV.PRIV_USER_PROFILE,
+    );
+    ctx.Route(
         'oi33_medal_delete',
         '/oi33/medals/:id/delete',
         MedalDeleteHandler,
@@ -692,6 +807,11 @@ export async function apply(ctx: Context) {
         'oi33_medal_catalogue',
         '/oi33/medals/catalogue',
         MedalCatalogueHandler,
+    );
+    ctx.Route(
+        'oi33_medal_level_users',
+        '/oi33/medals/catalogue/:id/level/:level',
+        MedalLevelUsersHandler,
     );
     ctx.Route(
         'oi33_medal_showcase',
