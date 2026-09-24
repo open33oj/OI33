@@ -1,29 +1,35 @@
 {% set page_name = "oi33_medal_manage" %}
 {% extends "layout/basic.html" %}
 {% import "components/user.html" as user with context %}
+{% import "components/paginator.html" as paginator with context %}
 {% macro medalDefinitions(list) %}
 <div class="section__body medal-definition-grid">
   {% for medal in list %}
   <article class="medal-definition">
-    <img class="medal-pixel" src="{{ medal.imageData }}" width="96" height="96"
+    <img class="medal-pixel" src="{{ medal.imageData }}" width="48" height="48"
       alt="{{ medal.name }}">
     <div class="medal-definition__body">
-      <h3>{{ medal.name }} <code>{{ medal._id }}</code></h3>
-      <p><span class="medal-tag medal-tag--{{ medal.category }}">{{ medal.categoryName }}</span></p>
-      <p>{{ medal.description }}</p>
-      <p><strong>达成规则：</strong>{{ medal.rule }}</p>
+      <h3>
+        {{ medal.name }}
+        <span class="medal-tag medal-tag--{{ medal.category }}">{{ medal.categoryName }}</span>
+        <code>{{ medal._id }}</code>
+      </h3>
+      <p class="medal-definition__desc">{{ medal.description }}</p>
+      <p class="medal-definition__rule"><strong>达成规则：</strong>{{ medal.rule }}</p>
       <p class="medal-meta">
         {{ medal.imageSize }}×{{ medal.imageSize }} · 排序 {{ medal.order }}
       </p>
-      <a class="rounded button" href="{{ url('oi33_medal_manage', query={edit:medal._id}) }}">编辑</a>
-      {% if medal.category == 'saleable' %}
-      <a class="rounded button" href="{{ url('oi33_auction', query={medal:medal._id}) }}">发起拍卖</a>
-      {% endif %}
-      <form method="post" action="{{ url('oi33_medal_delete', id=medal._id) }}"
-        class="medal-inline-form" onsubmit="return confirm('确定删除这个尚未授予的奖章吗？');">
-        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-        <button type="submit" class="rounded button">删除</button>
-      </form>
+      <div class="medal-definition__actions">
+        <a class="rounded button" href="{{ url('oi33_medal_manage', query={edit:medal._id}) }}">编辑</a>
+        {% if medal.category == 'saleable' %}
+        <a class="rounded button" href="{{ url('oi33_auction', query={medal:medal._id}) }}">发起拍卖</a>
+        {% endif %}
+        <form method="post" action="{{ url('oi33_medal_delete', id=medal._id) }}"
+          class="medal-inline-form" onsubmit="return confirm('确定删除这个尚未授予的奖章吗？');">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <button type="submit" class="rounded button">删除</button>
+        </form>
+      </div>
     </div>
   </article>
   {% else %}
@@ -79,6 +85,58 @@
           <a href="{{ url('oi33_admin') }}" class="rounded button">{{ _('Back to Admin') }}</a>
         </div>
       </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">发放 / 升级</h2></div>
+      <div class="section__body">
+        {% if medals.length or ojMedals.length or certificationMedals.length %}
+        <form method="post" action="{{ url('oi33_medal_grant') }}" class="medal-grant-form">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <div class="row">
+            <div class="medium-3 columns form__item">
+              <label>用户 UID</label>
+              <input class="textbox" type="number" min="1" name="uid" required value="{{ targetUid }}">
+            </div>
+            <div class="medium-5 columns form__item">
+              <label>奖章</label>
+              <select class="select" name="medalId" id="medal-grant-medal" required>
+                {% for medal in saleableMedals %}
+                <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
+                {% endfor %}
+                {% for medal in certificationMedals %}
+                <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
+                {% endfor %}
+                {% for medal in manualMedals %}
+                <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
+                {% endfor %}
+                {% for medal in ojMedals %}
+                <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
+                {% endfor %}
+                {% for medal in legacyOjMedals %}
+                <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="medium-4 columns form__item" id="medal-grant-level-wrap" style="display:none">
+              <label>发放等级</label>
+              <select class="select" name="level" id="medal-grant-level"></select>
+            </div>
+          </div>
+          <p class="medal-help">
+            一般奖章与可售卖奖章直接发放，成功后自动发布一条公开的个人喵喵，不扣罐头、不占每日免费次数。
+            OJ 成就奖章与奖项认证奖章按等级发放：用户已有该系列时即为升级（或纠正等级）。
+          </p>
+          <button type="submit" class="rounded primary button">发放奖章</button>
+        </form>
+        {% else %}
+        <p>请先创建一个奖章。</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">奖章定义</h2></div>
       <div class="section__body">
         <div class="medal-global-config">
           <h2>全局自动发放配置（OJ 成就奖章）</h2>
@@ -86,15 +144,79 @@
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <div class="form__item">
               <label>“通过题目”参与统计的域</label>
-              <textarea class="textbox" name="acceptedDomains" rows="4" maxlength="6500"
-                placeholder="每行一个 domainId；留空表示统计全部域">{{ acceptedDomainsText }}</textarea>
+              <input class="textbox" type="text" name="acceptedDomains" maxlength="6500"
+                placeholder="用逗号分隔 domainId；留空表示统计全部域" value="{{ acceptedDomainsText }}">
             </div>
             <p class="medal-help">
-              可用换行、空格或逗号分隔 domainId。留空时统计全部域；无论选择多少个域，
+              多个 domainId 用逗号分隔（也兼容换行或空格）。留空时统计全部域；无论选择多少个域，
               `sort` 相同的题目只计为一道题，即使它们位于不同域。
             </p>
             <button type="submit" class="rounded primary button">保存全局配置</button>
           </form>
+        </div>
+
+        <div class="medal-import-export">
+          <h2>导入 / 导出奖章定义</h2>
+          <p class="medal-help">
+            导出文件只含奖章定义（名称、描述、达成规则、像素画与等级阶梯），不含任何用户持有记录，
+            可直接导入到另一套 OI33；也可以把其他 OJ 的奖章整理成同样格式后导入。
+          </p>
+          <p>
+            <a class="rounded button" href="{{ url('oi33_medal_export') }}">导出全部奖章定义（JSON）</a>
+            <span class="medal-meta">当前共 {{ medalTotal }} 枚</span>
+          </p>
+          <form method="post" action="{{ url('oi33_medal_import') }}" enctype="multipart/form-data"
+            onsubmit="return confirm('将按所选方式写入奖章定义，不会影响用户已获得的奖章。确定导入吗？');">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <div class="row">
+              <div class="medium-5 columns form__item">
+                <label>JSON 文件</label>
+                <input type="file" name="file" accept="application/json,.json">
+              </div>
+              <div class="medium-4 columns form__item">
+                <label>同 ID 处理</label>
+                <select class="select" name="mode">
+                  <option value="merge">覆盖同 ID 的定义</option>
+                  <option value="insert">仅新增（跳过已存在）</option>
+                </select>
+              </div>
+              <div class="medium-3 columns form__item">
+                <label>ID 前缀（可选）</label>
+                <input class="textbox" name="idPrefix" maxlength="24" placeholder="如 ext-">
+              </div>
+            </div>
+            <div class="form__item">
+              <label>或直接粘贴 JSON</label>
+              <textarea class="textbox" name="json" rows="4"
+                placeholder='{"format":"oi33-medals","medals":[...]}'></textarea>
+            </div>
+            <p class="medal-help">
+              其他 OJ 的 ID 会自动转成小写、非法字符替换为连字符；可加前缀避免与本地奖章冲突。
+              自动系列每一级需要阈值，认证系列不需要；无效像素图会退回默认图标。
+            </p>
+            <button type="submit" class="rounded primary button">导入奖章定义</button>
+          </form>
+          {% if importResult %}
+          <div class="medal-import-result">
+            <p>
+              导入完成：共 <strong>{{ importResult.total }}</strong> 项，
+              新增 <strong>{{ importResult.created }}</strong>，
+              更新 <strong>{{ importResult.updated }}</strong>，
+              跳过 <strong>{{ importResult.skipped }}</strong>，
+              失败 <strong>{{ importResult.failed }}</strong>。
+            </p>
+            {% if importResult.errors.length %}
+            <details open><summary>失败 {{ importResult.errors.length }} 项</summary>
+              <ul>{% for message in importResult.errors %}<li class="text-red">{{ message }}</li>{% endfor %}</ul>
+            </details>
+            {% endif %}
+            {% if importResult.warnings.length %}
+            <details><summary>提示 {{ importResult.warnings.length }} 条</summary>
+              <ul>{% for message in importResult.warnings %}<li>{{ message }}</li>{% endfor %}</ul>
+            </details>
+            {% endif %}
+          </div>
+          {% endif %}
         </div>
 
         <p class="medal-help">
@@ -106,10 +228,8 @@
           猫粮指标在扫描时使用统一账户明细倒推历史最高余额，实时达成仍在余额变化后立即检查。
         </p>
 
-        <div class="row">
-          <div class="medium-7 columns">
-            <h2>{{ '编辑奖章' if editing else '新建奖章' }}</h2>
-            <form method="post" action="{{ url('oi33_medal_save') }}" enctype="multipart/form-data" id="medal-form">
+        <h2>{{ '编辑奖章' if editing else '新建奖章' }}</h2>
+        <form method="post" action="{{ url('oi33_medal_save') }}" enctype="multipart/form-data" id="medal-form">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
               {% set currentCategory = editing.category if editing else preselectCategory %}
               <div class="form__item">
@@ -223,52 +343,6 @@
               <button type="submit" class="rounded primary button">{{ '保存修改' if editing else '创建奖章' }}</button>
               {% if editing %}<a href="{{ url('oi33_medal_manage') }}" class="rounded button">取消编辑</a>{% endif %}
             </form>
-          </div>
-
-          <div class="medium-5 columns">
-            <h2>发放 / 升级</h2>
-            {% if medals.length or ojMedals.length or certificationMedals.length %}
-            <form method="post" action="{{ url('oi33_medal_grant') }}">
-              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-              <div class="form__item">
-                <label>用户 UID</label>
-                <input class="textbox" type="number" min="1" name="uid" required value="{{ targetUid }}">
-              </div>
-              <div class="form__item">
-                <label>奖章</label>
-                <select class="select" name="medalId" id="medal-grant-medal" required>
-                  {% for medal in saleableMedals %}
-                  <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
-                  {% endfor %}
-                  {% for medal in certificationMedals %}
-                  <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
-                  {% endfor %}
-                  {% for medal in manualMedals %}
-                  <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
-                  {% endfor %}
-                  {% for medal in ojMedals %}
-                  <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
-                  {% endfor %}
-                  {% for medal in legacyOjMedals %}
-                  <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="form__item" id="medal-grant-level-wrap" style="display:none">
-                <label>发放等级</label>
-                <select class="select" name="level" id="medal-grant-level"></select>
-              </div>
-              <p class="medal-help">
-                一般奖章与可售卖奖章直接发放，成功后自动发布一条公开的个人喵喵，不扣罐头、不占每日免费次数。
-                OJ 成就奖章与奖项认证奖章按等级发放：用户已有该系列时即为升级（或纠正等级）。
-              </p>
-              <button type="submit" class="rounded primary button">发放奖章</button>
-            </form>
-            {% else %}
-            <p>请先创建一个奖章。</p>
-            {% endif %}
-          </div>
-        </div>
       </div>
     </div>
 
@@ -317,7 +391,7 @@
     </div>
 
     <div class="section">
-      <div class="section__header"><h2 class="section__title">最近授予</h2></div>
+      <div class="section__header"><h2 class="section__title">最近授予（{{ awardTotal }}）</h2></div>
       <div class="section__body">
         {% if recentAwards.length %}
         <table class="data-table">
@@ -349,6 +423,9 @@
           {% endfor %}
           </tbody>
         </table>
+        <div class="medal-award-pager">
+          {{ paginator.render(awardPage, awardPageCount, 'uid=' + targetUid if targetUid else '') }}
+        </div>
         {% else %}
         <p>还没有授予记录。</p>
         {% endif %}
@@ -360,17 +437,32 @@
   .medal-help { color:#777; }
   .medal-global-config { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
   .medal-global-config h2 { margin-top:0; }
+  .medal-import-export { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
+  .medal-import-export h2 { margin-top:0; }
+  .medal-import-result { margin-top:.75rem; padding:.75rem .9rem; border:1px solid rgba(127,127,127,.25); border-radius:6px; }
+  .medal-import-result details { margin-top:.5rem; }
+  .medal-import-result ul { margin:.35rem 0 0; padding-left:1.2rem; }
   .theme--dark .medal-help, [data-mantine-color-scheme=dark] .medal-help { color:#aaa; }
   .medal-pixel {
     width:96px; height:96px; object-fit:fill; flex:0 0 96px;
     image-rendering:crisp-edges; image-rendering:pixelated;
   }
   .medal-edit-preview { display:flex; align-items:center; gap:1rem; margin:0.5rem 0 1rem; }
-  .medal-definition-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:1rem; }
-  .medal-definition { display:flex; gap:1rem; border:1px solid rgba(127,127,127,.2); border-radius:8px; padding:1rem; }
-  .medal-definition__body { min-width:0; }
-  .medal-definition__body h3 { margin:0 0 .5rem; }
-  .medal-definition__body p { margin:.35rem 0; white-space:pre-wrap; }
+  .medal-definition-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:.6rem; }
+  .medal-definition { display:flex; gap:.65rem; border:1px solid rgba(127,127,127,.2); border-radius:8px; padding:.65rem; }
+  .medal-definition .medal-pixel { width:48px; height:48px; flex:0 0 48px; }
+  .medal-definition__body { min-width:0; flex:1 1 auto; }
+  .medal-definition__body h3 {
+    margin:0 0 .3rem; font-size:.95rem;
+    display:flex; flex-wrap:wrap; align-items:center; gap:.35rem;
+  }
+  .medal-definition__body p { margin:.15rem 0; white-space:pre-wrap; font-size:.88em; }
+  .medal-definition__desc, .medal-definition__rule { color:#777; }
+  .theme--dark .medal-definition__desc, .theme--dark .medal-definition__rule,
+  [data-mantine-color-scheme=dark] .medal-definition__desc,
+  [data-mantine-color-scheme=dark] .medal-definition__rule { color:#aaa; }
+  .medal-definition__actions { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.4rem; align-items:center; }
+  .medal-definition__actions .button { padding:.15rem .5rem; }
   .medal-definition__body code { font-size:.7em; font-weight:normal; }
   .medal-meta { color:#888; font-size:.85em; }
   .medal-inline-form { display:inline; margin:0; }
@@ -413,6 +505,7 @@
   .medal-level-row__actions { display:flex; gap:.25rem; align-items:center; }
   .medal-level-row__actions .button { padding:.15rem .5rem; }
   .data-table form { margin:0; }
+  .medal-award-pager { margin-top:.75rem; }
   .data-table td:nth-child(2) { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; word-break: break-word; }
   @media (max-width:600px) {
     .medal-definition-grid { grid-template-columns:1fr; }
