@@ -67,6 +67,16 @@
   .oi33-cat-card .oi33-quicknav { margin-top:.75rem; }
   .oi33-records__title { margin:0 0 .6rem; font-size:1.02rem; }
   .oi33-records__list { margin:0; padding-left:1.2rem; }
+  /* 通过题目：默认折叠，标题行就是可点的 summary。 */
+  .oi33-records__fold > summary {
+    display:flex; align-items:center; gap:.4rem; margin:0;
+    cursor:pointer; list-style:none;
+  }
+  .oi33-records__fold > summary::-webkit-details-marker { display:none; }
+  .oi33-records__fold > summary::before { content:'▸'; color:#999; transition:transform .15s ease; }
+  .oi33-records__fold[open] > summary::before { transform:rotate(90deg); }
+  .oi33-records__fold > summary:hover { color:#3a6fd0; }
+  .oi33-records__fold > .row { margin-top:.7rem; }
   .theme--dark .oi33-bio-hint,
   [data-mantine-color-scheme=dark] .oi33-bio-hint { color:#aaa; }
   .theme--dark .oi33-medal-list__desc,
@@ -144,8 +154,9 @@
       </div>
       <div class="section__body typo no-media">
         {% if pdocs.length %}
-        <div class="oi33-records__block">
-          <h3 class="oi33-records__title">{{ _('Accepted Problems') }}（{{ pdocs.length }}）</h3>
+        {# 通过题目默认折叠：题目可能上百条，点标题展开。 #}
+        <details class="oi33-records__block oi33-records__fold">
+          <summary class="oi33-records__title">{{ _('Accepted Problems') }}（{{ pdocs.length }}）</summary>
           {% set _mark = Math.ceil(pdocs.length/4) %}
           {% macro _problemCol(pdocs) %}
           <div class="medium-3 columns">
@@ -162,7 +173,7 @@
             {{ _problemCol(pdocs.slice(_mark*2, _mark*3)) }}
             {{ _problemCol(pdocs.slice(_mark*3)) }}
           </div>
-        </div>
+        </details>
         {% endif %}
 
         {% if tdocs.length %}
@@ -225,9 +236,6 @@
           {# The template receives a Hydro User instance, where the login IP lives
              on `_loginip` (raw docs use `loginip`); keep both for safety. #}
           <dd>{% set _loginip = udoc._loginip or udoc.loginip %}{% if _loginip %}<a href="{{ url('oi33_admin_ip', query={ip: _loginip}) }}">{{ _loginip }}</a>{% else %}-{% endif %}</dd>
-          <dt>所有 IP</dt>
-          {# All IPs are the raw `ip` array; the User instance keeps it on `_udoc`. #}
-          <dd>{% set _ips = (udoc._udoc.ip if udoc._udoc else udoc.ip) or [] %}{% for item in _ips %}<a href="{{ url('oi33_admin_ip', query={ip: item}) }}">{{ item }}</a>{{ ' ' }}{% else %}-{% endfor %}</dd>
         </dl>
       </div>
     </div>
