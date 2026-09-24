@@ -1,0 +1,5292 @@
+{
+  "meta": {
+    "title": "全国青少年信息学奥林匹克系列竞赛大纲",
+    "section": "二、内容",
+    "edition": "2025 年修订版",
+    "published": "2025-04-18",
+    "publisher": "中国计算机学会（CCF）",
+    "difficultyScale": {
+      "入门级": "1–5",
+      "提高级": "5–8",
+      "NOI 级": "7–10",
+      "说明": "【X】表示该知识点的难度系数"
+    },
+    "sources": {
+      "officialPdf": "https://www.noi.cn/upload/resources/file/2025/04/18/NOI_Syllabus_Edition_2025.pdf",
+      "officialNotice": "https://noi.ccf.org.cn/xw/2025-04-18/841584.shtml",
+      "fullTextTranscription": "https://lailai.one/zh-Hans/docs/contest/contest/noi-syllabus",
+      "numberingCrossCheck": [
+        "https://hlcoding.com/blog/share/content/10093/",
+        "https://www.cnblogs.com/ybC202444/p/18712631"
+      ]
+    },
+    "retrieved": "2026-09-24",
+    "notes": [
+      "官方文件『二、内容』下分 2.1 入门级、2.2 提高级、2.3 NOI 级；各级再分 2.x.1 基础知识与编程环境 / 2.x.2 C++ 程序设计 / 2.x.3 数据结构 / 2.x.4 算法 / 2.x.5 数学与其他 等板块。",
+      "【X】表示难度系数：入门级 1–5，提高级 5–8，NOI 级 7–10。",
+      "官方原文在三个 C++ 程序设计 板块附注：C++ 以外的其他高级程序设计语言可参照本部分内容。",
+      "原文档中的行内代码标记（反引号）在 JSON 的 text 字段中已去除；MD 文件保留代码格式。",
+      "items 是 content 树的扁平视图（多出 level/section/subsection 字段），二者由同一来源生成，内容一致。",
+      "item id 形如 <板块编号>-<该板块内序号>，例如 2.1.2.11-5。"
+    ],
+    "stats": {
+      "levels": 3,
+      "sections": 14,
+      "items": 277,
+      "itemsByLevel": {
+        "入门级": 116,
+        "提高级": 94,
+        "NOI 级": 67
+      }
+    }
+  },
+  "content": [
+    {
+      "id": "2.1",
+      "name": "入门级",
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "sections": [
+        {
+          "id": "2.1.1",
+          "name": "基础知识与编程环境",
+          "items": [
+            {
+              "difficulty": 1,
+              "id": "2.1.1-1",
+              "index": 1,
+              "text": "计算机的基本构成（CPU、内存、I/O 设备等）"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-2",
+              "index": 2,
+              "text": "Windows、Linux 等操作系统的基本概念及其常见操作"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-3",
+              "index": 3,
+              "text": "计算机网络和 Internet 的基本概念"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-4",
+              "index": 4,
+              "text": "计算机的历史和常见用途"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-5",
+              "index": 5,
+              "text": "NOI 以及相关活动的历史"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-6",
+              "index": 6,
+              "text": "NOI 以及相关活动的规则"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-7",
+              "index": 7,
+              "text": "位、字节与字"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-8",
+              "index": 8,
+              "text": "程序设计语言以及程序编译和运行的基本概念"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-9",
+              "index": 9,
+              "text": "使用图形界面新建、复制、删除、移动文件或目录"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-10",
+              "index": 10,
+              "text": "使用 Windows 系统下的集成开发环境（例如 Dev-C++ 等）"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-11",
+              "index": 11,
+              "text": "使用 Linux 系统下的集成开发环境（例如 Code::Blocks 等）"
+            },
+            {
+              "difficulty": 1,
+              "id": "2.1.1-12",
+              "index": 12,
+              "text": "常用编译命令 g++ 的基本使用"
+            }
+          ],
+          "subsections": []
+        },
+        {
+          "id": "2.1.2",
+          "name": "C++ 程序设计",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.1.2.1",
+              "name": "程序基本概念",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.1-1",
+                  "index": 13,
+                  "text": "标识符、关键字、常量、变量、字符串、表达式的概念"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.1-2",
+                  "index": 14,
+                  "text": "常量与变量的命名、定义及作用"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.1-3",
+                  "index": 15,
+                  "text": "头文件与名字空间的概念"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.1-4",
+                  "index": 16,
+                  "text": "编辑、编译、解释、调试的概念"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.2",
+              "name": "基本数据类型",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.2-1",
+                  "index": 17,
+                  "text": "整数型：int、long long"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.2-2",
+                  "index": 18,
+                  "text": "实数型：float、double"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.2-3",
+                  "index": 19,
+                  "text": "字符型：char"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.2-4",
+                  "index": 20,
+                  "text": "布尔型：bool"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.3",
+              "name": "程序基本语句",
+              "items": [
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.3-1",
+                  "index": 21,
+                  "text": "cin 语句、scanf 语句、cout 语句、printf 语句、赋值语句、复合语句"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.3-2",
+                  "index": 22,
+                  "text": "if 语句、switch 语句、多层条件语句"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.3-3",
+                  "index": 23,
+                  "text": "for 语句、while 语句、do while 语句"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.2.3-4",
+                  "index": 24,
+                  "text": "多层循环语句"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.4",
+              "name": "基本运算",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.4-1",
+                  "index": 25,
+                  "text": "算术运算：加、减、乘、除、整除、求余"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.4-2",
+                  "index": 26,
+                  "text": "关系运算：大于、大于等于、小于、小于等于、等于、不等于"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.4-3",
+                  "index": 27,
+                  "text": "逻辑运算：与（&&）、或（||）、非（!）"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.4-4",
+                  "index": 28,
+                  "text": "变量自增与自减运算"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.4-5",
+                  "index": 29,
+                  "text": "三目运算"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.4-6",
+                  "index": 30,
+                  "text": "位运算：与（&）、或（|）、非（~）、异或（^）、左移（<<）、右移（>>）"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.5",
+              "name": "数学库常用函数",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.2.5-1",
+                  "index": 31,
+                  "text": "绝对值函数、四舍五入函数、下取整函数、上取整函数、平方根函数、常用三角函数、对数函数、指数函数"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.6",
+              "name": "结构化程序设计",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.6-1",
+                  "index": 32,
+                  "text": "顺序结构、分支结构和循环结构"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.6-2",
+                  "index": 33,
+                  "text": "自顶向下、逐步求精的模块化程序设计"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.6-3",
+                  "index": 34,
+                  "text": "流程图的概念及流程图描述"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.7",
+              "name": "数组",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.7-1",
+                  "index": 35,
+                  "text": "数组与数组下标"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.2.7-2",
+                  "index": 36,
+                  "text": "数组的读入与输出"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.2.7-3",
+                  "index": 37,
+                  "text": "二维数组与多维数组"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.8",
+              "name": "字符串的处理",
+              "items": [
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.8-1",
+                  "index": 38,
+                  "text": "字符数组与相关函数"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.8-2",
+                  "index": 39,
+                  "text": "string 类与相关函数"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.9",
+              "name": "函数与递归",
+              "items": [
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.9-1",
+                  "index": 40,
+                  "text": "函数定义与调用、形参与实参"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.2.9-2",
+                  "index": 41,
+                  "text": "传值参数与传引用参数"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.9-3",
+                  "index": 42,
+                  "text": "常量与变量的作用范围"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.9-4",
+                  "index": 43,
+                  "text": "递归函数"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.10",
+              "name": "结构体与联合体",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.2.10-1",
+                  "index": 44,
+                  "text": "结构体"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.2.10-2",
+                  "index": 45,
+                  "text": "联合体"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.11",
+              "name": "指针与引用",
+              "items": [
+                {
+                  "difficulty": 4,
+                  "id": "2.1.2.11-1",
+                  "index": 46,
+                  "text": "指针"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.2.11-2",
+                  "index": 47,
+                  "text": "基于指针的数组访问"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.2.11-3",
+                  "index": 48,
+                  "text": "字符指针"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.2.11-4",
+                  "index": 49,
+                  "text": "指向结构体的指针"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.1.2.11-5",
+                  "index": 50,
+                  "text": "引用"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.12",
+              "name": "文件及基本读写",
+              "items": [
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.12-1",
+                  "index": 51,
+                  "text": "文件的基本概念、文本文件的基本操作"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.12-2",
+                  "index": 52,
+                  "text": "文本文件类型与二进制文件类型"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.2.12-3",
+                  "index": 53,
+                  "text": "文件重定向、文件读写等操作"
+                }
+              ]
+            },
+            {
+              "id": "2.1.2.13",
+              "name": "STL 模板",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.2.13-1",
+                  "index": 54,
+                  "text": "算法模板库中的函数：min、max、swap、sort"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.2.13-2",
+                  "index": 55,
+                  "text": "栈（stack）、队列（queue）、链表（list）、向量（vector）等容器"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2.1.3",
+          "name": "数据结构",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.1.3.1",
+              "name": "线性结构",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.3.1-1",
+                  "index": 56,
+                  "text": "链表：单链表、双向链表、循环链表"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.3.1-2",
+                  "index": 57,
+                  "text": "栈"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.3.1-3",
+                  "index": 58,
+                  "text": "队列"
+                }
+              ]
+            },
+            {
+              "id": "2.1.3.2",
+              "name": "简单树",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.3.2-1",
+                  "index": 59,
+                  "text": "树的定义与相关概念"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.2-2",
+                  "index": 60,
+                  "text": "树的表示与存储"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.3.2-3",
+                  "index": 61,
+                  "text": "二叉树的定义与基本性质"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.2-4",
+                  "index": 62,
+                  "text": "二叉树的表示与存储"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.2-5",
+                  "index": 63,
+                  "text": "二叉树的遍历：前序、中序、后序"
+                }
+              ]
+            },
+            {
+              "id": "2.1.3.3",
+              "name": "特殊树",
+              "items": [
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.3-1",
+                  "index": 64,
+                  "text": "完全二叉树的定义与基本性质"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.3-2",
+                  "index": 65,
+                  "text": "完全二叉树的数组表示法"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.3-3",
+                  "index": 66,
+                  "text": "哈夫曼树的定义和构造、哈夫曼编码"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.3-4",
+                  "index": 67,
+                  "text": "二叉搜索树的定义和构造"
+                }
+              ]
+            },
+            {
+              "id": "2.1.3.4",
+              "name": "简单图",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.3.4-1",
+                  "index": 68,
+                  "text": "图的定义与相关概念"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.4-2",
+                  "index": 69,
+                  "text": "图的表示与存储：邻接矩阵"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.3.4-3",
+                  "index": 70,
+                  "text": "图的表示与存储：邻接表"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2.1.4",
+          "name": "算法",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.1.4.1",
+              "name": "算法概念与描述",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.4.1-1",
+                  "index": 71,
+                  "text": "算法概念"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.4.1-2",
+                  "index": 72,
+                  "text": "算法描述：自然语言描述、流程图描述、伪代码描述"
+                }
+              ]
+            },
+            {
+              "id": "2.1.4.2",
+              "name": "入门算法",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.4.2-1",
+                  "index": 73,
+                  "text": "枚举法"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.4.2-2",
+                  "index": 74,
+                  "text": "模拟法"
+                }
+              ]
+            },
+            {
+              "id": "2.1.4.3",
+              "name": "基础算法",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.4.3-1",
+                  "index": 75,
+                  "text": "贪心法"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.4.3-2",
+                  "index": 76,
+                  "text": "递推法"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.3-3",
+                  "index": 77,
+                  "text": "递归法"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.3-4",
+                  "index": 78,
+                  "text": "二分法"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.3-5",
+                  "index": 79,
+                  "text": "倍增法"
+                }
+              ]
+            },
+            {
+              "id": "2.1.4.4",
+              "name": "算法策略",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.4.4-1",
+                  "index": 80,
+                  "text": "前缀和"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.4-2",
+                  "index": 81,
+                  "text": "差分"
+                }
+              ]
+            },
+            {
+              "id": "2.1.4.5",
+              "name": "数值处理算法",
+              "items": [
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.5-1",
+                  "index": 82,
+                  "text": "高精度的加法"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.5-2",
+                  "index": 83,
+                  "text": "高精度的减法"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.5-3",
+                  "index": 84,
+                  "text": "高精度的乘法"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.5-4",
+                  "index": 85,
+                  "text": "高精度整数除以单精度整数的商和余数"
+                }
+              ]
+            },
+            {
+              "id": "2.1.4.6",
+              "name": "排序算法",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.4.6-1",
+                  "index": 86,
+                  "text": "排序的基本概念"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.4.6-2",
+                  "index": 87,
+                  "text": "冒泡排序"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.4.6-3",
+                  "index": 88,
+                  "text": "选择排序"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.4.6-4",
+                  "index": 89,
+                  "text": "插入排序"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.4.6-5",
+                  "index": 90,
+                  "text": "计数排序"
+                }
+              ]
+            },
+            {
+              "id": "2.1.4.7",
+              "name": "搜索算法",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.1.4.7-1",
+                  "index": 91,
+                  "text": "深度优先搜索"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.1.4.7-2",
+                  "index": 92,
+                  "text": "广度优先搜索"
+                }
+              ]
+            },
+            {
+              "id": "2.1.4.8",
+              "name": "图论算法",
+              "items": [
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.8-1",
+                  "index": 93,
+                  "text": "深度优先遍历"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.8-2",
+                  "index": 94,
+                  "text": "广度优先遍历"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.1.4.8-3",
+                  "index": 95,
+                  "text": "泛洪算法（flood fill）"
+                }
+              ]
+            },
+            {
+              "id": "2.1.4.9",
+              "name": "动态规划",
+              "items": [
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.9-1",
+                  "index": 96,
+                  "text": "动态规划的基本思路"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.4.9-2",
+                  "index": 97,
+                  "text": "简单一维动态规划"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.1.4.9-3",
+                  "index": 98,
+                  "text": "简单背包类型动态规划"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.1.4.9-4",
+                  "index": 99,
+                  "text": "简单区间类型动态规划"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2.1.5",
+          "name": "数学与其他",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.1.5.1",
+              "name": "数及其运算",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.5.1-1",
+                  "index": 100,
+                  "text": "自然数、整数、有理数、实数及其算术运算（加、减、乘、除）"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.5.1-2",
+                  "index": 101,
+                  "text": "进制与进制转换：二进制、八进制、十进制、十六进制"
+                }
+              ]
+            },
+            {
+              "id": "2.1.5.2",
+              "name": "初等数学",
+              "items": [
+                {
+                  "difficulty": 1,
+                  "id": "2.1.5.2-1",
+                  "index": 102,
+                  "text": "代数（初中部分）"
+                },
+                {
+                  "difficulty": 1,
+                  "id": "2.1.5.2-2",
+                  "index": 103,
+                  "text": "几何（初中部分）"
+                }
+              ]
+            },
+            {
+              "id": "2.1.5.3",
+              "name": "初等数论",
+              "items": [
+                {
+                  "difficulty": 3,
+                  "id": "2.1.5.3-1",
+                  "index": 104,
+                  "text": "整除、因数、倍数、指数、质（素）数、合数"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.5.3-2",
+                  "index": 105,
+                  "text": "取整"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.5.3-3",
+                  "index": 106,
+                  "text": "模运算与取余"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.5.3-4",
+                  "index": 107,
+                  "text": "整数唯一分解定理"
+                },
+                {
+                  "difficulty": 3,
+                  "id": "2.1.5.3-5",
+                  "index": 108,
+                  "text": "辗转相除法（欧几里得算法）"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.5.3-6",
+                  "index": 109,
+                  "text": "素数筛法：埃氏筛法与线性筛法"
+                }
+              ]
+            },
+            {
+              "id": "2.1.5.4",
+              "name": "离散与组合数学",
+              "items": [
+                {
+                  "difficulty": 2,
+                  "id": "2.1.5.4-1",
+                  "index": 110,
+                  "text": "集合"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.5.4-2",
+                  "index": 111,
+                  "text": "加法原理"
+                },
+                {
+                  "difficulty": 2,
+                  "id": "2.1.5.4-3",
+                  "index": 112,
+                  "text": "乘法原理"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.5.4-4",
+                  "index": 113,
+                  "text": "排列"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.5.4-5",
+                  "index": 114,
+                  "text": "组合"
+                },
+                {
+                  "difficulty": 4,
+                  "id": "2.1.5.4-6",
+                  "index": 115,
+                  "text": "杨辉三角"
+                }
+              ]
+            },
+            {
+              "id": "2.1.5.5",
+              "name": "其他",
+              "items": [
+                {
+                  "difficulty": 2,
+                  "id": "2.1.5.5-1",
+                  "index": 116,
+                  "text": "ASCII 码"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2.2",
+      "name": "提高级",
+      "difficultyRange": [
+        5,
+        8
+      ],
+      "sections": [
+        {
+          "id": "2.2.1",
+          "name": "基础知识与编程环境",
+          "items": [
+            {
+              "difficulty": 5,
+              "id": "2.2.1-1",
+              "index": 117,
+              "text": "Linux 系统终端中常用的文件与目录操作命令"
+            },
+            {
+              "difficulty": 5,
+              "id": "2.2.1-2",
+              "index": 118,
+              "text": "Linux 系统下常见文本编辑工具的使用"
+            },
+            {
+              "difficulty": 5,
+              "id": "2.2.1-3",
+              "index": 119,
+              "text": "常用编译命令 g++ 与相关编译选项"
+            },
+            {
+              "difficulty": 5,
+              "id": "2.2.1-4",
+              "index": 120,
+              "text": "在 Linux 系统终端中运行程序，使用 time 命令查看程序用时"
+            },
+            {
+              "difficulty": 5,
+              "id": "2.2.1-5",
+              "index": 121,
+              "text": "调试工具 GDB 的使用"
+            }
+          ],
+          "subsections": []
+        },
+        {
+          "id": "2.2.2",
+          "name": "C++ 程序设计",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.2.2.1",
+              "name": "类（class）",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.2.1-1",
+                  "index": 122,
+                  "text": "类的概念及简单应用"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.2.1-2",
+                  "index": 123,
+                  "text": "成员函数和运算符重载"
+                }
+              ]
+            },
+            {
+              "id": "2.2.2.2",
+              "name": "STL 模板",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.2.2-1",
+                  "index": 124,
+                  "text": "容器（container）和迭代器（iterator）"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.2.2-2",
+                  "index": 125,
+                  "text": "对（pair）、元组（tuple）"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.2.2-3",
+                  "index": 126,
+                  "text": "集合（set）、多重集合（multiset）"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.2.2-4",
+                  "index": 127,
+                  "text": "双端队列（deque）、优先队列（priority_queue）"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.2.2-5",
+                  "index": 128,
+                  "text": "映射（map）、多重映射（multimap）"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.2.2-6",
+                  "index": 129,
+                  "text": "位集合（bitset）"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.2.2-7",
+                  "index": 130,
+                  "text": "算法模板库中的常用函数"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2.2.3",
+          "name": "数据结构",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.2.3.1",
+              "name": "线性结构",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.3.1-1",
+                  "index": 131,
+                  "text": "双端栈"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.3.1-2",
+                  "index": 132,
+                  "text": "双端队列"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.3.1-3",
+                  "index": 133,
+                  "text": "单调队列"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.1-4",
+                  "index": 134,
+                  "text": "优先队列"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.1-5",
+                  "index": 135,
+                  "text": "ST 表（Sparse Table）"
+                }
+              ]
+            },
+            {
+              "id": "2.2.3.2",
+              "name": "集合与森林",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.2-1",
+                  "index": 136,
+                  "text": "并查集"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.2-2",
+                  "index": 137,
+                  "text": "树的孩子兄弟表示法"
+                }
+              ]
+            },
+            {
+              "id": "2.2.3.3",
+              "name": "特殊树",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.3-1",
+                  "index": 138,
+                  "text": "二叉堆"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.3-2",
+                  "index": 139,
+                  "text": "树状数组"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.3-3",
+                  "index": 140,
+                  "text": "线段树"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.3-4",
+                  "index": 141,
+                  "text": "字典树（Trie 树）"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.3.3-5",
+                  "index": 142,
+                  "text": "笛卡尔树"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.2.3.3-6",
+                  "index": 143,
+                  "text": "平衡树：AVL、treap、splay 等"
+                }
+              ]
+            },
+            {
+              "id": "2.2.3.4",
+              "name": "常见图",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.3.4-1",
+                  "index": 144,
+                  "text": "稀疏图"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.4-2",
+                  "index": 145,
+                  "text": "偶图（二分图）"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.4-3",
+                  "index": 146,
+                  "text": "欧拉图"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.4-4",
+                  "index": 147,
+                  "text": "有向无环图"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.3.4-5",
+                  "index": 148,
+                  "text": "连通图与强连通图"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.3.4-6",
+                  "index": 149,
+                  "text": "双连通图"
+                }
+              ]
+            },
+            {
+              "id": "2.2.3.5",
+              "name": "哈希表",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.3.5-1",
+                  "index": 150,
+                  "text": "数值哈希函数构造"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.5-2",
+                  "index": 151,
+                  "text": "字符串哈希函数构造"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.3.5-3",
+                  "index": 152,
+                  "text": "哈希冲突的常用处理方法"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2.2.4",
+          "name": "算法",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.2.4.1",
+              "name": "复杂度分析",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.1-1",
+                  "index": 153,
+                  "text": "时间复杂度分析"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.1-2",
+                  "index": 154,
+                  "text": "空间复杂度分析"
+                }
+              ]
+            },
+            {
+              "id": "2.2.4.2",
+              "name": "算法策略",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.2-1",
+                  "index": 155,
+                  "text": "离散化"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.2-2",
+                  "index": 156,
+                  "text": "扫描线"
+                }
+              ]
+            },
+            {
+              "id": "2.2.4.3",
+              "name": "基础算法",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.3-1",
+                  "index": 157,
+                  "text": "分治算法"
+                }
+              ]
+            },
+            {
+              "id": "2.2.4.4",
+              "name": "排序算法",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.4.4-1",
+                  "index": 158,
+                  "text": "归并排序"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.4.4-2",
+                  "index": 159,
+                  "text": "快速排序"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.4-3",
+                  "index": 160,
+                  "text": "堆排序"
+                },
+                {
+                  "difficulty": 5,
+                  "id": "2.2.4.4-4",
+                  "index": 161,
+                  "text": "桶排序"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.4-5",
+                  "index": 162,
+                  "text": "基数排序"
+                }
+              ]
+            },
+            {
+              "id": "2.2.4.5",
+              "name": "字符串相关算法",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.4.5-1",
+                  "index": 163,
+                  "text": "字符串匹配：KMP 算法"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.5-2",
+                  "index": 164,
+                  "text": "Manacher 算法"
+                }
+              ]
+            },
+            {
+              "id": "2.2.4.6",
+              "name": "搜索算法",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.6-1",
+                  "index": 165,
+                  "text": "搜索的剪枝优化"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.6-2",
+                  "index": 166,
+                  "text": "记忆化搜索"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.6-3",
+                  "index": 167,
+                  "text": "启发式搜索"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.6-4",
+                  "index": 168,
+                  "text": "双向广度优先搜索"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.6-5",
+                  "index": 169,
+                  "text": "迭代加深搜索"
+                }
+              ]
+            },
+            {
+              "id": "2.2.4.7",
+              "name": "图论算法",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-1",
+                  "index": 170,
+                  "text": "最小生成树：Prim 和 Kruskal 等算法"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-2",
+                  "index": 171,
+                  "text": "单源最短路：Bellman–Ford、Dijkstra、SPFA 等算法"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.7-3",
+                  "index": 172,
+                  "text": "单源次短路"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-4",
+                  "index": 173,
+                  "text": "Floyd–Warshall 算法"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-5",
+                  "index": 174,
+                  "text": "有向无环图的拓扑排序"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-6",
+                  "index": 175,
+                  "text": "欧拉道路和欧拉回路"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-7",
+                  "index": 176,
+                  "text": "二分图的判定"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.7-8",
+                  "index": 177,
+                  "text": "强连通分量"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.7-9",
+                  "index": 178,
+                  "text": "割点、割边"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-10",
+                  "index": 179,
+                  "text": "树的重心、直径、DFS 序与欧拉序"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-11",
+                  "index": 180,
+                  "text": "树上差分、子树和与倍增"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.7-12",
+                  "index": 181,
+                  "text": "最近公共祖先"
+                }
+              ]
+            },
+            {
+              "id": "2.2.4.8",
+              "name": "动态规划",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.8-1",
+                  "index": 182,
+                  "text": "多维动态规划"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.4.8-2",
+                  "index": 183,
+                  "text": "树型动态规划"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.4.8-3",
+                  "index": 184,
+                  "text": "状态压缩动态规划"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.2.4.8-4",
+                  "index": 185,
+                  "text": "动态规划的常用优化"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2.2.5",
+          "name": "数学与其他",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.2.5.1",
+              "name": "初等数学",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.5.1-1",
+                  "index": 186,
+                  "text": "代数（高中部分）"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.1-2",
+                  "index": 187,
+                  "text": "几何（高中部分）"
+                }
+              ]
+            },
+            {
+              "id": "2.2.5.2",
+              "name": "初等数论",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.5.2-1",
+                  "index": 188,
+                  "text": "同余式"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.2-2",
+                  "index": 189,
+                  "text": "欧拉定理和欧拉函数"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.2-3",
+                  "index": 190,
+                  "text": "费马小定理"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.2-4",
+                  "index": 191,
+                  "text": "威尔逊定理"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.2-5",
+                  "index": 192,
+                  "text": "裴蜀定理"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.2-6",
+                  "index": 193,
+                  "text": "模运算意义下的逆元"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.2-7",
+                  "index": 194,
+                  "text": "扩展欧几里得算法"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.2-8",
+                  "index": 195,
+                  "text": "中国剩余定理"
+                }
+              ]
+            },
+            {
+              "id": "2.2.5.3",
+              "name": "离散与组合数学",
+              "items": [
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.3-1",
+                  "index": 196,
+                  "text": "多重集合"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.3-2",
+                  "index": 197,
+                  "text": "等价关系与等价类"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.3-3",
+                  "index": 198,
+                  "text": "多重集上的排列"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.3-4",
+                  "index": 199,
+                  "text": "多重集上的组合"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.3-5",
+                  "index": 200,
+                  "text": "错排列、圆排列"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.3-6",
+                  "index": 201,
+                  "text": "鸽巢原理"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.3-7",
+                  "index": 202,
+                  "text": "二项式定理"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.3-8",
+                  "index": 203,
+                  "text": "容斥原理"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.3-9",
+                  "index": 204,
+                  "text": "卡特兰（Catalan）数"
+                }
+              ]
+            },
+            {
+              "id": "2.2.5.4",
+              "name": "线性代数",
+              "items": [
+                {
+                  "difficulty": 5,
+                  "id": "2.2.5.4-1",
+                  "index": 205,
+                  "text": "向量与矩阵的概念"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.4-2",
+                  "index": 206,
+                  "text": "向量的运算"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.4-3",
+                  "index": 207,
+                  "text": "矩阵的初等变换"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.4-4",
+                  "index": 208,
+                  "text": "矩阵的运算：加法、减法、乘法与转置"
+                },
+                {
+                  "difficulty": 6,
+                  "id": "2.2.5.4-5",
+                  "index": 209,
+                  "text": "特殊矩阵的概念：单位阵、三角阵、对称阵和稀疏矩阵"
+                },
+                {
+                  "difficulty": 7,
+                  "id": "2.2.5.4-6",
+                  "index": 210,
+                  "text": "高斯消元法"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2.3",
+      "name": "NOI 级",
+      "difficultyRange": [
+        7,
+        10
+      ],
+      "sections": [
+        {
+          "id": "2.3.1",
+          "name": "C++ 程序设计",
+          "items": [
+            {
+              "difficulty": 8,
+              "id": "2.3.1-1",
+              "index": 211,
+              "text": "面向对象的程序设计思想（OOP）"
+            }
+          ],
+          "subsections": []
+        },
+        {
+          "id": "2.3.2",
+          "name": "数据结构",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.3.2.1",
+              "name": "线性结构",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.2.1-1",
+                  "index": 212,
+                  "text": "块状链表"
+                }
+              ]
+            },
+            {
+              "id": "2.3.2.2",
+              "name": "复杂树",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.2.2-1",
+                  "index": 213,
+                  "text": "树链剖分"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.2.2-2",
+                  "index": 214,
+                  "text": "动态树：LCT"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.2.2-3",
+                  "index": 215,
+                  "text": "树套树"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.2.2-4",
+                  "index": 216,
+                  "text": "k-d 树"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.2.2-5",
+                  "index": 217,
+                  "text": "虚树"
+                }
+              ]
+            },
+            {
+              "id": "2.3.2.3",
+              "name": "可合并堆",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.2.3-1",
+                  "index": 218,
+                  "text": "左偏树"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.2.3-2",
+                  "index": 219,
+                  "text": "二项堆"
+                }
+              ]
+            },
+            {
+              "id": "2.3.2.4",
+              "name": "可持久化数据结构",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.2.4-1",
+                  "index": 220,
+                  "text": "可持久化线段树"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.2.4-2",
+                  "index": 221,
+                  "text": "其他可持久化数据结构"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2.3.3",
+          "name": "算法",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.3.3.1",
+              "name": "算法策略",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.1-1",
+                  "index": 222,
+                  "text": "分块"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.1-2",
+                  "index": 223,
+                  "text": "离线处理思想"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.3.1-3",
+                  "index": 224,
+                  "text": "复杂分治思想"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.3.1-4",
+                  "index": 225,
+                  "text": "平衡规划思想"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.3.1-5",
+                  "index": 226,
+                  "text": "构造思想"
+                }
+              ]
+            },
+            {
+              "id": "2.3.3.2",
+              "name": "字符串算法",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.2-1",
+                  "index": 227,
+                  "text": "扩展 KMP 算法"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.2-2",
+                  "index": 228,
+                  "text": "有穷自动机的概念"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.2-3",
+                  "index": 229,
+                  "text": "AC 自动机"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.2-4",
+                  "index": 230,
+                  "text": "后缀数组"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.3.2-5",
+                  "index": 231,
+                  "text": "后缀树"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.3.2-6",
+                  "index": 232,
+                  "text": "后缀自动机"
+                }
+              ]
+            },
+            {
+              "id": "2.3.3.3",
+              "name": "图论算法",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.3-1",
+                  "index": 233,
+                  "text": "基环树"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.3.3-2",
+                  "index": 234,
+                  "text": "最小树形图"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.3-3",
+                  "index": 235,
+                  "text": "2-SAT"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.3-4",
+                  "index": 236,
+                  "text": "网络流"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.3.3-5",
+                  "index": 237,
+                  "text": "图的支配集、独立集与覆盖集"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.3.3-6",
+                  "index": 238,
+                  "text": "匈牙利算法"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.3.3-7",
+                  "index": 239,
+                  "text": "KM 算法"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.3.3-8",
+                  "index": 240,
+                  "text": "一般图的匹配"
+                }
+              ]
+            },
+            {
+              "id": "2.3.3.4",
+              "name": "动态规划",
+              "items": [
+                {
+                  "difficulty": 9,
+                  "id": "2.3.3.4-1",
+                  "index": 241,
+                  "text": "复杂动态规划模型的构建"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.3.4-2",
+                  "index": 242,
+                  "text": "复杂动态规划模型的优化"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2.3.4",
+          "name": "数学与其他",
+          "items": [],
+          "subsections": [
+            {
+              "id": "2.3.4.1",
+              "name": "初等数论",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.4.1-1",
+                  "index": 243,
+                  "text": "原根和指数"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.4.1-2",
+                  "index": 244,
+                  "text": "大步小步（Baby Step Giant Step，BSGS）算法"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.1-3",
+                  "index": 245,
+                  "text": "狄利克雷（Dirichlet）卷积"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.1-4",
+                  "index": 246,
+                  "text": "二次剩余"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.1-5",
+                  "index": 247,
+                  "text": "二次同余式"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.2",
+              "name": "离散与组合数学",
+              "items": [
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.2-1",
+                  "index": 248,
+                  "text": "群及其基本性质"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.2-2",
+                  "index": 249,
+                  "text": "置换群与循环群"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.2-3",
+                  "index": 250,
+                  "text": "母函数"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.2-4",
+                  "index": 251,
+                  "text": "莫比乌斯反演"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.2-5",
+                  "index": 252,
+                  "text": "Burnside 引理与 Pólya 定理"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.2-6",
+                  "index": 253,
+                  "text": "斯特林（Stirling）数"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.2-7",
+                  "index": 254,
+                  "text": "无根树的 Prüfer 序列"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.3",
+              "name": "线性代数",
+              "items": [
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.3-1",
+                  "index": 255,
+                  "text": "逆矩阵"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.3-2",
+                  "index": 256,
+                  "text": "行列式"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.3-3",
+                  "index": 257,
+                  "text": "向量空间与线性相关"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.3-4",
+                  "index": 258,
+                  "text": "基与线性基"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.4",
+              "name": "高等数学",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.4.4-1",
+                  "index": 259,
+                  "text": "多项式函数的微分"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.4.4-2",
+                  "index": 260,
+                  "text": "多项式函数的积分"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.4-3",
+                  "index": 261,
+                  "text": "泰勒（Taylor）级数"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.4-4",
+                  "index": 262,
+                  "text": "快速傅里叶变换"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.5",
+              "name": "概率论",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.4.5-1",
+                  "index": 263,
+                  "text": "概率的基本概念"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.5-2",
+                  "index": 264,
+                  "text": "离散随机变量的期望与方差"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.5-3",
+                  "index": 265,
+                  "text": "条件概率"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.5-4",
+                  "index": 266,
+                  "text": "贝叶斯公式"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.6",
+              "name": "博弈论",
+              "items": [
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.6-1",
+                  "index": 267,
+                  "text": "尼姆（Nim）博弈"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.6-2",
+                  "index": 268,
+                  "text": "SG 函数"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.7",
+              "name": "最优化",
+              "items": [
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.7-1",
+                  "index": 269,
+                  "text": "单纯形法"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.8",
+              "name": "计算几何",
+              "items": [
+                {
+                  "difficulty": 8,
+                  "id": "2.3.4.8-1",
+                  "index": 270,
+                  "text": "点、线、面之间位置关系的判定"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.4.8-2",
+                  "index": 271,
+                  "text": "一般图形面积的计算"
+                },
+                {
+                  "difficulty": 8,
+                  "id": "2.3.4.8-3",
+                  "index": 272,
+                  "text": "二维凸包"
+                },
+                {
+                  "difficulty": 9,
+                  "id": "2.3.4.8-4",
+                  "index": 273,
+                  "text": "半平面交"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.9",
+              "name": "信息论",
+              "items": [
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.9-1",
+                  "index": 274,
+                  "text": "熵、互信息、条件熵、相对熵"
+                }
+              ]
+            },
+            {
+              "id": "2.3.4.10",
+              "name": "其他",
+              "items": [
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.10-1",
+                  "index": 275,
+                  "text": "信息复杂度的概念"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.10-2",
+                  "index": 276,
+                  "text": "描述复杂度的概念"
+                },
+                {
+                  "difficulty": 10,
+                  "id": "2.3.4.10-3",
+                  "index": 277,
+                  "text": "通讯复杂度的概念"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "items": [
+    {
+      "index": 1,
+      "id": "2.1.1-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "计算机的基本构成（CPU、内存、I/O 设备等）"
+    },
+    {
+      "index": 2,
+      "id": "2.1.1-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "Windows、Linux 等操作系统的基本概念及其常见操作"
+    },
+    {
+      "index": 3,
+      "id": "2.1.1-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "计算机网络和 Internet 的基本概念"
+    },
+    {
+      "index": 4,
+      "id": "2.1.1-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "计算机的历史和常见用途"
+    },
+    {
+      "index": 5,
+      "id": "2.1.1-5",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "NOI 以及相关活动的历史"
+    },
+    {
+      "index": 6,
+      "id": "2.1.1-6",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "NOI 以及相关活动的规则"
+    },
+    {
+      "index": 7,
+      "id": "2.1.1-7",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "位、字节与字"
+    },
+    {
+      "index": 8,
+      "id": "2.1.1-8",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "程序设计语言以及程序编译和运行的基本概念"
+    },
+    {
+      "index": 9,
+      "id": "2.1.1-9",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "使用图形界面新建、复制、删除、移动文件或目录"
+    },
+    {
+      "index": 10,
+      "id": "2.1.1-10",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "使用 Windows 系统下的集成开发环境（例如 Dev-C++ 等）"
+    },
+    {
+      "index": 11,
+      "id": "2.1.1-11",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "使用 Linux 系统下的集成开发环境（例如 Code::Blocks 等）"
+    },
+    {
+      "index": 12,
+      "id": "2.1.1-12",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.1.1",
+      "subsection": null,
+      "difficulty": 1,
+      "text": "常用编译命令 g++ 的基本使用"
+    },
+    {
+      "index": 13,
+      "id": "2.1.2.1-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "程序基本概念",
+      "difficulty": 1,
+      "text": "标识符、关键字、常量、变量、字符串、表达式的概念"
+    },
+    {
+      "index": 14,
+      "id": "2.1.2.1-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "程序基本概念",
+      "difficulty": 1,
+      "text": "常量与变量的命名、定义及作用"
+    },
+    {
+      "index": 15,
+      "id": "2.1.2.1-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "程序基本概念",
+      "difficulty": 2,
+      "text": "头文件与名字空间的概念"
+    },
+    {
+      "index": 16,
+      "id": "2.1.2.1-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "程序基本概念",
+      "difficulty": 2,
+      "text": "编辑、编译、解释、调试的概念"
+    },
+    {
+      "index": 17,
+      "id": "2.1.2.2-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本数据类型",
+      "difficulty": 1,
+      "text": "整数型：int、long long"
+    },
+    {
+      "index": 18,
+      "id": "2.1.2.2-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本数据类型",
+      "difficulty": 1,
+      "text": "实数型：float、double"
+    },
+    {
+      "index": 19,
+      "id": "2.1.2.2-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本数据类型",
+      "difficulty": 1,
+      "text": "字符型：char"
+    },
+    {
+      "index": 20,
+      "id": "2.1.2.2-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本数据类型",
+      "difficulty": 1,
+      "text": "布尔型：bool"
+    },
+    {
+      "index": 21,
+      "id": "2.1.2.3-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "程序基本语句",
+      "difficulty": 2,
+      "text": "cin 语句、scanf 语句、cout 语句、printf 语句、赋值语句、复合语句"
+    },
+    {
+      "index": 22,
+      "id": "2.1.2.3-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "程序基本语句",
+      "difficulty": 2,
+      "text": "if 语句、switch 语句、多层条件语句"
+    },
+    {
+      "index": 23,
+      "id": "2.1.2.3-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "程序基本语句",
+      "difficulty": 2,
+      "text": "for 语句、while 语句、do while 语句"
+    },
+    {
+      "index": 24,
+      "id": "2.1.2.3-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "程序基本语句",
+      "difficulty": 3,
+      "text": "多层循环语句"
+    },
+    {
+      "index": 25,
+      "id": "2.1.2.4-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本运算",
+      "difficulty": 1,
+      "text": "算术运算：加、减、乘、除、整除、求余"
+    },
+    {
+      "index": 26,
+      "id": "2.1.2.4-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本运算",
+      "difficulty": 1,
+      "text": "关系运算：大于、大于等于、小于、小于等于、等于、不等于"
+    },
+    {
+      "index": 27,
+      "id": "2.1.2.4-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本运算",
+      "difficulty": 1,
+      "text": "逻辑运算：与（&&）、或（||）、非（!）"
+    },
+    {
+      "index": 28,
+      "id": "2.1.2.4-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本运算",
+      "difficulty": 1,
+      "text": "变量自增与自减运算"
+    },
+    {
+      "index": 29,
+      "id": "2.1.2.4-5",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本运算",
+      "difficulty": 1,
+      "text": "三目运算"
+    },
+    {
+      "index": 30,
+      "id": "2.1.2.4-6",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "基本运算",
+      "difficulty": 2,
+      "text": "位运算：与（&）、或（|）、非（~）、异或（^）、左移（<<）、右移（>>）"
+    },
+    {
+      "index": 31,
+      "id": "2.1.2.5-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "数学库常用函数",
+      "difficulty": 3,
+      "text": "绝对值函数、四舍五入函数、下取整函数、上取整函数、平方根函数、常用三角函数、对数函数、指数函数"
+    },
+    {
+      "index": 32,
+      "id": "2.1.2.6-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "结构化程序设计",
+      "difficulty": 1,
+      "text": "顺序结构、分支结构和循环结构"
+    },
+    {
+      "index": 33,
+      "id": "2.1.2.6-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "结构化程序设计",
+      "difficulty": 2,
+      "text": "自顶向下、逐步求精的模块化程序设计"
+    },
+    {
+      "index": 34,
+      "id": "2.1.2.6-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "结构化程序设计",
+      "difficulty": 2,
+      "text": "流程图的概念及流程图描述"
+    },
+    {
+      "index": 35,
+      "id": "2.1.2.7-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "数组",
+      "difficulty": 1,
+      "text": "数组与数组下标"
+    },
+    {
+      "index": 36,
+      "id": "2.1.2.7-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "数组",
+      "difficulty": 1,
+      "text": "数组的读入与输出"
+    },
+    {
+      "index": 37,
+      "id": "2.1.2.7-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "数组",
+      "difficulty": 3,
+      "text": "二维数组与多维数组"
+    },
+    {
+      "index": 38,
+      "id": "2.1.2.8-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "字符串的处理",
+      "difficulty": 2,
+      "text": "字符数组与相关函数"
+    },
+    {
+      "index": 39,
+      "id": "2.1.2.8-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "字符串的处理",
+      "difficulty": 2,
+      "text": "string 类与相关函数"
+    },
+    {
+      "index": 40,
+      "id": "2.1.2.9-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "函数与递归",
+      "difficulty": 2,
+      "text": "函数定义与调用、形参与实参"
+    },
+    {
+      "index": 41,
+      "id": "2.1.2.9-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "函数与递归",
+      "difficulty": 3,
+      "text": "传值参数与传引用参数"
+    },
+    {
+      "index": 42,
+      "id": "2.1.2.9-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "函数与递归",
+      "difficulty": 2,
+      "text": "常量与变量的作用范围"
+    },
+    {
+      "index": 43,
+      "id": "2.1.2.9-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "函数与递归",
+      "difficulty": 2,
+      "text": "递归函数"
+    },
+    {
+      "index": 44,
+      "id": "2.1.2.10-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "结构体与联合体",
+      "difficulty": 3,
+      "text": "结构体"
+    },
+    {
+      "index": 45,
+      "id": "2.1.2.10-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "结构体与联合体",
+      "difficulty": 3,
+      "text": "联合体"
+    },
+    {
+      "index": 46,
+      "id": "2.1.2.11-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "指针与引用",
+      "difficulty": 4,
+      "text": "指针"
+    },
+    {
+      "index": 47,
+      "id": "2.1.2.11-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "指针与引用",
+      "difficulty": 4,
+      "text": "基于指针的数组访问"
+    },
+    {
+      "index": 48,
+      "id": "2.1.2.11-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "指针与引用",
+      "difficulty": 4,
+      "text": "字符指针"
+    },
+    {
+      "index": 49,
+      "id": "2.1.2.11-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "指针与引用",
+      "difficulty": 4,
+      "text": "指向结构体的指针"
+    },
+    {
+      "index": 50,
+      "id": "2.1.2.11-5",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "指针与引用",
+      "difficulty": 5,
+      "text": "引用"
+    },
+    {
+      "index": 51,
+      "id": "2.1.2.12-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "文件及基本读写",
+      "difficulty": 2,
+      "text": "文件的基本概念、文本文件的基本操作"
+    },
+    {
+      "index": 52,
+      "id": "2.1.2.12-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "文件及基本读写",
+      "difficulty": 2,
+      "text": "文本文件类型与二进制文件类型"
+    },
+    {
+      "index": 53,
+      "id": "2.1.2.12-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "文件及基本读写",
+      "difficulty": 2,
+      "text": "文件重定向、文件读写等操作"
+    },
+    {
+      "index": 54,
+      "id": "2.1.2.13-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "STL 模板",
+      "difficulty": 3,
+      "text": "算法模板库中的函数：min、max、swap、sort"
+    },
+    {
+      "index": 55,
+      "id": "2.1.2.13-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "C++ 程序设计",
+      "sectionId": "2.1.2",
+      "subsection": "STL 模板",
+      "difficulty": 4,
+      "text": "栈（stack）、队列（queue）、链表（list）、向量（vector）等容器"
+    },
+    {
+      "index": 56,
+      "id": "2.1.3.1-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "线性结构",
+      "difficulty": 3,
+      "text": "链表：单链表、双向链表、循环链表"
+    },
+    {
+      "index": 57,
+      "id": "2.1.3.1-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "线性结构",
+      "difficulty": 3,
+      "text": "栈"
+    },
+    {
+      "index": 58,
+      "id": "2.1.3.1-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "线性结构",
+      "difficulty": 3,
+      "text": "队列"
+    },
+    {
+      "index": 59,
+      "id": "2.1.3.2-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "简单树",
+      "difficulty": 3,
+      "text": "树的定义与相关概念"
+    },
+    {
+      "index": 60,
+      "id": "2.1.3.2-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "简单树",
+      "difficulty": 4,
+      "text": "树的表示与存储"
+    },
+    {
+      "index": 61,
+      "id": "2.1.3.2-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "简单树",
+      "difficulty": 3,
+      "text": "二叉树的定义与基本性质"
+    },
+    {
+      "index": 62,
+      "id": "2.1.3.2-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "简单树",
+      "difficulty": 4,
+      "text": "二叉树的表示与存储"
+    },
+    {
+      "index": 63,
+      "id": "2.1.3.2-5",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "简单树",
+      "difficulty": 4,
+      "text": "二叉树的遍历：前序、中序、后序"
+    },
+    {
+      "index": 64,
+      "id": "2.1.3.3-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "特殊树",
+      "difficulty": 4,
+      "text": "完全二叉树的定义与基本性质"
+    },
+    {
+      "index": 65,
+      "id": "2.1.3.3-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "特殊树",
+      "difficulty": 4,
+      "text": "完全二叉树的数组表示法"
+    },
+    {
+      "index": 66,
+      "id": "2.1.3.3-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "特殊树",
+      "difficulty": 4,
+      "text": "哈夫曼树的定义和构造、哈夫曼编码"
+    },
+    {
+      "index": 67,
+      "id": "2.1.3.3-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "特殊树",
+      "difficulty": 4,
+      "text": "二叉搜索树的定义和构造"
+    },
+    {
+      "index": 68,
+      "id": "2.1.3.4-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "简单图",
+      "difficulty": 3,
+      "text": "图的定义与相关概念"
+    },
+    {
+      "index": 69,
+      "id": "2.1.3.4-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "简单图",
+      "difficulty": 4,
+      "text": "图的表示与存储：邻接矩阵"
+    },
+    {
+      "index": 70,
+      "id": "2.1.3.4-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数据结构",
+      "sectionId": "2.1.3",
+      "subsection": "简单图",
+      "difficulty": 4,
+      "text": "图的表示与存储：邻接表"
+    },
+    {
+      "index": 71,
+      "id": "2.1.4.1-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "算法概念与描述",
+      "difficulty": 1,
+      "text": "算法概念"
+    },
+    {
+      "index": 72,
+      "id": "2.1.4.1-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "算法概念与描述",
+      "difficulty": 2,
+      "text": "算法描述：自然语言描述、流程图描述、伪代码描述"
+    },
+    {
+      "index": 73,
+      "id": "2.1.4.2-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "入门算法",
+      "difficulty": 1,
+      "text": "枚举法"
+    },
+    {
+      "index": 74,
+      "id": "2.1.4.2-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "入门算法",
+      "difficulty": 1,
+      "text": "模拟法"
+    },
+    {
+      "index": 75,
+      "id": "2.1.4.3-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "基础算法",
+      "difficulty": 3,
+      "text": "贪心法"
+    },
+    {
+      "index": 76,
+      "id": "2.1.4.3-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "基础算法",
+      "difficulty": 3,
+      "text": "递推法"
+    },
+    {
+      "index": 77,
+      "id": "2.1.4.3-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "基础算法",
+      "difficulty": 4,
+      "text": "递归法"
+    },
+    {
+      "index": 78,
+      "id": "2.1.4.3-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "基础算法",
+      "difficulty": 4,
+      "text": "二分法"
+    },
+    {
+      "index": 79,
+      "id": "2.1.4.3-5",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "基础算法",
+      "difficulty": 4,
+      "text": "倍增法"
+    },
+    {
+      "index": 80,
+      "id": "2.1.4.4-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "算法策略",
+      "difficulty": 3,
+      "text": "前缀和"
+    },
+    {
+      "index": 81,
+      "id": "2.1.4.4-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "算法策略",
+      "difficulty": 4,
+      "text": "差分"
+    },
+    {
+      "index": 82,
+      "id": "2.1.4.5-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "数值处理算法",
+      "difficulty": 4,
+      "text": "高精度的加法"
+    },
+    {
+      "index": 83,
+      "id": "2.1.4.5-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "数值处理算法",
+      "difficulty": 4,
+      "text": "高精度的减法"
+    },
+    {
+      "index": 84,
+      "id": "2.1.4.5-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "数值处理算法",
+      "difficulty": 4,
+      "text": "高精度的乘法"
+    },
+    {
+      "index": 85,
+      "id": "2.1.4.5-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "数值处理算法",
+      "difficulty": 4,
+      "text": "高精度整数除以单精度整数的商和余数"
+    },
+    {
+      "index": 86,
+      "id": "2.1.4.6-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "排序算法",
+      "difficulty": 3,
+      "text": "排序的基本概念"
+    },
+    {
+      "index": 87,
+      "id": "2.1.4.6-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "排序算法",
+      "difficulty": 3,
+      "text": "冒泡排序"
+    },
+    {
+      "index": 88,
+      "id": "2.1.4.6-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "排序算法",
+      "difficulty": 3,
+      "text": "选择排序"
+    },
+    {
+      "index": 89,
+      "id": "2.1.4.6-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "排序算法",
+      "difficulty": 3,
+      "text": "插入排序"
+    },
+    {
+      "index": 90,
+      "id": "2.1.4.6-5",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "排序算法",
+      "difficulty": 3,
+      "text": "计数排序"
+    },
+    {
+      "index": 91,
+      "id": "2.1.4.7-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "搜索算法",
+      "difficulty": 5,
+      "text": "深度优先搜索"
+    },
+    {
+      "index": 92,
+      "id": "2.1.4.7-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "搜索算法",
+      "difficulty": 5,
+      "text": "广度优先搜索"
+    },
+    {
+      "index": 93,
+      "id": "2.1.4.8-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "图论算法",
+      "difficulty": 4,
+      "text": "深度优先遍历"
+    },
+    {
+      "index": 94,
+      "id": "2.1.4.8-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "图论算法",
+      "difficulty": 4,
+      "text": "广度优先遍历"
+    },
+    {
+      "index": 95,
+      "id": "2.1.4.8-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "图论算法",
+      "difficulty": 5,
+      "text": "泛洪算法（flood fill）"
+    },
+    {
+      "index": 96,
+      "id": "2.1.4.9-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "动态规划",
+      "difficulty": 4,
+      "text": "动态规划的基本思路"
+    },
+    {
+      "index": 97,
+      "id": "2.1.4.9-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "动态规划",
+      "difficulty": 4,
+      "text": "简单一维动态规划"
+    },
+    {
+      "index": 98,
+      "id": "2.1.4.9-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "动态规划",
+      "difficulty": 5,
+      "text": "简单背包类型动态规划"
+    },
+    {
+      "index": 99,
+      "id": "2.1.4.9-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "算法",
+      "sectionId": "2.1.4",
+      "subsection": "动态规划",
+      "difficulty": 5,
+      "text": "简单区间类型动态规划"
+    },
+    {
+      "index": 100,
+      "id": "2.1.5.1-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "数及其运算",
+      "difficulty": 1,
+      "text": "自然数、整数、有理数、实数及其算术运算（加、减、乘、除）"
+    },
+    {
+      "index": 101,
+      "id": "2.1.5.1-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "数及其运算",
+      "difficulty": 1,
+      "text": "进制与进制转换：二进制、八进制、十进制、十六进制"
+    },
+    {
+      "index": 102,
+      "id": "2.1.5.2-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "初等数学",
+      "difficulty": 1,
+      "text": "代数（初中部分）"
+    },
+    {
+      "index": 103,
+      "id": "2.1.5.2-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "初等数学",
+      "difficulty": 1,
+      "text": "几何（初中部分）"
+    },
+    {
+      "index": 104,
+      "id": "2.1.5.3-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "初等数论",
+      "difficulty": 3,
+      "text": "整除、因数、倍数、指数、质（素）数、合数"
+    },
+    {
+      "index": 105,
+      "id": "2.1.5.3-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "初等数论",
+      "difficulty": 3,
+      "text": "取整"
+    },
+    {
+      "index": 106,
+      "id": "2.1.5.3-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "初等数论",
+      "difficulty": 3,
+      "text": "模运算与取余"
+    },
+    {
+      "index": 107,
+      "id": "2.1.5.3-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "初等数论",
+      "difficulty": 3,
+      "text": "整数唯一分解定理"
+    },
+    {
+      "index": 108,
+      "id": "2.1.5.3-5",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "初等数论",
+      "difficulty": 3,
+      "text": "辗转相除法（欧几里得算法）"
+    },
+    {
+      "index": 109,
+      "id": "2.1.5.3-6",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "初等数论",
+      "difficulty": 4,
+      "text": "素数筛法：埃氏筛法与线性筛法"
+    },
+    {
+      "index": 110,
+      "id": "2.1.5.4-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 2,
+      "text": "集合"
+    },
+    {
+      "index": 111,
+      "id": "2.1.5.4-2",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 2,
+      "text": "加法原理"
+    },
+    {
+      "index": 112,
+      "id": "2.1.5.4-3",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 2,
+      "text": "乘法原理"
+    },
+    {
+      "index": 113,
+      "id": "2.1.5.4-4",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 4,
+      "text": "排列"
+    },
+    {
+      "index": 114,
+      "id": "2.1.5.4-5",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 4,
+      "text": "组合"
+    },
+    {
+      "index": 115,
+      "id": "2.1.5.4-6",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 4,
+      "text": "杨辉三角"
+    },
+    {
+      "index": 116,
+      "id": "2.1.5.5-1",
+      "level": "入门级",
+      "levelId": "2.1",
+      "section": "数学与其他",
+      "sectionId": "2.1.5",
+      "subsection": "其他",
+      "difficulty": 2,
+      "text": "ASCII 码"
+    },
+    {
+      "index": 117,
+      "id": "2.2.1-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.2.1",
+      "subsection": null,
+      "difficulty": 5,
+      "text": "Linux 系统终端中常用的文件与目录操作命令"
+    },
+    {
+      "index": 118,
+      "id": "2.2.1-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.2.1",
+      "subsection": null,
+      "difficulty": 5,
+      "text": "Linux 系统下常见文本编辑工具的使用"
+    },
+    {
+      "index": 119,
+      "id": "2.2.1-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.2.1",
+      "subsection": null,
+      "difficulty": 5,
+      "text": "常用编译命令 g++ 与相关编译选项"
+    },
+    {
+      "index": 120,
+      "id": "2.2.1-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.2.1",
+      "subsection": null,
+      "difficulty": 5,
+      "text": "在 Linux 系统终端中运行程序，使用 time 命令查看程序用时"
+    },
+    {
+      "index": 121,
+      "id": "2.2.1-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "基础知识与编程环境",
+      "sectionId": "2.2.1",
+      "subsection": null,
+      "difficulty": 5,
+      "text": "调试工具 GDB 的使用"
+    },
+    {
+      "index": 122,
+      "id": "2.2.2.1-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "类（class）",
+      "difficulty": 6,
+      "text": "类的概念及简单应用"
+    },
+    {
+      "index": 123,
+      "id": "2.2.2.1-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "类（class）",
+      "difficulty": 6,
+      "text": "成员函数和运算符重载"
+    },
+    {
+      "index": 124,
+      "id": "2.2.2.2-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "STL 模板",
+      "difficulty": 5,
+      "text": "容器（container）和迭代器（iterator）"
+    },
+    {
+      "index": 125,
+      "id": "2.2.2.2-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "STL 模板",
+      "difficulty": 5,
+      "text": "对（pair）、元组（tuple）"
+    },
+    {
+      "index": 126,
+      "id": "2.2.2.2-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "STL 模板",
+      "difficulty": 5,
+      "text": "集合（set）、多重集合（multiset）"
+    },
+    {
+      "index": 127,
+      "id": "2.2.2.2-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "STL 模板",
+      "difficulty": 5,
+      "text": "双端队列（deque）、优先队列（priority_queue）"
+    },
+    {
+      "index": 128,
+      "id": "2.2.2.2-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "STL 模板",
+      "difficulty": 5,
+      "text": "映射（map）、多重映射（multimap）"
+    },
+    {
+      "index": 129,
+      "id": "2.2.2.2-6",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "STL 模板",
+      "difficulty": 5,
+      "text": "位集合（bitset）"
+    },
+    {
+      "index": 130,
+      "id": "2.2.2.2-7",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "C++ 程序设计",
+      "sectionId": "2.2.2",
+      "subsection": "STL 模板",
+      "difficulty": 5,
+      "text": "算法模板库中的常用函数"
+    },
+    {
+      "index": 131,
+      "id": "2.2.3.1-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "线性结构",
+      "difficulty": 5,
+      "text": "双端栈"
+    },
+    {
+      "index": 132,
+      "id": "2.2.3.1-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "线性结构",
+      "difficulty": 5,
+      "text": "双端队列"
+    },
+    {
+      "index": 133,
+      "id": "2.2.3.1-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "线性结构",
+      "difficulty": 5,
+      "text": "单调队列"
+    },
+    {
+      "index": 134,
+      "id": "2.2.3.1-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "线性结构",
+      "difficulty": 6,
+      "text": "优先队列"
+    },
+    {
+      "index": 135,
+      "id": "2.2.3.1-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "线性结构",
+      "difficulty": 6,
+      "text": "ST 表（Sparse Table）"
+    },
+    {
+      "index": 136,
+      "id": "2.2.3.2-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "集合与森林",
+      "difficulty": 6,
+      "text": "并查集"
+    },
+    {
+      "index": 137,
+      "id": "2.2.3.2-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "集合与森林",
+      "difficulty": 6,
+      "text": "树的孩子兄弟表示法"
+    },
+    {
+      "index": 138,
+      "id": "2.2.3.3-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "特殊树",
+      "difficulty": 6,
+      "text": "二叉堆"
+    },
+    {
+      "index": 139,
+      "id": "2.2.3.3-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "特殊树",
+      "difficulty": 6,
+      "text": "树状数组"
+    },
+    {
+      "index": 140,
+      "id": "2.2.3.3-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "特殊树",
+      "difficulty": 6,
+      "text": "线段树"
+    },
+    {
+      "index": 141,
+      "id": "2.2.3.3-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "特殊树",
+      "difficulty": 6,
+      "text": "字典树（Trie 树）"
+    },
+    {
+      "index": 142,
+      "id": "2.2.3.3-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "特殊树",
+      "difficulty": 7,
+      "text": "笛卡尔树"
+    },
+    {
+      "index": 143,
+      "id": "2.2.3.3-6",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "特殊树",
+      "difficulty": 8,
+      "text": "平衡树：AVL、treap、splay 等"
+    },
+    {
+      "index": 144,
+      "id": "2.2.3.4-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "常见图",
+      "difficulty": 5,
+      "text": "稀疏图"
+    },
+    {
+      "index": 145,
+      "id": "2.2.3.4-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "常见图",
+      "difficulty": 6,
+      "text": "偶图（二分图）"
+    },
+    {
+      "index": 146,
+      "id": "2.2.3.4-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "常见图",
+      "difficulty": 6,
+      "text": "欧拉图"
+    },
+    {
+      "index": 147,
+      "id": "2.2.3.4-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "常见图",
+      "difficulty": 6,
+      "text": "有向无环图"
+    },
+    {
+      "index": 148,
+      "id": "2.2.3.4-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "常见图",
+      "difficulty": 7,
+      "text": "连通图与强连通图"
+    },
+    {
+      "index": 149,
+      "id": "2.2.3.4-6",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "常见图",
+      "difficulty": 7,
+      "text": "双连通图"
+    },
+    {
+      "index": 150,
+      "id": "2.2.3.5-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "哈希表",
+      "difficulty": 5,
+      "text": "数值哈希函数构造"
+    },
+    {
+      "index": 151,
+      "id": "2.2.3.5-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "哈希表",
+      "difficulty": 6,
+      "text": "字符串哈希函数构造"
+    },
+    {
+      "index": 152,
+      "id": "2.2.3.5-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数据结构",
+      "sectionId": "2.2.3",
+      "subsection": "哈希表",
+      "difficulty": 6,
+      "text": "哈希冲突的常用处理方法"
+    },
+    {
+      "index": 153,
+      "id": "2.2.4.1-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "复杂度分析",
+      "difficulty": 6,
+      "text": "时间复杂度分析"
+    },
+    {
+      "index": 154,
+      "id": "2.2.4.1-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "复杂度分析",
+      "difficulty": 6,
+      "text": "空间复杂度分析"
+    },
+    {
+      "index": 155,
+      "id": "2.2.4.2-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "算法策略",
+      "difficulty": 6,
+      "text": "离散化"
+    },
+    {
+      "index": 156,
+      "id": "2.2.4.2-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "算法策略",
+      "difficulty": 7,
+      "text": "扫描线"
+    },
+    {
+      "index": 157,
+      "id": "2.2.4.3-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "基础算法",
+      "difficulty": 6,
+      "text": "分治算法"
+    },
+    {
+      "index": 158,
+      "id": "2.2.4.4-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "排序算法",
+      "difficulty": 5,
+      "text": "归并排序"
+    },
+    {
+      "index": 159,
+      "id": "2.2.4.4-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "排序算法",
+      "difficulty": 5,
+      "text": "快速排序"
+    },
+    {
+      "index": 160,
+      "id": "2.2.4.4-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "排序算法",
+      "difficulty": 6,
+      "text": "堆排序"
+    },
+    {
+      "index": 161,
+      "id": "2.2.4.4-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "排序算法",
+      "difficulty": 5,
+      "text": "桶排序"
+    },
+    {
+      "index": 162,
+      "id": "2.2.4.4-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "排序算法",
+      "difficulty": 6,
+      "text": "基数排序"
+    },
+    {
+      "index": 163,
+      "id": "2.2.4.5-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "字符串相关算法",
+      "difficulty": 5,
+      "text": "字符串匹配：KMP 算法"
+    },
+    {
+      "index": 164,
+      "id": "2.2.4.5-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "字符串相关算法",
+      "difficulty": 7,
+      "text": "Manacher 算法"
+    },
+    {
+      "index": 165,
+      "id": "2.2.4.6-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "搜索算法",
+      "difficulty": 6,
+      "text": "搜索的剪枝优化"
+    },
+    {
+      "index": 166,
+      "id": "2.2.4.6-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "搜索算法",
+      "difficulty": 6,
+      "text": "记忆化搜索"
+    },
+    {
+      "index": 167,
+      "id": "2.2.4.6-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "搜索算法",
+      "difficulty": 7,
+      "text": "启发式搜索"
+    },
+    {
+      "index": 168,
+      "id": "2.2.4.6-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "搜索算法",
+      "difficulty": 7,
+      "text": "双向广度优先搜索"
+    },
+    {
+      "index": 169,
+      "id": "2.2.4.6-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "搜索算法",
+      "difficulty": 7,
+      "text": "迭代加深搜索"
+    },
+    {
+      "index": 170,
+      "id": "2.2.4.7-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "最小生成树：Prim 和 Kruskal 等算法"
+    },
+    {
+      "index": 171,
+      "id": "2.2.4.7-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "单源最短路：Bellman–Ford、Dijkstra、SPFA 等算法"
+    },
+    {
+      "index": 172,
+      "id": "2.2.4.7-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 7,
+      "text": "单源次短路"
+    },
+    {
+      "index": 173,
+      "id": "2.2.4.7-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "Floyd–Warshall 算法"
+    },
+    {
+      "index": 174,
+      "id": "2.2.4.7-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "有向无环图的拓扑排序"
+    },
+    {
+      "index": 175,
+      "id": "2.2.4.7-6",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "欧拉道路和欧拉回路"
+    },
+    {
+      "index": 176,
+      "id": "2.2.4.7-7",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "二分图的判定"
+    },
+    {
+      "index": 177,
+      "id": "2.2.4.7-8",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 7,
+      "text": "强连通分量"
+    },
+    {
+      "index": 178,
+      "id": "2.2.4.7-9",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 7,
+      "text": "割点、割边"
+    },
+    {
+      "index": 179,
+      "id": "2.2.4.7-10",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "树的重心、直径、DFS 序与欧拉序"
+    },
+    {
+      "index": 180,
+      "id": "2.2.4.7-11",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "树上差分、子树和与倍增"
+    },
+    {
+      "index": 181,
+      "id": "2.2.4.7-12",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "图论算法",
+      "difficulty": 6,
+      "text": "最近公共祖先"
+    },
+    {
+      "index": 182,
+      "id": "2.2.4.8-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "动态规划",
+      "difficulty": 6,
+      "text": "多维动态规划"
+    },
+    {
+      "index": 183,
+      "id": "2.2.4.8-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "动态规划",
+      "difficulty": 6,
+      "text": "树型动态规划"
+    },
+    {
+      "index": 184,
+      "id": "2.2.4.8-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "动态规划",
+      "difficulty": 7,
+      "text": "状态压缩动态规划"
+    },
+    {
+      "index": 185,
+      "id": "2.2.4.8-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "算法",
+      "sectionId": "2.2.4",
+      "subsection": "动态规划",
+      "difficulty": 8,
+      "text": "动态规划的常用优化"
+    },
+    {
+      "index": 186,
+      "id": "2.2.5.1-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数学",
+      "difficulty": 5,
+      "text": "代数（高中部分）"
+    },
+    {
+      "index": 187,
+      "id": "2.2.5.1-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数学",
+      "difficulty": 6,
+      "text": "几何（高中部分）"
+    },
+    {
+      "index": 188,
+      "id": "2.2.5.2-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数论",
+      "difficulty": 5,
+      "text": "同余式"
+    },
+    {
+      "index": 189,
+      "id": "2.2.5.2-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数论",
+      "difficulty": 7,
+      "text": "欧拉定理和欧拉函数"
+    },
+    {
+      "index": 190,
+      "id": "2.2.5.2-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数论",
+      "difficulty": 7,
+      "text": "费马小定理"
+    },
+    {
+      "index": 191,
+      "id": "2.2.5.2-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数论",
+      "difficulty": 7,
+      "text": "威尔逊定理"
+    },
+    {
+      "index": 192,
+      "id": "2.2.5.2-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数论",
+      "difficulty": 7,
+      "text": "裴蜀定理"
+    },
+    {
+      "index": 193,
+      "id": "2.2.5.2-6",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数论",
+      "difficulty": 7,
+      "text": "模运算意义下的逆元"
+    },
+    {
+      "index": 194,
+      "id": "2.2.5.2-7",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数论",
+      "difficulty": 7,
+      "text": "扩展欧几里得算法"
+    },
+    {
+      "index": 195,
+      "id": "2.2.5.2-8",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "初等数论",
+      "difficulty": 7,
+      "text": "中国剩余定理"
+    },
+    {
+      "index": 196,
+      "id": "2.2.5.3-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 6,
+      "text": "多重集合"
+    },
+    {
+      "index": 197,
+      "id": "2.2.5.3-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 6,
+      "text": "等价关系与等价类"
+    },
+    {
+      "index": 198,
+      "id": "2.2.5.3-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 6,
+      "text": "多重集上的排列"
+    },
+    {
+      "index": 199,
+      "id": "2.2.5.3-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 6,
+      "text": "多重集上的组合"
+    },
+    {
+      "index": 200,
+      "id": "2.2.5.3-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 6,
+      "text": "错排列、圆排列"
+    },
+    {
+      "index": 201,
+      "id": "2.2.5.3-6",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 6,
+      "text": "鸽巢原理"
+    },
+    {
+      "index": 202,
+      "id": "2.2.5.3-7",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 6,
+      "text": "二项式定理"
+    },
+    {
+      "index": 203,
+      "id": "2.2.5.3-8",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 7,
+      "text": "容斥原理"
+    },
+    {
+      "index": 204,
+      "id": "2.2.5.3-9",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "离散与组合数学",
+      "difficulty": 7,
+      "text": "卡特兰（Catalan）数"
+    },
+    {
+      "index": 205,
+      "id": "2.2.5.4-1",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "线性代数",
+      "difficulty": 5,
+      "text": "向量与矩阵的概念"
+    },
+    {
+      "index": 206,
+      "id": "2.2.5.4-2",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "线性代数",
+      "difficulty": 6,
+      "text": "向量的运算"
+    },
+    {
+      "index": 207,
+      "id": "2.2.5.4-3",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "线性代数",
+      "difficulty": 6,
+      "text": "矩阵的初等变换"
+    },
+    {
+      "index": 208,
+      "id": "2.2.5.4-4",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "线性代数",
+      "difficulty": 6,
+      "text": "矩阵的运算：加法、减法、乘法与转置"
+    },
+    {
+      "index": 209,
+      "id": "2.2.5.4-5",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "线性代数",
+      "difficulty": 6,
+      "text": "特殊矩阵的概念：单位阵、三角阵、对称阵和稀疏矩阵"
+    },
+    {
+      "index": 210,
+      "id": "2.2.5.4-6",
+      "level": "提高级",
+      "levelId": "2.2",
+      "section": "数学与其他",
+      "sectionId": "2.2.5",
+      "subsection": "线性代数",
+      "difficulty": 7,
+      "text": "高斯消元法"
+    },
+    {
+      "index": 211,
+      "id": "2.3.1-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "C++ 程序设计",
+      "sectionId": "2.3.1",
+      "subsection": null,
+      "difficulty": 8,
+      "text": "面向对象的程序设计思想（OOP）"
+    },
+    {
+      "index": 212,
+      "id": "2.3.2.1-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "线性结构",
+      "difficulty": 8,
+      "text": "块状链表"
+    },
+    {
+      "index": 213,
+      "id": "2.3.2.2-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "复杂树",
+      "difficulty": 8,
+      "text": "树链剖分"
+    },
+    {
+      "index": 214,
+      "id": "2.3.2.2-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "复杂树",
+      "difficulty": 10,
+      "text": "动态树：LCT"
+    },
+    {
+      "index": 215,
+      "id": "2.3.2.2-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "复杂树",
+      "difficulty": 9,
+      "text": "树套树"
+    },
+    {
+      "index": 216,
+      "id": "2.3.2.2-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "复杂树",
+      "difficulty": 9,
+      "text": "k-d 树"
+    },
+    {
+      "index": 217,
+      "id": "2.3.2.2-5",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "复杂树",
+      "difficulty": 8,
+      "text": "虚树"
+    },
+    {
+      "index": 218,
+      "id": "2.3.2.3-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "可合并堆",
+      "difficulty": 8,
+      "text": "左偏树"
+    },
+    {
+      "index": 219,
+      "id": "2.3.2.3-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "可合并堆",
+      "difficulty": 10,
+      "text": "二项堆"
+    },
+    {
+      "index": 220,
+      "id": "2.3.2.4-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "可持久化数据结构",
+      "difficulty": 8,
+      "text": "可持久化线段树"
+    },
+    {
+      "index": 221,
+      "id": "2.3.2.4-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数据结构",
+      "sectionId": "2.3.2",
+      "subsection": "可持久化数据结构",
+      "difficulty": 9,
+      "text": "其他可持久化数据结构"
+    },
+    {
+      "index": 222,
+      "id": "2.3.3.1-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "算法策略",
+      "difficulty": 8,
+      "text": "分块"
+    },
+    {
+      "index": 223,
+      "id": "2.3.3.1-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "算法策略",
+      "difficulty": 8,
+      "text": "离线处理思想"
+    },
+    {
+      "index": 224,
+      "id": "2.3.3.1-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "算法策略",
+      "difficulty": 9,
+      "text": "复杂分治思想"
+    },
+    {
+      "index": 225,
+      "id": "2.3.3.1-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "算法策略",
+      "difficulty": 9,
+      "text": "平衡规划思想"
+    },
+    {
+      "index": 226,
+      "id": "2.3.3.1-5",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "算法策略",
+      "difficulty": 9,
+      "text": "构造思想"
+    },
+    {
+      "index": 227,
+      "id": "2.3.3.2-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "字符串算法",
+      "difficulty": 8,
+      "text": "扩展 KMP 算法"
+    },
+    {
+      "index": 228,
+      "id": "2.3.3.2-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "字符串算法",
+      "difficulty": 8,
+      "text": "有穷自动机的概念"
+    },
+    {
+      "index": 229,
+      "id": "2.3.3.2-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "字符串算法",
+      "difficulty": 8,
+      "text": "AC 自动机"
+    },
+    {
+      "index": 230,
+      "id": "2.3.3.2-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "字符串算法",
+      "difficulty": 8,
+      "text": "后缀数组"
+    },
+    {
+      "index": 231,
+      "id": "2.3.3.2-5",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "字符串算法",
+      "difficulty": 9,
+      "text": "后缀树"
+    },
+    {
+      "index": 232,
+      "id": "2.3.3.2-6",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "字符串算法",
+      "difficulty": 10,
+      "text": "后缀自动机"
+    },
+    {
+      "index": 233,
+      "id": "2.3.3.3-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "图论算法",
+      "difficulty": 8,
+      "text": "基环树"
+    },
+    {
+      "index": 234,
+      "id": "2.3.3.3-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "图论算法",
+      "difficulty": 10,
+      "text": "最小树形图"
+    },
+    {
+      "index": 235,
+      "id": "2.3.3.3-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "图论算法",
+      "difficulty": 8,
+      "text": "2-SAT"
+    },
+    {
+      "index": 236,
+      "id": "2.3.3.3-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "图论算法",
+      "difficulty": 8,
+      "text": "网络流"
+    },
+    {
+      "index": 237,
+      "id": "2.3.3.3-5",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "图论算法",
+      "difficulty": 10,
+      "text": "图的支配集、独立集与覆盖集"
+    },
+    {
+      "index": 238,
+      "id": "2.3.3.3-6",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "图论算法",
+      "difficulty": 8,
+      "text": "匈牙利算法"
+    },
+    {
+      "index": 239,
+      "id": "2.3.3.3-7",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "图论算法",
+      "difficulty": 10,
+      "text": "KM 算法"
+    },
+    {
+      "index": 240,
+      "id": "2.3.3.3-8",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "图论算法",
+      "difficulty": 10,
+      "text": "一般图的匹配"
+    },
+    {
+      "index": 241,
+      "id": "2.3.3.4-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "动态规划",
+      "difficulty": 9,
+      "text": "复杂动态规划模型的构建"
+    },
+    {
+      "index": 242,
+      "id": "2.3.3.4-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "算法",
+      "sectionId": "2.3.3",
+      "subsection": "动态规划",
+      "difficulty": 9,
+      "text": "复杂动态规划模型的优化"
+    },
+    {
+      "index": 243,
+      "id": "2.3.4.1-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "初等数论",
+      "difficulty": 8,
+      "text": "原根和指数"
+    },
+    {
+      "index": 244,
+      "id": "2.3.4.1-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "初等数论",
+      "difficulty": 8,
+      "text": "大步小步（Baby Step Giant Step，BSGS）算法"
+    },
+    {
+      "index": 245,
+      "id": "2.3.4.1-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "初等数论",
+      "difficulty": 9,
+      "text": "狄利克雷（Dirichlet）卷积"
+    },
+    {
+      "index": 246,
+      "id": "2.3.4.1-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "初等数论",
+      "difficulty": 10,
+      "text": "二次剩余"
+    },
+    {
+      "index": 247,
+      "id": "2.3.4.1-5",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "初等数论",
+      "difficulty": 10,
+      "text": "二次同余式"
+    },
+    {
+      "index": 248,
+      "id": "2.3.4.2-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "离散与组合数学",
+      "difficulty": 9,
+      "text": "群及其基本性质"
+    },
+    {
+      "index": 249,
+      "id": "2.3.4.2-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "离散与组合数学",
+      "difficulty": 9,
+      "text": "置换群与循环群"
+    },
+    {
+      "index": 250,
+      "id": "2.3.4.2-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "离散与组合数学",
+      "difficulty": 9,
+      "text": "母函数"
+    },
+    {
+      "index": 251,
+      "id": "2.3.4.2-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "离散与组合数学",
+      "difficulty": 9,
+      "text": "莫比乌斯反演"
+    },
+    {
+      "index": 252,
+      "id": "2.3.4.2-5",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "离散与组合数学",
+      "difficulty": 9,
+      "text": "Burnside 引理与 Pólya 定理"
+    },
+    {
+      "index": 253,
+      "id": "2.3.4.2-6",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "离散与组合数学",
+      "difficulty": 9,
+      "text": "斯特林（Stirling）数"
+    },
+    {
+      "index": 254,
+      "id": "2.3.4.2-7",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "离散与组合数学",
+      "difficulty": 9,
+      "text": "无根树的 Prüfer 序列"
+    },
+    {
+      "index": 255,
+      "id": "2.3.4.3-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "线性代数",
+      "difficulty": 9,
+      "text": "逆矩阵"
+    },
+    {
+      "index": 256,
+      "id": "2.3.4.3-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "线性代数",
+      "difficulty": 9,
+      "text": "行列式"
+    },
+    {
+      "index": 257,
+      "id": "2.3.4.3-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "线性代数",
+      "difficulty": 9,
+      "text": "向量空间与线性相关"
+    },
+    {
+      "index": 258,
+      "id": "2.3.4.3-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "线性代数",
+      "difficulty": 9,
+      "text": "基与线性基"
+    },
+    {
+      "index": 259,
+      "id": "2.3.4.4-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "高等数学",
+      "difficulty": 8,
+      "text": "多项式函数的微分"
+    },
+    {
+      "index": 260,
+      "id": "2.3.4.4-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "高等数学",
+      "difficulty": 8,
+      "text": "多项式函数的积分"
+    },
+    {
+      "index": 261,
+      "id": "2.3.4.4-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "高等数学",
+      "difficulty": 10,
+      "text": "泰勒（Taylor）级数"
+    },
+    {
+      "index": 262,
+      "id": "2.3.4.4-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "高等数学",
+      "difficulty": 10,
+      "text": "快速傅里叶变换"
+    },
+    {
+      "index": 263,
+      "id": "2.3.4.5-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "概率论",
+      "difficulty": 8,
+      "text": "概率的基本概念"
+    },
+    {
+      "index": 264,
+      "id": "2.3.4.5-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "概率论",
+      "difficulty": 9,
+      "text": "离散随机变量的期望与方差"
+    },
+    {
+      "index": 265,
+      "id": "2.3.4.5-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "概率论",
+      "difficulty": 9,
+      "text": "条件概率"
+    },
+    {
+      "index": 266,
+      "id": "2.3.4.5-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "概率论",
+      "difficulty": 9,
+      "text": "贝叶斯公式"
+    },
+    {
+      "index": 267,
+      "id": "2.3.4.6-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "博弈论",
+      "difficulty": 9,
+      "text": "尼姆（Nim）博弈"
+    },
+    {
+      "index": 268,
+      "id": "2.3.4.6-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "博弈论",
+      "difficulty": 9,
+      "text": "SG 函数"
+    },
+    {
+      "index": 269,
+      "id": "2.3.4.7-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "最优化",
+      "difficulty": 10,
+      "text": "单纯形法"
+    },
+    {
+      "index": 270,
+      "id": "2.3.4.8-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "计算几何",
+      "difficulty": 8,
+      "text": "点、线、面之间位置关系的判定"
+    },
+    {
+      "index": 271,
+      "id": "2.3.4.8-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "计算几何",
+      "difficulty": 8,
+      "text": "一般图形面积的计算"
+    },
+    {
+      "index": 272,
+      "id": "2.3.4.8-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "计算几何",
+      "difficulty": 8,
+      "text": "二维凸包"
+    },
+    {
+      "index": 273,
+      "id": "2.3.4.8-4",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "计算几何",
+      "difficulty": 9,
+      "text": "半平面交"
+    },
+    {
+      "index": 274,
+      "id": "2.3.4.9-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "信息论",
+      "difficulty": 10,
+      "text": "熵、互信息、条件熵、相对熵"
+    },
+    {
+      "index": 275,
+      "id": "2.3.4.10-1",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "其他",
+      "difficulty": 10,
+      "text": "信息复杂度的概念"
+    },
+    {
+      "index": 276,
+      "id": "2.3.4.10-2",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "其他",
+      "difficulty": 10,
+      "text": "描述复杂度的概念"
+    },
+    {
+      "index": 277,
+      "id": "2.3.4.10-3",
+      "level": "NOI 级",
+      "levelId": "2.3",
+      "section": "数学与其他",
+      "sectionId": "2.3.4",
+      "subsection": "其他",
+      "difficulty": 10,
+      "text": "通讯复杂度的概念"
+    }
+  ]
+}

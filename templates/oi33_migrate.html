@@ -83,6 +83,12 @@
               <tr><td>旧奖章引用已改写：</td><td>日志 <strong>{{ result.medalAutomaticLogsRewritten }}</strong> 条，喵喵 <strong>{{ result.medalAutomaticMeowsRewritten }}</strong> 条</td></tr>
               {% endif %}
               {% endif %}
+              {% if result.algorithmItemsImported %}
+              <tr><td>已导入算法项目（NOI 大纲）：</td><td><strong>{{ result.algorithmItemsImported }}</strong> 项</td></tr>
+              {% endif %}
+              {% if result.algorithmIdsNormalized %}
+              <tr><td>算法项目编号已规范：</td><td>改名 <strong>{{ result.algorithmIdsNormalized }}</strong> 项，迁移评定 <strong>{{ result.algorithmRatingsRenamed }}</strong> 条</td></tr>
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">
@@ -155,6 +161,19 @@
             <tr>
               <td style="padding:0.5rem 0;">待合并为升级系列的旧自动奖章定义：</td>
               <td><strong>{{ preview.legacyAutomaticMedals }}</strong></td>
+            </tr>
+            {% endif %}
+            <tr>
+              <td style="padding:0.5rem 0;">已配置算法项目：</td>
+              <td>
+                <strong>{{ preview.algorithmItems }}</strong>
+                {% if not preview.algorithmItems %}（将导入内置 NOI 大纲 {{ preview.algorithmOutlineItems }} 项）{% endif %}
+              </td>
+            </tr>
+            {% if preview.algorithmLegacyIds %}
+            <tr>
+              <td style="padding:0.5rem 0;">待规范编号的算法项目：</td>
+              <td><strong>{{ preview.algorithmLegacyIds }}</strong> 项（<code>2.1.1-12</code> → <code>1.1.12</code>）</td>
             </tr>
             {% endif %}
           </table>

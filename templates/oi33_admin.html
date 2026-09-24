@@ -120,6 +120,14 @@
           </div>
 
           <div style="margin-bottom:1.2rem;">
+            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">教学</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              <a href="{{ url('oi33_algorithm_manage') }}" class="rounded button">算法项目管理</a>
+              <a href="{{ url('oi33_algorithm_user', uid=handler.user._id) }}" class="rounded button">我的算法掌握</a>
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.2rem;">
             <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">内容</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
               <a href="{{ url('oi33_meow_main') }}" class="rounded button">{{ _('Meow') }}</a>
@@ -198,6 +206,7 @@
             <option value="medal" {% if logType == 'medal' %}selected{% endif %}>奖章</option>
             <option value="auction" {% if logType == 'auction' %}selected{% endif %}>拍卖</option>
             <option value="contract" {% if logType == 'contract' %}selected{% endif %}>合同</option>
+            <option value="algorithm" {% if logType == 'algorithm' %}selected{% endif %}>算法掌握</option>
             <option value="admin" {% if logType == 'admin' %}selected{% endif %}>管理</option>
           </select>
           <button type="submit" class="rounded button">筛选</button>
@@ -504,6 +513,25 @@
                 {% elif a.action == 'cancel' %}取消了与 {{ userLink(a.uid) }} 的奖章合同
                 {% else %}{{ a.action }}{% endif %}
                 {% if a.medalId %}「{{ a.medalId }}」{% endif %}
+              </span>
+
+            {% elif a.type == 'algorithm' %}
+              <span class="oi33-timeline__tag">算法掌握</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">
+                {% if a.action == 'self_set' %}提交了自己的算法掌握自评（{{ a.reason }}）
+                {% elif a.action == 'teacher_set' %}为 {{ userLink(a.uid) }} 设置了算法掌握评定（{{ a.reason }}）
+                {% elif a.action == 'reset_self_quota' %}重置了 {{ userLink(a.uid) }} 本月的算法自评额度
+                {% elif a.action == 'item_create' %}创建了算法项目 {{ a.reason }}
+                {% elif a.action == 'item_edit' %}修改了算法项目 {{ a.reason }}
+                {% elif a.action == 'item_delete' %}删除了算法项目 {{ a.reason }}
+                {% elif a.action == 'item_enable' %}启用了算法项目 {{ a.reason }}
+                {% elif a.action == 'item_disable' %}停用了算法项目 {{ a.reason }}
+                {% elif a.action == 'bulk_enable' %}批量启用了算法项目（{{ a.reason }}）
+                {% elif a.action == 'bulk_disable' %}批量停用了算法项目（{{ a.reason }}）
+                {% elif a.action == 'import' %}导入了 NOI 大纲（{{ a.reason }}）
+                {% elif a.action == 'config_update' %}修改了算法掌握设置（{{ a.reason }}）
+                {% else %}{{ a.action }}{% endif %}
               </span>
 
             {% elif a.type == 'admin' %}

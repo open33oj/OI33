@@ -3,6 +3,7 @@
 {% import "components/cat_food.html" as catFood with context %}
 {% import "components/user.html" as user with context %}
 {% import "components/meow_post.html" as spost with context %}
+{% import "partials/oi33_algorithm.html" as alg with context %}
 {% extends "layout/basic.html" %}
 {%- macro atcolor(r) -%}{% if r >= 2800 %}#FF0000{% elif r >= 2400 %}#FF8000{% elif r >= 2000 %}#C0C000{% elif r >= 1600 %}#0000FF{% elif r >= 1200 %}#00C0C0{% elif r >= 800 %}#008000{% elif r >= 400 %}#804000{% else %}#808080{% endif %}{%- endmacro -%}
 {%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
@@ -296,6 +297,16 @@
               </div>
             </li>
             {% endif %}
+            {% if oi33AlgorithmPanel %}
+            <li class="section__tab-item">
+              <h1 class="section__tab-title">算法掌握</h1>
+              <div class="section__tab-main">
+                <div class="typo section__body no-media">
+                  {{ alg.panel(oi33AlgorithmPanel, udoc) }}
+                </div>
+              </div>
+            </li>
+            {% endif %}
             {% for page in _udmods %}{% if 'activity.html' in page %}{% include page %}{% endif %}{% endfor %}
             {% if pdocs.length %}
             <li class="section__tab-item">
@@ -447,6 +458,7 @@
   </div>
 </div>
 {% include 'partials/meow_style.html' %}
+{% if oi33AlgorithmPanel %}{{ alg.style() }}{% endif %}
 <style>
   .oi33-meow-panelbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
   .oi33-meow-panelbar form { margin: 0; }

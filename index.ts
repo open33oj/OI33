@@ -21,6 +21,7 @@ import { apply as applyAuction } from './handler/auction';
 import { apply as applyContract } from './handler/contract';
 import { apply as applyContest } from './handler/contest';
 import { apply as applyDraw } from './handler/draw';
+import { apply as applyAlgorithm } from './handler/algorithm';
 import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
@@ -32,6 +33,7 @@ import { medalEvaluateUser, ensureMedalIndexes } from './model/medal';
 import { ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
 import { ensureLogIndexes } from './model/log';
+import { ensureAlgorithmIndexes } from './model/algorithm';
 
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
@@ -115,6 +117,7 @@ export async function apply(ctx: Context) {
     await applyContract(ctx);
     await applyContest(ctx);
     await applyDraw(ctx);
+    await applyAlgorithm(ctx);
     if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0') {
         ctx.on('app/started', async () => {
             try {
@@ -139,6 +142,7 @@ export async function apply(ctx: Context) {
                 await ensureMedalIndexes();
                 await ensureAuctionIndexes();
                 await ensureContractIndexes();
+                await ensureAlgorithmIndexes();
                 await ensureLogIndexes();
                 await maintainCatCanMarket();
                 await maintainSchoolCatRewards().catch((e) => console.error('[oi33] weekly big-cat reward failed:', e));

@@ -8,6 +8,7 @@ import {
 import { ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
 import { ensureMeowIndexes } from './model/meow';
+import { algorithmEnsureOutlineImported, algorithmMigrateOutlineIds, algorithmOutlineMeta } from './model/algorithm';
 
 // hydrooj's `db` export is a Proxy over MongoService, which only exposes
 // `collection()` etc. — the raw mongodb Db (with listCollections / admin) is
@@ -79,6 +80,8 @@ export async function previewMigration() {
         legacyMedalCollections,
         legacyAutomaticMedals,
         catFoodPreview,
+        algorithmItems,
+        algorithmLegacyIds,
     ] = await Promise.all([
         db.collection('coin').countDocuments(),
         db.collection('paste').countDocuments(),
@@ -108,6 +111,9 @@ export async function previewMigration() {
             $or: [{ levels: { $exists: false } }, { levels: { $size: 0 } }],
         } as any),
         previewCatFoodBackfill(),
+        db.collection('oi33_algorithm_item').countDocuments(),
+        // Algorithm items not yet marked with the normalized id format.
+        db.collection('oi33_algorithm_item').countDocuments({ idVersion: { $ne: 2 } } as any),
     ]);
     return {
         billCount, pasteCount, birthdayCount, userCount, oauthLogCount, legacyCatCanBatchCount,
@@ -116,6 +122,9 @@ export async function previewMigration() {
         legacyAutomaticMedals: Number(legacyAutomaticMedals) || 0,
         catFoodUsers: catFoodPreview.users,
         catFoodAmount: catFoodPreview.amount,
+        algorithmItems: Number(algorithmItems) || 0,
+        algorithmOutlineItems: algorithmOutlineMeta().itemCount,
+        algorithmLegacyIds: Number(algorithmLegacyIds) || 0,
     };
 }
 
@@ -148,6 +157,9 @@ export async function migrate() {
         medalAutomaticMeowsRewritten: 0,
         catFoodUsers: 0,
         catFoodAmount: 0,
+        algorithmItemsImported: 0,
+        algorithmIdsNormalized: 0,
+        algorithmRatingsRenamed: 0,
         errors: [] as string[],
     };
 
@@ -526,6 +538,29 @@ export async function migrate() {
         }
     } catch (e: any) {
         result.errors.push(`Step 14 (automatic medals → level series): ${e.message}`);
+    }
+
+    try {
+        // Step 15: Import the bundled NOI 2025 outline as editable algorithm
+        // items, so the mastery panel has content out of the box. Idempotent:
+        // an install that already configured items is left untouched, and the
+        // admin page can re-import/refresh at any time.
+        const algorithm = await algorithmEnsureOutlineImported(0);
+        result.algorithmItemsImported = algorithm.inserted;
+    } catch (e: any) {
+        result.errors.push(`Step 15 (import NOI algorithm outline): ${e.message}`);
+    }
+
+    try {
+        // Step 16: normalise algorithm ids imported before the format change
+        // (`2.1.1-12` -> `1.1.12`, level/section/subsection ids lose the `2.`
+        // document prefix) and move user ratings onto the new item ids.
+        // Idempotent: already-normalised ids pass through untouched.
+        const ids = await algorithmMigrateOutlineIds();
+        result.algorithmIdsNormalized = ids.itemsRenamed;
+        result.algorithmRatingsRenamed = ids.ratingsRenamed;
+    } catch (e: any) {
+        result.errors.push(`Step 16 (normalize algorithm ids): ${e.message}`);
     }
 
     return result;
