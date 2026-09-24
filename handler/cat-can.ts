@@ -167,6 +167,24 @@ class CatMapPlanCancelHandler extends Handler {
     }
 }
 
+class CatMapPlanStateHandler extends Handler {
+    // 轻量计划视图：前端在计划到点却还没收到 WebSocket 推送时用它兜底同步，
+    // 因此只返回自己的计划（私密数据）与服务器时间，不带地图与玩家快照。
+    async get() {
+        const [plan, config] = await Promise.all([
+            oi33Model.getCatMapPlanView(this.user._id),
+            oi33Model.getCatMapConfig(),
+        ]);
+        this.response.type = 'application/json';
+        this.response.body = {
+            ok: true,
+            plan,
+            planMaxSteps: config.planMaxSteps,
+            serverTime: Date.now(),
+        };
+    }
+}
+
 class CatMapMoveHandler extends Handler {
     @param('x', Types.Int)
     @param('y', Types.Int)
@@ -457,6 +475,7 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_cat_map_color', '/oi33/arena/color', CatMapColorHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_plan', '/oi33/arena/plan', CatMapPlanHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_plan_cancel', '/oi33/arena/plan/cancel', CatMapPlanCancelHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_cat_map_plan_state', '/oi33/arena/plan/state', CatMapPlanStateHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_admin', '/oi33/cat-arena/admin', CatMapAdminHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_admin_settings', '/oi33/cat-arena/admin/settings', CatMapAdminSettingsHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_admin_relocate', '/oi33/cat-arena/admin/relocate', CatMapAdminRelocateHandler, PRIV.PRIV_USER_PROFILE);

@@ -88,7 +88,7 @@ export async function ensureCatMapIndexes() {
         catMapCellColl.createIndex({ updatedAt: -1 }),
         catMapCellColl.createIndex({ catId: 1 }),
         catMapCellColl.createIndex({ updatedBy: 1 }),
-        // Due plans are scanned by the 30s scheduler with this index.
+        // Due plans are scanned by the 5s scheduler with this index.
         catMapPlanColl.createIndex({ status: 1, nextAt: 1 }),
         catMapPlanColl.createIndex({ updatedAt: -1 }),
     ]);
@@ -870,7 +870,7 @@ export async function adminRelocateCatMapPlayer(
 }
 
 // --- 路径规划（计划） ------------------------------------------------------
-// 一步 = 移动到相邻格（3g 猫粮）后立刻涂抹该格。计划由 index.ts 的 30 秒调度器
+// 一步 = 移动到相邻格（3g 猫粮）后立刻涂抹该格。计划由 index.ts 的 5 秒调度器
 // 在 nextAt 到期时推进；任何一步失败（并发冲突重试 3 次后仍失败）即自动停止。
 // 返回的事件对象与 handler/cat-can.ts 里广播的载荷形状一致，可直接 broadcast。
 

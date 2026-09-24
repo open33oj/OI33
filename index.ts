@@ -39,12 +39,14 @@ let schoolCatRewardRunning = false;
 let catMapPlanTimer: NodeJS.Timeout | undefined;
 let catMapPlanRunning = false;
 
-// Cat map plans: every 30s advance the plans whose cooldown has expired. The
-// step itself (move + paint, costs, cooldown, auto-stop) lives in the model;
-// here we only run the tick and fan the resulting events out over the socket
-// channel. Only instance 0 runs it (see the NODE_APP_INSTANCE guard below) and
-// the per-plan database lease keeps a plan from being executed twice.
-const CAT_MAP_PLAN_TICK_MS = 30 * 1000;
+// Cat map plans: advance the plans whose cooldown has expired. The step itself
+// (move + paint, costs, cooldown, auto-stop) lives in the model; here we only
+// run the tick and fan the resulting events out over the socket channel. Only
+// instance 0 runs it (see the NODE_APP_INSTANCE guard below) and the per-plan
+// database lease keeps a plan from being executed twice. The tick is the only
+// source of execution latency, so it stays small (5s): the due scan is an
+// indexed lookup, and the client re-syncs a few seconds after nextAt anyway.
+const CAT_MAP_PLAN_TICK_MS = 5 * 1000;
 
 async function maintainCatMapPlans(ctx: Context) {
     if (catMapPlanRunning) return;

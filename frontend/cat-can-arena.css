@@ -34,7 +34,7 @@
 .oi33-map-plan__count { margin-left: auto; color: #607065; font-size: 12px; font-variant-numeric: tabular-nums; }
 .oi33-map-plan__steps { display: flex; overflow-x: auto; gap: 7px; margin: 9px 0 0; padding: 0 0 2px; list-style: none; }
 .oi33-map-plan__steps li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid rgba(128,128,128,.28); border-radius: 999px; font-size: 12px; white-space: nowrap; background: rgba(255,255,255,.9); }
-.oi33-map-plan__steps li.is-executed { opacity: .55; }
+/* 已执行的步骤不再渲染，所以没有 is-executed 样式；剩下的第一个永远是最新的「下一步」。 */
 .oi33-map-plan__steps li.is-next { border-color: #d63c3c; box-shadow: 0 0 0 2px rgba(214,60,60,.18); }
 .oi33-map-plan__steps li.is-draft { border-style: dashed; }
 .oi33-map-plan__steps li.oi33-map-plan__empty { border-style: dashed; color: #7d8a80; }
