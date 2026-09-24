@@ -1,7 +1,7 @@
 import { addPage } from '@hydrooj/ui-default';
 
 // 算法掌握【评定页】的渐进增强。
-// 每行是一组四档单选框（没学 / 了解概念 / 会模板题 / 熟练掌握），怎么点都行，
+// 每行是一组四档单选框（没学 / 不会 / 不熟 / 熟练），怎么点都行，
 // 改完后一次「提交本月更新 / 保存修改」整份落库（学生每月一次，老师不限）。
 // 没有评定记录的知识点默认就是「没学」。
 // 脚本负责四件事：实时预览统计（总分 / 级别 / 难度 / 板块 / 子板块）、
@@ -100,7 +100,7 @@ function recompute(editor: HTMLElement) {
 
     const paintStats = (label: HTMLElement | null, bucket: Bucket | undefined) => {
         if (bucket?.total && label) {
-            // 与 nodeStats 保持一致：熟练掌握 / 总数 · 掌握度。
+            // 与 nodeStats 保持一致：熟练 / 总数 · 掌握度。
             label.textContent = `${bucket.counts[3] || 0}/${bucket.total} · ${scoreOf(bucket.sum, bucket.total, maxLevel)}%`;
         }
     };
@@ -246,7 +246,12 @@ addPage(() => {
         if (editor.dataset.algQuota === '1'
             && !window.confirm('提交后本月将不能再修改自评，确定提交吗？')) {
             ev.preventDefault();
+            return;
         }
+        // 表单真的提交了：清掉未保存标记，否则浏览器会立刻弹
+        // 「你所做的更改可能未保存」的 beforeunload 确认框。
+        for (const row of rowsOf(editor)) row.classList.remove('oi33-alg-item--dirty');
+        editor.dataset.algDirty = '0';
     });
 
     window.addEventListener('beforeunload', (ev) => {

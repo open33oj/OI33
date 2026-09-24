@@ -32,21 +32,25 @@
 .oi33-alg-score__unit { font-size:1rem; color:#888; }
 .oi33-alg-score__label { color:#888; font-size:.82em; margin-top:.2rem; }
 .oi33-alg-bar { grid-column:1 / -1; height:8px; border-radius:999px; background:rgba(127,127,127,.18); overflow:hidden; }
-.oi33-alg-bar > span { display:block; height:100%; background:linear-gradient(90deg,#4c8bf5,#2fa36b); transition:width .25s ease; }
+/* 进度条统一用四档的洛谷色号（灰 → 红 → 黄 → 蓝） */
+.oi33-alg-bar > span { display:block; height:100%; background:linear-gradient(90deg,#bfbfbf,#fe4c61,#ffc116,#3498db); transition:width .25s ease; }
 .oi33-alg-legend { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:.35rem 1rem; margin:0; padding:0; list-style:none; font-size:.82em; color:#666; }
 .oi33-alg-legend__item { display:flex; align-items:center; gap:.3rem; }
 .oi33-alg-legend__dot { width:.65em; height:.65em; border-radius:50%; display:inline-block; }
-.oi33-alg-legend__item--0 .oi33-alg-legend__dot { background:#b8b8b8; }
-.oi33-alg-legend__item--1 .oi33-alg-legend__dot { background:#e0a63a; }
-.oi33-alg-legend__item--2 .oi33-alg-legend__dot { background:#4c8bf5; }
-.oi33-alg-legend__item--3 .oi33-alg-legend__dot { background:#2fa36b; }
+.oi33-alg-legend__item--0 .oi33-alg-legend__dot { background:#bfbfbf; }
+.oi33-alg-legend__item--1 .oi33-alg-legend__dot { background:#fe4c61; }
+.oi33-alg-legend__item--2 .oi33-alg-legend__dot { background:#ffc116; }
+.oi33-alg-legend__item--3 .oi33-alg-legend__dot { background:#3498db; }
+.oi33-alg-legend__item--0 b { color:#8c8c8c; }
+.oi33-alg-legend__item--1 b { color:#fe4c61; }
+.oi33-alg-legend__item--2 b { color:#e0a800; }
+.oi33-alg-legend__item--3 b { color:#3498db; }
 .oi33-alg-legend b { font-weight:600; }
 .oi33-alg-minis { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:.4rem 1.25rem; font-size:.82em; color:#666; }
 .oi33-alg-minis-title { grid-column:1 / -1; color:#999; font-size:.75em; letter-spacing:.02em; }
 .oi33-alg-mini { display:flex; align-items:center; gap:.5rem; min-width:170px; flex:1 1 190px; }
 .oi33-alg-mini__bar { flex:1 1 auto; height:6px; border-radius:999px; background:rgba(127,127,127,.18); overflow:hidden; }
-.oi33-alg-mini__bar > span { display:block; height:100%; background:#4c8bf5; transition:width .25s ease; }
-.oi33-alg-minis--difficulty .oi33-alg-mini__bar > span { background:#2fa36b; }
+.oi33-alg-mini__bar > span { display:block; height:100%; background:linear-gradient(90deg,#bfbfbf,#fe4c61,#ffc116,#3498db); transition:width .25s ease; }
 
 /* ---- 折叠树（展示页与评定页共有外壳） ---- */
 .oi33-alg-tree { display:flex; flex-direction:column; gap:.5rem; }
@@ -60,7 +64,7 @@
 .oi33-alg-node[open] > summary::before { transform:rotate(90deg); }
 .oi33-alg-node__name { min-width:0; }
 .oi33-alg-node__bar { flex:1 1 auto; max-width:240px; height:6px; border-radius:999px; background:rgba(127,127,127,.18); overflow:hidden; }
-.oi33-alg-node__bar > span { display:block; height:100%; background:linear-gradient(90deg,#4c8bf5,#2fa36b); }
+.oi33-alg-node__bar > span { display:block; height:100%; background:linear-gradient(90deg,#bfbfbf,#fe4c61,#ffc116,#3498db); }
 .oi33-alg-node__stats { margin-left:auto; color:#888; font-weight:400; font-size:.85em; white-space:nowrap; }
 .oi33-alg-sec { border:none; border-top:1px solid var(--oi33-alg-border); border-radius:0; }
 .oi33-alg-sec > summary { background:transparent; font-weight:600; padding-left:1.4rem; }
@@ -72,14 +76,15 @@
 .oi33-alg-chip {
   display:inline-flex; align-items:center; gap:.3rem; max-width:100%;
   padding:.14rem .55rem; border-radius:999px; font-size:.82em; line-height:1.5;
-  border:1px solid rgba(127,127,127,.3); background:rgba(127,127,127,.08); color:#666;
+  border:1px solid transparent; background:rgba(127,127,127,.08); color:#666;
 }
 .oi33-alg-chip__text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .oi33-alg-chip__diff { font-size:.78em; opacity:.75; font-variant-numeric:tabular-nums; }
-.oi33-alg-chip--0 { background:rgba(127,127,127,.14); border-color:rgba(127,127,127,.35); color:#777; }
-.oi33-alg-chip--1 { background:rgba(224,166,58,.16); border-color:rgba(224,166,58,.5); color:#a8761a; }
-.oi33-alg-chip--2 { background:rgba(76,139,245,.14); border-color:rgba(76,139,245,.5); color:#3a6fd0; }
-.oi33-alg-chip--3 { background:rgba(47,163,107,.15); border-color:rgba(47,163,107,.5); color:#1f7d50; }
+/* 四档色号取自洛谷难度评级：没学=灰（暂无评定）/ 不会=红（入门）/ 不熟=黄（普及）/ 熟练=蓝（提高+） */
+.oi33-alg-chip--0 { background:#bfbfbf; border-color:#acacac; color:#111; }
+.oi33-alg-chip--1 { background:#fe4c61; border-color:#e94054; color:#fff; }
+.oi33-alg-chip--2 { background:#ffc116; border-color:#e0ab19; color:#fff; }
+.oi33-alg-chip--3 { background:#3498db; border-color:#3688be; color:#fff; }
 
 /* ---- 评定页：单选框行 ---- */
 .oi33-alg-toolbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-bottom:.6rem; }
@@ -89,6 +94,11 @@
   border:1px solid rgba(127,127,127,.35); background:transparent; color:#666;
 }
 .oi33-alg-filter--on { background:rgba(76,139,245,.16); border-color:rgba(76,139,245,.6); color:#3a6fd0; font-weight:600; }
+/* 筛选项选中时用该档的洛谷色号 */
+.oi33-alg-filter--on[data-alg-filter="0"] { background:rgba(191,191,191,.28); border-color:#acacac; color:#555; }
+.oi33-alg-filter--on[data-alg-filter="1"] { background:rgba(254,76,97,.16); border-color:#fe4c61; color:#d63c4e; }
+.oi33-alg-filter--on[data-alg-filter="2"] { background:rgba(255,193,22,.2); border-color:#e0ab19; color:#a8761a; }
+.oi33-alg-filter--on[data-alg-filter="3"] { background:rgba(52,152,219,.16); border-color:#3498db; color:#2b7fba; }
 .oi33-alg-search { flex:1 1 180px; max-width:280px; }
 .oi33-alg-dirty { color:#a8761a; font-size:.85em; }
 .oi33-alg-submit { margin-left:auto; }
@@ -102,6 +112,11 @@
 .oi33-alg-rate__opt { display:inline-flex; align-items:center; gap:.22rem; font-size:.8em; white-space:nowrap; cursor:pointer; color:#666; }
 .oi33-alg-rate__opt input { margin:0; }
 .oi33-alg-rate__opt:has(input:checked) { font-weight:600; color:#3a6fd0; }
+/* 选中的档位文字用该档的洛谷色号 */
+.oi33-alg-rate__opt--0:has(input:checked) { color:#8c8c8c; }
+.oi33-alg-rate__opt--1:has(input:checked) { color:#fe4c61; }
+.oi33-alg-rate__opt--2:has(input:checked) { color:#e0a800; }
+.oi33-alg-rate__opt--3:has(input:checked) { color:#3498db; }
 .oi33-alg-item__main { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
 .oi33-alg-item__name { min-width:0; }
 .oi33-alg-item__note { color:#888; font-size:.82em; }
@@ -141,10 +156,15 @@
 .theme--dark .oi33-alg-rate__opt, [data-mantine-color-scheme=dark] .oi33-alg-rate__opt { color:#aaa; }
 .theme--dark .oi33-alg-filter, [data-mantine-color-scheme=dark] .oi33-alg-filter { color:#bbb; border-color:rgba(160,160,160,.4); }
 .theme--dark .oi33-alg-filter--on, [data-mantine-color-scheme=dark] .oi33-alg-filter--on { color:#8fb6f8; border-color:rgba(76,139,245,.6); }
-.theme--dark .oi33-alg-chip, [data-mantine-color-scheme=dark] .oi33-alg-chip { color:#bbb; }
-.theme--dark .oi33-alg-chip--1, [data-mantine-color-scheme=dark] .oi33-alg-chip--1 { color:#e2b45f; }
-.theme--dark .oi33-alg-chip--2, [data-mantine-color-scheme=dark] .oi33-alg-chip--2 { color:#8fb6f8; }
-.theme--dark .oi33-alg-chip--3, [data-mantine-color-scheme=dark] .oi33-alg-chip--3 { color:#7ed3a6; }
+/* 四档标签云用洛谷实色，深色主题下同样可读，不做覆盖 */
+.theme--dark .oi33-alg-filter--on[data-alg-filter="0"],
+[data-mantine-color-scheme=dark] .oi33-alg-filter--on[data-alg-filter="0"] { color:#ccc; }
+.theme--dark .oi33-alg-filter--on[data-alg-filter="1"],
+[data-mantine-color-scheme=dark] .oi33-alg-filter--on[data-alg-filter="1"] { color:#ff8296; }
+.theme--dark .oi33-alg-filter--on[data-alg-filter="2"],
+[data-mantine-color-scheme=dark] .oi33-alg-filter--on[data-alg-filter="2"] { color:#ffd75e; }
+.theme--dark .oi33-alg-filter--on[data-alg-filter="3"],
+[data-mantine-color-scheme=dark] .oi33-alg-filter--on[data-alg-filter="3"] { color:#7cc4f0; }
 .theme--dark .oi33-alg-diff, [data-mantine-color-scheme=dark] .oi33-alg-diff {
   background:hsl(var(--alg-h),35%,22%); color:hsl(var(--alg-h),68%,76%); border-color:hsl(var(--alg-h),35%,40%);
 }
@@ -171,9 +191,9 @@
 {%- endif -%}
 {% endmacro %}
 
-{# 知识点进度：熟练掌握数 / 总数 · 掌握度。没有记录的按「没学」计入。 #}
+{# 知识点进度：熟练数 / 总数 · 掌握度。没有记录的按「没学」计入。 #}
 {% macro nodeStats(stats) %}
-<span class="oi33-alg-node__stats" title="熟练掌握 / 知识点总数 · 掌握度">{{ stats.counts[3] }}/{{ stats.total }} · {{ stats.score }}%</span>
+<span class="oi33-alg-node__stats" title="熟练 / 知识点总数 · 掌握度">{{ stats.counts[3] }}/{{ stats.total }} · {{ stats.score }}%</span>
 {% endmacro %}
 
 {# 掌握度总览：总分、图例、按级别进度、按难度进度。 #}
@@ -334,7 +354,7 @@
   data-alg-text="{{ item.text }} {{ item.sectionName }}{% if item.subsectionName %} {{ item.subsectionName }}{% endif %}">
   <div class="oi33-alg-rate" role="radiogroup" aria-label="{{ item.text }} 的掌握程度">
     {% for opt in panel.levels %}
-    <label class="oi33-alg-rate__opt"><input type="radio" class="oi33-alg-radio" form="alg-form"
+    <label class="oi33-alg-rate__opt oi33-alg-rate__opt--{{ opt.value }}"><input type="radio" class="oi33-alg-radio" form="alg-form"
       name="lv_{{ item.idx }}" value="{{ opt.value }}"
       {% if opt.value == item.level %}checked{% endif %}>{{ opt.name }}</label>
     {% endfor %}
@@ -357,20 +377,20 @@
     <summary>
       <span class="oi33-alg-node__name">{{ group.name }}</span>
       <span class="oi33-alg-node__bar"><span style="width:{{ group.stats.score }}%"></span></span>
-      <span class="oi33-alg-node__stats" data-alg-group-stats title="熟练掌握 / 知识点总数 · 掌握度">{{ group.stats.counts[3] }}/{{ group.stats.total }} · {{ group.stats.score }}%</span>
+      <span class="oi33-alg-node__stats" data-alg-group-stats title="熟练 / 知识点总数 · 掌握度">{{ group.stats.counts[3] }}/{{ group.stats.total }} · {{ group.stats.score }}%</span>
     </summary>
     {% for section in group.sections %}
     <details class="oi33-alg-node oi33-alg-sec" open data-alg-section="{{ section.id }}">
       <summary>
         <span class="oi33-alg-node__name">{{ section.name }}</span>
         <span class="oi33-alg-node__bar"><span style="width:{{ section.stats.score }}%"></span></span>
-        <span class="oi33-alg-node__stats" data-alg-section-stats title="熟练掌握 / 知识点总数 · 掌握度">{{ section.stats.counts[3] }}/{{ section.stats.total }} · {{ section.stats.score }}%</span>
+        <span class="oi33-alg-node__stats" data-alg-section-stats title="熟练 / 知识点总数 · 掌握度">{{ section.stats.counts[3] }}/{{ section.stats.total }} · {{ section.stats.score }}%</span>
       </summary>
       {% for subsection in section.subsections %}
       <details class="oi33-alg-node oi33-alg-sub" open data-alg-subsection="{{ subsection.id }}">
         <summary>
           <span class="oi33-alg-node__name">{{ subsection.name }}</span>
-          <span class="oi33-alg-node__stats" data-alg-subsection-stats title="熟练掌握 / 知识点总数 · 掌握度">{{ subsection.stats.counts[3] }}/{{ subsection.stats.total }} · {{ subsection.stats.score }}%</span>
+          <span class="oi33-alg-node__stats" data-alg-subsection-stats title="熟练 / 知识点总数 · 掌握度">{{ subsection.stats.counts[3] }}/{{ subsection.stats.total }} · {{ subsection.stats.score }}%</span>
         </summary>
         {% for item in subsection.items %}{{ editorRow(item, panel) }}{% endfor %}
       </details>

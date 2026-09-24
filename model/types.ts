@@ -657,7 +657,7 @@ export interface Oi33UserAlgorithm {
     _id: ObjectId;
     uid: number;
     itemId: string;
-    // 0 没学 / 1 了解概念 / 2 会模板题 / 3 熟练掌握
+    // 0 没学 / 1 不会 / 2 不熟 / 3 熟练
     level: number;
     source: 'self' | 'teacher';
     updatedBy: number;

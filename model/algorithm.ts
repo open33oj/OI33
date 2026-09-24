@@ -39,8 +39,10 @@ export function algorithmNextUpdateDate(now = new Date()): string {
 
 // The single 4-level scale shared by the student's self-assessment and the
 // teacher's assessment. Index = stored value; 0 is the implicit value of an
-// item the user has not rated at all.
-export const ALGORITHM_LEVEL_NAMES = ['没学', '了解概念', '会模板题', '熟练掌握'];
+// item the user has not rated at all. The frontend colours these four levels
+// with the 洛谷 difficulty palette (灰 / 红 / 黄 / 蓝), see the .oi33-alg-*
+// rules in templates/partials/oi33_algorithm.html.
+export const ALGORITHM_LEVEL_NAMES = ['没学', '不会', '不熟', '熟练'];
 export const ALGORITHM_LEVELS = ALGORITHM_LEVEL_NAMES.map((name, value) => ({ value, name }));
 export const ALGORITHM_MAX_LEVEL = ALGORITHM_LEVEL_NAMES.length - 1;
 
