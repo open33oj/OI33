@@ -4,6 +4,7 @@
 {% import "components/user.html" as user with context %}
 {% import "components/meow_post.html" as spost with context %}
 {% import "partials/oi33_algorithm.html" as alg with context %}
+{% import "partials/oi33_profile.html" as profile with context %}
 {% extends "layout/basic.html" %}
 {%- macro atcolor(r) -%}{% if r >= 2800 %}#FF0000{% elif r >= 2400 %}#FF8000{% elif r >= 2000 %}#C0C000{% elif r >= 1600 %}#0000FF{% elif r >= 1200 %}#00C0C0{% elif r >= 800 %}#008000{% elif r >= 400 %}#804000{% else %}#808080{% endif %}{%- endmacro -%}
 {%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
@@ -40,9 +41,63 @@
   .page--user_detail .profile-header__main .button:hover,
   .page--user_detail .profile-header__main .button:active { text-decoration: none; }
   .page--user_detail .profile-header__main .user-profile-badge { text-shadow: none; }
+  {# 依次排列的资料卡片：留出卡片间距，不再拼成一张大卡。 #}
+  .page--user_detail .oi33-user-main > .section { margin-bottom: 1rem; }
+  .page--user_detail .oi33-user-main > .section:last-child { margin-bottom: 1rem; }
+  .oi33-showcase-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; }
+  .oi33-showcase-badge {
+    display:flex; flex-direction:column; align-items:center; min-width:0;
+    padding:.8rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
+  }
+  .oi33-showcase-pixel {
+    width:64px; height:64px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .oi33-showcase-name {
+    margin-top:.5rem; font-size:.85rem; max-width:100%;
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+  }
+  .oi33-medal-list { list-style:none; margin:0; padding:0; }
+  .oi33-medal-list__row {
+    display:flex; align-items:baseline; gap:.6rem; padding:.25rem 0; min-width:0;
+    border-bottom:1px dashed rgba(127,127,127,.15);
+  }
+  .oi33-medal-list__row:last-child { border-bottom:none; }
+  .oi33-medal-list__icon {
+    width:1em; height:1em; flex:0 0 1em; align-self:center; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .oi33-medal-list__name { flex:0 0 auto; font-weight:600; }
+  .oi33-medal-list__tag {
+    flex:0 0 auto; font-size:.72em; padding:.05rem .45rem; border-radius:999px;
+    border:1px solid rgba(127,127,127,.4); color:#777;
+  }
+  .oi33-medal-list__tag--oj { border-color:#4c8bf5; color:#3a6fd0; }
+  .oi33-medal-list__tag--saleable { border-color:#d99b2b; color:#a8761a; }
+  .oi33-medal-list__tag--certification { border-color:#2fa36b; color:#1f7d50; }
+  .oi33-medal-list__desc {
+    flex:1 1 auto; min-width:0; color:#777; font-size:.85em;
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+  }
+  .oi33-medal-empty { color:#777; font-size:.85em; }
+  .oi33-bio-hint { color:#777; font-size:.85em; margin:0; }
+  .oi33-meow-panelbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+  .oi33-meow-panelbar form { margin: 0; }
+  .theme--dark .oi33-bio-hint,
+  [data-mantine-color-scheme=dark] .oi33-bio-hint { color:#aaa; }
+  .theme--dark .oi33-medal-list__desc,
+  [data-mantine-color-scheme=dark] .oi33-medal-list__desc { color:#aaa; }
+  .theme--dark .oi33-medal-list__tag,
+  [data-mantine-color-scheme=dark] .oi33-medal-list__tag { color:#bbb; }
+  .theme--dark .oi33-medal-empty,
+  [data-mantine-color-scheme=dark] .oi33-medal-empty { color:#aaa; }
+  @media (max-width:500px) {
+    .oi33-showcase-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
 </style>
 <div class="row">
-  <div class="medium-9 columns oi33-user-main">
+  {# ---------- 主列：依次排列的资料卡片 ---------- #}
+  <div class="medium-8 columns oi33-user-main">
     <div class="section">
       <div class="profile-header user-profile-bg">
         <div class="profile-header__content">
@@ -183,17 +238,59 @@
         </div>
       </div>
     </div>
-    {% if oi33MedalPanel %}
-    <div class="section oi33-medals">
+
+    {% if not _profileHidden %}
+    {# 1. 个人简介：默认折叠成固定高度 #}
+    {{ profile.bioCard(udoc, isSelfProfile) }}
+
+    {# 2. 喵喵：最近若干条预览 #}
+    {% if oi33MeowPanel %}
+    <div class="section oi33-profile-section" id="oi33-meow">
       <div class="section__header">
-        <h2 class="section__title">奖章展示柜</h2>
-        <div class="section__tools">
-          {% if oi33MedalPanel.isSelf %}
-          <a href="{{ url('oi33_medal_showcase') }}" class="rounded button">编辑展示柜</a>
+        <h2 class="section__title">喵喵</h2>
+        <div class="section__tools oi33-profile-section__tools">
+          {% if not oi33MeowPanel.isSelf and handler.user._id %}
+            {% if oi33MeowPanel.viewerFollows %}
+            <form method="post" action="{{ url('oi33_meow_unfollow', uid=udoc._id) }}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <button type="submit" class="rounded button">{{ _('Unfollow') }}</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url('oi33_meow_follow', uid=udoc._id) }}">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <button type="submit" class="rounded primary button">{{ _('Follow') }}</button>
+            </form>
+            {% endif %}
           {% endif %}
-          {% if oi33MedalPanel.canManage %}
-          <a href="{{ url('oi33_medal_manage', query={uid:udoc._id}) }}" class="rounded button">管理奖章</a>
+          <a class="rounded button" href="{{ url('oi33_meow_user', uid=udoc._id) }}">查看全部</a>
+        </div>
+      </div>
+      <div class="section__body typo no-media">
+        {% if oi33MeowPanel.posts.length %}
+          {% for p in oi33MeowPanel.posts.slice(0, 4) %}
+            {{ spost.render(p, oi33MeowPanel.udict, oi33MeowPanel.likedMap, oi33MeowPanel.isSelf, false, true) }}
+          {% endfor %}
+          {% if oi33MeowPanel.posts.length > 4 %}
+          <p><a href="{{ url('oi33_meow_user', uid=udoc._id) }}">查看全部喵喵 →</a></p>
           {% endif %}
+        {% elif not oi33MeowPanel.canSeePosts %}
+          <p>{{ _('Meow posts hidden') }}</p>
+        {% else %}
+          <p>{{ _('No meow posts yet.') }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# 3. 奖章：展示柜 + 最近获得 #}
+    {% if oi33MedalPanel %}
+    <div class="section oi33-profile-section" id="oi33-medal">
+      <div class="section__header">
+        <h2 class="section__title">奖章</h2>
+        <div class="section__tools oi33-profile-section__tools">
+          <a class="rounded button" href="{{ url('oi33_medal_user', uid=udoc._id) }}">全部奖章</a>
+          {% if oi33MedalPanel.isSelf %}<a class="rounded button" href="{{ url('oi33_medal_showcase') }}">编辑展示柜</a>{% endif %}
+          {% if oi33MedalPanel.canManage %}<a class="rounded button" href="{{ url('oi33_medal_manage', query={uid:udoc._id}) }}">管理奖章</a>{% endif %}
         </div>
       </div>
       <div class="section__body">
@@ -212,135 +309,89 @@
         {% else %}
         <p class="oi33-medal-empty">TA 还没有布置奖章展示柜。</p>
         {% endif %}
+
+        {% if oi33MedalPanel.awards.length %}
+        <ul class="oi33-medal-list" style="margin-top:1rem;">
+          {% for award in oi33MedalPanel.awards.slice(0, 8) %}
+          <li class="oi33-medal-list__row">
+            <img class="oi33-medal-list__icon" src="{{ award.view.imageData }}" alt="{{ award.view.name }}">
+            <span class="oi33-medal-list__name">{{ award.view.name }}</span>
+            <span class="oi33-medal-list__tag oi33-medal-list__tag--{{ award.view.category }}">{{ award.view.categoryName }}</span>
+            <span class="oi33-medal-list__desc" title="{{ award.view.description }}">{{ award.view.description }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% if oi33MedalPanel.awards.length > 8 %}
+        <p><a href="{{ url('oi33_medal_user', uid=udoc._id) }}">查看全部 {{ oi33MedalPanel.awards.length }} 枚奖章 →</a></p>
+        {% endif %}
+        {% else %}
+        <p class="oi33-medal-empty" style="margin-top:1rem;">还没有获得奖章。</p>
+        {% endif %}
       </div>
     </div>
     {% endif %}
-    {% if not _profileHidden %}
-    <div class="section">
-      <div class="profile-content">
-        <div class="section__tab-container immersive">
-          <ul class="section__tabs">
-            {% set _udmods = findSubModule('partials/user_detail/') %}
-            <li class="section__tab-item">
-              <h1 class="section__tab-title">{{ _('Bio') }}</h1>
-              <div class="section__tab-main">
-                <div class="typo section__body richmedia">
-                  {% if udoc.bio_visible and udoc.bio %}
-                    {{ udoc.bio|markdown|safe }}
-                  {% elif isSelfProfile and udoc.bio_hidden_pending %}
-                    <p class="oi33-bio-hint">你的个人简介正在审核中或未通过审核，审核通过后才会公开展示。可在<a href="{{ url('home_settings', category='account') }}">账号设置</a>中修改（两次修改间隔 2 小时）。</p>
-                  {% else %}
-                    <p class="oi33-bio-hint">这个人很懒，什么都没有写。</p>
-                  {% endif %}
-                </div>
-              </div>
-            </li>
-            {% if oi33MeowPanel %}
-            <li class="section__tab-item">
-              <h1 class="section__tab-title">喵喵</h1>
-              <div class="section__tab-main">
-                <div class="typo section__body no-media">
-                  <div class="oi33-meow-panelbar">
-                    {% if not oi33MeowPanel.isSelf and handler.user._id %}
-                      {% if oi33MeowPanel.viewerFollows %}
-                      <form method="post" action="{{ url('oi33_meow_unfollow', uid=udoc._id) }}" style="display:inline;">
-                        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                        <button type="submit" class="rounded button">{{ _('Unfollow') }}</button>
-                      </form>
-                      {% else %}
-                      <form method="post" action="{{ url('oi33_meow_follow', uid=udoc._id) }}" style="display:inline;">
-                        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                        <button type="submit" class="rounded primary button">{{ _('Follow') }}</button>
-                      </form>
-                      {% endif %}
-                    {% endif %}
-                    <a href="{{ url('oi33_meow_user', uid=udoc._id) }}" class="rounded button" style="margin-left:auto;">进入喵喵</a>
-                  </div>
-                  {% if oi33MeowPanel.posts.length %}
-                    {% for p in oi33MeowPanel.posts %}
-                      {{ spost.render(p, oi33MeowPanel.udict, oi33MeowPanel.likedMap, oi33MeowPanel.isSelf, false, true) }}
-                    {% endfor %}
-                  {% elif not oi33MeowPanel.canSeePosts %}
-                    <p>{{ _('Meow posts hidden') }}</p>
-                  {% else %}
-                    <p>{{ _('No meow posts yet.') }}</p>
-                  {% endif %}
-                </div>
-              </div>
-            </li>
-            {% endif %}
-            {% if oi33MedalPanel %}
-            <li class="section__tab-item">
-              <h1 class="section__tab-title">奖章（{{ oi33MedalPanel.awards.length }}）</h1>
-              <div class="section__tab-main">
-                <div class="typo section__body no-media">
-                  {% if oi33MedalPanel.awards.length %}
-                  <ul class="oi33-medal-list">
-                    {% for award in oi33MedalPanel.awards.slice(0, 50) %}
-                    <li class="oi33-medal-list__row">
-                      <img class="oi33-medal-list__icon" src="{{ award.view.imageData }}"
-                        alt="{{ award.view.name }}">
-                      <span class="oi33-medal-list__name">{{ award.view.name }}</span>
-                      <span class="oi33-medal-list__tag oi33-medal-list__tag--{{ award.view.category }}">{{ award.view.categoryName }}</span>
-                      <span class="oi33-medal-list__desc"
-                        title="{{ award.view.description }}">{{ award.view.description }}</span>
-                    </li>
-                    {% endfor %}
-                  </ul>
-                  {% if oi33MedalPanel.awards.length > 50 %}
-                  <p><a href="{{ url('oi33_medal_user', uid=udoc._id) }}">查看所有奖章（共 {{ oi33MedalPanel.awards.length }} 个）</a></p>
-                  {% endif %}
-                  {% else %}
-                  <p>还没有获得奖章。</p>
-                  {% endif %}
-                </div>
-              </div>
-            </li>
-            {% endif %}
-            {% if oi33AlgorithmPanel %}
-            <li class="section__tab-item">
-              <h1 class="section__tab-title">算法掌握</h1>
-              <div class="section__tab-main">
-                <div class="typo section__body no-media">
-                  {{ alg.panel(oi33AlgorithmPanel, udoc) }}
-                </div>
-              </div>
-            </li>
-            {% endif %}
-            {% for page in _udmods %}{% if 'activity.html' in page %}{% include page %}{% endif %}{% endfor %}
-            {% if pdocs.length %}
-            <li class="section__tab-item">
-              <h1 class="section__tab-title">{{ _('Accepted Problems') }}</h1>
-              <div class="section__tab-main">
-                <div class="typo section__body no-media">
-                  {% set _mark = Math.ceil(pdocs.length/4) %}
-                  {% macro col(pdocs) %}
-                  <div class="medium-3 columns">
-                    <ul>
-                      {% for pdoc in pdocs %}
-                      <li>{{ problem.render_problem_title(pdoc, show_tags=false, small=true) }}</li>
-                      {% endfor %}
-                    </ul>
-                  </div>
-                  {% endmacro %}
-                  <div class="row">
-                    {{ col(pdocs.slice(0, _mark)) }}
-                    {{ col(pdocs.slice(_mark, _mark*2)) }}
-                    {{ col(pdocs.slice(_mark*2, _mark*3)) }}
-                    {{ col(pdocs.slice(_mark*3)) }}
-                  </div>
-                </div>
-              </div>
-            </li>
-            {% endif %}
-            {% for page in _udmods %}{% if 'solution.html' in page %}{% include page %}{% endif %}{% endfor %}
-          </ul>
+
+    {# 4. 算法掌握：掌握度总览 + 独立页入口 #}
+    {% if oi33AlgorithmPanel %}
+    <div class="section oi33-profile-section" id="oi33-algorithm">
+      <div class="section__header">
+        <h2 class="section__title">算法掌握</h2>
+        <div class="section__tools oi33-profile-section__tools">
+          <a class="rounded button" href="{{ url('oi33_algorithm_user', uid=udoc._id) }}">查看详情</a>
+          {% if oi33AlgorithmPanel.canEdit %}<a class="rounded primary button" href="{{ url('oi33_algorithm_edit', uid=udoc._id) }}">去评定</a>{% endif %}
         </div>
       </div>
-    </div>{% endif %}
+      <div class="section__body typo no-media">
+        {% if oi33AlgorithmPanel.total %}
+          {{ alg.summaryStats(oi33AlgorithmPanel) }}
+        {% else %}
+          <p class="oi33-medal-empty">还没有配置算法项目。</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# 5. 通过题目 #}
+    {% if pdocs.length %}
+    <div class="section oi33-profile-section" id="oi33-problems">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('Accepted Problems') }}</h2>
+      </div>
+      <div class="section__body">
+        <div class="typo no-media">
+          {% set _mark = Math.ceil(pdocs.length/4) %}
+          {% macro col(pdocs) %}
+          <div class="medium-3 columns">
+            <ul>
+              {% for pdoc in pdocs %}
+              <li>{{ problem.render_problem_title(pdoc, show_tags=false, small=true) }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endmacro %}
+          <div class="row">
+            {{ col(pdocs.slice(0, _mark)) }}
+            {{ col(pdocs.slice(_mark, _mark*2)) }}
+            {{ col(pdocs.slice(_mark*2, _mark*3)) }}
+            {{ col(pdocs.slice(_mark*3)) }}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# 6. 内核「最近动态 / 最近题解」等模块：去掉标签页外壳，依次堆叠成卡片 #}
+    {% set _udmods = findSubModule('partials/user_detail/') %}
+    <div id="oi33-modules">
+      <ul class="oi33-modules">
+        {% for page in _udmods %}{% include page %}{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# 7. 注册信息（管理员） #}
     {% if (handler.user.realname_flag or 0) >= 2 %}
-    {# 管理员可见的注册信息（包括未认证用户），用于识别小号。IP 可点击反查同 IP 账号。 #}
-    <div class="section">
+    <div class="section oi33-profile-section">
       <div class="section__header">
         <h2 class="section__title">注册信息</h2>
         <div class="section__tools">
@@ -356,15 +407,23 @@
           <dt>最近登录</dt>
           <dd>{% if udoc.loginat %}{{ datetimeSpan(udoc.loginat)|safe }}{% else %}-{% endif %}</dd>
           <dt>最近 IP</dt>
-          <dd>{% if udoc.loginip %}<a href="{{ url('oi33_admin_ip', query={ip: udoc.loginip}) }}">{{ udoc.loginip }}</a>{% else %}-{% endif %}</dd>
+          {# The template receives a Hydro User instance, where the login IP lives
+             on `_loginip` (raw docs use `loginip`); keep both for safety. #}
+          <dd>{% set _loginip = udoc._loginip or udoc.loginip %}{% if _loginip %}<a href="{{ url('oi33_admin_ip', query={ip: _loginip}) }}">{{ _loginip }}</a>{% else %}-{% endif %}</dd>
           <dt>所有 IP</dt>
-          <dd>{% for item in udoc.ip or [] %}<a href="{{ url('oi33_admin_ip', query={ip: item}) }}">{{ item }}</a>{{ ' ' }}{% else %}-{% endfor %}</dd>
+          {# All IPs are the raw `ip` array; the User instance keeps it on `_udoc`. #}
+          <dd>{% set _ips = (udoc._udoc.ip if udoc._udoc else udoc.ip) or [] %}{% for item in _ips %}<a href="{{ url('oi33_admin_ip', query={ip: item}) }}">{{ item }}</a>{{ ' ' }}{% else %}-{% endfor %}</dd>
         </dl>
       </div>
     </div>
     {% endif %}
   </div>
-  <div class="medium-3 columns">
+
+  {# ---------- 侧边栏：头像卡片 + 快捷跳转 + 小猫 + 统计 ---------- #}
+  <div class="medium-4 columns">
+    {{ profile.userCard(udoc, isSelfProfile) }}
+    {{ profile.quickNav(udoc, isSelfProfile) }}
+
     <div class="section side oi33-cat-card">
       <div class="section__header">
         <h2 class="section__title">{% if isSelfProfile %}我的小猫{% else %}TA 的小猫{% endif %}</h2>
@@ -411,35 +470,8 @@
         <noscript><p class="oi33-cat-noscript">启用 JavaScript 后，小猫就会在这里散步。</p></noscript>
       </div>
     </div>
-    {% if not _profileHidden %}
-    {% if isSelfProfile %}
-    {{ home.render_sidebar() }}
-    {% endif %}
-    <div class="section side">
-      <div class="section__body">
-        <div class="balancer sidebar-user-stat">
-          <div class="balancer__body">
-            <div class="numbox">
-              <div class="numbox__num medium">{{ udoc.nSubmit or 0 }}</div>
-              <div class="numbox__text">{{ _('Submitted') }}</div>
-            </div>
-          </div>
-          <div class="balancer__body">
-            <div class="numbox">
-              <div class="numbox__num medium">{{ udoc.nAccept or 0 }}</div>
-              <div class="numbox__text">{{ _('Accepted') }}</div>
-            </div>
-          </div>
-          <div class="balancer__body">
-            <div class="numbox">
-              <div class="numbox__num medium">{{ udoc.nLike or 0 }}</div>
-              <div class="numbox__text">{{ _('Solutions Liked') }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    {% if tags.length %}
+
+    {% if tags.length and not _profileHidden %}
     <div class="section side">
       <div class="section__header">
         <h2 class="section__title">{{ _('Problem Tags') }}</h2>
@@ -454,115 +486,14 @@
       </div>
     </div>
     {% endif %}
+
+    {% if isSelfProfile and not _profileHidden %}
+    {{ home.render_sidebar() }}
     {% endif %}
   </div>
 </div>
 {% include 'partials/meow_style.html' %}
 {% if oi33AlgorithmPanel %}{{ alg.style() }}{% endif %}
-<style>
-  .oi33-meow-panelbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
-  .oi33-meow-panelbar form { margin: 0; }
-  .oi33-meow-paneltitle { margin: 1.25rem 0 0.5rem !important; font-size: 1.05em; }
-  .oi33-meow-panellist__row { padding: 0.3rem 0; }
-  .oi33-showcase-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; }
-  .oi33-showcase-badge {
-    display:flex; flex-direction:column; align-items:center; min-width:0;
-    padding:.8rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
-  }
-  .oi33-showcase-pixel {
-    width:64px; height:64px; object-fit:fill;
-    image-rendering:crisp-edges; image-rendering:pixelated;
-  }
-  .oi33-showcase-name {
-    margin-top:.5rem; font-size:.85rem; max-width:100%;
-    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
-  }
-  .oi33-medal-list { list-style:none; margin:0; padding:0; }
-  .oi33-medal-list__row {
-    display:flex; align-items:baseline; gap:.6rem; padding:.25rem 0; min-width:0;
-    border-bottom:1px dashed rgba(127,127,127,.15);
-  }
-  .oi33-medal-list__row:last-child { border-bottom:none; }
-  .oi33-medal-list__icon {
-    width:1em; height:1em; flex:0 0 1em; align-self:center; object-fit:fill;
-    image-rendering:crisp-edges; image-rendering:pixelated;
-  }
-  .oi33-medal-list__name { flex:0 0 auto; font-weight:600; }
-  .oi33-medal-list__tag {
-    flex:0 0 auto; font-size:.72em; padding:.05rem .45rem; border-radius:999px;
-    border:1px solid rgba(127,127,127,.4); color:#777;
-  }
-  .oi33-medal-list__tag--oj { border-color:#4c8bf5; color:#3a6fd0; }
-  .oi33-medal-list__tag--saleable { border-color:#d99b2b; color:#a8761a; }
-  .oi33-medal-list__tag--certification { border-color:#2fa36b; color:#1f7d50; }
-  .oi33-medal-list__desc {
-    flex:1 1 auto; min-width:0; color:#777; font-size:.85em;
-    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
-  }
-  .oi33-medal-empty { color:#777; font-size:.85em; }
-  .oi33-bio-hint { color:#777; font-size:.85em; margin:0; }
-  .theme--dark .oi33-bio-hint,
-  [data-mantine-color-scheme=dark] .oi33-bio-hint { color:#aaa; }
-  .theme--dark .oi33-medal-list__desc,
-  [data-mantine-color-scheme=dark] .oi33-medal-list__desc { color:#aaa; }
-  .theme--dark .oi33-medal-list__tag,
-  [data-mantine-color-scheme=dark] .oi33-medal-list__tag { color:#bbb; }
-  .theme--dark .oi33-medal-empty,
-  [data-mantine-color-scheme=dark] .oi33-medal-empty { color:#aaa; }
-  /* The tab panel is its own section now (no profile-header image behind it):
-     undo the stock negative margin that used to pull the tabs up over the
-     profile header image, and give the immersive strip a real bar. */
-  .page--user_detail .profile-content { margin-top: 0; }
-  .page--user_detail .profile-content .section__tabs { padding-top: 0; }
-  .page--user_detail .profile-content .section__tab-header-wrapper {
-    background: #f7f7f7;
-    border-bottom: 1px solid #e8e8e8;
-  }
-  /* Join the main-column sections (profile header / showcase / tab panel)
-     into one continuous card. */
-  .page--user_detail .oi33-user-main > .section { margin-bottom: 0; }
-  .page--user_detail .oi33-user-main > .section:last-child { margin-bottom: 20px; }
-  @media (max-width: 760px) {
-    .page--user_detail .oi33-user-main > .section:last-child { margin-bottom: 10px; }
-  }
-  .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item {
-    color: #777;
-  }
-  .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item:hover {
-    color: #333;
-  }
-  .page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item.selected {
-    background: #fff;
-    color: #333;
-    box-shadow: none;
-    border: 1px solid #e8e8e8;
-    border-bottom-color: #fff;
-    border-radius: 6px 6px 0 0;
-  }
-  .theme--dark.page--user_detail .profile-content .section__tab-header-wrapper,
-  [data-mantine-color-scheme=dark].page--user_detail .profile-content .section__tab-header-wrapper {
-    background: #1e1e1e;
-    border-bottom-color: #2b2b2b;
-  }
-  .theme--dark.page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item,
-  [data-mantine-color-scheme=dark].page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item {
-    color: #bdbdbd;
-  }
-  .theme--dark.page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item:hover,
-  [data-mantine-color-scheme=dark].page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item:hover {
-    color: #eee;
-    background-color: #171717;
-  }
-  .theme--dark.page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item.selected,
-  [data-mantine-color-scheme=dark].page--user_detail .profile-content .section__tab-container.immersive .section__tab-header-item.selected {
-    background: #323334;
-    color: #eee;
-    box-shadow: none;
-    border-color: #2b2b2b;
-    border-bottom-color: #323334;
-  }
-  @media (max-width:500px) {
-    .oi33-showcase-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  }
-</style>
+{{ profile.style() }}
+{{ profile.bioScript() }}
 {% endblock %}

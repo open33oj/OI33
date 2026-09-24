@@ -1,8 +1,9 @@
 {% set page_name = "oi33_medal_user" %}
 {% extends "layout/basic.html" %}
+{% import "partials/oi33_profile.html" as profile with context %}
 {% block content %}
 <div class="row">
-  <div class="medium-12 columns">
+  <div class="medium-8 columns">
     <div class="section">
       <div class="section__header">
         <h1 class="section__title">{{ udoc.uname }} 的全部奖章（{{ awards.length }}）</h1>
@@ -59,6 +60,10 @@
       </div>
     </div>
   </div>
+  <div class="medium-4 columns">
+    {{ profile.userCard(udoc, udoc._id == handler.user._id) }}
+    {{ profile.quickNav(udoc, udoc._id == handler.user._id) }}
+  </div>
 </div>
 <style>
   .medal-list { list-style:none; margin:0; padding:0; }
@@ -99,4 +104,5 @@
   [data-mantine-color-scheme=dark] .medal-list__time,
   [data-mantine-color-scheme=dark] .medal-list-empty { color:#aaa; }
 </style>
+{{ profile.style() }}
 {% endblock %}

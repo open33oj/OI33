@@ -244,6 +244,20 @@ curl -H "Authorization: Bearer 33tok_xxx" \
 
 > 奖章目录与用户奖章列表均为只读视图，已加入 Token 白名单：`/oi33/medals/catalogue` 精确匹配，`/oi33/medals/user/:uid` 前缀匹配（见 §4.3）。奖章的管理路由（`/oi33/medals/grant`、`/oi33/medals/revoke`、`/oi33/medals/level`、`/oi33/medals/save`、`/oi33/medals/:id/delete`、`/oi33/medals/scan`、`/oi33/medals/config`、`/oi33/medals/export`、`/oi33/medals/import`）**不可**通过 Token 访问。
 
+### 2.10 算法掌握（Algorithm）
+
+| 端点 | 说明 | 权限 |
+|------|------|------|
+| `GET /oi33/algorithm/user/:uid?noTemplate=1` | 某用户的算法掌握面板：`panel` 含总体统计、按级别 / 难度系数进度，以及「级别 → 板块 → 子板块」分组与每个知识点的掌握档位；另有 `udoc` / `uid` / `viewerFlag` | 只读视图；仅**本人**或 **OI33 身份 ≥ 2 的老师**的令牌能看到数据，其他令牌返回 403 |
+
+```bash
+# 自己的算法掌握面板（Token 所属用户）
+curl -H "Authorization: Bearer 33tok_xxx" \
+     "https://oj-domain/oi33/algorithm/user/2?noTemplate=1"
+```
+
+> `/oi33/algorithm/user/:uid` 已加入 Token 白名单（精确一层，见 §4.3）；评定页 `/oi33/algorithm/user/:uid/edit` 与写接口 `/oi33/algorithm/set`、`/oi33/algorithm/manage*` **不可**通过 Token 访问。数据权限仍由页面自己判断：只有本人或 flag≥2 老师可见自身/他人面板。
+
 ---
 
 ## 三、Token 管理 API
@@ -312,6 +326,8 @@ const READONLY_ROUTE_PATTERNS = [
     // 奖章目录 / 用户奖章列表为只读视图
     /^\/oi33\/medals\/catalogue$/,
     /^\/oi33\/medals\/user\//,
+    // 算法掌握展示页为只读视图（仅本人或 flag≥2 老师的令牌可见）
+    /^\/oi33\/algorithm\/user\/[^/]+$/,
     /^\/oi33\/admin(\/|$)/,
     /^\/oi33\/requests(\/|$)/,
     /^\/oi33\/tokens(\/|$)/,
@@ -344,6 +360,7 @@ if (!READONLY_ROUTE_PATTERNS.some((re) => re.test(h.request.path))) {
 | `/oi33/cat-food/bill/*` | ✅ 允许 | 猫粮奖励明细（自己或管理员） |
 | `/oi33/medals/catalogue` | ✅ 允许 | 公开奖章目录（精确匹配） |
 | `/oi33/medals/user/*` | ✅ 允许 | 某用户的奖章列表（前缀匹配） |
+| `/oi33/algorithm/user/:uid` | ✅ 允许 | 某用户的算法掌握面板（仅本人或 flag≥2 老师的令牌可见；`/:uid/edit` 评定页不在白名单） |
 | `/oi33/admin`, `/oi33/requests` | ✅ 允许 | 管理/审批页（仍需对应页面权限） |
 | `/oi33/tokens` | ✅ 允许 | Token 列表 |
 | `/oi33/checkin` | ❌ 禁止 | POST 会写入签到记录 |

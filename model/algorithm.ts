@@ -312,12 +312,29 @@ export interface AlgorithmStats {
     score: number;
 }
 
+export interface AlgorithmSubsectionGroup extends AlgorithmGroupedSubsection<AlgorithmItemView> {
+    stats: AlgorithmStats;
+}
+export interface AlgorithmSectionGroup extends AlgorithmGroupedSection<AlgorithmItemView> {
+    stats: AlgorithmStats;
+    subsections: AlgorithmSubsectionGroup[];
+}
 export interface AlgorithmLevelGroup extends AlgorithmGroupedLevel<AlgorithmItemView> {
     stats: AlgorithmStats;
+    sections: AlgorithmSectionGroup[];
+}
+
+// One progress row per NOI outline difficulty coefficient (1-10); 0 collects
+// the items the outline left unmarked. Only non-empty buckets are emitted.
+export interface AlgorithmDifficultyStat extends AlgorithmStats {
+    value: number;
+    name: string;
 }
 
 export interface AlgorithmProfilePanel {
     groups: AlgorithmLevelGroup[];
+    // Per-difficulty progress, alongside the per-level (入门/提高/NOI) one.
+    difficulties: AlgorithmDifficultyStat[];
     stats: AlgorithmStats;
     levels: Array<{ value: number; name: string }>;
     maxLevel: number;
@@ -425,12 +442,42 @@ export async function algorithmProfileView(
             ratedBy: record?.updatedBy ?? null,
         };
     });
+    // Every level also carries per-section and per-subsection stats so the
+    // display page can show progress on each collapsible heading.
     const groups: AlgorithmLevelGroup[] = algorithmGroupItems(views).map((group) => ({
         ...group,
-        stats: algorithmComputeStats(views.filter((view) => view.levelId === group.id)),
+        stats: algorithmComputeStats(group.sections.flatMap(
+            (section) => section.items.concat(...section.subsections.map((sub) => sub.items)),
+        )),
+        sections: group.sections.map((section) => ({
+            ...section,
+            stats: algorithmComputeStats(
+                section.items.concat(...section.subsections.map((sub) => sub.items)),
+            ),
+            subsections: section.subsections.map((subsection) => ({
+                ...subsection,
+                stats: algorithmComputeStats(subsection.items),
+            })),
+        })),
     }));
+    const difficultyBuckets = new Map<number, AlgorithmItemView[]>();
+    for (const view of views) {
+        const difficulty = normalizeDifficulty(view.difficulty);
+        const bucket = difficultyBuckets.get(difficulty);
+        if (bucket) bucket.push(view);
+        else difficultyBuckets.set(difficulty, [view]);
+    }
+    const difficulties: AlgorithmDifficultyStat[] = [...difficultyBuckets.entries()]
+        // 未标注 (0) sorts after the numbered coefficients, which stay ascending.
+        .sort((a, b) => (a[0] || ALGORITHM_MAX_DIFFICULTY + 1) - (b[0] || ALGORITHM_MAX_DIFFICULTY + 1))
+        .map(([value, bucket]) => ({
+            value,
+            name: value >= 1 ? `难度 ${value}` : '未标注',
+            ...algorithmComputeStats(bucket),
+        }));
     return {
         groups,
+        difficulties,
         stats: algorithmComputeStats(views),
         levels: ALGORITHM_LEVELS,
         maxLevel: ALGORITHM_MAX_LEVEL,

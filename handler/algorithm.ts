@@ -82,6 +82,7 @@ class AlgorithmIndexHandler extends Handler {
 }
 
 class AlgorithmUserHandler extends Handler {
+    // 展示页：只读、好看，按级别/板块/子板块逐层折叠 + 知识点标签云。
     @param('uid', Types.Int)
     async get(domainId: string, uid: number) {
         const udoc = await UserModel.getById(domainId, uid);
@@ -89,6 +90,24 @@ class AlgorithmUserHandler extends Handler {
         const { viewerUid, viewerFlag, isSelf, isTeacher } = await resolveViewer(this, uid);
         if (!isSelf && !isTeacher) throw new ForbiddenError('算法掌握面板仅本人和老师可见。');
         this.response.template = 'oi33_algorithm_user.html';
+        this.response.body = {
+            udoc,
+            uid,
+            viewerFlag,
+            panel: await buildAlgorithmPanel(uid, viewerUid, viewerFlag),
+        };
+    }
+}
+
+// 评定页：每行一组单选框 + 按评价筛选，单独成页，提交后回展示页。
+class AlgorithmEditHandler extends Handler {
+    @param('uid', Types.Int)
+    async get(domainId: string, uid: number) {
+        const udoc = await UserModel.getById(domainId, uid);
+        if (!udoc) throw new NotFoundError(uid);
+        const { viewerUid, viewerFlag, isSelf, isTeacher } = await resolveViewer(this, uid);
+        if (!isSelf && !isTeacher) throw new ForbiddenError('算法掌握面板仅本人和老师可见。');
+        this.response.template = 'oi33_algorithm_edit.html';
         this.response.body = {
             udoc,
             uid,
@@ -328,6 +347,7 @@ function registerAlgorithmPanel(ctx: Context) {
 export async function apply(ctx: Context) {
     ctx.Route('oi33_algorithm', '/oi33/algorithm', AlgorithmIndexHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_algorithm_user', '/oi33/algorithm/user/:uid', AlgorithmUserHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_algorithm_edit', '/oi33/algorithm/user/:uid/edit', AlgorithmEditHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_algorithm_set', '/oi33/algorithm/set', AlgorithmSetHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_algorithm_reset_month', '/oi33/algorithm/reset-month', AlgorithmResetMonthHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_algorithm_manage', '/oi33/algorithm/manage', AlgorithmManageHandler, PRIV.PRIV_USER_PROFILE);

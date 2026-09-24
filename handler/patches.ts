@@ -399,6 +399,10 @@ export function applyPatches(_ctx: Context) {
         // Medal catalogue / per-user medal list are read-only views.
         /^\/oi33\/medals\/catalogue$/,
         /^\/oi33\/medals\/user\//,
+        // Algorithm mastery display page (self or flag>=2 teacher) is read-only.
+        // The `/edit` assessment page stays off the list: it is an editing UI,
+        // even though its GET only reads.
+        /^\/oi33\/algorithm\/user\/[^/]+$/,
         /^\/oi33\/admin(\/|$)/,
         /^\/oi33\/requests(\/|$)/,
         /^\/oi33\/tokens(\/|$)/,
