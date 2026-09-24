@@ -22,6 +22,13 @@ const PLAYER_BUCKET_SIZE = 16;
 const CAT_IDLE_FRAME_MS = 3200;
 const LABEL_BUCKET_WIDTH = 80;
 const LABEL_BUCKET_HEIGHT = 24;
+// 计划到点后超过这个时间还没看到视图变化，就拉一次计划状态（调度延迟 / 推送丢失）。
+const PLAN_SYNC_OVERDUE_MS = 2000;
+// 兜底同步的最小间隔，避免在调度器卡住时反复请求。
+const PLAN_SYNC_INTERVAL_MS = 3000;
+// 连续拿不到新视图多少次后转入慢速重试。
+const PLAN_SYNC_RETRY_LIMIT = 3;
+const PLAN_SYNC_BACKOFF_MS = 15000;
 
 interface MapPlayer {
     uid: number;
@@ -314,6 +321,7 @@ function mountMap() {
     const colorUrl = viewport.dataset.colorUrl || '/oi33/arena/color';
     const planUrl = viewport.dataset.planUrl || '/oi33/arena/plan';
     const planCancelUrl = viewport.dataset.planCancelUrl || '/oi33/arena/plan/cancel';
+    const planStateUrl = viewport.dataset.planStateUrl || '/oi33/arena/plan/state';
     const connectionUrl = viewport.dataset.connUrl || '/oi33/arena/conn';
     const loading = viewport.querySelector<HTMLElement>('.oi33-map-loading');
     const coordinate = document.querySelector<HTMLElement>('[data-map-coordinate]');
@@ -390,6 +398,10 @@ function mountMap() {
     let planPicking = false;
     let planStepTarget: { x: number; y: number } | null = null;
     const planDraft: { x: number; y: number; color: number }[] = [];
+    // 计划视图的兜底同步（WebSocket 推送丢失或服务端调度延迟时用）。
+    let planSyncing = false;
+    let planSyncedAt = 0;
+    let planSyncTries = 0;
     let clockOffset = 0;
     let renderDirty = true;
     let lastIdleFrame = -1;
@@ -587,7 +599,9 @@ function mountMap() {
             ? `冷却 ${String(Math.floor(totalSeconds / 3600)).padStart(2, '0')}:${String(Math.floor(totalSeconds / 60) % 60).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
             : '现在可操作';
         const freeColor = state.me.freeColorAvailable ? ' · 免冷却染色 1 次' : '';
-        const planned = activePlan() ? ` · 计划 ${activePlan()!.cursor}/${activePlan()!.steps.length} 步` : '';
+        // 剩余步数随执行推进，界面上的数字必须和画布上的圆圈数量一致。
+        const active = activePlan();
+        const planned = active ? ` · 计划剩余 ${active.steps.length - Math.min(active.cursor, active.steps.length)}/${active.steps.length} 步` : '';
         const text = `猫粮余额 ${state.me.food}g · 猫罐头余额 ${state.me.cans} 个 · ${cooldown}${freeColor}${planned}`;
         if (meStatus.textContent !== text) meStatus.textContent = text;
     };
@@ -832,6 +846,9 @@ function mountMap() {
         if (statusSecond !== lastStatusSecond) {
             lastStatusSecond = statusSecond;
             updateMeStatus();
+            // 计划推进只由服务端调度器执行：到点后若还没收到 WebSocket 推送，
+            // 拉一次计划视图，让圆圈在真正执行的几秒内消失（而不是等到推送才变）。
+            syncPlanState();
         }
         const idleFrame = Math.floor(now() / CAT_IDLE_FRAME_MS);
         const shouldDraw = renderDirty
@@ -953,6 +970,15 @@ function mountMap() {
     const planLimit = () => Math.max(1, Number(state.planMaxSteps) || 10);
     const planLabel = (x: number, y: number) => `（行 ${y}，列 ${x}）`;
 
+    // 尚未执行的步骤（光标本步之前都已走过）。画布圆圈与面板列表都只看这一段：
+    // 执行掉一步，它就立刻从界面上消失。
+    const planPending = () => {
+        const plan = activePlan();
+        return plan
+            ? plan.steps.slice(Math.max(0, Math.min(plan.cursor, plan.steps.length)))
+            : [];
+    };
+
     // 路径连续性的基准：接着运行中计划的最后一步（或有草稿时接草稿末步），
     // 否则从计划起点 / 小猫当前位置出发。
     const planBase = () => {
@@ -980,7 +1006,8 @@ function mountMap() {
             if (plan.cursor >= plan.steps.length) return `计划已完成（${plan.steps.length} 步）`;
             const remaining = plan.nextAt - now();
             const waiting = remaining > 0 ? `等待 ${formatPlanWait(remaining)}` : '即将执行';
-            return `计划 ${plan.cursor}/${plan.steps.length} 步 · ${waiting}第 ${plan.cursor + 1} 步`;
+            const left = plan.steps.length - plan.cursor;
+            return `剩余 ${left} 步 / 共 ${plan.steps.length} 步 · ${waiting}第 1 步`;
         }
         if (state.plan && state.plan.status === 'stopped') {
             return `上次计划已停止${state.plan.failReason ? `：${state.plan.failReason}` : ''}`;
@@ -992,16 +1019,18 @@ function mountMap() {
     const renderPlanPanel = () => {
         if (!planPanel) return;
         const plan = activePlan();
+        // 已执行的步骤不再占位：面板同样只列未来的步骤（从 #1 重新计数），
+        // 计数里仍保留「已规划总步数 / 上限」，因为上限是按总步数校验的。
+        const pending = planPending();
         const total = (plan ? plan.steps.length : 0) + planDraft.length;
         if (planStatus) planStatus.textContent = planStatusText();
         if (planCount) planCount.textContent = `${total} / ${planLimit()} 步`;
         if (planStepsList) {
             planStepsList.replaceChildren();
             const appendItem = (
-                index: number, x: number, y: number, color: number, options: { executed?: boolean; next?: boolean; draft?: boolean },
+                index: number, x: number, y: number, color: number, options: { next?: boolean; draft?: boolean },
             ) => {
                 const item = document.createElement('li');
-                if (options.executed) item.classList.add('is-executed');
                 if (options.next) item.classList.add('is-next');
                 if (options.draft) item.classList.add('is-draft');
                 const order = document.createElement('span');
@@ -1014,18 +1043,15 @@ function mountMap() {
                 text.textContent = `${planLabel(x, y)} 颜色码 ${color}`;
                 const note = document.createElement('span');
                 note.className = 'oi33-map-plan__note';
-                note.textContent = options.executed ? '已执行' : options.draft ? '待保存' : '等待执行';
+                note.textContent = options.draft ? '待保存' : '等待执行';
                 item.append(order, swatch, text, note);
                 planStepsList.append(item);
             };
-            if (plan) {
-                plan.steps.forEach((step, index) => appendItem(index, step.x, step.y, step.color, {
-                    executed: step.executed,
-                    next: !step.executed && index === plan.cursor,
-                }));
-            }
+            pending.forEach((step, index) => appendItem(index, step.x, step.y, step.color, {
+                next: index === 0,
+            }));
             planDraft.forEach((step, index) => appendItem(
-                (plan ? plan.steps.length : 0) + index, step.x, step.y, step.color, { draft: true },
+                pending.length + index, step.x, step.y, step.color, { draft: true },
             ));
             if (!plan && !planDraft.length) {
                 const empty = document.createElement('li');
@@ -1151,11 +1177,13 @@ function mountMap() {
         }
     };
 
-    // 计划叠加：不画任何连线，只在每个计划格上放一个编号圆圈——圆圈底色就是
-    // 该步的颜色码，编号用黑/白中更清楚的那个（深底白字、浅底黑字）。
+    // 计划叠加：不画任何连线，只在每个「尚未执行」的计划格上放一个编号圆圈——
+    // 圆圈底色就是该步的颜色码，编号用黑/白中更清楚的那个（深底白字、浅底黑字）。
+    // 圆圈只表示未来：已经走过的步骤会随光标本步推进立刻消失，剩下的圆圈重新从 1
+    // 编号；计划全部执行完（或已停止）时不画任何圆圈。草稿步骤接在剩余步骤之后。
     // 同一个格子只显示一个编号：路径允许折返，重复编号会互相覆盖。
     const drawPlanOverlay = (origin: { x: number; y: number }) => {
-        const plan = state.plan;
+        const pending = planPending();
         const points: Array<{ x: number; y: number; color: number; next: boolean; draft: boolean; label: number }> = [];
         const seen = new Set<string>();
         const push = (x: number, y: number, color: number, next: boolean, draft: boolean, label: number) => {
@@ -1166,13 +1194,11 @@ function mountMap() {
                 x, y, color, next, draft, label,
             });
         };
-        if (plan) {
-            plan.steps.forEach((step) => push(
-                step.x, step.y, step.color, !step.executed && step.index === plan.cursor, false, step.index + 1,
-            ));
-        }
+        pending.forEach((step, index) => push(
+            step.x, step.y, step.color, index === 0, false, index + 1,
+        ));
         planDraft.forEach((step, index) => push(
-            step.x, step.y, step.color, false, true, (plan ? plan.steps.length : 0) + index + 1,
+            step.x, step.y, step.color, false, true, pending.length + index + 1,
         ));
         if (!points.length) return;
         const radius = Math.max(6, Math.min(16, viewScale * .34));
@@ -1691,6 +1717,41 @@ function mountMap() {
         loading?.classList.add('is-hidden');
     };
 
+    // 路径规划的兜底实时性：计划只能由服务端推进，前端用两条路径保持圆圈准确——
+    // WebSocket 的 plan 推送（正常情况），以及「计划已到点但视图还没变」时拉取计划
+    // 状态（推送丢失或调度延迟）。两个请求都带 updatedAt，响应较旧时不会回退视图。
+    const syncPlanState = () => {
+        const plan = activePlan();
+        if (!plan || plan.cursor >= plan.steps.length) return;
+        // 没有 nextAt 的旧视图不值得兜底轮询（服务端下次调度会自行推进）。
+        if (!plan.nextAt || now() < plan.nextAt + PLAN_SYNC_OVERDUE_MS) return;
+        // 反复没拿到新视图（调度器停摆等）时退避，避免一直打服务端。
+        const interval = planSyncTries >= PLAN_SYNC_RETRY_LIMIT
+            ? PLAN_SYNC_BACKOFF_MS
+            : PLAN_SYNC_INTERVAL_MS;
+        if (planSyncing || Date.now() - planSyncedAt < interval) return;
+        planSyncing = true;
+        planSyncedAt = Date.now();
+        request.get(planStateUrl).then((response: any) => {
+            const incoming = response?.plan || null;
+            const current = state.plan;
+            // 只有更新的视图才能覆盖，避免迟到的响应把刚推进的计划画回去。
+            if (incoming && (!current || Number(incoming.updatedAt) >= Number(current.updatedAt))) {
+                if (typeof response.planMaxSteps === 'number') state.planMaxSteps = response.planMaxSteps;
+                applyPlanView(incoming);
+            }
+            // 拉到的还是同一步就继续按退避节奏重试，视图一变就恢复高频兜底。
+            planSyncTries = current && incoming && Number(incoming.updatedAt) === Number(current.updatedAt)
+                ? planSyncTries + 1
+                : 0;
+        }).catch(() => {
+            // 失败就等下一次到点再试，用户仍会在收到推送时看到正确的圆圈。
+            planSyncTries += 1;
+        }).finally(() => {
+            planSyncing = false;
+        });
+    };
+
     const socket = new Socket(connectionUrl);
     socket.on('open', () => {
         if (live) {
@@ -1736,7 +1797,12 @@ function mountMap() {
         }
         // 计划是私密数据：服务端只把 targetUid 的事件发给本人，这里再确认一次。
         if (payload.type === 'plan' && Number(payload.targetUid) === userId) {
-            applyPlanView(payload.plan || null);
+            const incoming = payload.plan || null;
+            const current = state.plan;
+            // 只接受不更旧的视图：兜底拉取与推送可能交错到达。
+            if (!incoming || !current || Number(incoming.updatedAt) >= Number(current.updatedAt)) {
+                applyPlanView(incoming);
+            }
             if (payload.stopped) {
                 Notification.error(`路径计划已停止：${payload.reason || '未知原因'}`);
             } else if (payload.step) {
