@@ -17,18 +17,25 @@
   font-size:.72em; padding:.05rem .45rem; border-radius:999px;
   border:1px solid rgba(127,127,127,.4); color:#777;
 }
-a.oi33-usercard__tag { text-decoration:none; }
-a.oi33-usercard__tag:hover { border-color:#4c8bf5; color:#3a6fd0; }
 .oi33-usercard__tag--su { border-color:#d63c3c; color:#d63c3c; font-weight:600; }
 .oi33-usercard__tag--mod { border-color:#4c8bf5; color:#3a6fd0; font-weight:600; }
 .oi33-usercard__stats { display:flex; margin:.8rem 0 0; padding-top:.65rem; border-top:1px solid rgba(127,127,127,.15); }
 .oi33-usercard__stat { flex:1 1 0; min-width:0; }
 .oi33-usercard__stat b { display:block; font-size:1.05rem; line-height:1.3; }
 .oi33-usercard__stat span { color:#888; font-size:.74em; }
-.oi33-usercard__actions { display:flex; flex-direction:column; gap:.4rem; margin-top:.8rem; }
+/* 第二行：AtCoder / Codeforces 主页 */
+.oi33-usercard__links { display:flex; justify-content:center; gap:.3rem; flex-wrap:wrap; margin:.45rem 0 0; }
+.oi33-usercard__links a {
+  font-size:.75em; padding:.05rem .45rem; border-radius:999px; text-decoration:none;
+  border:1px solid rgba(127,127,127,.4); color:#777;
+}
+.oi33-usercard__links a:hover { border-color:#4c8bf5; color:#3a6fd0; }
+.oi33-usercard__actions { display:flex; flex-direction:column; gap:.4rem; margin-top:.6rem; }
 .oi33-usercard__actions form { margin:0; }
 .oi33-usercard__actions .button { margin:0; width:100%; }
 
+/* 快捷跳转：直接嵌在头像卡片里 */
+.oi33-usercard .oi33-quicknav { margin-top:.85rem; text-align:left; }
 .oi33-quicknav { list-style:none; margin:0; padding:0; }
 .oi33-quicknav li { border-top:1px solid rgba(127,127,127,.12); }
 .oi33-quicknav li:first-child { border-top:none; }
@@ -39,6 +46,8 @@ a.oi33-usercard__tag:hover { border-color:#4c8bf5; color:#3a6fd0; }
 .oi33-quicknav a:hover { background:rgba(127,127,127,.09); }
 .oi33-quicknav a .icon { width:1.15em; text-align:center; color:#888; }
 .oi33-quicknav__count { margin-left:auto; color:#999; font-size:.82em; }
+.oi33-quicknav__divider { border-top:1px solid rgba(127,127,127,.3); margin:.3rem 0; }
+.oi33-quicknav__divider:first-child { border-top:none; }
 
 /* 个人简介：默认折叠成固定高度，超出才出现「展开全文」 */
 .oi33-bio { position:relative; }
@@ -79,15 +88,17 @@ a.oi33-usercard__tag:hover { border-color:#4c8bf5; color:#3a6fd0; }
 {%- endif -%}
 {% endmacro %}
 
-{# 侧边栏用户卡片：头像 + 身份 + 数据 + 操作。可用 {% call %} 追加按钮。 #}
+{# 侧边栏用户卡片：头像 + 身份 + AtCoder/Codeforces + 数据 + 快捷跳转 + 页面专属按钮。
+   快捷跳转不再单独成卡，直接接在头像卡下面。可用 {% call %} 追加按钮。 #}
 {% macro userCard(udoc, isSelf) %}
+{% set canManage = (handler.user.realname_flag or 0) >= 2 %}
 <div class="section side oi33-usercard">
   <div class="section__body">
     <img class="oi33-usercard__avatar" src="{{ avatarUrl(_avatar(udoc)|trim, 120) }}" alt="{{ _hidden(udoc)|trim }}">
     <div class="oi33-usercard__name">{{ _hidden(udoc)|trim }}</div>
     <div class="oi33-usercard__meta">
       UID {{ udoc._id }}
-      {% if udoc.realname_name and (handler.user.realname_flag or 0) >= 2 %} · [{{ udoc.realname_name }}]{% endif %}
+      {% if udoc.realname_name and canManage %} · [{{ udoc.realname_name }}]{% endif %}
     </div>
     <div class="oi33-usercard__badges">
       {% if not udoc.oi33_profile_hidden %}
@@ -100,64 +111,55 @@ a.oi33-usercard__tag:hover { border-color:#4c8bf5; color:#3a6fd0; }
         <span class="oi33-usercard__tag"
           style="background-color:#{{ _badge[1] }}{% if _badge[2] %};color:#{{ _badge[2] }}{% endif %}">{{ _badge[0] }}</span>
         {% endif %}
-        {% if udoc.atcoder %}
-        <a class="oi33-usercard__tag" href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener"
-          title="AtCoder">AtCoder {{ udoc.atcoder }}</a>
-        {% endif %}
-        {% if udoc.codeforces %}
-        <a class="oi33-usercard__tag" href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener"
-          title="Codeforces">Codeforces {{ udoc.codeforces }}</a>
-        {% endif %}
       {% endif %}
       {% if udoc.hasPriv(PRIV.PRIV_MOD_BADGE) %}<span class="oi33-usercard__tag oi33-usercard__tag--su">SU</span>
       {% elif udoc.hasPerm(perm.PERM_MOD_BADGE) %}<span class="oi33-usercard__tag oi33-usercard__tag--mod">MOD</span>{% endif %}
     </div>
+    {# 第二行：AtCoder / Codeforces 主页（有才显示） #}
+    {% set _atcoder = udoc.atcoder if not udoc.oi33_profile_hidden else false %}
+    {% set _codeforces = udoc.codeforces if not udoc.oi33_profile_hidden else false %}
+    {% if _atcoder or _codeforces %}
+    <div class="oi33-usercard__links">
+      {% if _atcoder %}
+      <a href="https://atcoder.jp/users/{{ _atcoder }}" target="_blank" rel="noopener" title="AtCoder 主页">AtCoder {{ _atcoder }}</a>
+      {% endif %}
+      {% if _codeforces %}
+      <a href="https://codeforces.com/profile/{{ _codeforces }}" target="_blank" rel="noopener" title="Codeforces 主页">Codeforces {{ _codeforces }}</a>
+      {% endif %}
+    </div>
+    {% endif %}
     <div class="oi33-usercard__stats">
       <div class="oi33-usercard__stat"><b>{{ udoc.nSubmit or 0 }}</b><span>{{ _('Submitted') }}</span></div>
       <div class="oi33-usercard__stat"><b>{{ udoc.nAccept or 0 }}</b><span>{{ _('Accepted') }}</span></div>
       <div class="oi33-usercard__stat"><b>{{ udoc.rp|default(0)|round(2) }}</b><span>RP</span></div>
     </div>
-    <div class="oi33-usercard__actions">
-      {% if isSelf %}
-      <a class="rounded button" href="{{ url('home_settings', category='account') }}"><span class="icon icon-edit"></span> {{ _('Edit Profile') }}</a>
-      {% elif handler.user._id %}
-      <a class="rounded primary button" href="{{ url('home_messages', query={target:udoc._id}) }}"><span class="icon icon-comment--multiple"></span> {{ _('Send Message') }}</a>
-      {% endif %}
-      {% if isSelf or (handler.user.realname_flag or 0) >= 2 %}
-      <a class="rounded button" href="{{ url('oi33_profile_edit', uid=udoc._id) }}"><span class="icon icon-wrench"></span> 编辑 OI33 资料</a>
-      {% endif %}
-      {% if caller %}{{ caller() }}{% endif %}
-    </div>
-  </div>
-</div>
-{% endmacro %}
 
-{# 快捷跳转：头像/信息卡片下面的导航，把各面板与常用页串起来。 #}
-{% macro quickNav(udoc, isSelf) %}
-<div class="section side">
-  <div class="section__header"><h2 class="section__title">快捷跳转</h2></div>
-  <div class="section__body" style="padding-top:.1rem;padding-bottom:.3rem;">
+    {# 快捷跳转 #}
     <ul class="oi33-quicknav">
-      <li><a href="{{ url('user_detail', uid=udoc._id) }}#oi33-bio"><span class="icon icon-user"></span>个人简介</a></li>
+      <li><a href="{{ url('user_detail', uid=udoc._id) }}"><span class="icon icon-account--circle"></span>个人页面</a></li>
       {% if handler.user._id %}
-      <li><a href="{{ url('oi33_meow_user', uid=udoc._id) }}"><span class="icon icon-comment--multiple"></span>喵喵</a></li>
+      <li><a href="{{ url('home_messages') if isSelf else url('home_messages', query={target:udoc._id}) }}"><span class="icon icon-mail"></span>站内消息</a></li>
+      <li><a href="{{ url('oi33_meow_main') }}"><span class="icon icon-comment--multiple"></span>最新喵喵</a></li>
       {% endif %}
-      <li><a href="{{ url('oi33_medal_user', uid=udoc._id) }}"><span class="icon icon-award"></span>奖章</a></li>
-      {% if isSelf or (handler.user.realname_flag or 0) >= 2 %}
+      {% if isSelf or canManage %}
       <li><a href="{{ url('oi33_algorithm_user', uid=udoc._id) }}"><span class="icon icon-star"></span>算法掌握</a></li>
       {% endif %}
-      <li><a href="{{ url('user_detail', uid=udoc._id) }}#oi33-records"><span class="icon icon-calendar"></span>学习记录{% if pdocs and pdocs.length %}<span class="oi33-quicknav__count">{{ pdocs.length }}</span>{% endif %}</a></li>
-      <li><a href="{{ url('oi33_cat_can_arena', query={focusUid:udoc._id}) }}"><span class="icon icon-home"></span>猫猫广场</a></li>
-      {% if isSelf or (handler.user.realname_flag or 0) >= 2 %}
-      <li><a href="{{ url('oi33_cat_account', uid=udoc._id) }}"><span class="icon icon-search"></span>账户明细</a></li>
-      <li><a href="{{ url('oi33_coin_bill', uid=udoc._id) }}"><span class="icon icon-file"></span>猫粮账单</a></li>
+      <li><a href="{{ url('oi33_medal_user', uid=udoc._id) }}"><span class="icon icon-award"></span>全部奖章</a></li>
+      {% if isSelf or canManage %}
+      <li><a href="{{ url('oi33_coin_bill', uid=udoc._id) }}"><span class="icon icon-file"></span>{{ _('View Coin Bill') }}</a></li>
       {% endif %}
+      {% if isSelf or canManage %}
+      <li class="oi33-quicknav__divider"></li>
       {% if isSelf %}
-      <li><a href="{{ url('oi33_medal_showcase') }}"><span class="icon icon-award"></span>奖章展示柜</a></li>
-      <li><a href="{{ url('oi33_medal_catalogue') }}"><span class="icon icon-file"></span>奖章目录</a></li>
-      <li><a href="{{ url('home_messages') }}"><span class="icon icon-mail"></span>我的消息</a></li>
+      <li><a href="{{ url('home_settings', category='account') }}"><span class="icon icon-edit"></span>编辑个人信息</a></li>
+      {% endif %}
+      <li><a href="{{ url('oi33_profile_edit', uid=udoc._id) }}"><span class="icon icon-wrench"></span>编辑 OI33 资料</a></li>
       {% endif %}
     </ul>
+
+    {% if caller %}
+    <div class="oi33-usercard__actions">{{ caller() }}</div>
+    {% endif %}
   </div>
 </div>
 {% endmacro %}

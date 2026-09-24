@@ -80,7 +80,12 @@
 <div class="row">
   {# ---------- 主列：依次排列的资料卡片 ---------- #}
   <div class="medium-9 columns oi33-user-main">
-    {# 1. 奖章：默认只显示展示柜，全部奖章折叠 #}
+    {# 1. 个人简介：默认折叠成固定高度 #}
+    {% if not _profileHidden %}
+    {{ profile.bioCard(udoc, isSelfProfile) }}
+    {% endif %}
+
+    {# 2. 奖章：默认只显示展示柜，全部奖章折叠 #}
     {% if oi33MedalPanel %}
     <div class="section oi33-profile-section" id="oi33-medal">
       <div class="section__header">
@@ -128,9 +133,6 @@
     {% endif %}
 
     {% if not _profileHidden %}
-    {# 2. 个人简介：默认折叠成固定高度 #}
-    {{ profile.bioCard(udoc, isSelfProfile) }}
-
     {# 3. 学习记录：通过题目 / 最近活动 / 最近题解合并成一个 section，空的直接不渲染 #}
     {% set _recordCount = (pdocs|length) + (tdocs|length) + ((psdocs|length) if psdocs else 0) %}
     {% if _recordCount %}
@@ -233,7 +235,6 @@
   {# ---------- 侧边栏：头像卡片 + 快捷跳转 + 小猫 + 标签（唯一展示头像/昵称的地方） #}
   <div class="medium-3 columns">
     {{ profile.userCard(udoc, isSelfProfile) }}
-    {{ profile.quickNav(udoc, isSelfProfile) }}
 
     <div class="section side oi33-cat-card">
       <div class="section__header">
