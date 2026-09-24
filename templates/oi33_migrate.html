@@ -89,6 +89,9 @@
               {% if result.algorithmIdsNormalized %}
               <tr><td>算法项目编号已规范：</td><td>改名 <strong>{{ result.algorithmIdsNormalized }}</strong> 项，迁移评定 <strong>{{ result.algorithmRatingsRenamed }}</strong> 条</td></tr>
               {% endif %}
+              {% if result.algorithmBasicsItemsRemoved %}
+              <tr><td>已删除「基础知识与编程环境」板块：</td><td>知识点 <strong>{{ result.algorithmBasicsItemsRemoved }}</strong> 项，相关评定 <strong>{{ result.algorithmBasicsRatingsRemoved }}</strong> 条</td></tr>
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">

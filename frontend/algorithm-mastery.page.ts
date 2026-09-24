@@ -1,8 +1,9 @@
 import { addPage } from '@hydrooj/ui-default';
 
 // 算法掌握【评定页】的渐进增强。
-// 每行是一组单选框（未评定 / 没学 / 了解概念 / 会模板题 / 熟练掌握），怎么点都行，
+// 每行是一组四档单选框（没学 / 了解概念 / 会模板题 / 熟练掌握），怎么点都行，
 // 改完后一次「提交本月更新 / 保存修改」整份落库（学生每月一次，老师不限）。
+// 没有评定记录的知识点默认就是「没学」。
 // 脚本负责四件事：实时预览统计（总分 / 级别 / 难度 / 板块 / 子板块）、
 // 按评价 + 关键词筛选、未保存改动计数、提交前确认与离开提醒。
 // 事件用 document 级委托绑定，pjax 换页后无需重新初始化；展示页没有编辑器，脚本自然空转。
@@ -25,27 +26,27 @@ function scoreOf(sum: number, total: number, maxLevel: number) {
     return total && maxLevel ? Math.round((sum * 100) / (maxLevel * total)) : 0;
 }
 
-interface Bucket { total: number; sum: number; rated: number }
+interface Bucket { total: number; sum: number; counts: number[] }
 
 function bucketOf(map: Map<string, Bucket>, key: string): Bucket {
     let bucket = map.get(key);
     if (!bucket) {
-        bucket = { total: 0, sum: 0, rated: 0 };
+        bucket = { total: 0, sum: 0, counts: [0, 0, 0, 0] };
         map.set(key, bucket);
     }
     return bucket;
 }
 
-function addTo(bucket: Bucket, level: number, rated: boolean) {
+function addTo(bucket: Bucket, level: number) {
     bucket.total++;
     bucket.sum += level;
-    if (rated) bucket.rated++;
+    bucket.counts[level] = (bucket.counts[level] || 0) + 1;
 }
 
-// 单选框没有选中任何一项即「未评定」(-1)，否则是 0..3 的掌握程度。
+// 每行总有一个选中项；万一没有（脚本禁用时的异常 DOM），按「没学」计。
 function rowLevel(row: HTMLElement): number {
     const checked = row.querySelector<HTMLInputElement>('input.oi33-alg-radio:checked');
-    return checked ? Number(checked.value) : -1;
+    return checked ? Number(checked.value) : 0;
 }
 
 function rowsOf(editor: HTMLElement) {
@@ -63,25 +64,19 @@ function recompute(editor: HTMLElement) {
     const bySubsection = new Map<string, Bucket>();
     const byDifficulty = new Map<string, Bucket>();
     let sum = 0;
-    let rated = 0;
     for (const row of rows) {
-        const raw = rowLevel(row);
-        const isRated = raw >= 0;
-        const level = raw < 0 ? 0 : raw;
+        const level = rowLevel(row);
         counts[level] = (counts[level] || 0) + 1;
         sum += level;
-        if (isRated) rated++;
-        addTo(bucketOf(byGroup, row.closest<HTMLElement>('[data-alg-group]')?.dataset.algGroup || ''), level, isRated);
-        addTo(bucketOf(bySection, row.closest<HTMLElement>('[data-alg-section]')?.dataset.algSection || ''), level, isRated);
-        addTo(bucketOf(bySubsection, row.closest<HTMLElement>('[data-alg-subsection]')?.dataset.algSubsection || ''), level, isRated);
-        addTo(bucketOf(byDifficulty, row.dataset.algDifficulty || '0'), level, isRated);
+        addTo(bucketOf(byGroup, row.closest<HTMLElement>('[data-alg-group]')?.dataset.algGroup || ''), level);
+        addTo(bucketOf(bySection, row.closest<HTMLElement>('[data-alg-section]')?.dataset.algSection || ''), level);
+        addTo(bucketOf(bySubsection, row.closest<HTMLElement>('[data-alg-subsection]')?.dataset.algSubsection || ''), level);
+        addTo(bucketOf(byDifficulty, row.dataset.algDifficulty || '0'), level);
     }
     const total = rows.length;
     const score = scoreOf(sum, total, maxLevel);
     setText(editor, '[data-alg-stat="score"]', String(score));
-    setText(editor, '[data-alg-stat="rated"]', String(rated));
     setText(editor, '[data-alg-stat="total"]', String(total));
-    setText(editor, '[data-alg-stat="unrated"]', String(total - rated));
     for (let level = 0; level < counts.length; level++) {
         setText(editor, `[data-alg-stat="count-${level}"]`, String(counts[level] || 0));
     }
@@ -105,7 +100,8 @@ function recompute(editor: HTMLElement) {
 
     const paintStats = (label: HTMLElement | null, bucket: Bucket | undefined) => {
         if (bucket?.total && label) {
-            label.textContent = `${bucket.rated}/${bucket.total} · ${scoreOf(bucket.sum, bucket.total, maxLevel)}%`;
+            // 与 nodeStats 保持一致：熟练掌握 / 总数 · 掌握度。
+            label.textContent = `${bucket.counts[3] || 0}/${bucket.total} · ${scoreOf(bucket.sum, bucket.total, maxLevel)}%`;
         }
     };
     for (const node of editor.querySelectorAll<HTMLElement>('details[data-alg-group]')) {
@@ -139,17 +135,14 @@ function refreshDirty(editor: HTMLElement) {
 }
 
 // 「按评价筛选」+ 关键词搜索。评价筛选记在 editor 的 data 上，改动后重新应用，
-// 因此刚点成「没学」的行会立刻从「未评定」筛选里消失。
+// 因此刚改过的行会立刻切换到（或离开）对应的筛选项。
 function applyFilter(editor: HTMLElement) {
     const needle = (editor.querySelector<HTMLInputElement>('input.oi33-alg-search')?.value || '').trim().toLowerCase();
     const rating = editor.dataset.algRating || 'all';
     const isVisible = (el: HTMLElement) => el.style.display !== 'none';
     for (const row of rowsOf(editor)) {
         const textOk = !needle || (row.dataset.algText || '').toLowerCase().includes(needle);
-        const level = rowLevel(row);
-        const ratingOk = rating === 'all'
-            ? true
-            : rating === 'unrated' ? level < 0 : String(level) === rating;
+        const ratingOk = rating === 'all' || String(rowLevel(row)) === rating;
         row.style.display = textOk && ratingOk ? '' : 'none';
     }
     for (const node of editor.querySelectorAll<HTMLElement>('details[data-alg-subsection]')) {

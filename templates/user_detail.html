@@ -1,13 +1,7 @@
-{% import "components/home.html" as home with context %}
 {% import "components/problem.html" as problem with context %}
 {% import "components/cat_food.html" as catFood with context %}
-{% import "components/user.html" as user with context %}
-{% import "components/meow_post.html" as spost with context %}
-{% import "partials/oi33_algorithm.html" as alg with context %}
 {% import "partials/oi33_profile.html" as profile with context %}
 {% extends "layout/basic.html" %}
-{%- macro atcolor(r) -%}{% if r >= 2800 %}#FF0000{% elif r >= 2400 %}#FF8000{% elif r >= 2000 %}#C0C000{% elif r >= 1600 %}#0000FF{% elif r >= 1200 %}#00C0C0{% elif r >= 800 %}#008000{% elif r >= 400 %}#804000{% else %}#808080{% endif %}{%- endmacro -%}
-{%- macro cfcolor(r) -%}{% if r >= 3000 %}#CC0000{% elif r >= 2400 %}#FF0000{% elif r >= 2100 %}#FF8C00{% elif r >= 1900 %}#AA00AA{% elif r >= 1600 %}#0000FF{% elif r >= 1400 %}#03A89E{% elif r >= 1200 %}#008000{% else %}#808080{% endif %}{%- endmacro -%}
 {% block content %}
 {% set _profileHidden = udoc.oi33_profile_hidden %}
 {% set _canSeeHiddenIdentity = (handler.user.realname_flag or 0) >= 2 %}
@@ -21,27 +15,7 @@
   {{ set(UiContext, 'udoc', udoc) }}
 {% endif %}
 <style>
-  .user-profile-bg {
-    {% if _profileHidden %}
-    background-image: url("/components/profile/backgrounds/1.jpg");
-    {% else %}
-    background-image: url("{{ udoc.backgroundImage }}"),
-    url("/components/profile/backgrounds/1.jpg");
-    {% endif %}
-  }
-  .page--user_detail .profile-header__content { color: #fff; }
-  .page--user_detail .profile-header__main h1,
-  .page--user_detail .profile-header__main p { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45); }
-  .page--user_detail .profile-header__main a:not(.button),
-  .page--user_detail .profile-header__main a:not(.button):visited,
-  .page--user_detail .profile-header__main a:not(.button):active { color: #fff; text-decoration: underline; }
-  .page--user_detail .profile-header__main a:not(.button):hover { color: #fff; text-decoration: underline; }
-  .page--user_detail .profile-header__main .button,
-  .page--user_detail .profile-header__main .button:visited,
-  .page--user_detail .profile-header__main .button:hover,
-  .page--user_detail .profile-header__main .button:active { text-decoration: none; }
-  .page--user_detail .profile-header__main .user-profile-badge { text-shadow: none; }
-  {# 依次排列的资料卡片：留出卡片间距，不再拼成一张大卡。 #}
+  {# 依次排列的资料卡片：留出卡片间距。 #}
   .page--user_detail .oi33-user-main > .section { margin-bottom: 1rem; }
   .page--user_detail .oi33-user-main > .section:last-child { margin-bottom: 1rem; }
   .oi33-showcase-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; }
@@ -81,8 +55,16 @@
   }
   .oi33-medal-empty { color:#777; font-size:.85em; }
   .oi33-bio-hint { color:#777; font-size:.85em; margin:0; }
-  .oi33-meow-panelbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
-  .oi33-meow-panelbar form { margin: 0; }
+  /* 奖章：默认只露展示柜，其余奖章收进折叠区。 */
+  .oi33-medal-all { margin-top:1rem; }
+  .oi33-medal-all > summary { cursor:pointer; color:#3a6fd0; font-size:.88em; }
+  .oi33-medal-all > summary:hover { text-decoration:underline; }
+  /* 学习记录：通过题目 / 最近活动 / 最近题解合并在一个 section 里。 */
+  .oi33-records__block + .oi33-records__block {
+    margin-top:1.2rem; padding-top:1rem; border-top:1px solid rgba(127,127,127,.15);
+  }
+  .oi33-records__title { margin:0 0 .6rem; font-size:1.02rem; }
+  .oi33-records__list { margin:0; padding-left:1.2rem; }
   .theme--dark .oi33-bio-hint,
   [data-mantine-color-scheme=dark] .oi33-bio-hint { color:#aaa; }
   .theme--dark .oi33-medal-list__desc,
@@ -97,197 +79,13 @@
 </style>
 <div class="row">
   {# ---------- 主列：依次排列的资料卡片 ---------- #}
-  <div class="medium-8 columns oi33-user-main">
-    <div class="section">
-      <div class="profile-header user-profile-bg">
-        <div class="profile-header__content">
-          <div class="media">
-            <div class="media__left">
-              <img src="{{ avatarUrl((udoc.oi33_original_avatar or udoc.avatar) if _showCustomIdentity else '', 120) }}" width="120" height="120" class="large user-profile-avatar">
-            </div>
-            <div class="media__body profile-header__main">
-              <h1>
-                {% if not _profileHidden %}
-                {% if udoc.realname_flag == 3 %}
-                <span class="icon icon-crown"></span>
-                {% elif udoc.realname_flag == 2 %}
-                <span class="icon icon-user"></span>
-                {% elif udoc.realname_flag == 1 %}
-                <span class="icon icon-star"></span>
-                {% elif udoc.realname_flag == 0 %}
-                <span class="icon icon-check"></span>
-                {% endif %}
-                {% endif %}
-
-                {% if _profileHidden and _showCustomIdentity %}
-                  {{ udoc.oi33_original_uname or udoc.uname }}
-                {% elif _profileHidden %}
-                  UID {{ udoc._id }}
-                {% elif (handler.user.realname_flag or 0) >= 2 and udoc.realname_name %}
-                  [{{ udoc.realname_name }}]{{ udoc.uname }}
-                {% elif handler.user.hasPerm(perm.PERM_VIEW_DISPLAYNAME) and udoc.displayName %}
-                  ({{ udoc.displayName }}){{ udoc.uname }}
-                {% else %}
-                  {{ udoc.uname }}
-                {% endif %}
-
-                {% if not _profileHidden and udoc.badge %}
-                {% set _badge = udoc.badge.split('#') %}
-                <span class="user-profile-badge v-center"
-                  style="background-color:#{{ _badge[1] }}{% if _badge[2] %};color:#{{ _badge[2] }}{% endif %}">{{
-                  _badge[0] }}</span>
-                {% endif %}
-
-              </h1>
-
-              <p>
-                {{ _('UID') }}: {{ udoc['_id'] }}
-              </p>
-
-              {% if not _profileHidden %}
-              {% if udoc.atcoder %}
-              <p style="margin-top:0.5rem;">
-                AtCoder: <a href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener">{{ udoc.atcoder }}</a>{% if udoc.atcoder_rating !== undefined and udoc.atcoder_rating !== null %} ({{ udoc.atcoder_rating }}){% endif %}
-              </p>
-              {% endif %}
-              {% if udoc.codeforces %}
-              <p>
-                CodeForces: <a href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener">{{ udoc.codeforces }}</a>{% if udoc.codeforces_rating !== undefined and udoc.codeforces_rating !== null %} ({{ udoc.codeforces_rating }}){% endif %}
-              </p>
-              {% endif %}
-
-              <hr />
-
-              <p>
-                {{ _('Registered at') }} {{ datetimeSpan(udoc['regat'])|safe }},
-                {{ _('last login at') }} {{ datetimeSpan(udoc['loginat'])|safe }},
-                {% if sdoc %}
-                {{ _('last active at') }} {{ datetimeSpan(sdoc['updateAt'])|safe }}.
-                {% else %}
-                {{ _('currently offline') }}.
-                {% endif %}
-              </p>
-
-              <p>{{ _('Solved {0} problems, RP: {1} (No. {2})').format(udoc.nAccept|default(0),
-                udoc['rp']|default(0.0)|round(2), udoc['rank']|default('?')) }}</p>
-
-              {% if udoc._id != 1 and not udoc.hasPriv(PRIV.PRIV_USER_PROFILE) %}
-              <p>{{ _('This user was banned.') }}</p>
-              {% endif %}
-
-              <div class="profile-header__contact-bar">
-                {% if isSelfProfile %}
-                <a class="profile-header__contact-item" href="{{ url('home_settings', category='account') }}"
-                  data-tooltip="{{ _('Edit Profile') }}">
-                  <span class="icon icon-edit"></span>
-                </a>
-                {% endif %}
-                <a class="profile-header__contact-item" href="{{ url('home_messages', query={target:udoc._id}) }}"
-                  target="_blank" data-tooltip="{{ _('Send Message') }}">
-                  <span class="icon icon-comment--multiple"></span>
-                </a>
-                {% if udoc['mail'] %}
-                <a class="profile-header__contact-item" href="javascript:;"
-                  data-copy="{{ udoc['mail'] | base64_encode }}" data-tooltip="{{ _('Copy Email') }}">
-                  <span class="icon icon-mail"></span>
-                </a>
-                {% endif %}
-                {% if udoc['qq'] %}
-                <a class="profile-header__contact-item" href="javascript:;" data-copy="{{ udoc['qq'] | base64_encode }}"
-                  data-tooltip="{{ _('Copy QQ Number') }}">
-                  <span class="icon icon-qq"></span>
-                </a>
-                {% endif %}
-                {% if udoc['wechat'] %}
-                <a class="profile-header__contact-item" href="javascript:;"
-                  data-copy="{{ udoc['wechat'] | base64_encode }}" data-tooltip="{{ _('Copy WeChat Account') }}">
-                  <span class="icon icon-wechat"></span>
-                </a>
-                {% endif %}
-                {% if udoc.gender and udoc.gender != model.builtin.USER_GENDER_OTHER %}
-                <span class="profile-header__contact-item"
-                  data-tooltip="{{ model.builtin.USER_GENDER_RANGE[udoc.gender] }}">
-                  {{ model.builtin.USER_GENDER_ICONS[udoc.gender] }}
-                </span>
-                {% endif %}
-                {% if udoc.hasPriv(PRIV.PRIV_MOD_BADGE) %}
-                <span class="profile-header__contact-item user-profile-badge badge--su"
-                  data-tooltip="{{ _('{0} is a superuser.').format(_('She' if udoc.gender == 1 else 'He')) }}">
-                  SU
-                </span>
-                {% elif udoc.hasPerm(perm.PERM_MOD_BADGE) %}
-                <span class="profile-header__contact-item user-profile-badge badge--mod"
-                  data-tooltip="{{ _('{0} is a moderator of this domain.').format(_('She' if udoc.gender == 1 else 'He')) }}">
-                  MOD
-                </span>
-                {% endif %}
-              </div>
-              {% endif %}
-              {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
-              <div style="margin-top: 12px;">
-                <a href="/oi33/profile/edit/{{ udoc._id }}" class="rounded primary button">
-                  <span class="icon icon-wrench"></span> {{ _('Edit OI33 Profile') }}
-                </a>
-                {% if not _profileHidden %}<a href="/oi33/coin/bill/{{ udoc._id }}" class="rounded button">
-                  <span class="icon icon-search"></span> {{ _('View Coin Bill') }}
-                </a>{% endif %}
-              </div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {% if not _profileHidden %}
-    {# 1. 个人简介：默认折叠成固定高度 #}
-    {{ profile.bioCard(udoc, isSelfProfile) }}
-
-    {# 2. 喵喵：最近若干条预览 #}
-    {% if oi33MeowPanel %}
-    <div class="section oi33-profile-section" id="oi33-meow">
-      <div class="section__header">
-        <h2 class="section__title">喵喵</h2>
-        <div class="section__tools oi33-profile-section__tools">
-          {% if not oi33MeowPanel.isSelf and handler.user._id %}
-            {% if oi33MeowPanel.viewerFollows %}
-            <form method="post" action="{{ url('oi33_meow_unfollow', uid=udoc._id) }}">
-              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-              <button type="submit" class="rounded button">{{ _('Unfollow') }}</button>
-            </form>
-            {% else %}
-            <form method="post" action="{{ url('oi33_meow_follow', uid=udoc._id) }}">
-              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-              <button type="submit" class="rounded primary button">{{ _('Follow') }}</button>
-            </form>
-            {% endif %}
-          {% endif %}
-          <a class="rounded button" href="{{ url('oi33_meow_user', uid=udoc._id) }}">查看全部</a>
-        </div>
-      </div>
-      <div class="section__body typo no-media">
-        {% if oi33MeowPanel.posts.length %}
-          {% for p in oi33MeowPanel.posts.slice(0, 4) %}
-            {{ spost.render(p, oi33MeowPanel.udict, oi33MeowPanel.likedMap, oi33MeowPanel.isSelf, false, true) }}
-          {% endfor %}
-          {% if oi33MeowPanel.posts.length > 4 %}
-          <p><a href="{{ url('oi33_meow_user', uid=udoc._id) }}">查看全部喵喵 →</a></p>
-          {% endif %}
-        {% elif not oi33MeowPanel.canSeePosts %}
-          <p>{{ _('Meow posts hidden') }}</p>
-        {% else %}
-          <p>{{ _('No meow posts yet.') }}</p>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
-    {# 3. 奖章：展示柜 + 最近获得 #}
+  <div class="medium-9 columns oi33-user-main">
+    {# 1. 奖章：默认只显示展示柜，全部奖章折叠 #}
     {% if oi33MedalPanel %}
     <div class="section oi33-profile-section" id="oi33-medal">
       <div class="section__header">
         <h2 class="section__title">奖章</h2>
-        <div class="section__tools oi33-profile-section__tools">
+        <div class="section__tools">
           <a class="rounded button" href="{{ url('oi33_medal_user', uid=udoc._id) }}">全部奖章</a>
           {% if oi33MedalPanel.isSelf %}<a class="rounded button" href="{{ url('oi33_medal_showcase') }}">编辑展示柜</a>{% endif %}
           {% if oi33MedalPanel.canManage %}<a class="rounded button" href="{{ url('oi33_medal_manage', query={uid:udoc._id}) }}">管理奖章</a>{% endif %}
@@ -311,56 +109,41 @@
         {% endif %}
 
         {% if oi33MedalPanel.awards.length %}
-        <ul class="oi33-medal-list" style="margin-top:1rem;">
-          {% for award in oi33MedalPanel.awards.slice(0, 8) %}
-          <li class="oi33-medal-list__row">
-            <img class="oi33-medal-list__icon" src="{{ award.view.imageData }}" alt="{{ award.view.name }}">
-            <span class="oi33-medal-list__name">{{ award.view.name }}</span>
-            <span class="oi33-medal-list__tag oi33-medal-list__tag--{{ award.view.category }}">{{ award.view.categoryName }}</span>
-            <span class="oi33-medal-list__desc" title="{{ award.view.description }}">{{ award.view.description }}</span>
-          </li>
-          {% endfor %}
-        </ul>
-        {% if oi33MedalPanel.awards.length > 8 %}
-        <p><a href="{{ url('oi33_medal_user', uid=udoc._id) }}">查看全部 {{ oi33MedalPanel.awards.length }} 枚奖章 →</a></p>
-        {% endif %}
-        {% else %}
-        <p class="oi33-medal-empty" style="margin-top:1rem;">还没有获得奖章。</p>
+        <details class="oi33-medal-all">
+          <summary>全部奖章（{{ oi33MedalPanel.awards.length }}）</summary>
+          <ul class="oi33-medal-list" style="margin-top:.6rem;">
+            {% for award in oi33MedalPanel.awards %}
+            <li class="oi33-medal-list__row">
+              <img class="oi33-medal-list__icon" src="{{ award.view.imageData }}" alt="{{ award.view.name }}">
+              <span class="oi33-medal-list__name">{{ award.view.name }}</span>
+              <span class="oi33-medal-list__tag oi33-medal-list__tag--{{ award.view.category }}">{{ award.view.categoryName }}</span>
+              <span class="oi33-medal-list__desc" title="{{ award.view.description }}">{{ award.view.description }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
         {% endif %}
       </div>
     </div>
     {% endif %}
 
-    {# 4. 算法掌握：掌握度总览 + 独立页入口 #}
-    {% if oi33AlgorithmPanel %}
-    <div class="section oi33-profile-section" id="oi33-algorithm">
+    {% if not _profileHidden %}
+    {# 2. 个人简介：默认折叠成固定高度 #}
+    {{ profile.bioCard(udoc, isSelfProfile) }}
+
+    {# 3. 学习记录：通过题目 / 最近活动 / 最近题解合并成一个 section，空的直接不渲染 #}
+    {% set _recordCount = (pdocs|length) + (tdocs|length) + ((psdocs|length) if psdocs else 0) %}
+    {% if _recordCount %}
+    <div class="section oi33-profile-section" id="oi33-records">
       <div class="section__header">
-        <h2 class="section__title">算法掌握</h2>
-        <div class="section__tools oi33-profile-section__tools">
-          <a class="rounded button" href="{{ url('oi33_algorithm_user', uid=udoc._id) }}">查看详情</a>
-          {% if oi33AlgorithmPanel.canEdit %}<a class="rounded primary button" href="{{ url('oi33_algorithm_edit', uid=udoc._id) }}">去评定</a>{% endif %}
-        </div>
+        <h2 class="section__title">学习记录</h2>
       </div>
       <div class="section__body typo no-media">
-        {% if oi33AlgorithmPanel.total %}
-          {{ alg.summaryStats(oi33AlgorithmPanel) }}
-        {% else %}
-          <p class="oi33-medal-empty">还没有配置算法项目。</p>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
-    {# 5. 通过题目 #}
-    {% if pdocs.length %}
-    <div class="section oi33-profile-section" id="oi33-problems">
-      <div class="section__header">
-        <h2 class="section__title">{{ _('Accepted Problems') }}</h2>
-      </div>
-      <div class="section__body">
-        <div class="typo no-media">
+        {% if pdocs.length %}
+        <div class="oi33-records__block">
+          <h3 class="oi33-records__title">{{ _('Accepted Problems') }}（{{ pdocs.length }}）</h3>
           {% set _mark = Math.ceil(pdocs.length/4) %}
-          {% macro col(pdocs) %}
+          {% macro _problemCol(pdocs) %}
           <div class="medium-3 columns">
             <ul>
               {% for pdoc in pdocs %}
@@ -370,26 +153,54 @@
           </div>
           {% endmacro %}
           <div class="row">
-            {{ col(pdocs.slice(0, _mark)) }}
-            {{ col(pdocs.slice(_mark, _mark*2)) }}
-            {{ col(pdocs.slice(_mark*2, _mark*3)) }}
-            {{ col(pdocs.slice(_mark*3)) }}
+            {{ _problemCol(pdocs.slice(0, _mark)) }}
+            {{ _problemCol(pdocs.slice(_mark, _mark*2)) }}
+            {{ _problemCol(pdocs.slice(_mark*2, _mark*3)) }}
+            {{ _problemCol(pdocs.slice(_mark*3)) }}
           </div>
         </div>
+        {% endif %}
+
+        {% if tdocs.length %}
+        <div class="oi33-records__block">
+          <h3 class="oi33-records__title">{{ _('Recent Activities') }}（{{ tdocs.length }}）</h3>
+          <ul class="oi33-records__list">
+            {% for tdoc in tdocs %}
+            <li><a class="contest-type--{{ tdoc.rule }}" href="{{ url('contest_detail' if tdoc.rule !== 'homework' else 'homework_detail', tid=tdoc.docId) }}">
+              {{ tdoc.title }} <span class="contest-type-tag"><span class="icon icon-award"></span>{{ _(model.contest.RULES[tdoc['rule']].TEXT) }}</span>
+            </a></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if psdocs and psdocs.length %}
+        <div class="oi33-records__block">
+          <h3 class="oi33-records__title">{{ _('Recent Solutions') }}（{{ psdocs.length }}）</h3>
+          {% set _smark = Math.ceil(psdocs.length/4) %}
+          {% macro _solutionCol(psdocs) %}
+          <div class="medium-3 columns">
+            <ul>
+              {% for psdoc in psdocs %}
+              <li><a href="{{ url('problem_solution_detail', pid=psdoc.parentId, sid=psdoc._id) }}">{{ pdict[psdoc.parentId].title|default(psdoc._id) }}</a></li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endmacro %}
+          <div class="row">
+            {{ _solutionCol(psdocs.slice(0, _smark)) }}
+            {{ _solutionCol(psdocs.slice(_smark, _smark*2)) }}
+            {{ _solutionCol(psdocs.slice(_smark*2, _smark*3)) }}
+            {{ _solutionCol(psdocs.slice(_smark*3)) }}
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
     {% endif %}
-
-    {# 6. 内核「最近动态 / 最近题解」等模块：去掉标签页外壳，依次堆叠成卡片 #}
-    {% set _udmods = findSubModule('partials/user_detail/') %}
-    <div id="oi33-modules">
-      <ul class="oi33-modules">
-        {% for page in _udmods %}{% include page %}{% endfor %}
-      </ul>
-    </div>
     {% endif %}
 
-    {# 7. 注册信息（管理员） #}
+    {# 4. 注册信息（管理员） #}
     {% if (handler.user.realname_flag or 0) >= 2 %}
     <div class="section oi33-profile-section">
       <div class="section__header">
@@ -419,8 +230,8 @@
     {% endif %}
   </div>
 
-  {# ---------- 侧边栏：头像卡片 + 快捷跳转 + 小猫 + 统计 ---------- #}
-  <div class="medium-4 columns">
+  {# ---------- 侧边栏：头像卡片 + 快捷跳转 + 小猫 + 标签（唯一展示头像/昵称的地方） #}
+  <div class="medium-3 columns">
     {{ profile.userCard(udoc, isSelfProfile) }}
     {{ profile.quickNav(udoc, isSelfProfile) }}
 
@@ -486,14 +297,8 @@
       </div>
     </div>
     {% endif %}
-
-    {% if isSelfProfile and not _profileHidden %}
-    {{ home.render_sidebar() }}
-    {% endif %}
   </div>
 </div>
-{% include 'partials/meow_style.html' %}
-{% if oi33AlgorithmPanel %}{{ alg.style() }}{% endif %}
 {{ profile.style() }}
 {{ profile.bioScript() }}
 {% endblock %}

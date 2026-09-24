@@ -46,6 +46,11 @@ export const ALGORITHM_MAX_LEVEL = ALGORITHM_LEVEL_NAMES.length - 1;
 
 export const ALGORITHM_CONFIG_ID = 'main';
 export const ALGORITHM_OUTLINE_SOURCE = 'noi2025';
+// OI33 deliberately excludes the outline's 「基础知识与编程环境」 section
+// (计算机基本构成、操作系统、开发环境使用等): it says nothing about a student's
+// algorithmic ability. It is stripped from the bundled outline JSON, and the
+// migration deletes it from installs that imported it before the change.
+export const ALGORITHM_DROPPED_SECTION = '基础知识与编程环境';
 
 export const ALGORITHM_MAX_TEXT = 200;
 export const ALGORITHM_MAX_NOTE = 500;
@@ -497,11 +502,11 @@ export interface AlgorithmLevelEntry {
     original?: unknown;
 }
 
-// A submitted level is one of 0..3, or a negative/absent value meaning
-// "未评定" — remove the rating entirely. This lets a student undo a
-// self-rating, and lets the no-JS form distinguish an untouched unrated row
-// (still -1) from a teacher explicitly asserting 没学 (0). Out-of-range values
-// are clamped into 0..3 so one malformed field cannot fail a whole bulk save.
+// A submitted level is one of 0..3. A negative/absent value deletes the rating
+// (the mastery UI no longer offers that option — rows without a record simply
+// show as 没学 — but programmatic callers may still use it to clear a row).
+// Out-of-range values are clamped into 0..3 so one malformed field cannot fail
+// a whole bulk save.
 function parseSubmittedLevel(value: unknown): number | null {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed < 0) return null;
@@ -548,13 +553,13 @@ export async function algorithmSetLevels(
         }
         const record: any = existingMap.get(itemId);
         const current = record ? algorithmNormalizeLevel(record.level) : null;
-        // The batch form submits every select at once, so skip rows the user
-        // never actually touched instead of mass-marking them as rated.
-        // The client sends the value it rendered (`original`); comparing
-        // against that (falling back to the stored value for programmatic
-        // callers) means an untouched row is skipped even if a teacher changed
-        // it while the page was open. A null baseline is an unrated row, so an
-        // explicit 没学 is still distinguishable from an untouched one.
+        // The batch form submits every row at once, so skip rows the user never
+        // actually touched instead of mass-marking them as rated. The client
+        // sends the value it rendered (`original`); comparing against that
+        // (falling back to the stored value for programmatic callers) means an
+        // untouched row is skipped even if a teacher changed it while the page
+        // was open. Rows without a record render as 没学 (0), so leaving one
+        // alone writes nothing while an explicit change still lands.
         const baseline = original === undefined ? current : original;
         if (opts.onlyChanges && level === baseline) {
             unchanged++;
@@ -865,6 +870,21 @@ export async function algorithmEnsureOutlineImported(operator: number) {
     if (await algorithmCountItems()) return { inserted: 0, skipped: true };
     const result = await algorithmImportOutline(operator);
     return { inserted: result.inserted, skipped: false };
+}
+
+// Called by /oi33/migrate: delete the excluded 「基础知识与编程环境」 items (and the
+// ratings pointing at them) from installs that imported them before the outline
+// changed. Idempotent — a second run finds nothing left to delete.
+export async function algorithmDropBasicsSection(): Promise<{ items: number; ratings: number }> {
+    const docs = await algorithmItemColl
+        .find({ sectionName: ALGORITHM_DROPPED_SECTION })
+        .project({ _id: 1 })
+        .toArray();
+    const ids = docs.map((doc: any) => String(doc._id));
+    if (!ids.length) return { items: 0, ratings: 0 };
+    const ratings = await userAlgorithmColl.deleteMany({ itemId: { $in: ids } });
+    const items = await algorithmItemColl.deleteMany({ _id: { $in: ids } });
+    return { items: items.deletedCount || 0, ratings: ratings.deletedCount || 0 };
 }
 
 export interface AlgorithmIdMigrationResult {

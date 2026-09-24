@@ -22,20 +22,21 @@
     },
     "retrieved": "2026-09-24",
     "notes": [
-      "官方文件『二、内容』下分 2.1 入门级、2.2 提高级、2.3 NOI 级；各级再分 2.x.1 基础知识与编程环境 / 2.x.2 C++ 程序设计 / 2.x.3 数据结构 / 2.x.4 算法 / 2.x.5 数学与其他 等板块。",
+      "官方文件『二、内容』下分 2.1 入门级、2.2 提高级、2.3 NOI 级；各级再分 2.x.1 基础知识与编程环境 / 2.x.2 C++ 程序设计 / 2.x.3 数据结构 / 2.x.4 算法 / 2.x.5 数学与其他 等板块。OI33 不收录「基础知识与编程环境」板块（计算机基本构成、操作系统、开发环境使用等，入门级 12 项 / 提高级 5 项），量化为算法掌握程度时它不体现算法能力，故已从大纲与算法项目中删除。",
       "【X】表示难度系数：入门级 1–5，提高级 5–8，NOI 级 7–10。",
       "官方原文在三个 C++ 程序设计 板块附注：C++ 以外的其他高级程序设计语言可参照本部分内容。",
       "原文档中的行内代码标记（反引号）在 JSON 的 text 字段中已去除；MD 文件保留代码格式。",
       "items 是 content 树的扁平视图（多出 level/section/subsection 字段），二者由同一来源生成，内容一致。",
-      "item id 形如 <板块编号>-<该板块内序号>，例如 2.1.2.11-5。"
+      "item id 形如 <板块编号>-<该板块内序号>，例如 2.1.2.11-5。",
+      "OI33 版本相对官方原文删除了入门级与提高级中的「基础知识与编程环境」板块（共 17 项）；其余内容与官方一致。"
     ],
     "stats": {
       "levels": 3,
-      "sections": 14,
-      "items": 277,
+      "sections": 12,
+      "items": 260,
       "itemsByLevel": {
-        "入门级": 116,
-        "提高级": 94,
+        "入门级": 104,
+        "提高级": 89,
         "NOI 级": 67
       }
     }
@@ -49,85 +50,6 @@
         5
       ],
       "sections": [
-        {
-          "id": "2.1.1",
-          "name": "基础知识与编程环境",
-          "items": [
-            {
-              "difficulty": 1,
-              "id": "2.1.1-1",
-              "index": 1,
-              "text": "计算机的基本构成（CPU、内存、I/O 设备等）"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-2",
-              "index": 2,
-              "text": "Windows、Linux 等操作系统的基本概念及其常见操作"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-3",
-              "index": 3,
-              "text": "计算机网络和 Internet 的基本概念"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-4",
-              "index": 4,
-              "text": "计算机的历史和常见用途"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-5",
-              "index": 5,
-              "text": "NOI 以及相关活动的历史"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-6",
-              "index": 6,
-              "text": "NOI 以及相关活动的规则"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-7",
-              "index": 7,
-              "text": "位、字节与字"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-8",
-              "index": 8,
-              "text": "程序设计语言以及程序编译和运行的基本概念"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-9",
-              "index": 9,
-              "text": "使用图形界面新建、复制、删除、移动文件或目录"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-10",
-              "index": 10,
-              "text": "使用 Windows 系统下的集成开发环境（例如 Dev-C++ 等）"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-11",
-              "index": 11,
-              "text": "使用 Linux 系统下的集成开发环境（例如 Code::Blocks 等）"
-            },
-            {
-              "difficulty": 1,
-              "id": "2.1.1-12",
-              "index": 12,
-              "text": "常用编译命令 g++ 的基本使用"
-            }
-          ],
-          "subsections": []
-        },
         {
           "id": "2.1.2",
           "name": "C++ 程序设计",
@@ -976,43 +898,6 @@
         8
       ],
       "sections": [
-        {
-          "id": "2.2.1",
-          "name": "基础知识与编程环境",
-          "items": [
-            {
-              "difficulty": 5,
-              "id": "2.2.1-1",
-              "index": 117,
-              "text": "Linux 系统终端中常用的文件与目录操作命令"
-            },
-            {
-              "difficulty": 5,
-              "id": "2.2.1-2",
-              "index": 118,
-              "text": "Linux 系统下常见文本编辑工具的使用"
-            },
-            {
-              "difficulty": 5,
-              "id": "2.2.1-3",
-              "index": 119,
-              "text": "常用编译命令 g++ 与相关编译选项"
-            },
-            {
-              "difficulty": 5,
-              "id": "2.2.1-4",
-              "index": 120,
-              "text": "在 Linux 系统终端中运行程序，使用 time 命令查看程序用时"
-            },
-            {
-              "difficulty": 5,
-              "id": "2.2.1-5",
-              "index": 121,
-              "text": "调试工具 GDB 的使用"
-            }
-          ],
-          "subsections": []
-        },
         {
           "id": "2.2.2",
           "name": "C++ 程序设计",
@@ -2242,138 +2127,6 @@
   ],
   "items": [
     {
-      "index": 1,
-      "id": "2.1.1-1",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "计算机的基本构成（CPU、内存、I/O 设备等）"
-    },
-    {
-      "index": 2,
-      "id": "2.1.1-2",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "Windows、Linux 等操作系统的基本概念及其常见操作"
-    },
-    {
-      "index": 3,
-      "id": "2.1.1-3",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "计算机网络和 Internet 的基本概念"
-    },
-    {
-      "index": 4,
-      "id": "2.1.1-4",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "计算机的历史和常见用途"
-    },
-    {
-      "index": 5,
-      "id": "2.1.1-5",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "NOI 以及相关活动的历史"
-    },
-    {
-      "index": 6,
-      "id": "2.1.1-6",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "NOI 以及相关活动的规则"
-    },
-    {
-      "index": 7,
-      "id": "2.1.1-7",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "位、字节与字"
-    },
-    {
-      "index": 8,
-      "id": "2.1.1-8",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "程序设计语言以及程序编译和运行的基本概念"
-    },
-    {
-      "index": 9,
-      "id": "2.1.1-9",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "使用图形界面新建、复制、删除、移动文件或目录"
-    },
-    {
-      "index": 10,
-      "id": "2.1.1-10",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "使用 Windows 系统下的集成开发环境（例如 Dev-C++ 等）"
-    },
-    {
-      "index": 11,
-      "id": "2.1.1-11",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "使用 Linux 系统下的集成开发环境（例如 Code::Blocks 等）"
-    },
-    {
-      "index": 12,
-      "id": "2.1.1-12",
-      "level": "入门级",
-      "levelId": "2.1",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.1.1",
-      "subsection": null,
-      "difficulty": 1,
-      "text": "常用编译命令 g++ 的基本使用"
-    },
-    {
       "index": 13,
       "id": "2.1.2.1-1",
       "level": "入门级",
@@ -3516,61 +3269,6 @@
       "subsection": "其他",
       "difficulty": 2,
       "text": "ASCII 码"
-    },
-    {
-      "index": 117,
-      "id": "2.2.1-1",
-      "level": "提高级",
-      "levelId": "2.2",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.2.1",
-      "subsection": null,
-      "difficulty": 5,
-      "text": "Linux 系统终端中常用的文件与目录操作命令"
-    },
-    {
-      "index": 118,
-      "id": "2.2.1-2",
-      "level": "提高级",
-      "levelId": "2.2",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.2.1",
-      "subsection": null,
-      "difficulty": 5,
-      "text": "Linux 系统下常见文本编辑工具的使用"
-    },
-    {
-      "index": 119,
-      "id": "2.2.1-3",
-      "level": "提高级",
-      "levelId": "2.2",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.2.1",
-      "subsection": null,
-      "difficulty": 5,
-      "text": "常用编译命令 g++ 与相关编译选项"
-    },
-    {
-      "index": 120,
-      "id": "2.2.1-4",
-      "level": "提高级",
-      "levelId": "2.2",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.2.1",
-      "subsection": null,
-      "difficulty": 5,
-      "text": "在 Linux 系统终端中运行程序，使用 time 命令查看程序用时"
-    },
-    {
-      "index": 121,
-      "id": "2.2.1-5",
-      "level": "提高级",
-      "levelId": "2.2",
-      "section": "基础知识与编程环境",
-      "sectionId": "2.2.1",
-      "subsection": null,
-      "difficulty": 5,
-      "text": "调试工具 GDB 的使用"
     },
     {
       "index": 122,

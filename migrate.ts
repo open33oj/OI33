@@ -8,7 +8,10 @@ import {
 import { ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
 import { ensureMeowIndexes } from './model/meow';
-import { algorithmEnsureOutlineImported, algorithmMigrateOutlineIds, algorithmOutlineMeta } from './model/algorithm';
+import {
+    algorithmEnsureOutlineImported, algorithmMigrateOutlineIds, algorithmOutlineMeta,
+    algorithmDropBasicsSection,
+} from './model/algorithm';
 
 // hydrooj's `db` export is a Proxy over MongoService, which only exposes
 // `collection()` etc. — the raw mongodb Db (with listCollections / admin) is
@@ -160,6 +163,8 @@ export async function migrate() {
         algorithmItemsImported: 0,
         algorithmIdsNormalized: 0,
         algorithmRatingsRenamed: 0,
+        algorithmBasicsItemsRemoved: 0,
+        algorithmBasicsRatingsRemoved: 0,
         errors: [] as string[],
     };
 
@@ -561,6 +566,18 @@ export async function migrate() {
         result.algorithmRatingsRenamed = ids.ratingsRenamed;
     } catch (e: any) {
         result.errors.push(`Step 16 (normalize algorithm ids): ${e.message}`);
+    }
+
+    try {
+        // Step 17: the mastery outline no longer carries the
+        // 「基础知识与编程环境」 section (入门级 12 项 / 提高级 5 项). The bundled
+        // JSON no longer has them, so this only cleans up installs that
+        // imported the outline before the change. Idempotent.
+        const dropped = await algorithmDropBasicsSection();
+        result.algorithmBasicsItemsRemoved = dropped.items;
+        result.algorithmBasicsRatingsRemoved = dropped.ratings;
+    } catch (e: any) {
+        result.errors.push(`Step 17 (drop outline basics section): ${e.message}`);
     }
 
     return result;
