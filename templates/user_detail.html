@@ -63,6 +63,8 @@
   .oi33-records__block + .oi33-records__block {
     margin-top:1.2rem; padding-top:1rem; border-top:1px solid rgba(127,127,127,.15);
   }
+  /* 小猫卡片里的入口与头像卡里的快捷跳转同款，只是补一点上边距。 */
+  .oi33-cat-card .oi33-quicknav { margin-top:.75rem; }
   .oi33-records__title { margin:0 0 .6rem; font-size:1.02rem; }
   .oi33-records__list { margin:0; padding-left:1.2rem; }
   .theme--dark .oi33-bio-hint,
@@ -232,7 +234,7 @@
     {% endif %}
   </div>
 
-  {# ---------- 侧边栏：头像卡片 + 快捷跳转 + 小猫 + 标签（唯一展示头像/昵称的地方） #}
+  {# ---------- 侧边栏：头像卡片（含快捷跳转） + 我的小猫（唯一展示头像/昵称的地方） #}
   <div class="medium-3 columns">
     {{ profile.userCard(udoc, isSelfProfile) }}
 
@@ -263,41 +265,23 @@
           <span class="oi33-cat-food__label">猫罐头</span>
           <span class="oi33-cat-food__actions"><strong class="oi33-cat-food__amount">{{ udoc.cat_can or 0 }} 个</strong></span>
         </div>
-        <a class="expanded rounded button" href="{{ url('oi33_cat_can_arena', query={focusUid:udoc._id}) }}" style="margin:10px 0 0;">
-          🗺️ 猫猫广场
-        </a>
-        {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
-        <a class="expanded rounded button" href="{{ url('oi33_cat_account', uid=udoc._id) }}" style="margin:8px 0 0;">
-          📒 账户明细
-        </a>
-        {% endif %}
-        {% if isSelfProfile %}
-        <a class="expanded rounded button" href="{{ url('oi33_cat_can') }}" style="margin:8px 0 0;">
-          🥫 罐头交易
-        </a>
-        <a class="expanded rounded button" href="https://oj.33dai.cn/oi33/wiki/8934184860f0fe89mrr292st" style="margin:8px 0 0;">
-          📖 系统说明
-        </a>
-        {% endif %}
+        {# 与头像卡里的快捷跳转同一种链接行样式 #}
+        <ul class="oi33-quicknav">
+          <li><a href="{{ url('oi33_cat_can_arena', query={focusUid:udoc._id}) }}"><span class="icon icon-global"></span>猫猫广场</a></li>
+          {% if isSelfProfile or (handler.user.realname_flag or 0) >= 2 %}
+          <li><a href="{{ url('oi33_cat_account', uid=udoc._id) }}"><span class="icon icon-statistics"></span>账户明细</a></li>
+          {% endif %}
+          {% if isSelfProfile %}
+          <li><a href="{{ url('oi33_cat_can') }}"><span class="icon icon-pie-chart"></span>罐头交易</a></li>
+          {% endif %}
+          <li><a href="{{ url('oi33_auction') }}"><span class="icon icon-award"></span>奖章拍卖</a></li>
+          {% if isSelfProfile %}
+          <li><a href="https://oj.33dai.cn/oi33/wiki/8934184860f0fe89mrr292st"><span class="icon icon-info"></span>系统说明</a></li>
+          {% endif %}
+        </ul>
         <noscript><p class="oi33-cat-noscript">启用 JavaScript 后，小猫就会在这里散步。</p></noscript>
       </div>
     </div>
-
-    {% if tags.length and not _profileHidden %}
-    <div class="section side">
-      <div class="section__header">
-        <h2 class="section__title">{{ _('Problem Tags') }}</h2>
-      </div>
-      <div class="typo section__body no-media">
-        <dl class="exlarge horizontal">
-          {% for tag in tags %}
-          <dt>{{ tag[0] }}</dt>
-          <dd>{{ tag[1] }}</dd>
-          {% endfor %}
-        </dl>
-      </div>
-    </div>
-    {% endif %}
   </div>
 </div>
 {{ profile.style() }}
