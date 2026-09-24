@@ -1,7 +1,10 @@
 import { db, ObjectId } from 'hydrooj';
 import { backfillAllCatFood, previewCatFoodBackfill } from './model/user';
 import { dropLegacyAi33Collections } from './model/ai';
-import { medalMigrateAcceptedDomains, ensureMedalIndexes } from './model/medal';
+import {
+    medalMigrateAcceptedDomains, medalMigrateAutomaticLevels, ensureMedalIndexes,
+    AUTOMATIC_RULE_TYPES,
+} from './model/medal';
 import { ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
 import { ensureMeowIndexes } from './model/meow';
@@ -74,6 +77,7 @@ export async function previewMigration() {
         legacyCatCanBatchCount,
         legacySchoolCount,
         legacyMedalCollections,
+        legacyAutomaticMedals,
         catFoodPreview,
     ] = await Promise.all([
         db.collection('coin').countDocuments(),
@@ -95,12 +99,21 @@ export async function previewMigration() {
         Promise.all([
             'oi33_achievement', 'oi33_user_achievement', 'oi33_achievement_contract',
         ].map(async (name) => ((await collectionExists(name)) ? name : null))),
+        // Old one-medal-per-threshold automatic definitions waiting to be
+        // folded into upgradable series.
+        db.collection('oi33_medal').countDocuments({
+            ruleType: { $in: AUTOMATIC_RULE_TYPES },
+            saleable: { $ne: true },
+            threshold: { $gt: 0 },
+            $or: [{ levels: { $exists: false } }, { levels: { $size: 0 } }],
+        } as any),
         previewCatFoodBackfill(),
     ]);
     return {
         billCount, pasteCount, birthdayCount, userCount, oauthLogCount, legacyCatCanBatchCount,
         legacySchoolCount,
         legacyMedalCollections: legacyMedalCollections.filter(Boolean),
+        legacyAutomaticMedals: Number(legacyAutomaticMedals) || 0,
         catFoodUsers: catFoodPreview.users,
         catFoodAmount: catFoodPreview.amount,
     };
@@ -126,6 +139,13 @@ export async function migrate() {
         medalLogsRenamed: 0,
         medalLegacyIndexesDropped: 0,
         medalDomainsMigrated: 0,
+        medalAutomaticRuleTypes: 0,
+        medalAutomaticSeriesCreated: 0,
+        medalAutomaticDefinitionsMerged: 0,
+        medalAutomaticAwardsRewritten: 0,
+        medalAutomaticAwardsRemoved: 0,
+        medalAutomaticLogsRewritten: 0,
+        medalAutomaticMeowsRewritten: 0,
         catFoodUsers: 0,
         catFoodAmount: 0,
         errors: [] as string[],
@@ -483,6 +503,29 @@ export async function migrate() {
         result.medalDomainsMigrated = await medalMigrateAcceptedDomains();
     } catch (e: any) {
         result.errors.push(`Step 13 (rename achievement → medal): ${e.message}`);
+    }
+
+    try {
+        // Step 14: OJ 成就奖章 become upgradable level series. The old layout
+        // stored one definition per threshold; fold each indicator's
+        // definitions into one series and collapse every user's awards to the
+        // highest rung they reached. Idempotent: once a series has no flat
+        // definitions left the step is a no-op.
+        const automatic = await medalMigrateAutomaticLevels();
+        result.medalAutomaticRuleTypes = automatic.ruleTypes;
+        result.medalAutomaticSeriesCreated = automatic.seriesCreated;
+        result.medalAutomaticDefinitionsMerged = automatic.definitionsMerged;
+        result.medalAutomaticAwardsRewritten = automatic.awardsRewritten;
+        result.medalAutomaticAwardsRemoved = automatic.awardsRemoved;
+        result.medalAutomaticLogsRewritten = automatic.logsRewritten;
+        result.medalAutomaticMeowsRewritten = automatic.meowRewritten;
+        // Per-indicator failures are reported instead of thrown so the other
+        // indicators still migrate; the step is idempotent and re-runnable.
+        for (const message of automatic.errors) {
+            result.errors.push(`Step 14 (automatic medals → level series) ${message}`);
+        }
+    } catch (e: any) {
+        result.errors.push(`Step 14 (automatic medals → level series): ${e.message}`);
     }
 
     return result;

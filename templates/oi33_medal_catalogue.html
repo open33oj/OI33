@@ -11,6 +11,31 @@
   </div>
 </article>
 {% endmacro %}
+{% macro seriesCard(medal, stat, showThreshold, countLabel) %}
+<article class="certification-series">
+  <div class="certification-series__head">
+    <img class="certification-series__icon" src="{{ medal.imageData }}" width="64" height="64" alt="{{ medal.name }}">
+    <div class="certification-series__meta">
+      <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人{{ countLabel }}</small>{% endif %}</h3>
+      <p>{{ medal.description }}</p>
+    </div>
+  </div>
+  <ol class="certification-series__levels">
+    {% for level in (medal.levels or []) %}
+    {% set holders = (stat.byLevel[level.level|string] if stat else 0) or 0 %}
+    <li class="certification-series__level{% if not holders %} certification-series__level--empty{% endif %}">
+      <img class="certification-series__level-icon" src="{{ level.imageData }}" width="32" height="32" alt="{{ level.name }}">
+      <div class="certification-series__level-body">
+        <span class="certification-series__level-name">Lv.{{ level.level }} {{ level.name }}</span>
+        {% if showThreshold and level.threshold %}<span class="certification-series__level-desc">阈值 {{ level.threshold }}</span>{% endif %}
+        {% if level.description %}<span class="certification-series__level-desc">{{ level.description }}</span>{% endif %}
+        <span class="certification-series__level-count">{% if holders %}{{ holders }} 人{% else %}暂无{% endif %}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</article>
+{% endmacro %}
 {% block content %}
 <div class="row">
   <div class="medium-12 columns">
@@ -25,62 +50,11 @@
       </div>
       <div class="section__body">
         <p class="catalogue-help">
-          奖章分为四类：<strong>OJ 成就奖章</strong>由系统按做题与活跃指标自动发放；
-          <strong>可售卖奖章</strong>全服唯一，经拍卖与交易合同流转；
+          奖章分为四类（下方按此顺序展示）：<strong>可售卖奖章</strong>全服唯一，经拍卖与交易合同流转；
+          <strong>奖项认证奖章</strong>记录你在各类比赛中取得过的最高奖项，可随成绩提升而升级；
           <strong>一般奖章</strong>由管理员按活动与贡献发放；
-          <strong>奖项认证奖章</strong>记录你在各类比赛中取得过的最高奖项，可随成绩提升而升级。
+          <strong>OJ 成就奖章</strong>按做题与活跃指标自动发放，达到更高阈值时自动升级。
         </p>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section__header">
-        <h2 class="section__title">奖项认证奖章（{{ groups.certification.length }}）</h2>
-      </div>
-      <div class="section__body">
-        <p class="catalogue-help">
-          每类比赛一个系列，系列内的等级由低到高排列。下方的浅色等级表示还没有人达到。
-        </p>
-        {% for medal in groups.certification %}
-        {% set stat = stats[medal._id] %}
-        <article class="certification-series">
-          <div class="certification-series__head">
-            <img class="certification-series__icon" src="{{ medal.imageData }}" width="64" height="64" alt="{{ medal.name }}">
-            <div class="certification-series__meta">
-              <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人获得认证</small>{% endif %}</h3>
-              <p>{{ medal.description }}</p>
-            </div>
-          </div>
-          <ol class="certification-series__levels">
-            {% for level in (medal.levels or []) %}
-            {% set holders = (stat.byLevel[level.level|string] if stat else 0) or 0 %}
-            <li class="certification-series__level{% if not holders %} certification-series__level--empty{% endif %}">
-              <img class="certification-series__level-icon" src="{{ level.imageData }}" width="32" height="32" alt="{{ level.name }}">
-              <div class="certification-series__level-body">
-                <span class="certification-series__level-name">Lv.{{ level.level }} {{ level.name }}</span>
-                {% if level.description %}<span class="certification-series__level-desc">{{ level.description }}</span>{% endif %}
-                <span class="certification-series__level-count">{% if holders %}{{ holders }} 人{% else %}暂无{% endif %}</span>
-              </div>
-            </li>
-            {% endfor %}
-          </ol>
-        </article>
-        {% else %}
-        <p class="catalogue-help">还没有奖项认证奖章。</p>
-        {% endfor %}
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section__header">
-        <h2 class="section__title">OJ 成就奖章（{{ groups.oj.length }}）</h2>
-      </div>
-      <div class="section__body">
-        <p class="catalogue-help">通过题目、连续与累计登录、猫粮与猫罐头等指标自动发放，无需申请。</p>
-        <div class="catalogue-grid">
-          {% for medal in groups.oj %}{{ medalCard(medal, stats[medal._id]) }}{% endfor %}
-        </div>
-        {% if not groups.oj.length %}<p class="catalogue-help">还没有 OJ 成就奖章。</p>{% endif %}
       </div>
     </div>
 
@@ -131,6 +105,22 @@
 
     <div class="section">
       <div class="section__header">
+        <h2 class="section__title">奖项认证奖章（{{ groups.certification.length }}）</h2>
+      </div>
+      <div class="section__body">
+        <p class="catalogue-help">
+          每类比赛一个系列，系列内的等级由低到高排列。下方的浅色等级表示还没有人达到。
+        </p>
+        {% for medal in groups.certification %}
+        {{ seriesCard(medal, stats[medal._id], false, '获得认证') }}
+        {% else %}
+        <p class="catalogue-help">还没有奖项认证奖章。</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
         <h2 class="section__title">一般奖章（{{ groups.manual.length }}）</h2>
       </div>
       <div class="section__body">
@@ -139,6 +129,27 @@
           {% for medal in groups.manual %}{{ medalCard(medal, stats[medal._id]) }}{% endfor %}
         </div>
         {% if not groups.manual.length %}<p class="catalogue-help">还没有一般奖章。</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h2 class="section__title">OJ 成就奖章（{{ groups.oj.length }}）</h2>
+      </div>
+      <div class="section__body">
+        <p class="catalogue-help">
+          通过题目、连续与累计登录、猫粮与猫罐头等指标自动发放，无需申请；
+          每个系列内的等级由低到高排列，达到更高阈值时自动升级，浅色等级表示还没有人达到。
+        </p>
+        {% for medal in groups.oj %}
+        {% if (medal.levels or [])|length %}
+        {{ seriesCard(medal, stats[medal._id], true, '获得') }}
+        {% else %}
+        {{ medalCard(medal, stats[medal._id]) }}
+        {% endif %}
+        {% else %}
+        <p class="catalogue-help">还没有 OJ 成就奖章。</p>
+        {% endfor %}
       </div>
     </div>
   </div>

@@ -477,23 +477,34 @@ export type Oi33MedalRuleType =
     | 'cat_can_balance'
     | 'certification';
 
+// The rule types a rule evaluator may dispatch on. Certification medals are
+// never automatic (an administrator hands them out and upgrades them) and
+// `manual` definitions only exist to be granted by hand.
+export type Oi33MedalAutomaticRuleType = Exclude<Oi33MedalRuleType, 'manual' | 'certification'>;
+
 // The four public medal families. `category` is never stored: it is derived
 // from `ruleType` + `saleable` by `medalCategoryOf()` so the definition stays
 // the single source of truth.
-//   oj            OJ 成就奖章     — granted automatically by a rule evaluator
+//   oj            OJ 成就奖章     — one upgradable level series per indicator,
+//                                   upgraded automatically by a rule evaluator
 //   saleable      可售卖奖章     — auctioned / traded between users
 //   manual        一般奖章       — granted by hand by an administrator
 //   certification 奖项认证奖章   — one series per contest, upgradable by level
 export type Oi33MedalCategory = 'oj' | 'saleable' | 'manual' | 'certification';
 
-// One rung of a certification series (奖项认证奖章). `level` is 1-based and
-// ascending: the higher the number, the better the award it certifies.
+// One rung of an upgradable series. `level` is 1-based and ascending: the
+// higher the number, the better the award. Certification series (奖项认证奖章)
+// use it to record the best contest award; OJ 成就奖章 series use `threshold`
+// to record the metric value at which the rung is reached.
 export interface Oi33MedalLevel {
     level: number;
     name: string;
     description?: string;
     imageData: string;
     imageSize: Oi33MedalImageSize;
+    // OJ 成就奖章 only: the indicator value required to reach this rung. The
+    // rule evaluator grants the highest rung whose threshold is met.
+    threshold?: number;
 }
 
 // Definitions are deliberately data-driven. `rule` is a stable, human-readable
@@ -508,8 +519,9 @@ export interface Oi33Medal {
     threshold?: number;
     imageData: string;
     imageSize: Oi33MedalImageSize;
-    // Certification series only: the ordered level ladder. The base
-    // `imageData`/`imageSize` stay as the series icon used in admin lists.
+    // Upgradable series only (奖项认证奖章 / OJ 成就奖章): the ordered level
+    // ladder. The base `imageData`/`imageSize` stay as the series icon used in
+    // admin lists. For OJ series every rung carries its own `threshold`.
     levels?: Oi33MedalLevel[];
     order: number;
     // When true, a user who won this medal at auction may resell it
@@ -531,8 +543,9 @@ export interface Oi33UserMedal {
     earnedAt: Date;
     grantedBy: number;
     source: string;
-    // 奖项认证奖章 only: the currently held rung. Absent on every other
-    // family, where the medal is held or not held at all.
+    // Upgradable series only (奖项认证奖章 / OJ 成就奖章): the currently held
+    // rung. Absent on every other family, where the medal is held or not held
+    // at all.
     level?: number;
     announcementPostId?: ObjectId;
 }

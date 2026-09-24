@@ -2,10 +2,11 @@ import {
     db, DocumentModel, ObjectId, STATUS, SystemModel, ValidationError,
 } from 'hydrooj';
 import type {
-    Oi33MedalCategory, Oi33MedalImageSize, Oi33MedalLevel, Oi33MedalRuleType, Oi33UserMedal,
+    Oi33MedalAutomaticRuleType, Oi33MedalCategory, Oi33MedalImageSize, Oi33MedalLevel,
+    Oi33MedalRuleType, Oi33UserMedal,
 } from './types';
 import { addLog, logColl } from './log';
-import { meowMedalPostAdd, meowDelete } from './meow';
+import { meowMedalPostAdd, meowDelete, meowPostColl } from './meow';
 import { userColl } from './user';
 
 export const medalColl = db.collection('oi33_medal');
@@ -78,7 +79,7 @@ export async function ensureMedalIndexes() {
 // The automatic rule types a rule evaluator may dispatch on. `certification`
 // medals are never automatic: an administrator hands them out and upgrades
 // them, so they stay out of every evaluation pass.
-const AUTOMATIC_RULE_TYPES: Oi33MedalRuleType[] = [
+export const AUTOMATIC_RULE_TYPES: Oi33MedalAutomaticRuleType[] = [
     'accepted_problems',
     'checkin_streak',
     'checkin_total',
@@ -86,14 +87,62 @@ const AUTOMATIC_RULE_TYPES: Oi33MedalRuleType[] = [
     'cat_can_balance',
 ];
 
-// The four public families, in catalogue/display order.
-export const MEDAL_CATEGORIES: Oi33MedalCategory[] = ['oj', 'saleable', 'manual', 'certification'];
+export function isAutomaticRuleType(type: unknown): type is Oi33MedalAutomaticRuleType {
+    return AUTOMATIC_RULE_TYPES.includes(type as Oi33MedalAutomaticRuleType);
+}
+
+// Canonical series identity forged by the initial import and by the migration
+// that turns the old one-medal-per-threshold layout into upgradable ladders.
+// The ids are stable because the medal id is public and printed in the UI.
+export const MEDAL_AUTOMATIC_SERIES: Record<
+    Oi33MedalAutomaticRuleType,
+    { id: string; name: string; description: string }
+> = {
+    accepted_problems: {
+        id: 'ac', name: '题海',
+        description: '按通过的不同题号题目数量自动升级。',
+    },
+    checkin_streak: {
+        id: 'streak', name: '长明',
+        description: '按连续登录天数自动升级。',
+    },
+    checkin_total: {
+        id: 'login', name: '足迹',
+        description: '按累计登录天数自动升级。',
+    },
+    cat_food_balance: {
+        id: 'food', name: '粮仓',
+        description: '按猫粮余额历史峰值自动升级。',
+    },
+    cat_can_balance: {
+        id: 'can', name: '罐藏',
+        description: '按猫罐头持有量自动升级。',
+    },
+};
+
+// Human-readable condition for one automatic threshold, shared by the handler
+// form, the initial import and the migration.
+export function medalAutomaticRuleText(type: Oi33MedalRuleType, threshold: number): string {
+    if (type === 'accepted_problems') return `通过 ${threshold} 道题号不同的题目`;
+    if (type === 'checkin_streak') return `连续登录 ${threshold} 天`;
+    if (type === 'checkin_total') return `累计登录 ${threshold} 天`;
+    if (type === 'cat_food_balance') {
+        const amount = threshold % 1000 === 0 ? `${threshold / 1000} kg` : `${threshold} g`;
+        return `猫粮余额曾达到 ${amount}`;
+    }
+    if (type === 'cat_can_balance') return `猫罐头持有 ${threshold} 个`;
+    return '';
+}
+
+// The four public families, in catalogue/display order: 可售卖 → 奖项认证 →
+// 一般 → OJ 自动.
+export const MEDAL_CATEGORIES: Oi33MedalCategory[] = ['saleable', 'certification', 'manual', 'oj'];
 
 export const MEDAL_CATEGORY_NAMES: Record<Oi33MedalCategory, string> = {
-    oj: 'OJ 成就奖章',
     saleable: '可售卖奖章',
-    manual: '一般奖章',
     certification: '奖项认证奖章',
+    manual: '一般奖章',
+    oj: 'OJ 成就奖章',
 };
 
 // Category is derived, never stored: `saleable` wins over an automatic rule so
@@ -128,8 +177,8 @@ export function medalView<T extends Record<string, any>>(medal: T) {
     };
 }
 
-// Display order for medal lists: the user's enumeration order — automatic OJ
-// medals, then auctionable ones, then general hand-outs, then certification
+// Display order for medal lists: the user's enumeration order — auctionable
+// medals, then certification series, then general hand-outs, then automatic OJ
 // series. The `order` field (and fetch order) breaks ties within a group via a
 // stable sort.
 export function medalCategoryRank(medal: any) {
@@ -138,7 +187,7 @@ export function medalCategoryRank(medal: any) {
 
 export function medalGroupByCategory(medals: any[]) {
     const groups: Record<Oi33MedalCategory, any[]> = {
-        oj: [], saleable: [], manual: [], certification: [],
+        saleable: [], certification: [], manual: [], oj: [],
     };
     for (const medal of medals) groups[medalCategoryOf(medal)].push(medal);
     return groups;
@@ -149,7 +198,7 @@ export async function medalGet(id: string) {
     return medal ? medalView(medal) : null;
 }
 
-// --- Certification levels (奖项认证奖章) ---
+// --- Upgradable series levels (奖项认证奖章 / OJ 成就奖章) ---
 
 export function medalSortedLevels(medal: any): Oi33MedalLevel[] {
     const levels = Array.isArray(medal?.levels) ? medal.levels : [];
@@ -183,25 +232,54 @@ export function medalDisplayRung(medal: any, level?: number | null): Oi33MedalLe
     return below.length ? below[below.length - 1] : levels[0];
 }
 
-// Resolved display record for one award. For certification medals the held
-// level's own name/description/pixel art replaces the series defaults; every
-// other family falls back to the definition itself.
+// A definition is an upgradable series when it is one of the two level-bearing
+// families and actually carries a ladder. Used to decide whether an award holds
+// a rung and whether a grant must name one.
+export function medalIsLevelSeries(medal: any): boolean {
+    const category = medalCategoryOf(medal);
+    if (category !== 'certification' && category !== 'oj') return false;
+    return medalSortedLevels(medal).length > 0;
+}
+
+// Highest rung whose automatic threshold is met by `value`. Rungs without a
+// positive threshold are skipped, so a partially filled ladder is harmless.
+export function medalThresholdLevel(medal: any, value: number): Oi33MedalLevel | null {
+    let best: Oi33MedalLevel | null = null;
+    for (const item of medalSortedLevels(medal)) {
+        const threshold = Number(item.threshold);
+        if (!Number.isFinite(threshold) || threshold <= 0) continue;
+        if (value >= threshold && (!best || Number(item.level) > Number(best.level))) best = item;
+    }
+    return best;
+}
+
+// Resolved display record for one award. For upgradable series the held level's
+// own name/description/pixel art replaces the series defaults; every other
+// family falls back to the definition itself.
 export function medalAwardView(award: any, medal: any) {
     const category = medalCategoryOf(medal);
     const levels = medalSortedLevels(medal);
-    const rung = category === 'certification' ? medalDisplayRung(medal, award?.level) : null;
-    const held = Number(award?.level);
-    // `level` is what the user actually holds (a certification award always
-    // reports one); `displayLevel` is the rung whose art/name is rendered, and
+    const leveled = levels.length > 0 && (category === 'certification' || category === 'oj');
+    // A legacy award that predates the level migration carries no rung: holding
+    // the series at all means at least the lowest rung was reached, so render
+    // that rather than falsely claiming the top rung.
+    let held = Number(award?.level);
+    if (leveled && (!Number.isSafeInteger(held) || held <= 0)) {
+        held = Number(levels[0]?.level) || 1;
+    }
+    const rung = leveled ? medalDisplayRung(medal, held) : null;
+    // `level` is what the user actually holds (a leveled award always reports
+    // one); `displayLevel` is the rung whose art/name is rendered, and
     // `levelMissing` flags a held level that no longer exists on the ladder.
-    const level = category !== 'certification'
-        ? null
-        : (Number.isSafeInteger(held) && held > 0 ? held : (rung ? Number(rung.level) : null));
+    const level = leveled
+        ? (Number.isSafeInteger(held) && held > 0 ? held : (rung ? Number(rung.level) : null))
+        : null;
     return {
         category,
         categoryName: MEDAL_CATEGORY_NAMES[category],
+        leveled,
         level,
-        levelMissing: category === 'certification' && level !== null
+        levelMissing: leveled && level !== null
             && !levels.some((item) => Number(item.level) === level),
         displayLevel: rung ? Number(rung.level) : null,
         levelCount: levels.length,
@@ -259,14 +337,25 @@ export async function medalSave(input: {
             createdBy: input.operator,
         },
     };
+    const isAutomatic = isAutomaticRuleType(input.ruleType);
     if (input.ruleType === 'manual' || input.ruleType === 'certification') {
         update.$unset = { threshold: '' };
-    } else set.threshold = input.threshold;
-    // The level ladder only exists on certification series. Saved (rather than
-    // $unset) when present, and explicitly removed when a series is converted
-    // into another family so no stale rungs survive.
-    if (input.ruleType === 'certification') {
-        set.levels = input.levels || [];
+    } else if (isAutomatic) {
+        // The series threshold is the top rung's threshold: kept for sorting,
+        // legacy queries and display; the evaluator reads each rung's own
+        // threshold instead.
+        set.threshold = (input.levels || []).reduce(
+            (max, item) => Math.max(max, Number(item.threshold) || 0), 0,
+        ) || input.threshold;
+    }
+    // The level ladder exists on both upgradable families: certification
+    // (manually assigned rungs) and OJ 成就奖章 (rule-driven thresholds). It is
+    // explicitly removed when a series is converted into another family so no
+    // stale rungs survive.
+    if (input.ruleType === 'certification' || isAutomatic) {
+        set.levels = (input.levels || []).slice().sort(
+            (a, b) => Number(a.level) - Number(b.level),
+        );
     } else {
         update.$unset = { ...(update.$unset || {}), levels: '' };
     }
@@ -309,8 +398,8 @@ export async function medalGetUserAwards(uid: number) {
             const raw = definitionMap.get(grant.medalId);
             if (!raw) return null;
             const medal = medalView(raw);
-            // `view` is the resolved display record: certification awards
-            // render their current rung's name, text and pixel art.
+            // `view` is the resolved display record: awards of an upgradable
+            // series render their current rung's name, text and pixel art.
             return { ...grant, medal, view: medalAwardView(grant, medal) };
         })
         .filter(Boolean)
@@ -327,12 +416,12 @@ export async function medalListRecentAwards(limit = 50) {
 
 export interface MedalAwardStat {
     total: number;
-    // Certification series only: how many holders sit on each rung.
+    // Upgradable series only: how many holders sit on each rung.
     byLevel: Record<string, number>;
 }
 
 // Holder counts for the public catalogue. One pass over the award collection;
-// `total` covers every family, `byLevel` is only meaningful for certification
+// `total` covers every family, `byLevel` is only meaningful for upgradable
 // series (where the award carries its rung).
 export async function medalAwardStats(): Promise<Record<string, MedalAwardStat>> {
     const rows = await userMedalColl.aggregate([
@@ -391,16 +480,21 @@ export async function medalEvaluateUser(
     // Only the automatic (OJ 成就奖章) rule types are ever evaluated;
     // `manual` and `certification` definitions are exempt by construction.
     const ruleTypes = (options.ruleTypes || AUTOMATIC_RULE_TYPES)
-        .filter((type) => AUTOMATIC_RULE_TYPES.includes(type));
+        .filter((type) => isAutomaticRuleType(type));
     if (!ruleTypes.length) return { checked: 0, matched: 0, granted: [] as string[] };
-    const definitions = await medalColl.find({
+    const allDefinitions = await medalColl.find({
         ruleType: { $in: ruleTypes },
         // Auction/trade medals are exclusive to the 可售卖奖章 family: even a
         // legacy definition carrying both an automatic rule and the saleable
         // flag must not be handed out by a rule evaluator.
         saleable: { $ne: true },
-        threshold: { $gt: 0 },
     }).sort({ order: 1, threshold: 1, _id: 1 }).toArray();
+    // A definition is actionable when it carries either an upgradable ladder
+    // with per-rung thresholds or a legacy flat threshold.
+    const definitions = allDefinitions.filter((item) => (
+        medalSortedLevels(item).some((level) => Number(level.threshold) > 0)
+        || Number(item.threshold) > 0
+    ));
     if (!definitions.length) return { checked: 0, matched: 0, granted: [] as string[] };
 
     const needsAccepted = definitions.some((item) => item.ruleType === 'accepted_problems');
@@ -458,18 +552,31 @@ export async function medalEvaluateUser(
     const granted: string[] = [];
     let matched = 0;
     for (const definition of definitions) {
-        const threshold = Number(definition.threshold) || 0;
         const value = values[definition.ruleType] || 0;
+        const sourceText = options.source
+            ? `${options.source}:${definition.ruleType}`
+            : `rule:${definition.ruleType}`;
+        const rungs = medalSortedLevels(definition).filter(
+            (item) => Number(item.threshold) > 0,
+        );
+        if (rungs.length) {
+            // Upgradable OJ series: grant or raise the award to the highest rung
+            // the user's indicator has reached. It never downgrades and never
+            // publishes an automatic announcement.
+            const target = medalThresholdLevel(definition, value);
+            if (!target) continue;
+            matched++;
+            const result = await medalUpgradeAwardLevel(
+                uid, definition, Number(target.level), sourceText,
+            );
+            if (result.created || result.upgraded) granted.push(definition._id);
+            continue;
+        }
+        const threshold = Number(definition.threshold) || 0;
         if (value < threshold) continue;
         matched++;
         const result = await medalGrant(
-            uid,
-            definition._id,
-            0,
-            options.source
-                ? `${options.source}:${definition.ruleType}`
-                : `rule:${definition.ruleType}`,
-            options.announce !== false,
+            uid, definition._id, 0, sourceText, options.announce !== false,
         );
         if (result.created) granted.push(definition._id);
     }
@@ -510,12 +617,12 @@ export async function medalEvaluateAll() {
 }
 
 interface InitialMedalGroup {
-    idPrefix: string;
     orderBase: number;
-    ruleType: Oi33MedalRuleType;
+    ruleType: Oi33MedalAutomaticRuleType;
     thresholds: number[];
+    // Full rung names, e.g. 题海·初帆. The series name is stripped when the
+    // ladder is built, so an award renders as「题海 · 初帆」.
     names: string[];
-    rule: (value: number) => string;
     description: (value: number) => string;
 }
 
@@ -536,94 +643,141 @@ const INITIAL_MEDAL_IMAGES = [
 ];
 const INITIAL_MEDAL_GROUPS: InitialMedalGroup[] = [
     {
-        idPrefix: 'ac', orderBase: 0, ruleType: 'accepted_problems',
+        orderBase: 0, ruleType: 'accepted_problems',
         thresholds: INITIAL_THRESHOLDS,
         names: [
             '题海·初帆', '题海·试帆', '题海·扬帆', '题海·云帆',
             '题海·逐浪', '题海·踏浪', '题海·破浪', '题海·凌浪',
             '题海·巡海', '题海·驭海', '题海·镇海', '题海·瀚海',
         ],
-        rule: (value) => `通过 ${value} 道题号不同的题目`,
         description: (value) => `通过 ${value} 道题号不同的题目。`,
     },
     {
-        idPrefix: 'streak', orderBase: 100, ruleType: 'checkin_streak',
+        orderBase: 100, ruleType: 'checkin_streak',
         thresholds: INITIAL_THRESHOLDS,
         names: [
             '长明·火种', '长明·微火', '长明·灯火', '长明·炬火',
             '长明·长夜', '长明·守夜', '长明·星夜', '长明·彻夜',
             '长明·极光', '长明·耀光', '长明·恒光', '长明·永光',
         ],
-        rule: (value) => `连续登录 ${value} 天`,
         description: (value) => `连续登录 ${value} 天。`,
     },
     {
-        idPrefix: 'login', orderBase: 200, ruleType: 'checkin_total',
+        orderBase: 200, ruleType: 'checkin_total',
         thresholds: INITIAL_THRESHOLDS,
         names: [
             '足迹·初步', '足迹·起步', '足迹·迈步', '足迹·阔步',
             '足迹·旅途', '足迹·远途', '足迹·长途', '足迹·征途',
             '足迹·常来', '足迹·常驻', '足迹·常年', '足迹·常伴',
         ],
-        rule: (value) => `累计登录 ${value} 天`,
         description: (value) => `累计登录 ${value} 天。`,
     },
     {
-        idPrefix: 'food', orderBase: 300, ruleType: 'cat_food_balance',
+        orderBase: 300, ruleType: 'cat_food_balance',
         thresholds: INITIAL_THRESHOLDS.map((value) => value * 1000),
         names: [
             '粮仓·初囤', '粮仓·小囤', '粮仓·成囤', '粮仓·满囤',
             '粮仓·小仓', '粮仓·成仓', '粮仓·满仓', '粮仓·丰仓',
             '粮仓·丰野', '粮仓·丰丘', '粮仓·丰山', '粮仓·永丰',
         ],
-        rule: (value) => `猫粮余额曾达到 ${value / 1000} kg`,
         description: (value) => `猫粮余额曾达到 ${value / 1000} kg。`,
     },
     {
-        idPrefix: 'can', orderBase: 400, ruleType: 'cat_can_balance',
+        orderBase: 400, ruleType: 'cat_can_balance',
         thresholds: INITIAL_THRESHOLDS,
         names: [
             '罐藏·初罐', '罐藏·双罐', '罐藏·四罐', '罐藏·满罐',
             '罐藏·入库', '罐藏·小库', '罐藏·满库', '罐藏·丰库',
             '罐藏·宝箱', '罐藏·宝库', '罐藏·宝山', '罐藏·宝藏',
         ],
-        rule: (value) => `猫罐头持有量达到 ${value} 个`,
         description: (value) => `猫罐头持有量达到 ${value} 个。`,
     },
 ];
 
+// Strip the series prefix from a legacy rung name so the award view (which
+// renders「系列 · 等级」) does not repeat it.
+function automaticLevelName(ruleType: Oi33MedalAutomaticRuleType, name: string): string {
+    const prefix = `${MEDAL_AUTOMATIC_SERIES[ruleType].name}·`;
+    const trimmed = String(name || '').trim();
+    return trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : trimmed;
+}
+
+// Build a series ladder out of the old one-definition-per-threshold layout,
+// ordered by threshold.
+function automaticLevelsFromFlat(
+    ruleType: Oi33MedalAutomaticRuleType,
+    defs: any[],
+): Oi33MedalLevel[] {
+    return [...defs]
+        .sort((a, b) => (Number(a.threshold) || 0) - (Number(b.threshold) || 0)
+            || String(a._id).localeCompare(String(b._id)))
+        .map((def, index) => ({
+            level: index + 1,
+            name: automaticLevelName(ruleType, def.name),
+            description: String(def.description || '')
+                || medalAutomaticRuleText(ruleType, Number(def.threshold) || 0),
+            imageData: String(def.imageData || INITIAL_MEDAL_IMAGES[
+                Math.min(index, INITIAL_MEDAL_IMAGES.length - 1)
+            ]),
+            imageSize: (Number(def.imageSize) || 24) as Oi33MedalImageSize,
+            threshold: Number(def.threshold) || 0,
+        }));
+}
+
+function automaticSeriesRuleText(
+    ruleType: Oi33MedalAutomaticRuleType,
+    levels: Oi33MedalLevel[],
+): string {
+    const top = levels[levels.length - 1];
+    if (!top) return MEDAL_AUTOMATIC_SERIES[ruleType].description;
+    return `${medalAutomaticRuleText(ruleType, Number(top.threshold) || 0)} 起逐级自动升级`;
+}
+
+// Import the five built-in indicators as one upgradable series each. Rungs are
+// the old threshold ladder, so the award for a user is the highest rung
+// reached. Only missing series are created: a re-import never clobbers a ladder
+// an administrator has since edited.
 export async function medalImportInitialDefinitions(operator: number) {
     const now = new Date();
-    const operations: any[] = [];
-    for (const group of INITIAL_MEDAL_GROUPS) {
-        for (let index = 0; index < INITIAL_THRESHOLDS.length; index++) {
-            const threshold = group.thresholds[index];
-            operations.push({
-                updateOne: {
-                    filter: { _id: `${group.idPrefix}${200 + index}` },
-                    update: {
-                        $set: {
-                            name: group.names[index],
-                            description: group.description(threshold),
-                            imageData: INITIAL_MEDAL_IMAGES[index],
-                            imageSize: 24,
-                            order: group.orderBase + index,
-                            rule: group.rule(threshold),
-                            ruleType: group.ruleType,
-                            threshold,
-                            updatedAt: now,
-                        },
-                        $setOnInsert: { createdAt: now, createdBy: operator },
+    const operations: any[] = INITIAL_MEDAL_GROUPS.map((group) => {
+        const meta = MEDAL_AUTOMATIC_SERIES[group.ruleType];
+        const levels: Oi33MedalLevel[] = group.thresholds.map((threshold, index) => ({
+            level: index + 1,
+            name: automaticLevelName(group.ruleType, group.names[index]),
+            description: group.description(threshold),
+            imageData: INITIAL_MEDAL_IMAGES[index],
+            imageSize: 24 as Oi33MedalImageSize,
+            threshold,
+        }));
+        const top = levels[levels.length - 1];
+        return {
+            updateOne: {
+                filter: { _id: meta.id },
+                update: {
+                    $setOnInsert: {
+                        name: meta.name,
+                        description: meta.description,
+                        imageData: top.imageData,
+                        imageSize: 24,
+                        order: group.orderBase,
+                        rule: automaticSeriesRuleText(group.ruleType, levels),
+                        ruleType: group.ruleType,
+                        threshold: top.threshold,
+                        levels,
+                        saleable: false,
+                        createdAt: now,
+                        updatedAt: now,
+                        createdBy: operator,
                     },
-                    upsert: true,
                 },
-            });
-        }
-    }
+                upsert: true,
+            },
+        };
+    });
     const result = await medalColl.bulkWrite(operations, { ordered: false });
     await addLog({
         type: 'medal', userId: operator, action: 'initial_import',
-        reason: `${operations.length} definitions`,
+        reason: `${operations.length} series`,
     });
     return {
         total: operations.length,
@@ -631,6 +785,210 @@ export async function medalImportInitialDefinitions(operator: number) {
         existing: result.matchedCount || 0,
         modified: result.modifiedCount || 0,
     };
+}
+
+export interface MedalAutomaticMigrationResult {
+    ruleTypes: number;
+    seriesCreated: number;
+    definitionsMerged: number;
+    awardsRewritten: number;
+    awardsRemoved: number;
+    logsRewritten: number;
+    meowRewritten: number;
+    // One entry per indicator that failed; the others still migrate because the
+    // step is idempotent and is meant to be re-runnable.
+    errors: string[];
+}
+
+// Idempotent migration from the pre-upgrade layout — one automatic definition
+// per threshold — to one upgradable series per indicator. Every user's awards
+// collapse to the highest rung they reached, and the retired definition ids are
+// rewritten in logs and medal announcements. Called by /oi33/migrate.
+export async function medalMigrateAutomaticLevels(): Promise<MedalAutomaticMigrationResult> {
+    const result: MedalAutomaticMigrationResult = {
+        ruleTypes: 0, seriesCreated: 0, definitionsMerged: 0,
+        awardsRewritten: 0, awardsRemoved: 0, logsRewritten: 0, meowRewritten: 0,
+        errors: [],
+    };
+    for (const ruleType of AUTOMATIC_RULE_TYPES) {
+        // Each indicator is independent: a failure on one (e.g. a legacy
+        // duplicate the dedupe below could not resolve) must not stop the rest,
+        // and re-running the step continues where it left off.
+        try {
+        const defs = await medalColl.find({
+            ruleType,
+            saleable: { $ne: true },
+        }).toArray();
+        const flat = defs.filter(
+            (def) => medalSortedLevels(def).length === 0 && Number(def.threshold) > 0,
+        );
+        // Nothing to fold once the series has no flat definitions left.
+        if (!flat.length) continue;
+        result.ruleTypes++;
+        const meta = MEDAL_AUTOMATIC_SERIES[ruleType];
+        let series: any = defs.find((def) => medalSortedLevels(def).length > 0) || null;
+        if (!series) {
+            // Reuse the flat definition already carrying the canonical id when
+            // possible so an existing public medal id keeps working; otherwise
+            // create the canonical series.
+            const canonical = flat.find((def) => def._id === meta.id) || null;
+            if (canonical) {
+                series = canonical;
+            } else {
+                const levels = automaticLevelsFromFlat(ruleType, flat);
+                const top = levels[levels.length - 1];
+                const now = new Date();
+                await medalColl.insertOne({
+                    _id: meta.id,
+                    name: meta.name,
+                    description: meta.description,
+                    rule: automaticSeriesRuleText(ruleType, levels),
+                    ruleType,
+                    imageData: top.imageData,
+                    imageSize: top.imageSize,
+                    levels,
+                    threshold: top.threshold,
+                    order: Math.min(...flat.map((def) => Number(def.order) || 0)),
+                    saleable: false,
+                    createdAt: now,
+                    updatedAt: now,
+                    createdBy: 0,
+                } as any);
+                series = await medalColl.findOne({ _id: meta.id });
+                result.seriesCreated++;
+            }
+        }
+        if (!series) continue;
+        let levels = medalSortedLevels(series);
+        if (!levels.length) {
+            // The canonical id was one of the flat medals: give it the ladder
+            // built from the whole group and turn it into the series.
+            levels = automaticLevelsFromFlat(ruleType, flat);
+            const top = levels[levels.length - 1];
+            await medalColl.updateOne(
+                { _id: series._id },
+                {
+                    $set: {
+                        name: meta.name,
+                        description: meta.description,
+                        rule: automaticSeriesRuleText(ruleType, levels),
+                        imageData: top.imageData,
+                        imageSize: top.imageSize,
+                        levels,
+                        threshold: top.threshold,
+                        updatedAt: new Date(),
+                    },
+                },
+            );
+            series.levels = levels;
+            result.seriesCreated++;
+        }
+        // Each retired definition maps to the highest series rung it qualifies
+        // for; a threshold below the first rung still counts as rung 1.
+        const flatLevel = new Map<string, number>();
+        for (const def of flat) {
+            const rung = medalThresholdLevel(series, Number(def.threshold) || 0);
+            flatLevel.set(String(def._id), rung ? Number(rung.level) : 1);
+        }
+        const seriesId = String(series._id);
+        const flatIds = flat.map((def) => String(def._id)).filter((id) => id !== seriesId);
+        const awards = await userMedalColl.find({
+            medalId: { $in: [...flatIds, seriesId] },
+        }).toArray();
+        const byUid = new Map<number, any[]>();
+        for (const award of awards) {
+            const list = byUid.get(Number(award.uid)) || [];
+            list.push(award);
+            byUid.set(Number(award.uid), list);
+        }
+        for (const list of byUid.values()) {
+            const seriesAward = list.find((award) => String(award.medalId) === seriesId) || null;
+            // A series award may itself be a converted flat award (the canonical
+            // id was one of the old medals), so seed from its mapped rung too.
+            let target = seriesAward
+                ? Math.max(Number(seriesAward.level) || 0, flatLevel.get(seriesId) || 0)
+                : 0;
+            for (const award of list) {
+                if (String(award.medalId) === seriesId) continue;
+                target = Math.max(target, flatLevel.get(String(award.medalId)) || 0);
+            }
+            if (target <= 0) target = 1;
+            const keeper = seriesAward || list
+                .filter((award) => String(award.medalId) !== seriesId)
+                .sort((a, b) => (
+                    (flatLevel.get(String(b.medalId)) || 0) - (flatLevel.get(String(a.medalId)) || 0)
+                ))[0];
+            if (!keeper) continue;
+            if (String(keeper.medalId) !== seriesId || Number(keeper.level) !== target) {
+                await userMedalColl.updateOne(
+                    { _id: keeper._id },
+                    { $set: { medalId: seriesId, level: target } },
+                );
+                result.awardsRewritten++;
+            }
+            const removeIds = list
+                .filter((award) => !award._id.equals(keeper._id))
+                .map((award) => award._id);
+            if (removeIds.length) {
+                const removed = await userMedalColl.deleteMany({ _id: { $in: removeIds } });
+                result.awardsRemoved += removed.deletedCount || 0;
+            }
+        }
+        // Retire the flat definitions only after every award points at the
+        // series; references in logs and medal announcements are rewritten too.
+        for (const oldId of flatIds) {
+            const level = flatLevel.get(oldId);
+            const logs = await logColl.updateMany(
+                { medalId: oldId },
+                { $set: { medalId: seriesId, ...(level ? { level } : {}) } },
+            );
+            result.logsRewritten += logs.modifiedCount || 0;
+        }
+        // `oi33_meow_post` has a unique (uid, medalId) index for medal
+        // announcements, so a user holding announcements for several old rungs
+        // cannot keep them all once they map to the same series. Collapse each
+        // user to one series announcement (a post already on the series wins,
+        // otherwise the highest rung) and delete the rest BEFORE rewriting the
+        // winner's medalId — a per-id updateMany would fail with E11000.
+        const meowPosts = await meowPostColl.find({
+            medalId: { $in: [...flatIds, seriesId] },
+        }).toArray();
+        const meowsByUid = new Map<number, any[]>();
+        for (const post of meowPosts) {
+            const list = meowsByUid.get(Number(post.uid)) || [];
+            list.push(post);
+            meowsByUid.set(Number(post.uid), list);
+        }
+        for (const list of meowsByUid.values()) {
+            const seriesPost = list.find((post) => String(post.medalId) === seriesId) || null;
+            const keeper = seriesPost || [...list].sort((a, b) => (
+                (flatLevel.get(String(b.medalId)) || 0) - (flatLevel.get(String(a.medalId)) || 0)
+            ))[0];
+            if (!keeper) continue;
+            const removeIds = list
+                .filter((post) => !post._id.equals(keeper._id))
+                .map((post) => post._id);
+            if (removeIds.length) {
+                await meowPostColl.deleteMany({ _id: { $in: removeIds } });
+                result.meowRewritten += removeIds.length;
+            }
+            if (String(keeper.medalId) !== seriesId) {
+                await meowPostColl.updateOne(
+                    { _id: keeper._id },
+                    { $set: { medalId: seriesId } },
+                );
+                result.meowRewritten++;
+            }
+        }
+        if (flatIds.length) {
+            const removed = await medalColl.deleteMany({ _id: { $in: flatIds } });
+            result.definitionsMerged += removed.deletedCount || 0;
+        }
+        } catch (e: any) {
+            result.errors.push(`${ruleType}: ${e?.message || e}`);
+        }
+    }
+    return result;
 }
 
 // This is the only entry point automatic rule evaluators should call. The
@@ -653,15 +1011,15 @@ export async function medalGrant(
         grantedBy,
         source,
     };
-    // Certification series carry the earned rung on the award itself. The
+    // Upgradable series carry the earned rung on the award itself. The
     // requested level must exist — granting is strict; only rendering is
     // forgiving about rungs an administrator later removed.
-    if (medalCategoryOf(medal) === 'certification') {
-        const levels = medalSortedLevels(medal);
-        if (!levels.length) throw new ValidationError('该认证奖章还没有配置任何等级。');
+    if (medalIsLevelSeries(medal)) {
         const rung = medalLevelOf(medal, level);
-        if (!rung) throw new ValidationError('该认证奖章没有这个等级。');
+        if (!rung) throw new ValidationError('该奖章没有这个等级。');
         grant.level = Number(rung.level);
+    } else if (medalCategoryOf(medal) === 'certification') {
+        throw new ValidationError('该认证奖章还没有配置任何等级。');
     }
     try {
         await userMedalColl.insertOne(grant);
@@ -707,10 +1065,53 @@ async function medalAnnounceAllowed(uid: number) {
     return (Number(recipient?.realname_flag) || 0) < 2;
 }
 
-// Certification medals are a ladder: granting a level to a user who does not
-// hold the series yet creates the award, and setting a new level on an
-// existing award upgrades (or corrects) it in place. Re-announcing follows the
-// same manual-grant rule as a fresh grant.
+// Automatic (OJ 成就奖章) rule upgrade: raise an existing award to the rung the
+// user has just reached, or create the award at that rung. It never downgrades,
+// never publishes a new announcement, and only refreshes an announcement that
+// already exists.
+async function medalUpgradeAwardLevel(
+    uid: number,
+    medal: any,
+    targetLevel: number,
+    source: string,
+): Promise<{ created: boolean; upgraded: boolean; previousLevel: number | null; level: number }> {
+    const existing = await userMedalColl.findOne({ uid, medalId: medal._id });
+    if (!existing) {
+        await medalGrant(uid, medal._id, 0, source, false, targetLevel);
+        return { created: true, upgraded: true, previousLevel: null, level: targetLevel };
+    }
+    const previousLevel = Number.isSafeInteger(Number(existing.level)) && Number(existing.level) > 0
+        ? Number(existing.level)
+        : null;
+    if (previousLevel !== null && targetLevel <= previousLevel) {
+        return { created: false, upgraded: false, previousLevel, level: previousLevel };
+    }
+    await userMedalColl.updateOne(
+        { _id: existing._id },
+        { $set: { level: targetLevel, earnedAt: new Date(), source } },
+    );
+    if (existing.announcementPostId) {
+        try {
+            const refreshed = await userMedalColl.findOne({ _id: existing._id });
+            await meowMedalPostAdd(uid, medal, medalAwardView(refreshed, medal));
+        } catch (e) {
+            // A failed refresh must not roll back a legitimate upgrade.
+            console.error('[oi33] medal level announcement refresh failed:', e);
+        }
+    }
+    await addLog({
+        type: 'medal', userId: uid, action: 'level_update',
+        medalId: medal._id, level: targetLevel,
+        reason: `Lv.${previousLevel ?? '-'} → Lv.${targetLevel}（自动升级）`,
+    });
+    return { created: false, upgraded: true, previousLevel, level: targetLevel };
+}
+
+// Upgradable series are a ladder: setting a level on a user who does not hold
+// the series yet creates the award, and setting a new level on an existing
+// award upgrades (or corrects) it in place. Re-announcing follows the same
+// manual-grant rule as a fresh grant. Administrators may move either direction;
+// the automatic evaluator only ever upgrades.
 export async function medalSetLevel(
     uid: number,
     medalId: string,
@@ -719,11 +1120,11 @@ export async function medalSetLevel(
 ): Promise<{ created: boolean; previousLevel: number | null; level: number }> {
     const medal = await medalColl.findOne({ _id: medalId });
     if (!medal) throw new ValidationError('奖章不存在。');
-    if (medalCategoryOf(medal) !== 'certification') {
-        throw new ValidationError('只有奖项认证奖章才能按等级发放。');
+    if (!medalIsLevelSeries(medal)) {
+        throw new ValidationError('只有可升级的奖章系列才能按等级发放。');
     }
     const rung = medalLevelOf(medal, level);
-    if (!rung) throw new ValidationError('该认证奖章没有这个等级。');
+    if (!rung) throw new ValidationError('该奖章没有这个等级。');
     const target = Number(rung.level);
     const existing = await userMedalColl.findOne({ uid, medalId });
     if (!existing) {
