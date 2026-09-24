@@ -1,6 +1,66 @@
 {% set page_name = "oi33_medal_manage" %}
 {% extends "layout/basic.html" %}
 {% import "components/user.html" as user with context %}
+{% macro medalDefinitions(list) %}
+<div class="section__body medal-definition-grid">
+  {% for medal in list %}
+  <article class="medal-definition">
+    <img class="medal-pixel" src="{{ medal.imageData }}" width="96" height="96"
+      alt="{{ medal.name }}">
+    <div class="medal-definition__body">
+      <h3>{{ medal.name }} <code>{{ medal._id }}</code></h3>
+      <p><span class="medal-tag medal-tag--{{ medal.category }}">{{ medal.categoryName }}</span></p>
+      <p>{{ medal.description }}</p>
+      <p><strong>达成规则：</strong>{{ medal.rule }}</p>
+      <p class="medal-meta">
+        {{ medal.imageSize }}×{{ medal.imageSize }} · 排序 {{ medal.order }}
+      </p>
+      <a class="rounded button" href="{{ url('oi33_medal_manage', query={edit:medal._id}) }}">编辑</a>
+      {% if medal.category == 'saleable' %}
+      <a class="rounded button" href="{{ url('oi33_auction', query={medal:medal._id}) }}">发起拍卖</a>
+      {% endif %}
+      <form method="post" action="{{ url('oi33_medal_delete', id=medal._id) }}"
+        class="medal-inline-form" onsubmit="return confirm('确定删除这个尚未授予的奖章吗？');">
+        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+        <button type="submit" class="rounded button">删除</button>
+      </form>
+    </div>
+  </article>
+  {% else %}
+  <p>还没有奖章定义。</p>
+  {% endfor %}
+</div>
+{% endmacro %}
+{% macro medalSeries(medal, showThreshold) %}
+<article class="medal-series">
+  <div class="medal-series__head">
+    <img class="medal-series__icon" src="{{ medal.imageData }}" width="64" height="64" alt="{{ medal.name }}">
+    <div class="medal-series__meta">
+      <h3>{{ medal.name }} <code>{{ medal._id }}</code></h3>
+      <p>{{ medal.description }}</p>
+      <p class="medal-meta">{{ (medal.levels or [])|length }} 个等级 · 排序 {{ medal.order }}</p>
+    </div>
+    <div class="medal-series__actions">
+      <a class="rounded button" href="{{ url('oi33_medal_manage', query={edit:medal._id}) }}">编辑等级</a>
+      <form method="post" action="{{ url('oi33_medal_delete', id=medal._id) }}"
+        class="medal-inline-form" onsubmit="return confirm('确定删除这个尚未授予的奖章吗？');">
+        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+        <button type="submit" class="rounded button">删除</button>
+      </form>
+    </div>
+  </div>
+  <ol class="medal-series__levels">
+    {% for level in (medal.levels or []) %}
+    <li class="medal-series__level">
+      <img class="medal-series__level-icon" src="{{ level.imageData }}" width="32" height="32" alt="{{ level.name }}">
+      <span class="medal-series__level-name">Lv.{{ level.level }} {{ level.name }}</span>
+      {% if showThreshold and level.threshold %}<span class="medal-series__level-desc">阈值 {{ level.threshold }}</span>{% endif %}
+      {% if level.description %}<span class="medal-series__level-desc">{{ level.description }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</article>
+{% endmacro %}
 {% block content %}
 <div class="row">
   <div class="medium-12 columns">
@@ -83,23 +143,15 @@
                   required placeholder="展示给用户的奖章说明">{{ editing.description if editing else '' }}</textarea>
               </div>
 
-              {# OJ 成就奖章：自动指标 + 阈值 #}
+              {# OJ 成就奖章：自动指标 + 等级阈值阶梯 #}
               <div class="medal-section" data-section="oj">
-                <div class="row">
-                  <div class="medium-8 columns form__item">
-                    <label>发放指标</label>
-                    <select class="select" name="ruleType" id="medal-rule-type">
-                      {% for option in ruleOptions %}
-                      <option value="{{ option.value }}" {% if editing and editing.ruleType == option.value %}selected{% endif %}>{{ option.label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="medium-4 columns form__item">
-                    <label>阈值 x</label>
-                    <input class="textbox" type="number" min="1" max="1000000000"
-                      name="threshold" id="medal-threshold"
-                      value="{{ editing.threshold if editing and editing.threshold else 1 }}">
-                  </div>
+                <div class="form__item">
+                  <label>发放指标</label>
+                  <select class="select" name="ruleType" id="medal-rule-type">
+                    {% for option in ruleOptions %}
+                    <option value="{{ option.value }}" {% if editing and editing.ruleType == option.value %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                  </select>
                 </div>
               </div>
 
@@ -113,11 +165,12 @@
                 </div>
               </div>
 
-              {# 奖项认证奖章：等级阶梯 #}
-              <div class="medal-section" data-section="certification">
+              {# OJ 成就奖章 / 奖项认证奖章：等级阶梯 #}
+              <div class="medal-section" data-section="levels">
                 <label>等级阶梯（由低到高）</label>
                 <p class="medal-help">
                   每个等级有自己的名称与像素画，用户已获得的等级以该等级的像素画与名称展示。
+                  OJ 成就奖章还要给每个等级填写自动发放阈值（必须由低到高严格递增）。
                   保存后会自动按当前顺序重排为 Lv.1…Lv.N；删除一行即从梯子上移除该等级。
                 </p>
                 <input type="hidden" name="levels_json" id="medal-levels-json" value="">
@@ -130,7 +183,10 @@
                       <input class="textbox" data-field="name" maxlength="30"
                         value="{{ level.name }}" placeholder="等级名称，例如 一等奖">
                       <input class="textbox" data-field="description" maxlength="200"
-                        value="{{ level.description or '' }}" placeholder="等级说明（可选）">
+                        value="{{ level.description or '' }}" placeholder="等级说明（可选，留空按阈值自动生成）">
+                      <input class="textbox medal-level-threshold" data-field="threshold" type="number"
+                        min="1" max="1000000000" value="{{ level.threshold if level.threshold else '' }}"
+                        placeholder="自动发放阈值（OJ 成就奖章必填）">
                       <label class="medal-level-file">更换像素图
                         <input type="file" name="level_image_{{ level.level }}" accept="image/png,.png">
                       </label>
@@ -171,7 +227,7 @@
 
           <div class="medium-5 columns">
             <h2>发放 / 升级</h2>
-            {% if medals.length or certificationMedals.length %}
+            {% if medals.length or ojMedals.length or certificationMedals.length %}
             <form method="post" action="{{ url('oi33_medal_grant') }}">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
               <div class="form__item">
@@ -181,21 +237,30 @@
               <div class="form__item">
                 <label>奖章</label>
                 <select class="select" name="medalId" id="medal-grant-medal" required>
-                  {% for medal in medals %}
+                  {% for medal in saleableMedals %}
                   <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
                   {% endfor %}
                   {% for medal in certificationMedals %}
                   <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
                   {% endfor %}
+                  {% for medal in manualMedals %}
+                  <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
+                  {% endfor %}
+                  {% for medal in ojMedals %}
+                  <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
+                  {% endfor %}
+                  {% for medal in legacyOjMedals %}
+                  <option value="{{ medal._id }}">[{{ medal.categoryName }}] {{ medal.name }}（{{ medal._id }}）</option>
+                  {% endfor %}
                 </select>
               </div>
               <div class="form__item" id="medal-grant-level-wrap" style="display:none">
-                <label>认证等级</label>
+                <label>发放等级</label>
                 <select class="select" name="level" id="medal-grant-level"></select>
               </div>
               <p class="medal-help">
                 一般奖章与可售卖奖章直接发放，成功后自动发布一条公开的个人喵喵，不扣罐头、不占每日免费次数。
-                奖项认证奖章按等级发放：用户已有该系列时即为升级（或纠正等级）。
+                OJ 成就奖章与奖项认证奖章按等级发放：用户已有该系列时即为升级（或纠正等级）。
               </p>
               <button type="submit" class="rounded primary button">发放奖章</button>
             </form>
@@ -208,72 +273,47 @@
     </div>
 
     <div class="section">
-      <div class="section__header"><h2 class="section__title">普通奖章定义（{{ medals.length }}）</h2></div>
-      <div class="section__body medal-definition-grid">
-        {% for medal in medals %}
-        <article class="medal-definition">
-          <img class="medal-pixel" src="{{ medal.imageData }}" width="96" height="96"
-            alt="{{ medal.name }}">
-          <div class="medal-definition__body">
-            <h3>{{ medal.name }} <code>{{ medal._id }}</code></h3>
-            <p><span class="medal-tag medal-tag--{{ medal.category }}">{{ medal.categoryName }}</span></p>
-            <p>{{ medal.description }}</p>
-            <p><strong>达成规则：</strong>{{ medal.rule }}</p>
-            <p class="medal-meta">
-              {{ medal.imageSize }}×{{ medal.imageSize }} · 排序 {{ medal.order }}
-            </p>
-            <a class="rounded button" href="{{ url('oi33_medal_manage', query={edit:medal._id}) }}">编辑</a>
-            {% if medal.category == 'saleable' %}
-            <a class="rounded button" href="{{ url('oi33_auction', query={medal:medal._id}) }}">发起拍卖</a>
-            {% endif %}
-            <form method="post" action="{{ url('oi33_medal_delete', id=medal._id) }}"
-              class="medal-inline-form" onsubmit="return confirm('确定删除这个尚未授予的奖章吗？');">
-              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-              <button type="submit" class="rounded button">删除</button>
-            </form>
-          </div>
-        </article>
-        {% else %}
-        <p>还没有奖章定义。</p>
-        {% endfor %}
-      </div>
+      <div class="section__header"><h2 class="section__title">可售卖奖章（{{ saleableMedals.length }}）</h2></div>
+      {{ medalDefinitions(saleableMedals) }}
     </div>
 
     <div class="section">
       <div class="section__header"><h2 class="section__title">奖项认证奖章（{{ certificationMedals.length }}）</h2></div>
       <div class="section__body">
         {% for medal in certificationMedals %}
-        <article class="medal-series">
-          <div class="medal-series__head">
-            <img class="medal-series__icon" src="{{ medal.imageData }}" width="64" height="64" alt="{{ medal.name }}">
-            <div class="medal-series__meta">
-              <h3>{{ medal.name }} <code>{{ medal._id }}</code></h3>
-              <p>{{ medal.description }}</p>
-              <p class="medal-meta">{{ (medal.levels or [])|length }} 个等级 · 排序 {{ medal.order }}</p>
-            </div>
-            <div class="medal-series__actions">
-              <a class="rounded button" href="{{ url('oi33_medal_manage', query={edit:medal._id}) }}">编辑等级</a>
-              <form method="post" action="{{ url('oi33_medal_delete', id=medal._id) }}"
-                class="medal-inline-form" onsubmit="return confirm('确定删除这个尚未授予的奖章吗？');">
-                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                <button type="submit" class="rounded button">删除</button>
-              </form>
-            </div>
-          </div>
-          <ol class="medal-series__levels">
-            {% for level in (medal.levels or []) %}
-            <li class="medal-series__level">
-              <img class="medal-series__level-icon" src="{{ level.imageData }}" width="32" height="32" alt="{{ level.name }}">
-              <span class="medal-series__level-name">Lv.{{ level.level }} {{ level.name }}</span>
-              {% if level.description %}<span class="medal-series__level-desc">{{ level.description }}</span>{% endif %}
-            </li>
-            {% endfor %}
-          </ol>
-        </article>
+        {{ medalSeries(medal, false) }}
         {% else %}
         <p>还没有奖项认证奖章。新建时把「奖章类型」选为「奖项认证奖章」即可配置等级阶梯。</p>
         {% endfor %}
       </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">一般奖章（{{ manualMedals.length }}）</h2></div>
+      {{ medalDefinitions(manualMedals) }}
+    </div>
+
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">OJ 成就奖章（{{ ojMedals.length + legacyOjMedals.length }}）</h2></div>
+      <div class="section__body">
+        <p class="medal-help">
+          每类指标一个可升级系列：用户同一系列只有一条记录，达到更高阈值时由系统自动升级。
+          升到新等级时不会发布新的喵喵公告；管理员也可以手动补录或纠正等级。
+        </p>
+        {% if ojMedals.length %}
+        {% for medal in ojMedals %}
+        {{ medalSeries(medal, true) }}
+        {% endfor %}
+        {% elif not legacyOjMedals.length %}
+        <p>还没有 OJ 成就奖章。新建时把「奖章类型」选为「OJ 成就奖章」即可配置阈值阶梯。</p>
+        {% endif %}
+      </div>
+      {% if legacyOjMedals.length %}
+      <p class="medal-help" style="padding:0 1rem;">
+        以下 OJ 定义还是旧的「一个阈值一个奖章」格式，运行一次迁移或重新编辑保存后即可升级为等级系列。
+      </p>
+      {{ medalDefinitions(legacyOjMedals) }}
+      {% endif %}
     </div>
 
     <div class="section">
@@ -384,7 +424,6 @@
     var category = document.getElementById('medal-category');
     var sections = document.querySelectorAll('.medal-section');
     var hints = document.querySelectorAll('.medal-category-hint');
-    var threshold = document.getElementById('medal-threshold');
     var manualRule = document.getElementById('medal-manual-rule');
     var levelsBox = document.getElementById('medal-levels');
     var levelsJson = document.getElementById('medal-levels-json');
@@ -403,17 +442,15 @@
         var index = list[i].querySelector('.medal-level-row__index');
         if (index) index.textContent = String(i + 1);
       }
-      if (addButton) {
-        addButton.style.display = (category && category.value === 'certification') ? '' : 'none';
-      }
     };
 
     var sync = function () {
       var value = category ? category.value : 'oj';
+      var showLevels = value === 'oj' || value === 'certification';
       for (var i = 0; i < sections.length; i++) {
         var name = sections[i].getAttribute('data-section');
-        var active = value === 'oj' ? name === 'oj'
-          : value === 'certification' ? name === 'certification'
+        var active = name === 'levels' ? showLevels
+          : value === 'oj' ? name === 'oj'
             : name === 'manual';
         sections[i].style.display = active ? '' : 'none';
         var inputs = sections[i].querySelectorAll('input, select, textarea');
@@ -422,7 +459,12 @@
       for (var k = 0; k < hints.length; k++) {
         hints[k].style.display = hints[k].getAttribute('data-category') === value ? '' : 'none';
       }
-      if (threshold) threshold.required = value === 'oj';
+      // The per-rung threshold only exists on OJ 成就奖章 series.
+      var thresholds = levelsBox ? levelsBox.querySelectorAll('.medal-level-threshold') : [];
+      for (var t = 0; t < thresholds.length; t++) {
+        thresholds[t].style.display = value === 'oj' ? '' : 'none';
+      }
+      if (addButton) addButton.style.display = showLevels ? '' : 'none';
       if (manualRule) manualRule.required = value === 'manual' || value === 'saleable';
       renumber();
     };
@@ -455,7 +497,9 @@
         + '<img class="medal-level-pixel" width="48" height="48" alt="">'
         + '<div class="medal-level-row__fields">'
         + '<input class="textbox" data-field="name" maxlength="30" placeholder="等级名称，例如 一等奖">'
-        + '<input class="textbox" data-field="description" maxlength="200" placeholder="等级说明（可选）">'
+        + '<input class="textbox" data-field="description" maxlength="200" placeholder="等级说明（可选，留空按阈值自动生成）">'
+        + '<input class="textbox medal-level-threshold" data-field="threshold" type="number"'
+        + ' min="1" max="1000000000" placeholder="自动发放阈值（OJ 成就奖章必填）">'
         + '<label class="medal-level-file">像素图（新等级必填）'
         + '<input type="file" name="level_image_' + key + '" accept="image/png,.png">'
         + '</label></div>'
@@ -484,20 +528,24 @@
 
     if (form) {
       form.addEventListener('submit', function (event) {
-        if (!category || category.value !== 'certification') {
+        var value = category ? category.value : 'oj';
+        var isOj = value === 'oj';
+        if (value !== 'oj' && value !== 'certification') {
           levelsJson.value = '';
           return;
         }
         var list = rows();
         if (!list.length) {
           event.preventDefault();
-          window.alert('奖项认证奖章至少需要一个等级。');
+          window.alert((isOj ? 'OJ 成就奖章' : '奖项认证奖章') + '至少需要一个等级。');
           return;
         }
         var payload = [];
+        var previousThreshold = 0;
         for (var i = 0; i < list.length; i++) {
           var nameInput = list[i].querySelector('[data-field="name"]');
           var descInput = list[i].querySelector('[data-field="description"]');
+          var thresholdInput = list[i].querySelector('[data-field="threshold"]');
           var name = nameInput ? nameInput.value.trim() : '';
           if (!name) {
             event.preventDefault();
@@ -505,11 +553,29 @@
             if (nameInput) nameInput.focus();
             return;
           }
-          payload.push({
+          var item = {
             key: list[i].getAttribute('data-key'),
             name: name,
             description: descInput ? descInput.value.trim() : ''
-          });
+          };
+          if (isOj) {
+            var threshold = thresholdInput ? parseInt(thresholdInput.value, 10) : NaN;
+            if (!isFinite(threshold) || threshold <= 0) {
+              event.preventDefault();
+              window.alert('第 ' + (i + 1) + ' 个等级还没有填写有效的阈值。');
+              if (thresholdInput) thresholdInput.focus();
+              return;
+            }
+            if (threshold <= previousThreshold) {
+              event.preventDefault();
+              window.alert('等级阈值必须由低到高严格递增（第 ' + (i + 1) + ' 个等级不满足）。');
+              if (thresholdInput) thresholdInput.focus();
+              return;
+            }
+            previousThreshold = threshold;
+            item.threshold = threshold;
+          }
+          payload.push(item);
         }
         levelsJson.value = JSON.stringify(payload);
       });
@@ -518,14 +584,14 @@
     if (category) category.addEventListener('change', sync);
     sync();
 
-    // Grant form: the level picker only exists for certification series.
+    // Grant form: the level picker exists for every upgradable series.
     var grantSelect = document.getElementById('medal-grant-medal');
     var grantWrap = document.getElementById('medal-grant-level-wrap');
     var grantLevel = document.getElementById('medal-grant-level');
-    var certificationLevels = JSON.parse('{{ certificationLevels|json|jsesc|safe }}');
+    var medalLevels = JSON.parse('{{ medalLevels|json|jsesc|safe }}');
     var syncGrant = function () {
       if (!grantSelect || !grantWrap || !grantLevel) return;
-      var ladders = certificationLevels[grantSelect.value];
+      var ladders = medalLevels[grantSelect.value];
       if (!ladders || !ladders.length) {
         grantWrap.style.display = 'none';
         grantLevel.innerHTML = '';
@@ -534,7 +600,9 @@
       var html = '';
       for (var i = 0; i < ladders.length; i++) {
         html += '<option value="' + ladders[i].level + '">Lv.' + ladders[i].level
-          + ' ' + ladders[i].name + '</option>';
+          + ' ' + ladders[i].name
+          + (ladders[i].threshold ? '（阈值 ' + ladders[i].threshold + '）' : '')
+          + '</option>';
       }
       grantLevel.innerHTML = html;
       grantLevel.value = String(ladders[0].level);

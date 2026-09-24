@@ -229,8 +229,8 @@ curl -H "Authorization: Bearer 33tok_xxx" \
 
 | 端点 | 说明 | 权限 |
 |------|------|------|
-| `GET /oi33/medals/catalogue?noTemplate=1` | 公开奖章目录：四个系列全部奖章，认证系列列出完整等级阶梯与各级持有者人数，可售卖奖章显示持有者/拍卖状态 | 公开 |
-| `GET /oi33/medals/user/:uid?noTemplate=1` | 某用户的全部奖章（认证奖章显示当前持有的等级） | 公开 |
+| `GET /oi33/medals/catalogue?noTemplate=1` | 公开奖章目录：四个系列全部奖章，OJ 成就奖章与认证系列列出完整等级阶梯（OJ 系列含各级阈值）与各级持有者人数，可售卖奖章显示持有者/拍卖状态 | 公开 |
+| `GET /oi33/medals/user/:uid?noTemplate=1` | 某用户的全部奖章（可升级系列显示当前持有的等级） | 公开 |
 
 ```bash
 # 公开奖章目录

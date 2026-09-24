@@ -33,14 +33,14 @@ const RULE_TYPE_SET = new Set(RULE_OPTIONS.map((item) => item.value));
 
 const CATEGORY_OPTIONS: Array<{ value: Oi33MedalCategory; label: string; hint: string }> = [
     {
-        value: 'oj',
-        label: 'OJ 成就奖章',
-        hint: '由系统按指标自动检测发放（通过题目、连续/累计登录、猫粮、猫罐头）。',
-    },
-    {
         value: 'saleable',
         label: '可售卖奖章',
         hint: '全服唯一，通过拍卖上架、只能经交易合同转手；不上架时可由管理员手动发放。',
+    },
+    {
+        value: 'certification',
+        label: '奖项认证奖章',
+        hint: '每类比赛一个可升级系列：先建好等级阶梯（名称 + 各级像素画），再给用户发放或升级。',
     },
     {
         value: 'manual',
@@ -48,24 +48,12 @@ const CATEGORY_OPTIONS: Array<{ value: Oi33MedalCategory; label: string; hint: s
         hint: '管理员按活动、贡献等规则手动发放的普通奖章。',
     },
     {
-        value: 'certification',
-        label: '奖项认证奖章',
-        hint: '每类比赛一个可升级系列：先建好等级阶梯（名称 + 各级像素画），再给用户发放或升级。',
+        value: 'oj',
+        label: 'OJ 成就奖章',
+        hint: '每类指标一个可升级系列（通过题目、连续/累计登录、猫粮、猫罐头）：给每个等级填写阈值，系统达标后自动升级。',
     },
 ];
 const CATEGORY_SET = new Set(CATEGORY_OPTIONS.map((item) => item.value));
-
-function automaticRuleText(type: Oi33MedalRuleType, threshold: number): string {
-    if (type === 'accepted_problems') return `通过 ${threshold} 道题号不同的题目`;
-    if (type === 'checkin_streak') return `连续登录 ${threshold} 天`;
-    if (type === 'checkin_total') return `累计登录 ${threshold} 天`;
-    if (type === 'cat_food_balance') {
-        const amount = threshold % 1000 === 0 ? `${threshold / 1000} kg` : `${threshold} g`;
-        return `猫粮余额曾达到 ${amount}`;
-    }
-    if (type === 'cat_can_balance') return `猫罐头持有 ${threshold} 个`;
-    return '';
-}
 
 function field(body: any, name: string): string {
     const value = body?.[name];
@@ -108,13 +96,16 @@ interface LevelRowInput {
     key: string;
     name: string;
     description: string;
+    // Raw threshold text; only the OJ 成就奖章 branch reads it.
+    threshold: string;
 }
 
-// The levels editor submits an ordered `levels_json` (key/name/description per
-// rung) plus one file input per row named `level_image_<key>`. Existing rungs
-// are identified by their old level number as the key, so their pixel art is
-// reused unless a replacement PNG is uploaded; rows created in the browser use
-// a synthetic `new-N` key and must carry an upload.
+// The levels editor submits an ordered `levels_json` (key/name/description and,
+// for OJ 成就奖章, threshold per rung) plus one file input per row named
+// `level_image_<key>`. Existing rungs are identified by their old level number
+// as the key, so their pixel art is reused unless a replacement PNG is
+// uploaded; rows created in the browser use a synthetic `new-N` key and must
+// carry an upload.
 function parseLevelRows(body: any): LevelRowInput[] {
     const raw = field(body, 'levels_json');
     if (!raw) return [];
@@ -125,12 +116,13 @@ function parseLevelRows(body: any): LevelRowInput[] {
         throw new ValidationError('等级数据格式无效，请重新填写。');
     }
     if (!Array.isArray(parsed)) throw new ValidationError('等级数据格式无效，请重新填写。');
-    if (parsed.length > MAX_LEVELS) throw new ValidationError(`认证奖章最多 ${MAX_LEVELS} 个等级。`);
+    if (parsed.length > MAX_LEVELS) throw new ValidationError(`奖章系列最多 ${MAX_LEVELS} 个等级。`);
     const seen = new Set<string>();
     return parsed.map((item: any) => {
         const key = String(item?.key ?? '').trim();
         const name = String(item?.name ?? '').trim();
         const description = String(item?.description ?? '').trim();
+        const threshold = String(item?.threshold ?? '').trim();
         if (!key) throw new ValidationError('等级数据缺少标识，请刷新页面后重试。');
         if (seen.has(key)) throw new ValidationError('等级数据出现重复项，请刷新页面后重试。');
         seen.add(key);
@@ -140,16 +132,19 @@ function parseLevelRows(body: any): LevelRowInput[] {
         if ([...description].length > MAX_LEVEL_DESCRIPTION) {
             throw new ValidationError(`等级说明不能超过 ${MAX_LEVEL_DESCRIPTION} 字。`);
         }
-        return { key, name, description };
+        return { key, name, description, threshold };
     });
 }
 
 // Renumbers the submitted rows into a 1..N ladder, reusing the pixel art of
-// the rung each row was loaded from (or the fresh upload).
+// the rung each row was loaded from (or the fresh upload). `withThreshold`
+// stores each OJ rung's indicator threshold on the level itself.
 function buildLevels(
     rows: LevelRowInput[],
     files: any,
     existingLevels: Oi33MedalLevel[],
+    withThreshold = false,
+    ruleType?: Oi33MedalRuleType,
 ): Oi33MedalLevel[] {
     const previous = new Map(existingLevels.map((item) => [String(item.level), item]));
     return rows.map((row, index) => {
@@ -163,12 +158,18 @@ function buildLevels(
         if (!image) {
             throw new ValidationError(`等级「${row.name}」必须上传 PNG 像素图。`);
         }
+        const threshold = withThreshold ? Number.parseInt(row.threshold || '0', 10) : undefined;
         return {
             level: index + 1,
             name: row.name,
-            ...(row.description ? { description: row.description } : {}),
+            ...(row.description
+                ? { description: row.description }
+                : withThreshold && ruleType && Number.isSafeInteger(threshold) && threshold
+                    ? { description: `${oi33Model.medalAutomaticRuleText(ruleType, threshold)}。` }
+                    : {}),
             imageData: image.imageData,
             imageSize: image.imageSize,
+            ...(withThreshold ? { threshold } : {}),
         };
     });
 }
@@ -194,22 +195,40 @@ class MedalManageHandler extends Handler {
         const medalDict = Object.fromEntries(
             medals.map((medal) => [medal._id, medal]),
         );
-        // The level picker on the grant form needs every certification series
-        // and its ladder; shipped as one JSON blob so the client can switch
-        // without a round trip.
-        const certificationLevels = Object.fromEntries(medals
-            .filter((medal) => medal.category === 'certification')
-            .map((medal) => [medal._id, oi33Model.medalSortedLevels(medal)
-                .map((level) => ({ level: level.level, name: level.name }))]));
+        // A definition is a level series when it belongs to an upgradable
+        // family and actually carries a ladder; everything else (including a
+        // not-yet-migrated flat OJ medal) is a plain definition.
+        const leveled = medals.filter((medal) => oi33Model.medalIsLevelSeries(medal));
+        const plain = medals.filter((medal) => !oi33Model.medalIsLevelSeries(medal));
+        const ojMedals = leveled.filter((medal) => medal.category === 'oj');
+        const certificationMedals = leveled.filter((medal) => medal.category === 'certification');
+        // Plain definitions are split by family so the page can list them in the
+        // global order 可售卖 → 奖项认证 → 一般 → OJ 自动.
+        const saleableMedals = plain.filter((medal) => medal.category === 'saleable');
+        const manualMedals = plain.filter((medal) => medal.category === 'manual');
+        const legacyOjMedals = plain.filter((medal) => medal.category === 'oj');
+        // The level picker on the grant form needs every upgradable series and
+        // its ladder; shipped as one JSON blob so the client can switch without
+        // a round trip.
+        const medalLevels = Object.fromEntries(leveled.map((medal) => [medal._id,
+            oi33Model.medalSortedLevels(medal).map((level) => ({
+                level: level.level,
+                name: level.name,
+                ...(Number(level.threshold) > 0 ? { threshold: Number(level.threshold) } : {}),
+            }))]));
         this.response.template = 'oi33_medal_manage.html';
         this.response.body = {
-            medals: medals.filter((medal) => medal.category !== 'certification'),
-            certificationMedals: medals.filter((medal) => medal.category === 'certification'),
+            medals: plain,
+            saleableMedals,
+            manualMedals,
+            legacyOjMedals,
+            ojMedals,
+            certificationMedals,
             medalDict, recentAwards, udict, editing,
             targetUid: targetUid || '',
             ruleOptions: RULE_OPTIONS,
             categoryOptions: CATEGORY_OPTIONS,
-            certificationLevels,
+            medalLevels,
             preselectCategory: CATEGORY_SET.has(preselect as Oi33MedalCategory)
                 ? preselect
                 : 'oj',
@@ -269,13 +288,12 @@ class MedalSaveHandler extends Handler {
         if (!image) throw new ValidationError('新建奖章时必须上传 PNG 像素图。');
 
         // Each family keeps its own rule fields:
-        //   oj            → an automatic indicator + threshold
+        //   oj            → one automatic indicator + a ladder with thresholds
         //   saleable      → manual rule text, flagged saleable
         //   manual        → manual rule text
         //   certification → no rule text (the ladder is the rule), real levels
         let ruleType: Oi33MedalRuleType;
         let rule = '';
-        let threshold: number | undefined;
         let levels: Oi33MedalLevel[] | undefined;
         if (category === 'oj') {
             const rawRuleType = field(body, 'ruleType') || RULE_OPTIONS[0].value;
@@ -283,11 +301,24 @@ class MedalSaveHandler extends Handler {
                 throw new ValidationError('自动发放指标无效。');
             }
             ruleType = rawRuleType as Oi33MedalRuleType;
-            threshold = Number.parseInt(field(body, 'threshold') || '0', 10);
-            if (!Number.isSafeInteger(threshold) || threshold <= 0 || threshold > 1000000000) {
-                throw new ValidationError('自动发放指标 x 应为 1–1000000000 的整数。');
+            const rows = parseLevelRows(body);
+            if (!rows.length) throw new ValidationError('OJ 成就奖章至少需要一个等级。');
+            // The row order defines the rung order, so the thresholds must
+            // strictly ascend; otherwise a higher rung could unlock earlier.
+            let previousThreshold = 0;
+            for (const row of rows) {
+                const value = Number.parseInt(row.threshold || '0', 10);
+                if (!Number.isSafeInteger(value) || value <= 0 || value > 1000000000) {
+                    throw new ValidationError(`等级「${row.name}」的阈值应为 1–1000000000 的整数。`);
+                }
+                if (value <= previousThreshold) {
+                    throw new ValidationError('等级阈值必须由低到高严格递增，请调整后再保存。');
+                }
+                previousThreshold = value;
             }
-            rule = automaticRuleText(ruleType, threshold);
+            levels = buildLevels(rows, files, existing?.levels || [], true, ruleType);
+            const top = levels[levels.length - 1];
+            rule = `${oi33Model.medalAutomaticRuleText(ruleType, Number(top.threshold) || 0)} 起逐级自动升级`;
         } else if (category === 'certification') {
             ruleType = 'certification';
             const rows = parseLevelRows(body);
@@ -304,7 +335,6 @@ class MedalSaveHandler extends Handler {
 
         await oi33Model.medalSave({
             id, name, description, rule, ruleType, order,
-            ...(threshold === undefined ? {} : { threshold }),
             ...(levels === undefined ? {} : { levels }),
             imageData: image.imageData,
             imageSize: image.imageSize,
@@ -344,16 +374,16 @@ class MedalGrantHandler extends Handler {
         if (!(await UserModel.getById('', uid))) throw new NotFoundError(uid);
         const medal = await oi33Model.medalGet(medalId);
         if (!medal) throw new ValidationError('奖章不存在。');
-        // Certification series are granted through the level ladder: the same
+        // Upgradable series are granted through the level ladder: the same
         // action creates the award or moves an existing one to the new rung.
-        if (medal.category === 'certification') {
+        if (oi33Model.medalIsLevelSeries(medal)) {
             const level = Number.parseInt(field(body, 'level') || '0', 10);
             if (!Number.isSafeInteger(level) || level <= 0) {
-                throw new ValidationError('请选择要发放的认证等级。');
+                throw new ValidationError('请选择要发放的等级。');
             }
             const result = await oi33Model.medalSetLevel(uid, medalId, level, this.user._id);
             this.response.redirect = `/oi33/medals/user/${uid}?notification=${
-                encodeURIComponent(result.created ? '认证奖章已发放' : '认证等级已更新')}`;
+                encodeURIComponent(result.created ? '奖章已发放' : '奖章等级已更新')}`;
             return;
         }
         const result = await oi33Model.medalGrant(
@@ -372,14 +402,14 @@ class MedalLevelHandler extends Handler {
         const medalId = field(body, 'medalId');
         const level = Number.parseInt(field(body, 'level') || '0', 10);
         if (!Number.isSafeInteger(uid) || uid <= 0) throw new ValidationError('用户 UID 无效。');
-        if (!Number.isSafeInteger(level) || level <= 0) throw new ValidationError('认证等级无效。');
+        if (!Number.isSafeInteger(level) || level <= 0) throw new ValidationError('奖章等级无效。');
         if (!(await UserModel.getById('', uid))) throw new NotFoundError(uid);
         const result = await oi33Model.medalSetLevel(uid, medalId, level, this.user._id);
         const notification = result.created
-            ? '认证奖章已发放'
+            ? '奖章已发放'
             : result.previousLevel === result.level
                 ? '该用户已经是这个等级'
-                : `认证等级已从 Lv.${result.previousLevel ?? '-'} 更新为 Lv.${result.level}`;
+                : `奖章等级已从 Lv.${result.previousLevel ?? '-'} 更新为 Lv.${result.level}`;
         const back = field(body, 'back');
         const target = back === 'manage' ? this.url('oi33_medal_manage', { query: { uid } }) : `/oi33/medals/user/${uid}`;
         this.response.redirect = `${target}${target.includes('?') ? '&' : '?'}notification=${encodeURIComponent(notification)}`;
@@ -527,7 +557,7 @@ class MedalUserHandler extends Handler {
         this.response.body = {
             udoc, awards, canManage: viewerFlag >= 2,
             levels: Object.fromEntries(awards
-                .filter((award: any) => award.view.category === 'certification')
+                .filter((award: any) => award.view.leveled)
                 .map((award: any) => [award.medalId, oi33Model.medalSortedLevels(award.medal)])),
         };
     }

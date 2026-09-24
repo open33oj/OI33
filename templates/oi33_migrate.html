@@ -76,6 +76,13 @@
               {% if result.medalDomainsMigrated %}
               <tr><td>AC 统计域配置已迁移：</td><td><strong>{{ result.medalDomainsMigrated }}</strong> 个域</td></tr>
               {% endif %}
+              {% if result.medalAutomaticRuleTypes %}
+              <tr><td>自动奖章指标已合并为升级系列：</td><td><strong>{{ result.medalAutomaticRuleTypes }}</strong> 类，新建系列 <strong>{{ result.medalAutomaticSeriesCreated }}</strong> 个，合并旧定义 <strong>{{ result.medalAutomaticDefinitionsMerged }}</strong> 个</td></tr>
+              <tr><td>用户自动奖章记录已折叠为最高等级：</td><td>改写 <strong>{{ result.medalAutomaticAwardsRewritten }}</strong> 条，删除 <strong>{{ result.medalAutomaticAwardsRemoved }}</strong> 条</td></tr>
+              {% if result.medalAutomaticLogsRewritten or result.medalAutomaticMeowsRewritten %}
+              <tr><td>旧奖章引用已改写：</td><td>日志 <strong>{{ result.medalAutomaticLogsRewritten }}</strong> 条，喵喵 <strong>{{ result.medalAutomaticMeowsRewritten }}</strong> 条</td></tr>
+              {% endif %}
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">
@@ -144,6 +151,12 @@
               <td><strong>{{ preview.legacyMedalCollections.join('、') }}</strong></td>
             </tr>
             {% endif %}
+            {% if preview.legacyAutomaticMedals %}
+            <tr>
+              <td style="padding:0.5rem 0;">待合并为升级系列的旧自动奖章定义：</td>
+              <td><strong>{{ preview.legacyAutomaticMedals }}</strong></td>
+            </tr>
+            {% endif %}
           </table>
 
           <form method="post" style="display:inline-block;margin-right:.5rem;">
@@ -153,7 +166,7 @@
         {% endif %}
 
         <form method="post" style="display:inline-block;"
-          onsubmit="return confirm('将使用插件内置的十二档图片，幂等导入 60 项初始奖章。空库也可直接导入；该操作不会扫描用户或发布喵喵。确定继续吗？');">
+          onsubmit="return confirm('将使用插件内置的十二档图片，幂等导入 5 个可升级的 OJ 成就奖章系列（每系列 12 级）。空库也可直接导入；已有系列不会被覆盖，该操作不会扫描用户或发布喵喵。确定继续吗？');">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="action" value="import_medals">
           <button type="submit" class="rounded button">导入初始奖章</button>

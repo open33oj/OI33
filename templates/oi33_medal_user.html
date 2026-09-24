@@ -33,9 +33,9 @@
               <button type="submit" class="rounded button">撤销</button>
             </form>
             {% endif %}
-            {% if canManage and award.view.category == 'certification' %}
+            {% if canManage and award.view.leveled %}
             <div class="medal-list__levels">
-              <span class="medal-list__levels-label">认证等级</span>
+              <span class="medal-list__levels-label">奖章等级</span>
               {% for level in levels[award.medalId] %}
               <form method="post" action="{{ url('oi33_medal_level') }}" class="medal-list__form">
                 <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -44,7 +44,7 @@
                 <input type="hidden" name="level" value="{{ level.level }}">
                 <button type="submit"
                   class="rounded button medal-level-button{% if level.level == award.view.level %} medal-level-button--current{% endif %}"
-                  title="{{ level.name }}"
+                  title="{{ level.name }}{% if level.threshold %}（阈值 {{ level.threshold }}）{% endif %}"
                   {% if level.level == award.view.level %}disabled{% endif %}>Lv.{{ level.level }}</button>
               </form>
               {% endfor %}
