@@ -1,0 +1,228 @@
+{# OI33 资料页公共组件：侧边栏用户卡片、快捷跳转、个人简介折叠。
+   被 /user/:uid 主资料页与各面板独立页（喵喵 / 奖章 / 算法掌握）复用。
+   匿名用户（未认证）的显示名与头像沿用主资料页的规则：本人与 flag≥2 可见真实身份。 #}
+
+{% macro style() %}
+<style>
+.oi33-usercard { text-align:center; }
+.oi33-usercard .section__body { padding-top:1.1rem; }
+.oi33-usercard__avatar {
+  width:96px; height:96px; border-radius:50%; object-fit:cover;
+  border:2px solid rgba(127,127,127,.25); background:rgba(127,127,127,.12);
+}
+.oi33-usercard__name { margin:.6rem 0 .15rem; font-size:1.1rem; font-weight:600; word-break:break-word; }
+.oi33-usercard__meta { color:#888; font-size:.82em; }
+.oi33-usercard__badges { margin:.4rem 0 0; display:flex; justify-content:center; gap:.3rem; flex-wrap:wrap; }
+.oi33-usercard__tag {
+  font-size:.72em; padding:.05rem .45rem; border-radius:999px;
+  border:1px solid rgba(127,127,127,.4); color:#777;
+}
+.oi33-usercard__tag--su { border-color:#d63c3c; color:#d63c3c; font-weight:600; }
+.oi33-usercard__tag--mod { border-color:#4c8bf5; color:#3a6fd0; font-weight:600; }
+.oi33-usercard__stats { display:flex; margin:.8rem 0 0; padding-top:.65rem; border-top:1px solid rgba(127,127,127,.15); }
+.oi33-usercard__stat { flex:1 1 0; min-width:0; }
+.oi33-usercard__stat b { display:block; font-size:1.05rem; line-height:1.3; }
+.oi33-usercard__stat span { color:#888; font-size:.74em; }
+.oi33-usercard__actions { display:flex; flex-direction:column; gap:.4rem; margin-top:.8rem; }
+.oi33-usercard__actions form { margin:0; }
+.oi33-usercard__actions .button { margin:0; width:100%; }
+
+.oi33-quicknav { list-style:none; margin:0; padding:0; }
+.oi33-quicknav li { border-top:1px solid rgba(127,127,127,.12); }
+.oi33-quicknav li:first-child { border-top:none; }
+.oi33-quicknav a {
+  display:flex; align-items:center; gap:.55rem; padding:.5rem .2rem;
+  color:inherit; text-decoration:none; border-radius:4px;
+}
+.oi33-quicknav a:hover { background:rgba(127,127,127,.09); }
+.oi33-quicknav a .icon { width:1.15em; text-align:center; color:#888; }
+.oi33-quicknav__count { margin-left:auto; color:#999; font-size:.82em; }
+
+/* 个人简介：默认折叠成固定高度，超出才出现「展开全文」 */
+.oi33-bio { position:relative; }
+.oi33-bio__body { max-height:8.5rem; overflow:hidden; transition:max-height .25s ease; }
+.oi33-bio--open .oi33-bio__body { max-height:200rem; }
+.oi33-bio__fade {
+  position:absolute; left:0; right:0; bottom:0; height:2.6rem; pointer-events:none;
+  background:linear-gradient(to bottom, rgba(255,255,255,0), #fff);
+}
+.oi33-bio--open .oi33-bio__fade { display:none; }
+.oi33-bio__toggle { margin-top:.35rem; background:none; border:none; padding:0; color:#3a6fd0; cursor:pointer; font-size:.85em; }
+.oi33-bio__toggle[hidden] { display:none; }
+.theme--dark .oi33-bio__fade, [data-mantine-color-scheme=dark] .oi33-bio__fade {
+  background:linear-gradient(to bottom, rgba(30,30,30,0), #1e1e1e);
+}
+
+/* 主列里依次排列的资料卡片 */
+.page--user_detail .oi33-profile-section { margin-bottom:1rem; }
+.oi33-profile-section__tools { margin-left:auto; display:flex; gap:.4rem; flex-wrap:wrap; }
+
+/* 内核「最近动态 / 最近题解」模块：没有 JS 标签页时就是普通卡片，这里去掉标签样式 */
+.oi33-modules { list-style:none; margin:0; padding:0; }
+.oi33-modules > .section__tab-item {
+  margin:0 0 1rem !important; border:none !important; padding:0 !important;
+}
+.oi33-modules > .section__tab-item:last-child { margin-bottom:0 !important; }
+.oi33-modules .section__tab-title { color:inherit; font-size:1.05rem; margin:0 0 .6rem; }
+.oi33-modules .section__tab-main { display:block; }
+</style>
+{% endmacro %}
+
+{% macro _hidden(udoc) %}
+{%- set canSee = (handler.user.realname_flag or 0) >= 2 -%}
+{%- if udoc.oi33_profile_hidden -%}
+{{- (udoc.oi33_original_uname or udoc.uname) if canSee else ('UID ' + udoc._id) -}}
+{%- else -%}
+{{- udoc.uname -}}
+{%- endif -%}
+{% endmacro %}
+
+{% macro _avatar(udoc) %}
+{%- set canSee = (handler.user.realname_flag or 0) >= 2 -%}
+{%- if udoc.oi33_profile_hidden -%}
+{{- (udoc.oi33_original_avatar or udoc.avatar) if canSee else '' -}}
+{%- else -%}
+{{- udoc.avatar -}}
+{%- endif -%}
+{% endmacro %}
+
+{# 侧边栏用户卡片：头像 + 身份 + 数据 + 操作。可用 {% call %} 追加按钮。 #}
+{% macro userCard(udoc, isSelf) %}
+<div class="section side oi33-usercard">
+  <div class="section__body">
+    <img class="oi33-usercard__avatar" src="{{ avatarUrl(_avatar(udoc)|trim, 120) }}" alt="{{ _hidden(udoc)|trim }}">
+    <div class="oi33-usercard__name">{{ _hidden(udoc)|trim }}</div>
+    <div class="oi33-usercard__meta">
+      UID {{ udoc._id }}
+      {% if udoc.realname_name and (handler.user.realname_flag or 0) >= 2 %} · [{{ udoc.realname_name }}]{% endif %}
+    </div>
+    <div class="oi33-usercard__badges">
+      {% if not udoc.oi33_profile_hidden %}
+        {% if udoc.realname_flag == 3 %}<span class="oi33-usercard__tag">行政管理员</span>
+        {% elif udoc.realname_flag == 2 %}<span class="oi33-usercard__tag">管理员</span>
+        {% elif udoc.realname_flag == 1 %}<span class="oi33-usercard__tag">已认证</span>
+        {% else %}<span class="oi33-usercard__tag">未认证</span>{% endif %}
+        {% if udoc.badge %}
+        {% set _badge = udoc.badge.split('#') %}
+        <span class="oi33-usercard__tag"
+          style="background-color:#{{ _badge[1] }}{% if _badge[2] %};color:#{{ _badge[2] }}{% endif %}">{{ _badge[0] }}</span>
+        {% endif %}
+      {% endif %}
+      {% if udoc.hasPriv(PRIV.PRIV_MOD_BADGE) %}<span class="oi33-usercard__tag oi33-usercard__tag--su">SU</span>
+      {% elif udoc.hasPerm(perm.PERM_MOD_BADGE) %}<span class="oi33-usercard__tag oi33-usercard__tag--mod">MOD</span>{% endif %}
+    </div>
+    <div class="oi33-usercard__stats">
+      <div class="oi33-usercard__stat"><b>{{ udoc.nSubmit or 0 }}</b><span>{{ _('Submitted') }}</span></div>
+      <div class="oi33-usercard__stat"><b>{{ udoc.nAccept or 0 }}</b><span>{{ _('Accepted') }}</span></div>
+      <div class="oi33-usercard__stat"><b>{{ udoc.rp|default(0)|round(2) }}</b><span>RP</span></div>
+    </div>
+    <div class="oi33-usercard__actions">
+      {% if isSelf %}
+      <a class="rounded button" href="{{ url('home_settings', category='account') }}"><span class="icon icon-edit"></span> {{ _('Edit Profile') }}</a>
+      {% elif handler.user._id %}
+      <a class="rounded primary button" href="{{ url('home_messages', query={target:udoc._id}) }}"><span class="icon icon-comment--multiple"></span> {{ _('Send Message') }}</a>
+      {% endif %}
+      {% if isSelf or (handler.user.realname_flag or 0) >= 2 %}
+      <a class="rounded button" href="{{ url('oi33_profile_edit', uid=udoc._id) }}"><span class="icon icon-wrench"></span> 编辑 OI33 资料</a>
+      {% endif %}
+      {% if caller %}{{ caller() }}{% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{# 快捷跳转：头像/信息卡片下面的导航，把各面板与常用页串起来。 #}
+{% macro quickNav(udoc, isSelf) %}
+<div class="section side">
+  <div class="section__header"><h2 class="section__title">快捷跳转</h2></div>
+  <div class="section__body" style="padding-top:.1rem;padding-bottom:.3rem;">
+    <ul class="oi33-quicknav">
+      <li><a href="{{ url('user_detail', uid=udoc._id) }}#oi33-bio"><span class="icon icon-user"></span>个人简介</a></li>
+      {% if handler.user._id %}
+      <li><a href="{{ url('oi33_meow_user', uid=udoc._id) }}"><span class="icon icon-comment--multiple"></span>喵喵</a></li>
+      {% endif %}
+      <li><a href="{{ url('oi33_medal_user', uid=udoc._id) }}"><span class="icon icon-award"></span>奖章</a></li>
+      {% if isSelf or (handler.user.realname_flag or 0) >= 2 %}
+      <li><a href="{{ url('oi33_algorithm_user', uid=udoc._id) }}"><span class="icon icon-star"></span>算法掌握</a></li>
+      {% endif %}
+      {% if pdocs and pdocs.length %}
+      <li><a href="{{ url('user_detail', uid=udoc._id) }}#oi33-problems"><span class="icon icon-check"></span>通过题目<span class="oi33-quicknav__count">{{ pdocs.length }}</span></a></li>
+      {% endif %}
+      <li><a href="{{ url('user_detail', uid=udoc._id) }}#oi33-modules"><span class="icon icon-calendar"></span>动态与题解</a></li>
+      <li><a href="{{ url('oi33_cat_can_arena', query={focusUid:udoc._id}) }}"><span class="icon icon-home"></span>猫猫广场</a></li>
+      {% if isSelf or (handler.user.realname_flag or 0) >= 2 %}
+      <li><a href="{{ url('oi33_cat_account', uid=udoc._id) }}"><span class="icon icon-search"></span>账户明细</a></li>
+      {% endif %}
+      {% if isSelf %}
+      <li><a href="{{ url('oi33_medal_showcase') }}"><span class="icon icon-award"></span>奖章展示柜</a></li>
+      <li><a href="{{ url('oi33_medal_catalogue') }}"><span class="icon icon-file"></span>奖章目录</a></li>
+      <li><a href="{{ url('home_messages') }}"><span class="icon icon-mail"></span>我的消息</a></li>
+      {% endif %}
+    </ul>
+  </div>
+</div>
+{% endmacro %}
+
+{# 个人简介卡片：固定高度折叠 + 展开按钮。 #}
+{% macro bioCard(udoc, isSelf) %}
+<div class="section oi33-profile-section" id="oi33-bio">
+  <div class="section__header">
+    <h2 class="section__title">{{ _('Bio') }}</h2>
+    {% if isSelf %}
+    <div class="section__tools">
+      <a class="rounded button" href="{{ url('home_settings', category='account') }}">编辑简介</a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="section__body">
+    <div class="typo richmedia oi33-bio">
+      <div class="oi33-bio__body" data-oi33-bio>
+        {% if udoc.bio_visible and udoc.bio %}
+          {{ udoc.bio|markdown|safe }}
+        {% elif isSelf and udoc.bio_hidden_pending %}
+          <p class="oi33-bio-hint">你的个人简介正在审核中或未通过审核，审核通过后才会公开展示。可在<a href="{{ url('home_settings', category='account') }}">账号设置</a>中修改（两次修改间隔 2 小时）。</p>
+        {% else %}
+          <p class="oi33-bio-hint">这个人很懒，什么都没有写。</p>
+        {% endif %}
+      </div>
+      <div class="oi33-bio__fade"></div>
+      <button type="button" class="oi33-bio__toggle" data-oi33-bio-toggle hidden>展开全文</button>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{# 简介折叠脚本：只在内容确实超出固定高度时显示「展开全文」。 #}
+{% macro bioScript() %}
+<script>
+(function () {
+  function setup() {
+    var bodies = document.querySelectorAll('[data-oi33-bio]');
+    for (var i = 0; i < bodies.length; i++) {
+      var body = bodies[i];
+      var root = body.closest('.oi33-bio');
+      var toggle = root && root.querySelector('[data-oi33-bio-toggle]');
+      if (!root || !toggle) continue;
+      if (!root.classList.contains('oi33-bio--open')
+        && body.scrollHeight > body.clientHeight + 8) {
+        toggle.hidden = false;
+      }
+    }
+  }
+  if (!window._oi33BioBound) {
+    window._oi33BioBound = true;
+    document.addEventListener('click', function (ev) {
+      var target = ev.target;
+      if (!target || !target.closest) return;
+      var toggle = target.closest('[data-oi33-bio-toggle]');
+      if (!toggle) return;
+      var root = toggle.closest('.oi33-bio');
+      if (!root) return;
+      var open = root.classList.toggle('oi33-bio--open');
+      toggle.textContent = open ? '收起' : '展开全文';
+    });
+  }
+  setup();
+})();
+</script>
+{% endmacro %}

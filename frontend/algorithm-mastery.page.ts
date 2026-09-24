@@ -1,18 +1,18 @@
 import { addPage } from '@hydrooj/ui-default';
 
-// 算法掌握面板的渐进增强。
-// 核心提交是页面上唯一的 <form id="alg-form">：所有 select 通过 form= 关联到它，
-// 学生改完整份面板后点一次「提交本月更新」（服务端校验每月一次），老师则随时
-// 「保存修改」。脚本只做三件事：实时预览统计、显示未保存改动数、提交前确认
-// （学生提交会消耗当月额度）以及带未保存改动离开时提醒。
-// 事件用 document 级委托绑定，pjax 换页后无需重新初始化。
+// 算法掌握【评定页】的渐进增强。
+// 每行是一组单选框（未评定 / 没学 / 了解概念 / 会模板题 / 熟练掌握），怎么点都行，
+// 改完后一次「提交本月更新 / 保存修改」整份落库（学生每月一次，老师不限）。
+// 脚本负责四件事：实时预览统计（总分 / 级别 / 难度 / 板块 / 子板块）、
+// 按评价 + 关键词筛选、未保存改动计数、提交前确认与离开提醒。
+// 事件用 document 级委托绑定，pjax 换页后无需重新初始化；展示页没有编辑器，脚本自然空转。
 
-function panelOf(el: Element | null): HTMLElement | null {
-    return (el?.closest?.('.oi33-alg-panel') as HTMLElement | null) || null;
+function editorOf(el: Element | null): HTMLElement | null {
+    return (el?.closest?.('.oi33-alg-editor') as HTMLElement | null) || null;
 }
 
-function maxLevelOf(panel: HTMLElement) {
-    const value = Number(panel.dataset.algMaxLevel);
+function maxLevelOf(editor: HTMLElement) {
+    const value = Number(editor.dataset.algMaxLevel);
     return Number.isSafeInteger(value) && value > 0 ? value : 3;
 }
 
@@ -25,112 +25,164 @@ function scoreOf(sum: number, total: number, maxLevel: number) {
     return total && maxLevel ? Math.round((sum * 100) / (maxLevel * total)) : 0;
 }
 
-// Re-derive the summary from the current selects so the counts and progress
-// bars preview the pending (unsaved) state before the batch submit.
-function recompute(panel: HTMLElement) {
-    const maxLevel = maxLevelOf(panel);
-    const rows = Array.from(panel.querySelectorAll<HTMLElement>('.oi33-alg-item'));
+interface Bucket { total: number; sum: number; rated: number }
+
+function bucketOf(map: Map<string, Bucket>, key: string): Bucket {
+    let bucket = map.get(key);
+    if (!bucket) {
+        bucket = { total: 0, sum: 0, rated: 0 };
+        map.set(key, bucket);
+    }
+    return bucket;
+}
+
+function addTo(bucket: Bucket, level: number, rated: boolean) {
+    bucket.total++;
+    bucket.sum += level;
+    if (rated) bucket.rated++;
+}
+
+// 单选框没有选中任何一项即「未评定」(-1)，否则是 0..3 的掌握程度。
+function rowLevel(row: HTMLElement): number {
+    const checked = row.querySelector<HTMLInputElement>('input.oi33-alg-radio:checked');
+    return checked ? Number(checked.value) : -1;
+}
+
+function rowsOf(editor: HTMLElement) {
+    return Array.from(editor.querySelectorAll<HTMLElement>('.oi33-alg-item'));
+}
+
+// Re-derive the summary from the current radios so counts, bars and node stats
+// preview the pending (unsaved) state before the batch submit.
+function recompute(editor: HTMLElement) {
+    const maxLevel = maxLevelOf(editor);
+    const rows = rowsOf(editor);
     const counts = [0, 0, 0, 0];
-    const byGroup = new Map<string, { total: number; sum: number; rated: number }>();
+    const byGroup = new Map<string, Bucket>();
+    const bySection = new Map<string, Bucket>();
+    const bySubsection = new Map<string, Bucket>();
+    const byDifficulty = new Map<string, Bucket>();
     let sum = 0;
     let rated = 0;
     for (const row of rows) {
-        const select = row.querySelector<HTMLSelectElement>('select.oi33-alg-select');
-        // A select value of -1 means 未评定.
-        const raw = select ? Number(select.value) : Number(row.dataset.algLevel) || 0;
-        const isRated = select ? raw >= 0 : row.dataset.algRated === '1';
+        const raw = rowLevel(row);
+        const isRated = raw >= 0;
         const level = raw < 0 ? 0 : raw;
         counts[level] = (counts[level] || 0) + 1;
         sum += level;
         if (isRated) rated++;
-        const groupId = row.closest<HTMLElement>('[data-alg-group]')?.dataset.algGroup || '';
-        const bucket = byGroup.get(groupId) || { total: 0, sum: 0, rated: 0 };
-        bucket.total++;
-        bucket.sum += level;
-        if (isRated) bucket.rated++;
-        byGroup.set(groupId, bucket);
+        addTo(bucketOf(byGroup, row.closest<HTMLElement>('[data-alg-group]')?.dataset.algGroup || ''), level, isRated);
+        addTo(bucketOf(bySection, row.closest<HTMLElement>('[data-alg-section]')?.dataset.algSection || ''), level, isRated);
+        addTo(bucketOf(bySubsection, row.closest<HTMLElement>('[data-alg-subsection]')?.dataset.algSubsection || ''), level, isRated);
+        addTo(bucketOf(byDifficulty, row.dataset.algDifficulty || '0'), level, isRated);
     }
     const total = rows.length;
     const score = scoreOf(sum, total, maxLevel);
-    setText(panel, '[data-alg-stat="score"]', String(score));
-    setText(panel, '[data-alg-stat="rated"]', String(rated));
-    setText(panel, '[data-alg-stat="total"]', String(total));
-    setText(panel, '[data-alg-stat="unrated"]', String(total - rated));
+    setText(editor, '[data-alg-stat="score"]', String(score));
+    setText(editor, '[data-alg-stat="rated"]', String(rated));
+    setText(editor, '[data-alg-stat="total"]', String(total));
+    setText(editor, '[data-alg-stat="unrated"]', String(total - rated));
     for (let level = 0; level < counts.length; level++) {
-        setText(panel, `[data-alg-stat="count-${level}"]`, String(counts[level] || 0));
+        setText(editor, `[data-alg-stat="count-${level}"]`, String(counts[level] || 0));
     }
-    const bar = panel.querySelector<HTMLElement>('[data-alg-stat-bar]');
+    const bar = editor.querySelector<HTMLElement>('[data-alg-stat-bar]');
     if (bar) bar.style.width = `${score}%`;
 
-    for (const mini of panel.querySelectorAll<HTMLElement>('.oi33-alg-mini[data-alg-level]')) {
-        const bucket = byGroup.get(mini.dataset.algLevel || '');
-        if (!bucket?.total) continue;
+    const paintMini = (el: HTMLElement, bucket: Bucket | undefined, barSelector: string, textSelector: string) => {
+        if (!bucket?.total) return;
         const value = scoreOf(bucket.sum, bucket.total, maxLevel);
-        const miniBar = mini.querySelector<HTMLElement>('[data-alg-level-bar]');
+        const miniBar = el.querySelector<HTMLElement>(barSelector);
         if (miniBar) miniBar.style.width = `${value}%`;
-        const miniText = mini.querySelector<HTMLElement>('[data-alg-level-score]');
+        const miniText = el.querySelector<HTMLElement>(textSelector);
         if (miniText) miniText.textContent = `${value}%`;
+    };
+    for (const mini of editor.querySelectorAll<HTMLElement>('.oi33-alg-mini[data-alg-level]')) {
+        paintMini(mini, byGroup.get(mini.dataset.algLevel || ''), '[data-alg-level-bar]', '[data-alg-level-score]');
     }
-    for (const group of panel.querySelectorAll<HTMLElement>('details[data-alg-group]')) {
-        const bucket = byGroup.get(group.dataset.algGroup || '');
-        const label = group.querySelector<HTMLElement>('[data-alg-group-stats]');
+    for (const mini of editor.querySelectorAll<HTMLElement>('.oi33-alg-mini[data-alg-difficulty]')) {
+        paintMini(mini, byDifficulty.get(mini.dataset.algDifficulty || ''), '[data-alg-difficulty-bar]', '[data-alg-difficulty-score]');
+    }
+
+    const paintStats = (label: HTMLElement | null, bucket: Bucket | undefined) => {
         if (bucket?.total && label) {
             label.textContent = `${bucket.rated}/${bucket.total} · ${scoreOf(bucket.sum, bucket.total, maxLevel)}%`;
         }
+    };
+    for (const node of editor.querySelectorAll<HTMLElement>('details[data-alg-group]')) {
+        paintStats(node.querySelector<HTMLElement>('[data-alg-group-stats]'), byGroup.get(node.dataset.algGroup || ''));
+    }
+    for (const node of editor.querySelectorAll<HTMLElement>('details[data-alg-section]')) {
+        paintStats(node.querySelector<HTMLElement>('[data-alg-section-stats]'), bySection.get(node.dataset.algSection || ''));
+    }
+    for (const node of editor.querySelectorAll<HTMLElement>('details[data-alg-subsection]')) {
+        paintStats(node.querySelector<HTMLElement>('[data-alg-subsection-stats]'), bySubsection.get(node.dataset.algSubsection || ''));
     }
 }
 
-function dirtySelects(panel: HTMLElement) {
-    return Array.from(panel.querySelectorAll<HTMLSelectElement>('select.oi33-alg-select'))
-        .filter((select) => String(select.value) !== (select.dataset.prev ?? ''));
+function dirtyRows(editor: HTMLElement) {
+    return rowsOf(editor).filter((row) => rowLevel(row) !== Number(row.dataset.algOrig));
 }
 
-function refreshDirty(panel: HTMLElement) {
-    const dirty = dirtySelects(panel);
-    for (const select of panel.querySelectorAll<HTMLSelectElement>('select.oi33-alg-select')) {
-        select.closest<HTMLElement>('.oi33-alg-item')
-            ?.classList.toggle('oi33-alg-item--dirty', String(select.value) !== (select.dataset.prev ?? ''));
+function refreshDirty(editor: HTMLElement) {
+    const dirty = dirtyRows(editor);
+    for (const row of rowsOf(editor)) {
+        row.classList.toggle('oi33-alg-item--dirty', rowLevel(row) !== Number(row.dataset.algOrig));
     }
-    const label = panel.querySelector<HTMLElement>('[data-alg-dirty]');
+    const label = editor.querySelector<HTMLElement>('[data-alg-dirty]');
     if (label) {
         label.hidden = dirty.length === 0;
         label.textContent = `${dirty.length} 处未保存改动`;
     }
-    const submit = panel.querySelector<HTMLButtonElement>('[data-alg-submit]');
+    const submit = editor.querySelector<HTMLButtonElement>('[data-alg-submit]');
     if (submit) submit.disabled = dirty.length === 0;
-    panel.dataset.algDirty = dirty.length ? '1' : '0';
+    editor.dataset.algDirty = dirty.length ? '1' : '0';
 }
 
-function refreshPanel(panel: HTMLElement) {
-    recompute(panel);
-    refreshDirty(panel);
-}
-
-function applyFilter(panel: HTMLElement, query: string) {
-    const needle = query.trim().toLowerCase();
+// 「按评价筛选」+ 关键词搜索。评价筛选记在 editor 的 data 上，改动后重新应用，
+// 因此刚点成「没学」的行会立刻从「未评定」筛选里消失。
+function applyFilter(editor: HTMLElement) {
+    const needle = (editor.querySelector<HTMLInputElement>('input.oi33-alg-search')?.value || '').trim().toLowerCase();
+    const rating = editor.dataset.algRating || 'all';
     const isVisible = (el: HTMLElement) => el.style.display !== 'none';
-    for (const row of panel.querySelectorAll<HTMLElement>('.oi33-alg-item')) {
-        const haystack = (row.dataset.algText || '').toLowerCase();
-        row.style.display = !needle || haystack.includes(needle) ? '' : 'none';
+    for (const row of rowsOf(editor)) {
+        const textOk = !needle || (row.dataset.algText || '').toLowerCase().includes(needle);
+        const level = rowLevel(row);
+        const ratingOk = rating === 'all'
+            ? true
+            : rating === 'unrated' ? level < 0 : String(level) === rating;
+        row.style.display = textOk && ratingOk ? '' : 'none';
     }
-    for (const subsection of panel.querySelectorAll<HTMLElement>('[data-alg-subsection]')) {
-        subsection.style.display = Array.from(subsection.querySelectorAll<HTMLElement>('.oi33-alg-item')).some(isVisible) ? '' : 'none';
+    for (const node of editor.querySelectorAll<HTMLElement>('details[data-alg-subsection]')) {
+        node.style.display = Array.from(node.querySelectorAll<HTMLElement>('.oi33-alg-item')).some(isVisible) ? '' : 'none';
     }
-    for (const section of panel.querySelectorAll<HTMLElement>('[data-alg-section]')) {
-        section.style.display = Array.from(section.querySelectorAll<HTMLElement>('.oi33-alg-item')).some(isVisible) ? '' : 'none';
+    for (const node of editor.querySelectorAll<HTMLElement>('details[data-alg-section]')) {
+        node.style.display = Array.from(node.querySelectorAll<HTMLElement>('.oi33-alg-item')).some(isVisible) ? '' : 'none';
     }
-    for (const group of panel.querySelectorAll<HTMLDetailsElement>('details[data-alg-group]')) {
-        const visible = Array.from(group.querySelectorAll<HTMLElement>('.oi33-alg-item')).some(isVisible);
-        group.style.display = visible ? '' : 'none';
-        if (needle && visible) group.open = true;
+    for (const node of editor.querySelectorAll<HTMLDetailsElement>('details[data-alg-group]')) {
+        const any = Array.from(node.querySelectorAll<HTMLElement>('.oi33-alg-item')).some(isVisible);
+        node.style.display = any ? '' : 'none';
+        if (needle && any) node.open = true;
+    }
+}
+
+function refreshPanel(editor: HTMLElement) {
+    recompute(editor);
+    refreshDirty(editor);
+    applyFilter(editor);
+}
+
+function syncFilterButtons(editor: HTMLElement) {
+    const rating = editor.dataset.algRating || 'all';
+    for (const button of editor.querySelectorAll<HTMLElement>('.oi33-alg-filter')) {
+        button.classList.toggle('oi33-alg-filter--on', (button.dataset.algFilter || 'all') === rating);
     }
 }
 
 function toggleAll(el: Element, open: boolean) {
-    const panel = panelOf(el);
-    if (!panel) return;
-    for (const group of panel.querySelectorAll<HTMLDetailsElement>('details[data-alg-group]')) {
-        group.open = open;
+    const editor = editorOf(el);
+    if (!editor) return;
+    for (const node of editor.querySelectorAll<HTMLDetailsElement>('.oi33-alg-tree details')) {
+        node.open = open;
     }
 }
 
@@ -139,19 +191,35 @@ addPage(() => {
     (document as any)._oi33AlgorithmBound = true;
 
     // Initial pass: server-rendered stats are already correct, but the submit
-    // button starts disabled until something changes.
-    for (const panel of document.querySelectorAll<HTMLElement>('.oi33-alg-panel')) refreshDirty(panel);
+    // button starts disabled until something changes. Read-only editors render
+    // the display tree instead, so they are skipped (no rows to recompute).
+    for (const editor of document.querySelectorAll<HTMLElement>('.oi33-alg-editor')) {
+        if (editor.dataset.algCanEdit !== '1') continue;
+        syncFilterButtons(editor);
+        refreshPanel(editor);
+    }
 
     document.addEventListener('change', (ev) => {
-        const select = (ev.target as HTMLElement)?.closest?.('select.oi33-alg-select') as HTMLSelectElement | null;
-        if (!select) return;
-        const panel = panelOf(select);
-        if (panel) refreshPanel(panel);
+        const radio = (ev.target as HTMLElement)?.closest?.('input.oi33-alg-radio') as HTMLInputElement | null;
+        if (!radio) return;
+        const editor = editorOf(radio);
+        if (editor && editor.dataset.algCanEdit === '1') refreshPanel(editor);
     });
 
     document.addEventListener('click', (ev) => {
         const target = ev.target as HTMLElement;
         if (!target?.closest) return;
+        const filter = target.closest('.oi33-alg-filter') as HTMLElement | null;
+        if (filter) {
+            ev.preventDefault();
+            const editor = editorOf(filter);
+            if (editor) {
+                editor.dataset.algRating = filter.dataset.algFilter || 'all';
+                syncFilterButtons(editor);
+                applyFilter(editor);
+            }
+            return;
+        }
         const expand = target.closest('.oi33-alg-expand');
         if (expand) {
             ev.preventDefault();
@@ -168,30 +236,29 @@ addPage(() => {
     document.addEventListener('input', (ev) => {
         const search = (ev.target as HTMLElement)?.closest?.('input.oi33-alg-search') as HTMLInputElement | null;
         if (!search) return;
-        const panel = panelOf(search);
-        if (panel) applyFilter(panel, search.value);
+        const editor = editorOf(search);
+        if (editor) applyFilter(editor);
     });
 
     document.addEventListener('submit', (ev) => {
         const form = ev.target as HTMLFormElement;
         if (!form || form.id !== 'alg-form') return;
-        const panel = form.closest<HTMLElement>('.oi33-alg-panel')
-            || document.querySelector<HTMLElement>('.oi33-alg-panel');
-        if (!panel) return;
-        if (dirtySelects(panel).length === 0) {
+        const editor = editorOf(form) || document.querySelector<HTMLElement>('.oi33-alg-editor');
+        if (!editor) return;
+        if (dirtyRows(editor).length === 0) {
             ev.preventDefault();
             return;
         }
         // Students consume their one submit this month, so confirm first.
-        if (panel.dataset.algQuota === '1'
+        if (editor.dataset.algQuota === '1'
             && !window.confirm('提交后本月将不能再修改自评，确定提交吗？')) {
             ev.preventDefault();
         }
     });
 
     window.addEventListener('beforeunload', (ev) => {
-        const dirty = Array.from(document.querySelectorAll<HTMLElement>('.oi33-alg-panel'))
-            .some((panel) => panel.dataset.algDirty === '1');
+        const dirty = Array.from(document.querySelectorAll<HTMLElement>('.oi33-alg-editor'))
+            .some((editor) => editor.dataset.algDirty === '1');
         if (!dirty) return;
         ev.preventDefault();
         ev.returnValue = '';

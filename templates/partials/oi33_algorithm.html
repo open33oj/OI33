@@ -1,7 +1,7 @@
-{# 算法掌握程度面板：个人资料页 tab 与独立页面 /oi33/algorithm/user/:uid 共用。
-   数据由 handler/algorithm.ts 的 buildAlgorithmPanel 提供。
-   学生每月只能提交一次自评：面板上随意改动，点「提交本月更新」一次批量落库，
-   提交后本月只读；老师可随时保存且不受月度限制。无脚本时同样是整份表单提交。 #}
+{# 算法掌握：展示页与评定页共用本文件。
+   展示页 = /oi33/algorithm/user/:uid 与个人资料页 tab（只读、标签云、逐层折叠）；
+   评定页 = /oi33/algorithm/user/:uid/edit（每行一组单选框 + 按评价筛选 + 一次批量提交）。
+   数据由 handler/algorithm.ts 的 buildAlgorithmPanel 提供。 #}
 
 {% macro style() %}
 <style>
@@ -16,9 +16,14 @@
 }
 .oi33-alg-quota--used { background:rgba(127,127,127,.1); border-color:rgba(127,127,127,.3); color:#777; }
 .oi33-alg-quota form { margin:0 0 0 auto; }
+.oi33-alg-empty { color:#888; padding:.6rem 0; }
+.oi33-alg-empty a { text-decoration:underline; }
+.oi33-alg-lock { color:#2fa36b; font-size:.78em; white-space:nowrap; }
+
+/* ---- 汇总（展示页与评定页共用） ---- */
 .oi33-alg-summary {
   display:grid; grid-template-columns: minmax(160px, 1fr) 2fr; gap:1rem 1.5rem;
-  align-items:center; padding:.85rem 1rem; margin-bottom:.75rem;
+  align-items:center; padding:.85rem 1rem; margin-bottom:.9rem;
   border:1px solid var(--oi33-alg-border); border-radius:8px;
 }
 .oi33-alg-score { display:flex; align-items:baseline; gap:.35rem; }
@@ -36,36 +41,71 @@
 .oi33-alg-legend__item--3 .oi33-alg-legend__dot { background:#2fa36b; }
 .oi33-alg-legend b { font-weight:600; }
 .oi33-alg-minis { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:.4rem 1.25rem; font-size:.82em; color:#666; }
-.oi33-alg-mini { display:flex; align-items:center; gap:.5rem; min-width:180px; flex:1 1 200px; }
+.oi33-alg-minis-title { grid-column:1 / -1; color:#999; font-size:.75em; letter-spacing:.02em; }
+.oi33-alg-mini { display:flex; align-items:center; gap:.5rem; min-width:170px; flex:1 1 190px; }
 .oi33-alg-mini__bar { flex:1 1 auto; height:6px; border-radius:999px; background:rgba(127,127,127,.18); overflow:hidden; }
 .oi33-alg-mini__bar > span { display:block; height:100%; background:#4c8bf5; transition:width .25s ease; }
-.oi33-alg-toolbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-bottom:.5rem; }
-.oi33-alg-search { flex:1 1 220px; max-width:320px; }
+.oi33-alg-minis--difficulty .oi33-alg-mini__bar > span { background:#2fa36b; }
+
+/* ---- 折叠树（展示页与评定页共有外壳） ---- */
+.oi33-alg-tree { display:flex; flex-direction:column; gap:.5rem; }
+.oi33-alg-node { border:1px solid var(--oi33-alg-border); border-radius:8px; overflow:hidden; }
+.oi33-alg-node > summary {
+  cursor:pointer; display:flex; align-items:center; gap:.6rem;
+  padding:.5rem .8rem; font-weight:600; background:rgba(127,127,127,.06); list-style:none;
+}
+.oi33-alg-node > summary::-webkit-details-marker { display:none; }
+.oi33-alg-node > summary::before { content:'▸'; color:#999; transition:transform .15s ease; }
+.oi33-alg-node[open] > summary::before { transform:rotate(90deg); }
+.oi33-alg-node__name { min-width:0; }
+.oi33-alg-node__bar { flex:1 1 auto; max-width:240px; height:6px; border-radius:999px; background:rgba(127,127,127,.18); overflow:hidden; }
+.oi33-alg-node__bar > span { display:block; height:100%; background:linear-gradient(90deg,#4c8bf5,#2fa36b); }
+.oi33-alg-node__stats { margin-left:auto; color:#888; font-weight:400; font-size:.85em; white-space:nowrap; }
+.oi33-alg-sec { border:none; border-top:1px solid var(--oi33-alg-border); border-radius:0; }
+.oi33-alg-sec > summary { background:transparent; font-weight:600; padding-left:1.4rem; }
+.oi33-alg-sub { border:none; border-top:1px dashed rgba(127,127,127,.18); border-radius:0; }
+.oi33-alg-sub > summary { background:transparent; font-weight:400; color:#666; padding-left:2rem; }
+
+/* ---- 展示页：知识点标签云 ---- */
+.oi33-alg-chips { display:flex; flex-wrap:wrap; gap:.35rem; padding:.5rem .7rem .7rem 2.4rem; }
+.oi33-alg-chip {
+  display:inline-flex; align-items:center; gap:.3rem; max-width:100%;
+  padding:.14rem .55rem; border-radius:999px; font-size:.82em; line-height:1.5;
+  border:1px solid rgba(127,127,127,.3); background:rgba(127,127,127,.08); color:#666;
+}
+.oi33-alg-chip__text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.oi33-alg-chip__diff { font-size:.78em; opacity:.75; font-variant-numeric:tabular-nums; }
+.oi33-alg-chip--unrated { border-style:dashed; opacity:.8; }
+.oi33-alg-chip--0 { background:rgba(127,127,127,.14); border-color:rgba(127,127,127,.35); color:#777; }
+.oi33-alg-chip--1 { background:rgba(224,166,58,.16); border-color:rgba(224,166,58,.5); color:#a8761a; }
+.oi33-alg-chip--2 { background:rgba(76,139,245,.14); border-color:rgba(76,139,245,.5); color:#3a6fd0; }
+.oi33-alg-chip--3 { background:rgba(47,163,107,.15); border-color:rgba(47,163,107,.5); color:#1f7d50; }
+
+/* ---- 评定页：单选框行 ---- */
+.oi33-alg-toolbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-bottom:.6rem; }
+.oi33-alg-filters { display:flex; flex-wrap:wrap; gap:.3rem; }
+.oi33-alg-filter {
+  padding:.12rem .6rem; border-radius:999px; font-size:.8em; cursor:pointer;
+  border:1px solid rgba(127,127,127,.35); background:transparent; color:#666;
+}
+.oi33-alg-filter--on { background:rgba(76,139,245,.16); border-color:rgba(76,139,245,.6); color:#3a6fd0; font-weight:600; }
+.oi33-alg-search { flex:1 1 180px; max-width:280px; }
 .oi33-alg-dirty { color:#a8761a; font-size:.85em; }
 .oi33-alg-submit { margin-left:auto; }
-.oi33-alg-group { border:1px solid var(--oi33-alg-border); border-radius:8px; margin-bottom:.6rem; overflow:hidden; }
-.oi33-alg-group > summary {
-  cursor:pointer; padding:.55rem .85rem; font-weight:600; background:rgba(127,127,127,.06);
-  display:flex; align-items:center; gap:.6rem; list-style:none;
-}
-.oi33-alg-group > summary::-webkit-details-marker { display:none; }
-.oi33-alg-group > summary::before { content:'▸'; color:#999; transition:transform .15s ease; }
-.oi33-alg-group[open] > summary::before { transform:rotate(90deg); }
-.oi33-alg-group__stats { margin-left:auto; color:#888; font-weight:400; font-size:.85em; }
-.oi33-alg-section { border-top:1px solid rgba(127,127,127,.14); }
-.oi33-alg-section__title { padding:.45rem .85rem .2rem; font-weight:600; color:#555; font-size:.92em; }
-.oi33-alg-subsection__title { padding:.3rem .85rem .1rem; color:#888; font-size:.85em; }
 .oi33-alg-item {
-  display:flex; align-items:center; gap:.6rem; padding:.25rem .85rem;
+  display:flex; align-items:center; gap:.7rem; padding:.32rem .8rem .32rem 2rem;
   border-top:1px dashed rgba(127,127,127,.14);
 }
-.oi33-alg-item:first-child { border-top:none; }
+.oi33-alg-item:first-of-type { border-top:none; }
 .oi33-alg-item--dirty { background:rgba(224,166,58,.12); }
+.oi33-alg-item--rated .oi33-alg-item__name { font-weight:600; }
+.oi33-alg-rate { flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:.1rem .55rem; }
+.oi33-alg-rate__opt { display:inline-flex; align-items:center; gap:.22rem; font-size:.8em; white-space:nowrap; cursor:pointer; color:#666; }
+.oi33-alg-rate__opt input { margin:0; }
+.oi33-alg-rate__opt:has(input:checked) { font-weight:600; color:#3a6fd0; }
 .oi33-alg-item__main { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
 .oi33-alg-item__name { min-width:0; }
 .oi33-alg-item__note { color:#888; font-size:.82em; }
-.oi33-alg-item__control { flex:0 0 auto; display:flex; align-items:center; gap:.4rem; }
-.oi33-alg-item--rated .oi33-alg-item__name { font-weight:600; }
 .oi33-alg-diff {
   --alg-h: 0;
   display:inline-block; padding:0 .4em; border-radius:999px; font-size:.72em; line-height:1.6;
@@ -73,15 +113,6 @@
   border:1px solid hsl(var(--alg-h),55%,72%); white-space:nowrap;
 }
 .oi33-alg-diff--none { background:rgba(127,127,127,.12); color:#888; border-color:rgba(127,127,127,.3); }
-.oi33-alg-select { min-width:7.5rem; }
-.oi33-alg-badge { display:inline-block; padding:.1em .6em; border-radius:999px; font-size:.82em; border:1px solid transparent; }
-.oi33-alg-badge--0 { background:rgba(127,127,127,.15); color:#777; border-color:rgba(127,127,127,.3); }
-.oi33-alg-badge--1 { background:rgba(224,166,58,.18); color:#a8761a; border-color:rgba(224,166,58,.45); }
-.oi33-alg-badge--2 { background:rgba(76,139,245,.16); color:#3a6fd0; border-color:rgba(76,139,245,.45); }
-.oi33-alg-badge--3 { background:rgba(47,163,107,.16); color:#1f7d50; border-color:rgba(47,163,107,.45); }
-.oi33-alg-lock { color:#2fa36b; font-size:.78em; white-space:nowrap; }
-.oi33-alg-empty { color:#888; padding:.6rem 0; }
-.oi33-alg-empty a { text-decoration:underline; }
 .oi33-alg-toast {
   position:fixed; left:50%; bottom:2rem; transform:translateX(-50%); z-index:1200;
   background:rgba(30,30,30,.92); color:#fff; padding:.45rem .9rem; border-radius:6px;
@@ -89,9 +120,9 @@
 }
 .oi33-alg-toast--show { display:block; }
 .oi33-alg-toast--error { background:rgba(176,40,40,.95); }
-/* The tab panel is its own section now: undo the stock negative margin and give
-   the immersive strip a real bar. */
 .page--user_detail .profile-content { margin-top: 0; }
+
+/* ---- 深色主题 ---- */
 .theme--dark .oi33-alg-quota, [data-mantine-color-scheme=dark] .oi33-alg-quota {
   background:rgba(76,139,245,.16); border-color:rgba(76,139,245,.4); color:#8fb6f8;
 }
@@ -99,28 +130,35 @@
   background:rgba(255,255,255,.06); border-color:rgba(160,160,160,.3); color:#aaa;
 }
 .theme--dark .oi33-alg-summary, [data-mantine-color-scheme=dark] .oi33-alg-summary,
-.theme--dark .oi33-alg-group, [data-mantine-color-scheme=dark] .oi33-alg-group { border-color:rgba(160,160,160,.28); }
-.theme--dark .oi33-alg-group > summary, [data-mantine-color-scheme=dark] .oi33-alg-group > summary { background:rgba(255,255,255,.05); }
+.theme--dark .oi33-alg-node, [data-mantine-color-scheme=dark] .oi33-alg-node { border-color:rgba(160,160,160,.28); }
+.theme--dark .oi33-alg-node > summary, [data-mantine-color-scheme=dark] .oi33-alg-node > summary { background:rgba(255,255,255,.05); }
+.theme--dark .oi33-alg-sec > summary, .theme--dark .oi33-alg-sub > summary,
+[data-mantine-color-scheme=dark] .oi33-alg-sec > summary,
+[data-mantine-color-scheme=dark] .oi33-alg-sub > summary { background:transparent; }
 .theme--dark .oi33-alg-legend, [data-mantine-color-scheme=dark] .oi33-alg-legend,
 .theme--dark .oi33-alg-minis, [data-mantine-color-scheme=dark] .oi33-alg-minis,
 .theme--dark .oi33-alg-item__note, [data-mantine-color-scheme=dark] .oi33-alg-item__note,
-.theme--dark .oi33-alg-subsection__title, [data-mantine-color-scheme=dark] .oi33-alg-subsection__title { color:#aaa; }
-.theme--dark .oi33-alg-section__title, [data-mantine-color-scheme=dark] .oi33-alg-section__title { color:#ccc; }
+.theme--dark .oi33-alg-sub > summary, [data-mantine-color-scheme=dark] .oi33-alg-sub > summary,
+.theme--dark .oi33-alg-rate__opt, [data-mantine-color-scheme=dark] .oi33-alg-rate__opt { color:#aaa; }
+.theme--dark .oi33-alg-filter, [data-mantine-color-scheme=dark] .oi33-alg-filter { color:#bbb; border-color:rgba(160,160,160,.4); }
+.theme--dark .oi33-alg-filter--on, [data-mantine-color-scheme=dark] .oi33-alg-filter--on { color:#8fb6f8; border-color:rgba(76,139,245,.6); }
+.theme--dark .oi33-alg-chip, [data-mantine-color-scheme=dark] .oi33-alg-chip { color:#bbb; }
+.theme--dark .oi33-alg-chip--1, [data-mantine-color-scheme=dark] .oi33-alg-chip--1 { color:#e2b45f; }
+.theme--dark .oi33-alg-chip--2, [data-mantine-color-scheme=dark] .oi33-alg-chip--2 { color:#8fb6f8; }
+.theme--dark .oi33-alg-chip--3, [data-mantine-color-scheme=dark] .oi33-alg-chip--3 { color:#7ed3a6; }
 .theme--dark .oi33-alg-diff, [data-mantine-color-scheme=dark] .oi33-alg-diff {
   background:hsl(var(--alg-h),35%,22%); color:hsl(var(--alg-h),68%,76%); border-color:hsl(var(--alg-h),35%,40%);
 }
 .theme--dark .oi33-alg-diff--none, [data-mantine-color-scheme=dark] .oi33-alg-diff--none {
   background:rgba(255,255,255,.08); color:#aaa; border-color:rgba(160,160,160,.35);
 }
-.theme--dark .oi33-alg-badge--0, [data-mantine-color-scheme=dark] .oi33-alg-badge--0 { color:#bbb; }
-.theme--dark .oi33-alg-badge--1, [data-mantine-color-scheme=dark] .oi33-alg-badge--1 { color:#e2b45f; }
-.theme--dark .oi33-alg-badge--2, [data-mantine-color-scheme=dark] .oi33-alg-badge--2 { color:#8fb6f8; }
-.theme--dark .oi33-alg-badge--3, [data-mantine-color-scheme=dark] .oi33-alg-badge--3 { color:#7ed3a6; }
 .theme--dark .oi33-alg-dirty, [data-mantine-color-scheme=dark] .oi33-alg-dirty { color:#e2b45f; }
-@media (max-width: 640px) {
+
+@media (max-width: 720px) {
   .oi33-alg-summary { grid-template-columns: 1fr; }
-  .oi33-alg-item { align-items:flex-start; }
-  .oi33-alg-item__control { width:100%; justify-content:flex-end; }
+  .oi33-alg-item { flex-wrap:wrap; align-items:flex-start; }
+  .oi33-alg-chips { padding-left:1.4rem; }
+  .oi33-alg-node__bar { max-width:120px; }
 }
 </style>
 {% endmacro %}
@@ -134,82 +172,61 @@
 {%- endif -%}
 {% endmacro %}
 
-{% macro levelBadge(level, panel) %}
-{%- set lv = (level or 0) * 1 -%}
-<span class="oi33-alg-badge oi33-alg-badge--{{ lv }}">{{ panel.levels[lv].name }}</span>
+{% macro nodeStats(stats) %}
+<span class="oi33-alg-node__stats">{{ stats.rated }}/{{ stats.total }} · {{ stats.score }}%</span>
 {% endmacro %}
 
-{# 一行知识点。所有 select 通过 form="alg-form" 关联到页面上唯一的提交表单，
-   因此整份面板是一次提交；未评定的行默认选中 -1（提交时若未改动会被跳过）。 #}
-{% macro itemRow(item, panel, uid) %}
-<div class="oi33-alg-item{% if item.rated %} oi33-alg-item--rated{% endif %}"
-  data-alg-item="{{ item._id }}" data-alg-level="{{ item.level }}"
-  data-alg-rated="{{ 1 if item.rated else 0 }}"
-  data-alg-text="{{ item.text }} {{ item.sectionName }}{% if item.subsectionName %} {{ item.subsectionName }}{% endif %}">
-  <div class="oi33-alg-item__main">
-    <span class="oi33-alg-item__name">{{ item.text }}</span>
-    {{ difficulty(item.difficulty) }}
-    {% if item.ratingSource == 'teacher' %}<span class="oi33-alg-lock" title="当前值由教师录入，提交自评即可覆盖">🔒 教师录入</span>{% endif %}
-    {% if item.note %}<span class="oi33-alg-item__note">{{ item.note }}</span>{% endif %}
+{# 掌握度总览：总分、图例、按级别进度、按难度进度。 #}
+{% macro summaryStats(panel) %}
+<div class="oi33-alg-summary">
+  <div>
+    <div class="oi33-alg-score">
+      <span class="oi33-alg-score__num" data-alg-stat="score">{{ panel.stats.score }}</span>
+      <span class="oi33-alg-score__unit">%</span>
+    </div>
+    <div class="oi33-alg-score__label">
+      掌握度（已评定 <span data-alg-stat="rated">{{ panel.stats.rated }}</span>/<span data-alg-stat="total">{{ panel.stats.total }}</span>，
+      未评定 <span data-alg-stat="unrated">{{ panel.stats.total - panel.stats.rated }}</span>）
+    </div>
   </div>
-  <div class="oi33-alg-item__control">
-    {% if panel.canEdit %}
-    <select class="oi33-alg-select" form="alg-form" name="lv_{{ item.idx }}"
-      data-item="{{ item._id }}" data-prev="{{ item.level if item.rated else -1 }}"
-      aria-label="{{ item.text }} 的掌握程度">
-      <option value="-1" {% if not item.rated %}selected{% endif %}>未评定</option>
-      {% for opt in panel.levels %}
-      <option value="{{ opt.value }}" {% if item.rated and opt.value == item.level %}selected{% endif %}>{{ opt.name }}</option>
-      {% endfor %}
-    </select>
-    <input type="hidden" form="alg-form" name="id_{{ item.idx }}" value="{{ item._id }}">
-    <input type="hidden" form="alg-form" name="orig_{{ item.idx }}" value="{{ item.level if item.rated else -1 }}">
-    {% else %}
-    {% if item.rated %}{{ levelBadge(item.level, panel) }}
-    {% else %}<span class="oi33-alg-badge oi33-alg-badge--0">未评定</span>{% endif %}
-    {% endif %}
+  <div class="oi33-alg-bar"><span data-alg-stat-bar style="width:{{ panel.stats.score }}%"></span></div>
+  <ul class="oi33-alg-legend">
+    {% for opt in panel.levels %}
+    <li class="oi33-alg-legend__item oi33-alg-legend__item--{{ opt.value }}">
+      <span class="oi33-alg-legend__dot"></span>{{ opt.name }}
+      <b data-alg-stat="count-{{ opt.value }}">{{ panel.stats.counts[opt.value] }}</b>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="oi33-alg-minis-title">按大纲级别</div>
+  <div class="oi33-alg-minis">
+    {% for group in panel.groups %}
+    <div class="oi33-alg-mini" data-alg-level="{{ group.id }}" data-alg-total="{{ group.stats.total }}">
+      <span>{{ group.name }}</span>
+      <div class="oi33-alg-mini__bar"><span data-alg-level-bar style="width:{{ group.stats.score }}%"></span></div>
+      <span data-alg-level-score>{{ group.stats.score }}%</span>
+    </div>
+    {% endfor %}
   </div>
+  {% if panel.difficulties.length %}
+  <div class="oi33-alg-minis-title">按难度系数</div>
+  <div class="oi33-alg-minis oi33-alg-minis--difficulty">
+    {% for item in panel.difficulties %}
+    <div class="oi33-alg-mini" data-alg-difficulty="{{ item.value }}" data-alg-total="{{ item.total }}">
+      <span>{{ item.name }}</span>
+      <div class="oi33-alg-mini__bar"><span data-alg-difficulty-bar style="width:{{ item.score }}%"></span></div>
+      <span data-alg-difficulty-score>{{ item.score }}%</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% endmacro %}
 
-{% macro sectionBlock(section, panel, uid) %}
-<div class="oi33-alg-section" data-alg-section>
-  <div class="oi33-alg-section__title">{{ section.name }}</div>
-  {% for item in section.items %}{{ itemRow(item, panel, uid) }}{% endfor %}
-  {% for subsection in section.subsections %}
-  <div class="oi33-alg-subsection" data-alg-subsection>
-    <div class="oi33-alg-subsection__title">{{ subsection.name }}</div>
-    {% for item in subsection.items %}{{ itemRow(item, panel, uid) }}{% endfor %}
-  </div>
-  {% endfor %}
-</div>
-{% endmacro %}
-
-{% macro panel(panel, udoc) %}
-<div class="oi33-alg-panel"
-  data-alg-uid="{{ udoc._id }}"
-  data-alg-max-level="{{ panel.maxLevel }}"
-  data-alg-quota="{{ 1 if panel.quotaApplies else 0 }}"
-  data-alg-can-edit="{{ 1 if panel.canEdit else 0 }}">
-
-  <div class="oi33-alg-head">
-    <div>
-      <strong>算法掌握程度</strong>
-      <div class="oi33-alg-head__meta">
-        档位：{% for opt in panel.levels %}{{ opt.name }}{% if not loop.last %} → {% endif %}{% endfor %}（默认未评定）
-      </div>
-    </div>
-    <div class="oi33-alg-head__tools">
-      <a class="rounded button" href="{{ url('oi33_algorithm_user', uid=udoc._id) }}">独立页面</a>
-      {% if panel.isTeacher %}<a class="rounded button" href="{{ url('oi33_algorithm_manage') }}">管理算法项目</a>{% endif %}
-    </div>
-  </div>
-
+{% macro quotaNote(panel, udoc) %}
   {% if panel.quotaApplies and panel.isSelf %}
     {% if panel.canSelfUpdate %}
-    <p class="oi33-alg-quota">
-      本月还可以提交一次自评；提交后本月内不能再修改，下次可更新：{{ panel.nextUpdateAt }}。
-    </p>
+    <p class="oi33-alg-quota">本月还可以提交一次自评；提交后本月内不能再修改，下次可更新：{{ panel.nextUpdateAt }}。</p>
     {% else %}
     <p class="oi33-alg-quota oi33-alg-quota--used">
       本月自评已提交{% if panel.selfAt %}（{{ datetimeSpan(panel.selfAt)|safe }}）{% endif %}，本月为只读，下次可更新：{{ panel.nextUpdateAt }}。
@@ -223,79 +240,80 @@
         <form method="post" action="{{ url('oi33_algorithm_reset_month') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="uid" value="{{ udoc._id }}">
-          <input type="hidden" name="redirect" value="{{ url('oi33_algorithm_user', uid=udoc._id) }}">
+          <input type="hidden" name="redirect" value="{{ url('oi33_algorithm_edit', uid=udoc._id) }}">
           <button type="submit" class="rounded button">重置该学生本月额度</button>
         </form>
       {% endif %}
     </p>
   {% endif %}
+{% endmacro %}
 
+{# 展示页：一个知识点 = 一个按掌握程度上色的标签。 #}
+{% macro chip(item) %}
+<span class="oi33-alg-chip oi33-alg-chip--{% if not item.rated %}unrated{% else %}{{ item.level }}{% endif %}"
+  title="{{ item.text }}{% if item.difficulty %} · 难度 {{ item.difficulty }}{% endif %}{% if item.note %} · {{ item.note }}{% endif %}">
+  <span class="oi33-alg-chip__text">{{ item.text }}</span>
+  {% if item.difficulty %}<span class="oi33-alg-chip__diff">{{ item.difficulty }}</span>{% endif %}
+</span>
+{% endmacro %}
+
+{# 展示页：级 → 板块 → 子板块 逐层折叠，最里层是标签云而不是一行一条。 #}
+{% macro displayTree(panel) %}
+<div class="oi33-alg-tree">
+  {% for group in panel.groups %}
+  <details class="oi33-alg-node oi33-alg-lv" open>
+    <summary>
+      <span class="oi33-alg-node__name">{{ group.name }}</span>
+      <span class="oi33-alg-node__bar"><span style="width:{{ group.stats.score }}%"></span></span>
+      {{ nodeStats(group.stats) }}
+    </summary>
+    {% for section in group.sections %}
+    <details class="oi33-alg-node oi33-alg-sec">
+      <summary>
+        <span class="oi33-alg-node__name">{{ section.name }}</span>
+        <span class="oi33-alg-node__bar"><span style="width:{{ section.stats.score }}%"></span></span>
+        {{ nodeStats(section.stats) }}
+      </summary>
+      {% for subsection in section.subsections %}
+      <details class="oi33-alg-node oi33-alg-sub">
+        <summary>
+          <span class="oi33-alg-node__name">{{ subsection.name }}</span>
+          {{ nodeStats(subsection.stats) }}
+        </summary>
+        <div class="oi33-alg-chips">{% for item in subsection.items %}{{ chip(item) }}{% endfor %}</div>
+      </details>
+      {% endfor %}
+      {% if section.items.length %}
+      <div class="oi33-alg-chips">{% for item in section.items %}{{ chip(item) }}{% endfor %}</div>
+      {% endif %}
+    </details>
+    {% endfor %}
+  </details>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro display(panel, udoc) %}
+<div class="oi33-alg-panel oi33-alg-display" data-alg-uid="{{ udoc._id }}">
+  <div class="oi33-alg-head">
+    <div>
+      <strong>算法掌握程度</strong>
+      <div class="oi33-alg-head__meta">档位：{% for opt in panel.levels %}{{ opt.name }}{% if not loop.last %} → {% endif %}{% endfor %}</div>
+    </div>
+    <div class="oi33-alg-head__tools">
+      {% if panel.canEdit %}<a class="rounded primary button" href="{{ url('oi33_algorithm_edit', uid=udoc._id) }}">去评定</a>{% endif %}
+      <a class="rounded button" href="{{ url('oi33_algorithm_user', uid=udoc._id) }}">独立页面</a>
+      {% if panel.isTeacher %}<a class="rounded button" href="{{ url('oi33_algorithm_manage') }}">管理算法项目</a>{% endif %}
+    </div>
+  </div>
+  {{ quotaNote(panel, udoc) }}
   {% if panel.isSelf and not panel.isTeacher and not panel.selfEdit %}
   <p class="oi33-alg-empty">管理员已关闭学生自评，当前为只读；如需修改请联系老师。</p>
   {% endif %}
 
   {% if panel.total %}
-  <div class="oi33-alg-summary">
-    <div>
-      <div class="oi33-alg-score">
-        <span class="oi33-alg-score__num" data-alg-stat="score">{{ panel.stats.score }}</span>
-        <span class="oi33-alg-score__unit">%</span>
-      </div>
-      <div class="oi33-alg-score__label">
-        掌握度（已评定 <span data-alg-stat="rated">{{ panel.stats.rated }}</span>/<span data-alg-stat="total">{{ panel.stats.total }}</span>，
-        未评定 <span data-alg-stat="unrated">{{ panel.stats.total - panel.stats.rated }}</span>）
-      </div>
-    </div>
-    <div class="oi33-alg-bar"><span data-alg-stat-bar style="width:{{ panel.stats.score }}%"></span></div>
-    <ul class="oi33-alg-legend">
-      {% for opt in panel.levels %}
-      <li class="oi33-alg-legend__item oi33-alg-legend__item--{{ opt.value }}">
-        <span class="oi33-alg-legend__dot"></span>{{ opt.name }}
-        <b data-alg-stat="count-{{ opt.value }}">{{ panel.stats.counts[opt.value] }}</b>
-      </li>
-      {% endfor %}
-    </ul>
-    <div class="oi33-alg-minis">
-      {% for group in panel.groups %}
-      <div class="oi33-alg-mini" data-alg-level="{{ group.id }}" data-alg-total="{{ group.stats.total }}">
-        <span>{{ group.name }}</span>
-        <div class="oi33-alg-mini__bar"><span data-alg-level-bar style="width:{{ group.stats.score }}%"></span></div>
-        <span data-alg-level-score>{{ group.stats.score }}%</span>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-
-  {% if panel.canEdit %}
-  {# 唯一的提交表单：所有 select/hidden 都用 form="alg-form" 关联到这里。 #}
-  <form id="alg-form" method="post" action="{{ url('oi33_algorithm_set') }}">
-    <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-    <input type="hidden" name="uid" value="{{ udoc._id }}">
-    <input type="hidden" name="redirect" value="{{ url('oi33_algorithm_user', uid=udoc._id) }}">
-  </form>
-  {% endif %}
-
-  <div class="oi33-alg-toolbar">
-    <input type="search" class="oi33-alg-search" placeholder="搜索知识点…" aria-label="搜索知识点">
-    <a href="javascript:;" class="oi33-alg-expand">全部展开</a>
-    <a href="javascript:;" class="oi33-alg-collapse">全部收起</a>
-    {% if panel.canEdit %}
-    <span class="oi33-alg-dirty" data-alg-dirty hidden></span>
-    <button type="submit" form="alg-form" class="rounded primary button oi33-alg-submit" data-alg-submit>
-      {{ '提交本月更新' if panel.quotaApplies else '保存修改' }}
-    </button>
-    {% endif %}
-  </div>
-
-  {% for group in panel.groups %}
-  <details class="oi33-alg-group" open data-alg-group="{{ group.id }}">
-    <summary>
-      <span>{{ group.name }}</span>
-      <span class="oi33-alg-group__stats" data-alg-group-stats>{{ group.stats.rated }}/{{ group.stats.total }} · {{ group.stats.score }}%</span>
-    </summary>
-    {% for section in group.sections %}{{ sectionBlock(section, panel, udoc._id) }}{% endfor %}
-  </details>
-  {% endfor %}
+  {{ summaryStats(panel) }}
+  {{ displayTree(panel) }}
   {% else %}
   <p class="oi33-alg-empty">
     还没有配置算法项目。
@@ -306,7 +324,136 @@
     {% endif %}
   </p>
   {% endif %}
+</div>
+{% endmacro %}
 
+{# 评定页一行：先单选框，后知识点内容。 #}
+{% macro editorRow(item, panel) %}
+<div class="oi33-alg-item{% if item.rated %} oi33-alg-item--rated{% endif %}"
+  data-alg-item="{{ item._id }}" data-alg-level="{{ item.level }}"
+  data-alg-rated="{{ 1 if item.rated else 0 }}"
+  data-alg-difficulty="{{ item.difficulty }}"
+  data-alg-orig="{{ item.level if item.rated else -1 }}"
+  data-alg-text="{{ item.text }} {{ item.sectionName }}{% if item.subsectionName %} {{ item.subsectionName }}{% endif %}">
+  <div class="oi33-alg-rate" role="radiogroup" aria-label="{{ item.text }} 的掌握程度">
+    <label class="oi33-alg-rate__opt"><input type="radio" class="oi33-alg-radio" form="alg-form"
+      name="lv_{{ item.idx }}" value="-1" {% if not item.rated %}checked{% endif %}>未评定</label>
+    {% for opt in panel.levels %}
+    <label class="oi33-alg-rate__opt"><input type="radio" class="oi33-alg-radio" form="alg-form"
+      name="lv_{{ item.idx }}" value="{{ opt.value }}"
+      {% if item.rated and opt.value == item.level %}checked{% endif %}>{{ opt.name }}</label>
+    {% endfor %}
+  </div>
+  <div class="oi33-alg-item__main">
+    <span class="oi33-alg-item__name">{{ item.text }}</span>
+    {{ difficulty(item.difficulty) }}
+    {% if item.ratingSource == 'teacher' %}<span class="oi33-alg-lock" title="当前值由教师录入，提交自评即可覆盖">🔒 教师录入</span>{% endif %}
+    {% if item.note %}<span class="oi33-alg-item__note">{{ item.note }}</span>{% endif %}
+  </div>
+  <input type="hidden" form="alg-form" name="id_{{ item.idx }}" value="{{ item._id }}">
+  <input type="hidden" form="alg-form" name="orig_{{ item.idx }}" value="{{ item.level if item.rated else -1 }}">
+</div>
+{% endmacro %}
+
+{% macro editorTree(panel) %}
+<div class="oi33-alg-tree">
+  {% for group in panel.groups %}
+  <details class="oi33-alg-node oi33-alg-grp" open data-alg-group="{{ group.id }}">
+    <summary>
+      <span class="oi33-alg-node__name">{{ group.name }}</span>
+      <span class="oi33-alg-node__bar"><span style="width:{{ group.stats.score }}%"></span></span>
+      <span class="oi33-alg-node__stats" data-alg-group-stats>{{ group.stats.rated }}/{{ group.stats.total }} · {{ group.stats.score }}%</span>
+    </summary>
+    {% for section in group.sections %}
+    <details class="oi33-alg-node oi33-alg-sec" open data-alg-section="{{ section.id }}">
+      <summary>
+        <span class="oi33-alg-node__name">{{ section.name }}</span>
+        <span class="oi33-alg-node__bar"><span style="width:{{ section.stats.score }}%"></span></span>
+        <span class="oi33-alg-node__stats" data-alg-section-stats>{{ section.stats.rated }}/{{ section.stats.total }} · {{ section.stats.score }}%</span>
+      </summary>
+      {% for subsection in section.subsections %}
+      <details class="oi33-alg-node oi33-alg-sub" open data-alg-subsection="{{ subsection.id }}">
+        <summary>
+          <span class="oi33-alg-node__name">{{ subsection.name }}</span>
+          <span class="oi33-alg-node__stats" data-alg-subsection-stats>{{ subsection.stats.rated }}/{{ subsection.stats.total }} · {{ subsection.stats.score }}%</span>
+        </summary>
+        {% for item in subsection.items %}{{ editorRow(item, panel) }}{% endfor %}
+      </details>
+      {% endfor %}
+      {% for item in section.items %}{{ editorRow(item, panel) }}{% endfor %}
+    </details>
+    {% endfor %}
+  </details>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{# 评定页：筛选（评价 + 关键词）+ 单选框 + 一次批量提交。 #}
+{% macro editor(panel, udoc) %}
+<div class="oi33-alg-panel oi33-alg-editor"
+  data-alg-uid="{{ udoc._id }}"
+  data-alg-max-level="{{ panel.maxLevel }}"
+  data-alg-quota="{{ 1 if panel.quotaApplies else 0 }}"
+  data-alg-can-edit="{{ 1 if panel.canEdit else 0 }}"
+  data-alg-rating="all">
+  <div class="oi33-alg-head">
+    <div>
+      <strong>评定算法掌握程度</strong>
+      <div class="oi33-alg-head__meta">每行点一个单选框即可；改完后一次性提交</div>
+    </div>
+    <div class="oi33-alg-head__tools">
+      <a class="rounded button" href="{{ url('oi33_algorithm_user', uid=udoc._id) }}">查看展示页</a>
+      {% if panel.isTeacher %}<a class="rounded button" href="{{ url('oi33_algorithm_manage') }}">管理算法项目</a>{% endif %}
+    </div>
+  </div>
+  {{ quotaNote(panel, udoc) }}
+  {% if panel.isSelf and not panel.isTeacher and not panel.selfEdit %}
+  <p class="oi33-alg-empty">管理员已关闭学生自评，当前为只读；如需修改请联系老师。</p>
+  {% endif %}
+
+  {% if panel.total %}
+  {{ summaryStats(panel) }}
+  {% if panel.canEdit %}
+  {# 唯一的提交表单：所有单选框/hidden 都用 form="alg-form" 关联到这里。 #}
+  <form id="alg-form" method="post" action="{{ url('oi33_algorithm_set') }}">
+    <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+    <input type="hidden" name="uid" value="{{ udoc._id }}">
+    <input type="hidden" name="redirect" value="{{ url('oi33_algorithm_user', uid=udoc._id) }}">
+  </form>
+  <div class="oi33-alg-toolbar">
+    <div class="oi33-alg-filters" data-alg-filters role="group" aria-label="按评价筛选">
+      <button type="button" class="oi33-alg-filter oi33-alg-filter--on" data-alg-filter="all">全部</button>
+      <button type="button" class="oi33-alg-filter" data-alg-filter="unrated">未评定</button>
+      {% for opt in panel.levels %}
+      <button type="button" class="oi33-alg-filter" data-alg-filter="{{ opt.value }}">{{ opt.name }}</button>
+      {% endfor %}
+    </div>
+    <input type="search" class="oi33-alg-search" placeholder="搜索知识点…" aria-label="搜索知识点">
+    <a href="javascript:;" class="oi33-alg-expand">全部展开</a>
+    <a href="javascript:;" class="oi33-alg-collapse">全部收起</a>
+    <span class="oi33-alg-dirty" data-alg-dirty hidden></span>
+    <button type="submit" form="alg-form" class="rounded primary button oi33-alg-submit" data-alg-submit>
+      {{ '提交本月更新' if panel.quotaApplies else '保存修改' }}
+    </button>
+  </div>
+  {% endif %}
+
+  {% if panel.canEdit %}
+  {{ editorTree(panel) }}
   <div class="oi33-alg-toast" role="status" aria-live="polite"></div>
+  {% else %}
+  {# 只读访问者（学生本月额度已用 / 关闭自评）直接看展示版标签云。 #}
+  {{ displayTree(panel) }}
+  {% endif %}
+  {% else %}
+  <p class="oi33-alg-empty">
+    还没有配置算法项目。
+    {% if panel.isTeacher %}
+    请先到<a href="{{ url('oi33_algorithm_manage') }}">算法项目管理</a>导入 NOI 大纲或手动添加项目。
+    {% else %}
+    请联系老师配置算法项目。
+    {% endif %}
+  </p>
+  {% endif %}
 </div>
 {% endmacro %}

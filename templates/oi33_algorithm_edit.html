@@ -1,4 +1,4 @@
-{% set page_name = "oi33_algorithm_user" %}
+{% set page_name = "oi33_algorithm_edit" %}
 {% extends "layout/basic.html" %}
 {% import "components/user.html" as user with context %}
 {% import "partials/oi33_algorithm.html" as alg with context %}
@@ -8,20 +8,15 @@
   <div class="medium-8 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">算法掌握程度</h1>
+        <h1 class="section__title">评定算法掌握程度</h1>
         <div class="section__tools">
           {{ user.render_inline(udoc) }}
-          {% if panel.canEdit %}
-          <a class="rounded primary button" href="{{ url('oi33_algorithm_edit', uid=udoc._id) }}">去评定</a>
-          {% endif %}
-          {% if panel.isTeacher and not panel.isSelf %}
-          <a class="rounded button" href="{{ url('oi33_algorithm_manage') }}">管理算法项目</a>
-          {% endif %}
+          <a class="rounded button" href="{{ url('oi33_algorithm_user', uid=udoc._id) }}">返回展示页</a>
           <a class="rounded button" href="{{ url('user_detail', uid=udoc._id) }}">返回资料页</a>
         </div>
       </div>
       <div class="typo section__body no-media">
-        {{ alg.display(panel, udoc) }}
+        {{ alg.editor(panel, udoc) }}
       </div>
     </div>
   </div>
