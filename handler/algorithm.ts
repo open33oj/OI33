@@ -326,23 +326,8 @@ class AlgorithmConfigHandler extends Handler {
     }
 }
 
-// Attach the mastery panel to the profile page for the owner and for teachers
-// (OI33 flag >= 2). Everyone else never sees the tab.
-function registerAlgorithmPanel(ctx: Context) {
-    ctx.on('handler/after/UserDetail', async (h: any) => {
-        try {
-            const body = h.response?.body;
-            const uid = Number(body?.udoc?._id);
-            if (!Number.isSafeInteger(uid) || uid <= 0) return;
-            const viewerUid = Number(h.user?._id) || 0;
-            const viewerFlag = viewerUid ? await checkUserFlag(viewerUid) : 0;
-            if (viewerUid !== uid && viewerFlag < 2) return;
-            body.oi33AlgorithmPanel = await buildAlgorithmPanel(uid, viewerUid, viewerFlag);
-        } catch (e) {
-            console.error('[oi33] algorithm profile panel failed:', e);
-        }
-    });
-}
+// 资料页不再内嵌算法掌握卡片（只有「快捷跳转」入口），因此不再往
+// UserDetail 的 body 里注入 oi33AlgorithmPanel，避免无谓的数据库查询。
 
 export async function apply(ctx: Context) {
     ctx.Route('oi33_algorithm', '/oi33/algorithm', AlgorithmIndexHandler, PRIV.PRIV_USER_PROFILE);
@@ -357,5 +342,4 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_algorithm_bulk', '/oi33/algorithm/manage/bulk', AlgorithmBulkHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_algorithm_import', '/oi33/algorithm/manage/import', AlgorithmImportHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_algorithm_config', '/oi33/algorithm/manage/config', AlgorithmConfigHandler, PRIV.PRIV_USER_PROFILE);
-    registerAlgorithmPanel(ctx);
 }

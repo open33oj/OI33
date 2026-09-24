@@ -1,6 +1,7 @@
 {# 算法掌握：展示页与评定页共用本文件。
-   展示页 = /oi33/algorithm/user/:uid 与个人资料页 tab（只读、标签云、逐层折叠）；
-   评定页 = /oi33/algorithm/user/:uid/edit（每行一组单选框 + 按评价筛选 + 一次批量提交）。
+   展示页 = /oi33/algorithm/user/:uid（只读、标签云、逐层折叠）；
+   评定页 = /oi33/algorithm/user/:uid/edit（每行四档单选框 + 按评价筛选 + 一次批量提交）。
+   没有评定记录的知识点按「没学」处理，不再有独立的「未评定」档位。
    数据由 handler/algorithm.ts 的 buildAlgorithmPanel 提供。 #}
 
 {% macro style() %}
@@ -75,7 +76,6 @@
 }
 .oi33-alg-chip__text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .oi33-alg-chip__diff { font-size:.78em; opacity:.75; font-variant-numeric:tabular-nums; }
-.oi33-alg-chip--unrated { border-style:dashed; opacity:.8; }
 .oi33-alg-chip--0 { background:rgba(127,127,127,.14); border-color:rgba(127,127,127,.35); color:#777; }
 .oi33-alg-chip--1 { background:rgba(224,166,58,.16); border-color:rgba(224,166,58,.5); color:#a8761a; }
 .oi33-alg-chip--2 { background:rgba(76,139,245,.14); border-color:rgba(76,139,245,.5); color:#3a6fd0; }
@@ -98,7 +98,6 @@
 }
 .oi33-alg-item:first-of-type { border-top:none; }
 .oi33-alg-item--dirty { background:rgba(224,166,58,.12); }
-.oi33-alg-item--rated .oi33-alg-item__name { font-weight:600; }
 .oi33-alg-rate { flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:.1rem .55rem; }
 .oi33-alg-rate__opt { display:inline-flex; align-items:center; gap:.22rem; font-size:.8em; white-space:nowrap; cursor:pointer; color:#666; }
 .oi33-alg-rate__opt input { margin:0; }
@@ -172,8 +171,9 @@
 {%- endif -%}
 {% endmacro %}
 
+{# 知识点进度：熟练掌握数 / 总数 · 掌握度。没有记录的按「没学」计入。 #}
 {% macro nodeStats(stats) %}
-<span class="oi33-alg-node__stats">{{ stats.rated }}/{{ stats.total }} · {{ stats.score }}%</span>
+<span class="oi33-alg-node__stats" title="熟练掌握 / 知识点总数 · 掌握度">{{ stats.counts[3] }}/{{ stats.total }} · {{ stats.score }}%</span>
 {% endmacro %}
 
 {# 掌握度总览：总分、图例、按级别进度、按难度进度。 #}
@@ -185,8 +185,7 @@
       <span class="oi33-alg-score__unit">%</span>
     </div>
     <div class="oi33-alg-score__label">
-      掌握度（已评定 <span data-alg-stat="rated">{{ panel.stats.rated }}</span>/<span data-alg-stat="total">{{ panel.stats.total }}</span>，
-      未评定 <span data-alg-stat="unrated">{{ panel.stats.total - panel.stats.rated }}</span>）
+      掌握度（共 <span data-alg-stat="total">{{ panel.stats.total }}</span> 个知识点）
     </div>
   </div>
   <div class="oi33-alg-bar"><span data-alg-stat-bar style="width:{{ panel.stats.score }}%"></span></div>
@@ -248,9 +247,9 @@
   {% endif %}
 {% endmacro %}
 
-{# 展示页：一个知识点 = 一个按掌握程度上色的标签。 #}
+{# 展示页：一个知识点 = 一个按掌握程度上色的标签。没有记录的按「没学」着色。 #}
 {% macro chip(item) %}
-<span class="oi33-alg-chip oi33-alg-chip--{% if not item.rated %}unrated{% else %}{{ item.level }}{% endif %}"
+<span class="oi33-alg-chip oi33-alg-chip--{{ item.level }}"
   title="{{ item.text }}{% if item.difficulty %} · 难度 {{ item.difficulty }}{% endif %}{% if item.note %} · {{ item.note }}{% endif %}">
   <span class="oi33-alg-chip__text">{{ item.text }}</span>
   {% if item.difficulty %}<span class="oi33-alg-chip__diff">{{ item.difficulty }}</span>{% endif %}
@@ -302,7 +301,6 @@
     </div>
     <div class="oi33-alg-head__tools">
       {% if panel.canEdit %}<a class="rounded primary button" href="{{ url('oi33_algorithm_edit', uid=udoc._id) }}">去评定</a>{% endif %}
-      <a class="rounded button" href="{{ url('oi33_algorithm_user', uid=udoc._id) }}">独立页面</a>
       {% if panel.isTeacher %}<a class="rounded button" href="{{ url('oi33_algorithm_manage') }}">管理算法项目</a>{% endif %}
     </div>
   </div>
@@ -327,21 +325,18 @@
 </div>
 {% endmacro %}
 
-{# 评定页一行：先单选框，后知识点内容。 #}
+{# 评定页一行：先单选框（四档），后知识点内容。没有记录的默认选中「没学」。 #}
 {% macro editorRow(item, panel) %}
-<div class="oi33-alg-item{% if item.rated %} oi33-alg-item--rated{% endif %}"
+<div class="oi33-alg-item"
   data-alg-item="{{ item._id }}" data-alg-level="{{ item.level }}"
-  data-alg-rated="{{ 1 if item.rated else 0 }}"
   data-alg-difficulty="{{ item.difficulty }}"
-  data-alg-orig="{{ item.level if item.rated else -1 }}"
+  data-alg-orig="{{ item.level }}"
   data-alg-text="{{ item.text }} {{ item.sectionName }}{% if item.subsectionName %} {{ item.subsectionName }}{% endif %}">
   <div class="oi33-alg-rate" role="radiogroup" aria-label="{{ item.text }} 的掌握程度">
-    <label class="oi33-alg-rate__opt"><input type="radio" class="oi33-alg-radio" form="alg-form"
-      name="lv_{{ item.idx }}" value="-1" {% if not item.rated %}checked{% endif %}>未评定</label>
     {% for opt in panel.levels %}
     <label class="oi33-alg-rate__opt"><input type="radio" class="oi33-alg-radio" form="alg-form"
       name="lv_{{ item.idx }}" value="{{ opt.value }}"
-      {% if item.rated and opt.value == item.level %}checked{% endif %}>{{ opt.name }}</label>
+      {% if opt.value == item.level %}checked{% endif %}>{{ opt.name }}</label>
     {% endfor %}
   </div>
   <div class="oi33-alg-item__main">
@@ -351,7 +346,7 @@
     {% if item.note %}<span class="oi33-alg-item__note">{{ item.note }}</span>{% endif %}
   </div>
   <input type="hidden" form="alg-form" name="id_{{ item.idx }}" value="{{ item._id }}">
-  <input type="hidden" form="alg-form" name="orig_{{ item.idx }}" value="{{ item.level if item.rated else -1 }}">
+  <input type="hidden" form="alg-form" name="orig_{{ item.idx }}" value="{{ item.level }}">
 </div>
 {% endmacro %}
 
@@ -362,20 +357,20 @@
     <summary>
       <span class="oi33-alg-node__name">{{ group.name }}</span>
       <span class="oi33-alg-node__bar"><span style="width:{{ group.stats.score }}%"></span></span>
-      <span class="oi33-alg-node__stats" data-alg-group-stats>{{ group.stats.rated }}/{{ group.stats.total }} · {{ group.stats.score }}%</span>
+      <span class="oi33-alg-node__stats" data-alg-group-stats title="熟练掌握 / 知识点总数 · 掌握度">{{ group.stats.counts[3] }}/{{ group.stats.total }} · {{ group.stats.score }}%</span>
     </summary>
     {% for section in group.sections %}
     <details class="oi33-alg-node oi33-alg-sec" open data-alg-section="{{ section.id }}">
       <summary>
         <span class="oi33-alg-node__name">{{ section.name }}</span>
         <span class="oi33-alg-node__bar"><span style="width:{{ section.stats.score }}%"></span></span>
-        <span class="oi33-alg-node__stats" data-alg-section-stats>{{ section.stats.rated }}/{{ section.stats.total }} · {{ section.stats.score }}%</span>
+        <span class="oi33-alg-node__stats" data-alg-section-stats title="熟练掌握 / 知识点总数 · 掌握度">{{ section.stats.counts[3] }}/{{ section.stats.total }} · {{ section.stats.score }}%</span>
       </summary>
       {% for subsection in section.subsections %}
       <details class="oi33-alg-node oi33-alg-sub" open data-alg-subsection="{{ subsection.id }}">
         <summary>
           <span class="oi33-alg-node__name">{{ subsection.name }}</span>
-          <span class="oi33-alg-node__stats" data-alg-subsection-stats>{{ subsection.stats.rated }}/{{ subsection.stats.total }} · {{ subsection.stats.score }}%</span>
+          <span class="oi33-alg-node__stats" data-alg-subsection-stats title="熟练掌握 / 知识点总数 · 掌握度">{{ subsection.stats.counts[3] }}/{{ subsection.stats.total }} · {{ subsection.stats.score }}%</span>
         </summary>
         {% for item in subsection.items %}{{ editorRow(item, panel) }}{% endfor %}
       </details>
@@ -423,7 +418,6 @@
   <div class="oi33-alg-toolbar">
     <div class="oi33-alg-filters" data-alg-filters role="group" aria-label="按评价筛选">
       <button type="button" class="oi33-alg-filter oi33-alg-filter--on" data-alg-filter="all">全部</button>
-      <button type="button" class="oi33-alg-filter" data-alg-filter="unrated">未评定</button>
       {% for opt in panel.levels %}
       <button type="button" class="oi33-alg-filter" data-alg-filter="{{ opt.value }}">{{ opt.name }}</button>
       {% endfor %}

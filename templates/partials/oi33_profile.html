@@ -17,6 +17,8 @@
   font-size:.72em; padding:.05rem .45rem; border-radius:999px;
   border:1px solid rgba(127,127,127,.4); color:#777;
 }
+a.oi33-usercard__tag { text-decoration:none; }
+a.oi33-usercard__tag:hover { border-color:#4c8bf5; color:#3a6fd0; }
 .oi33-usercard__tag--su { border-color:#d63c3c; color:#d63c3c; font-weight:600; }
 .oi33-usercard__tag--mod { border-color:#4c8bf5; color:#3a6fd0; font-weight:600; }
 .oi33-usercard__stats { display:flex; margin:.8rem 0 0; padding-top:.65rem; border-top:1px solid rgba(127,127,127,.15); }
@@ -56,15 +58,6 @@
 /* 主列里依次排列的资料卡片 */
 .page--user_detail .oi33-profile-section { margin-bottom:1rem; }
 .oi33-profile-section__tools { margin-left:auto; display:flex; gap:.4rem; flex-wrap:wrap; }
-
-/* 内核「最近动态 / 最近题解」模块：没有 JS 标签页时就是普通卡片，这里去掉标签样式 */
-.oi33-modules { list-style:none; margin:0; padding:0; }
-.oi33-modules > .section__tab-item {
-  margin:0 0 1rem !important; border:none !important; padding:0 !important;
-}
-.oi33-modules > .section__tab-item:last-child { margin-bottom:0 !important; }
-.oi33-modules .section__tab-title { color:inherit; font-size:1.05rem; margin:0 0 .6rem; }
-.oi33-modules .section__tab-main { display:block; }
 </style>
 {% endmacro %}
 
@@ -107,6 +100,14 @@
         <span class="oi33-usercard__tag"
           style="background-color:#{{ _badge[1] }}{% if _badge[2] %};color:#{{ _badge[2] }}{% endif %}">{{ _badge[0] }}</span>
         {% endif %}
+        {% if udoc.atcoder %}
+        <a class="oi33-usercard__tag" href="https://atcoder.jp/users/{{ udoc.atcoder }}" target="_blank" rel="noopener"
+          title="AtCoder">AtCoder {{ udoc.atcoder }}</a>
+        {% endif %}
+        {% if udoc.codeforces %}
+        <a class="oi33-usercard__tag" href="https://codeforces.com/profile/{{ udoc.codeforces }}" target="_blank" rel="noopener"
+          title="Codeforces">Codeforces {{ udoc.codeforces }}</a>
+        {% endif %}
       {% endif %}
       {% if udoc.hasPriv(PRIV.PRIV_MOD_BADGE) %}<span class="oi33-usercard__tag oi33-usercard__tag--su">SU</span>
       {% elif udoc.hasPerm(perm.PERM_MOD_BADGE) %}<span class="oi33-usercard__tag oi33-usercard__tag--mod">MOD</span>{% endif %}
@@ -145,13 +146,11 @@
       {% if isSelf or (handler.user.realname_flag or 0) >= 2 %}
       <li><a href="{{ url('oi33_algorithm_user', uid=udoc._id) }}"><span class="icon icon-star"></span>算法掌握</a></li>
       {% endif %}
-      {% if pdocs and pdocs.length %}
-      <li><a href="{{ url('user_detail', uid=udoc._id) }}#oi33-problems"><span class="icon icon-check"></span>通过题目<span class="oi33-quicknav__count">{{ pdocs.length }}</span></a></li>
-      {% endif %}
-      <li><a href="{{ url('user_detail', uid=udoc._id) }}#oi33-modules"><span class="icon icon-calendar"></span>动态与题解</a></li>
+      <li><a href="{{ url('user_detail', uid=udoc._id) }}#oi33-records"><span class="icon icon-calendar"></span>学习记录{% if pdocs and pdocs.length %}<span class="oi33-quicknav__count">{{ pdocs.length }}</span>{% endif %}</a></li>
       <li><a href="{{ url('oi33_cat_can_arena', query={focusUid:udoc._id}) }}"><span class="icon icon-home"></span>猫猫广场</a></li>
       {% if isSelf or (handler.user.realname_flag or 0) >= 2 %}
       <li><a href="{{ url('oi33_cat_account', uid=udoc._id) }}"><span class="icon icon-search"></span>账户明细</a></li>
+      <li><a href="{{ url('oi33_coin_bill', uid=udoc._id) }}"><span class="icon icon-file"></span>猫粮账单</a></li>
       {% endif %}
       {% if isSelf %}
       <li><a href="{{ url('oi33_medal_showcase') }}"><span class="icon icon-award"></span>奖章展示柜</a></li>

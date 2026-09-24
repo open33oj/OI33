@@ -3,7 +3,7 @@
 {% import "partials/oi33_profile.html" as profile with context %}
 {% block content %}
 <div class="row">
-  <div class="medium-8 columns">
+  <div class="medium-9 columns">
     <div class="section">
       <div class="section__header">
         <h1 class="section__title">{{ udoc.uname }} 的全部奖章（{{ awards.length }}）</h1>
@@ -60,7 +60,7 @@
       </div>
     </div>
   </div>
-  <div class="medium-4 columns">
+  <div class="medium-3 columns">
     {{ profile.userCard(udoc, udoc._id == handler.user._id) }}
     {{ profile.quickNav(udoc, udoc._id == handler.user._id) }}
   </div>

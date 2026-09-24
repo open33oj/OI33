@@ -132,11 +132,12 @@ import {
     algorithmGetSelfQuota, algorithmClaimSelfQuota, algorithmReleaseSelfQuota, algorithmResetSelfQuota,
     algorithmSaveItem, algorithmDeleteItem, algorithmSetItemEnabled, algorithmBulkSetEnabled,
     algorithmImportOutline, algorithmEnsureOutlineImported, algorithmMigrateOutlineIds,
+    algorithmDropBasicsSection,
     algorithmOutlineData, algorithmOutlineMeta, normalizeOutlineId,
     algorithmNormalizeLevel, algorithmLevelName,
     ALGORITHM_LEVELS, ALGORITHM_LEVEL_NAMES, ALGORITHM_MAX_LEVEL,
     ALGORITHM_MAX_TEXT, ALGORITHM_MAX_NOTE, ALGORITHM_MAX_GROUP_NAME, ALGORITHM_MAX_ITEMS,
-    ALGORITHM_CONFIG_ID,
+    ALGORITHM_CONFIG_ID, ALGORITHM_DROPPED_SECTION,
 } from './algorithm';
 
 export * from './types';
@@ -262,11 +263,12 @@ const oi33Model = {
     algorithmGetSelfQuota, algorithmClaimSelfQuota, algorithmReleaseSelfQuota, algorithmResetSelfQuota,
     algorithmSaveItem, algorithmDeleteItem, algorithmSetItemEnabled, algorithmBulkSetEnabled,
     algorithmImportOutline, algorithmEnsureOutlineImported, algorithmMigrateOutlineIds,
+    algorithmDropBasicsSection,
     algorithmOutlineData, algorithmOutlineMeta, normalizeOutlineId,
     algorithmNormalizeLevel, algorithmLevelName,
     ALGORITHM_LEVELS, ALGORITHM_LEVEL_NAMES, ALGORITHM_MAX_LEVEL,
     ALGORITHM_MAX_TEXT, ALGORITHM_MAX_NOTE, ALGORITHM_MAX_GROUP_NAME, ALGORITHM_MAX_ITEMS,
-    ALGORITHM_CONFIG_ID,
+    ALGORITHM_CONFIG_ID, ALGORITHM_DROPPED_SECTION,
 };
 
 global.Hydro.model.oi33 = oi33Model;
