@@ -198,6 +198,29 @@ export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: 
     if (udoc.oi33_identity_anonymized) anonymizeOi33Identity(udoc);
 }
 
+// --- Bio display cap ---
+
+// Bios are free text and can be arbitrarily long; the profile card only ever
+// renders the first 1KB. The cut walks code points, so a multi-byte character
+// (or an emoji surrogate pair) is never sliced in half — which would otherwise
+// render as a replacement glyph. Callers keep the flag to tell the reader why
+// the text stops (「内容超过 1KB，自动截断」).
+export const BIO_DISPLAY_MAX_BYTES = 1024;
+
+export function bioTruncateForDisplay(bio: unknown, limit = BIO_DISPLAY_MAX_BYTES) {
+    const text = String(bio ?? '');
+    if (Buffer.byteLength(text, 'utf8') <= limit) return { text, truncated: false };
+    let out = '';
+    let bytes = 0;
+    for (const ch of text) {
+        const size = Buffer.byteLength(ch, 'utf8');
+        if (bytes + size > limit) break;
+        out += ch;
+        bytes += size;
+    }
+    return { text: out, truncated: true };
+}
+
 // --- Bio AI moderation state ---
 
 // An edit through the settings page: record the new version as pending and

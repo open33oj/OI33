@@ -49,20 +49,23 @@
 .oi33-quicknav__divider { border-top:1px solid rgba(127,127,127,.3); margin:.3rem 0; }
 .oi33-quicknav__divider:first-child { border-top:none; }
 
-/* 个人简介：默认折叠成固定高度，超出才出现「展开全文」 */
+/* 个人简介：短简介原样完整显示；只有确实超出固定高度才截断，
+   此时正文底部渐隐（mask 画在正文自己身上，绝不会盖住简介或按钮）并出现「展开全文」。 */
 .oi33-bio { position:relative; }
 .oi33-bio__body { max-height:8.5rem; overflow:hidden; transition:max-height .25s ease; }
 .oi33-bio--open .oi33-bio__body { max-height:200rem; }
-.oi33-bio__fade {
-  position:absolute; left:0; right:0; bottom:0; height:2.6rem; pointer-events:none;
-  background:linear-gradient(to bottom, rgba(255,255,255,0), #fff);
+.oi33-bio--clipped:not(.oi33-bio--open) .oi33-bio__body {
+  -webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - 2.4rem), transparent);
+  mask-image:linear-gradient(to bottom, #000 calc(100% - 2.4rem), transparent);
 }
-.oi33-bio--open .oi33-bio__fade { display:none; }
 .oi33-bio__toggle { margin-top:.35rem; background:none; border:none; padding:0; color:#3a6fd0; cursor:pointer; font-size:.85em; }
+.oi33-bio__toggle:hover { text-decoration:underline; }
 .oi33-bio__toggle[hidden] { display:none; }
-.theme--dark .oi33-bio__fade, [data-mantine-color-scheme=dark] .oi33-bio__fade {
-  background:linear-gradient(to bottom, rgba(30,30,30,0), #1e1e1e);
-}
+/* 超过 1KB 的简介只渲染前 1KB（bio_display），展开后在末尾说明截断原因 */
+.oi33-bio__truncated { display:none; margin:.7rem 0 0; color:#888; font-size:.85em; }
+.oi33-bio--open .oi33-bio__truncated { display:block; }
+.theme--dark .oi33-bio__truncated,
+[data-mantine-color-scheme=dark] .oi33-bio__truncated { color:#aaa; }
 
 /* 主列里依次排列的资料卡片 */
 .page--user_detail .oi33-profile-section { margin-bottom:1rem; }
@@ -139,7 +142,8 @@
       <li><a href="{{ url('user_detail', uid=udoc._id) }}"><span class="icon icon-account--circle"></span>个人页面</a></li>
       {% if handler.user._id %}
       <li><a href="{{ url('home_messages') if isSelf else url('home_messages', query={target:udoc._id}) }}"><span class="icon icon-mail"></span>站内消息</a></li>
-      <li><a href="{{ url('oi33_meow_main') }}"><span class="icon icon-comment--multiple"></span>最新喵喵</a></li>
+      {# 最新喵喵指向当前页面这位用户的喵喵页，而不是访问者自己的。 #}
+      <li><a href="{{ url('oi33_meow_user', uid=udoc._id) }}"><span class="icon icon-comment--multiple"></span>最新喵喵</a></li>
       {% endif %}
       {% if isSelf or canManage %}
       <li><a href="{{ url('oi33_algorithm_user', uid=udoc._id) }}"><span class="icon icon-star"></span>算法掌握</a></li>
@@ -164,7 +168,7 @@
 </div>
 {% endmacro %}
 
-{# 个人简介卡片：固定高度折叠 + 展开按钮。 #}
+{# 个人简介卡片：内容超出固定高度才折叠并给出「展开全文」，未超出则完整显示。 #}
 {% macro bioCard(udoc, isSelf) %}
 <div class="section oi33-profile-section" id="oi33-bio">
   <div class="section__header">
@@ -179,35 +183,44 @@
     <div class="typo richmedia oi33-bio">
       <div class="oi33-bio__body" data-oi33-bio>
         {% if udoc.bio_visible and udoc.bio %}
-          {{ udoc.bio|markdown|safe }}
+          {{ (udoc.bio_display or udoc.bio)|markdown|safe }}
+          {% if udoc.bio_truncated %}
+          <p class="oi33-bio__truncated">（内容超过 1KB，自动截断）</p>
+          {% endif %}
         {% elif isSelf and udoc.bio_hidden_pending %}
           <p class="oi33-bio-hint">你的个人简介正在审核中或未通过审核，审核通过后才会公开展示。可在<a href="{{ url('home_settings', category='account') }}">账号设置</a>中修改（两次修改间隔 2 小时）。</p>
         {% else %}
           <p class="oi33-bio-hint">这个人很懒，什么都没有写。</p>
         {% endif %}
       </div>
-      <div class="oi33-bio__fade"></div>
       <button type="button" class="oi33-bio__toggle" data-oi33-bio-toggle hidden>展开全文</button>
     </div>
   </div>
 </div>
 {% endmacro %}
 
-{# 简介折叠脚本：只在内容确实超出固定高度时显示「展开全文」。 #}
+{# 简介折叠脚本：只在内容确实超出固定高度时才截断，并同步显示「展开全文」。
+   判定与渐隐（.oi33-bio--clipped）必须同步，否则会出现「文字被渐隐盖住却没有展开入口」。 #}
 {% macro bioScript() %}
 <script>
 (function () {
-  function setup() {
+  function measure() {
     var bodies = document.querySelectorAll('[data-oi33-bio]');
     for (var i = 0; i < bodies.length; i++) {
       var body = bodies[i];
       var root = body.closest('.oi33-bio');
       var toggle = root && root.querySelector('[data-oi33-bio-toggle]');
       if (!root || !toggle) continue;
-      if (!root.classList.contains('oi33-bio--open')
-        && body.scrollHeight > body.clientHeight + 8) {
+      if (root.classList.contains('oi33-bio--open')) {
+        // 展开后 max-height 已放开，量不到真实高度，保持当前状态
         toggle.hidden = false;
+        toggle.textContent = '收起';
+        continue;
       }
+      var clipped = body.scrollHeight > body.clientHeight + 8;
+      root.classList.toggle('oi33-bio--clipped', clipped);
+      toggle.hidden = !clipped;
+      toggle.textContent = '展开全文';
     }
   }
   if (!window._oi33BioBound) {
@@ -222,8 +235,18 @@
       var open = root.classList.toggle('oi33-bio--open');
       toggle.textContent = open ? '收起' : '展开全文';
     });
+    // 字体、图片、换行都会改变高度，重新判定
+    if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+      document.fonts.ready.then(measure).catch(function () {});
+    }
+    window.addEventListener('load', measure);
+    var timer = null;
+    window.addEventListener('resize', function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(measure, 150);
+    });
   }
-  setup();
+  measure();
 })();
 </script>
 {% endmacro %}

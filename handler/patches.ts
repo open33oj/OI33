@@ -288,6 +288,13 @@ export function applyPatches(_ctx: Context) {
             udoc.bio_hidden_pending = true;
             udoc.bio = '';
         }
+        // The profile card renders the bio through bio_display, capped at 1KB;
+        // bio_truncated lets the card explain the cut when the reader expands it.
+        if (udoc) {
+            const capped = oi33Model.bioTruncateForDisplay(udoc.bio);
+            udoc.bio_display = capped.text;
+            udoc.bio_truncated = capped.truncated;
+        }
     });
 
     // /domain/user builds its user list with a raw aggregation on domain.user,
