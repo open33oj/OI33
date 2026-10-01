@@ -70,9 +70,18 @@
                 {%- endif -%}
               </td>
               <td class="col--ip">
-                {%- for item in udoc.ip or [] -%}
-                <a href="{{ url('oi33_admin_ip', query={ip: item}) }}">{{ item }}</a>{{ ' ' }}
-                {%- endfor -%}
+                {# 所有 IP 默认折叠：一个账号可能有很多 IP，点标题才展开。 #}
+                {%- set _ips = udoc.ip or [] -%}
+                {%- if _ips.length -%}
+                <details class="oi33-ip-fold">
+                  <summary>{{ _ips.length }} 个</summary>
+                  <div class="oi33-ip-fold__list">
+                    {%- for item in _ips -%}
+                    <a href="{{ url('oi33_admin_ip', query={ip: item}) }}">{{ item }}</a>{{ ' ' }}
+                    {%- endfor -%}
+                  </div>
+                </details>
+                {%- endif -%}
               </td>
             </tr>
             {%- endfor -%}
@@ -91,5 +100,15 @@
     overflow-wrap: anywhere; word-break: break-word;
   }
   .page--oi33_accounts .data-table td.col--ip a { white-space: nowrap; }
+  /* 所有 IP 折叠：标题行带 ▸，点开展示完整 IP 列表。 */
+  .page--oi33_accounts .oi33-ip-fold > summary {
+    display:inline-flex; align-items:center; gap:.3rem;
+    cursor:pointer; list-style:none; color:#3a6fd0;
+  }
+  .page--oi33_accounts .oi33-ip-fold > summary::-webkit-details-marker { display:none; }
+  .page--oi33_accounts .oi33-ip-fold > summary::before { content:'▸'; color:#999; transition:transform .15s ease; }
+  .page--oi33_accounts .oi33-ip-fold[open] > summary::before { transform:rotate(90deg); }
+  .page--oi33_accounts .oi33-ip-fold > summary:hover { text-decoration:underline; }
+  .page--oi33_accounts .oi33-ip-fold__list { margin-top:.35rem; }
 </style>
 {% endblock %}

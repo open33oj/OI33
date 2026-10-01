@@ -695,8 +695,11 @@ function registerMedalUserPanel(ctx: Context) {
             // The stored array order is the display order chosen by the user.
             const awardMap = new Map(awards.map((award: any) => [String(award.medalId), award]));
             const showcaseAwards = showcaseIds.map((id) => awardMap.get(String(id))).filter(Boolean);
+            // The profile card only renders the showcase grid (plus the button to
+            // the standalone /oi33/medals/user/:uid page), so the full award list
+            // stays out of the response body — it would ship every medal's PNG.
             body.oi33MedalPanel = {
-                awards, showcaseAwards,
+                showcaseAwards,
                 showcaseConfigured: showcaseIds.length > 0,
                 isSelf: viewerUid === uid,
                 canManage: viewerFlag >= 2,

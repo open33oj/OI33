@@ -8,6 +8,7 @@ import {
     previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
     getAllUsersData, getRatedUsers,
     bioMarkEdited, bioSetStatus, bioSetReviewed,
+    bioTruncateForDisplay, BIO_DISPLAY_MAX_BYTES,
     expirePendingBioEntries, expireStaleBioEntries, getLiveBio, getLiveBios,
 } from './user';
 import {
@@ -175,6 +176,7 @@ const oi33Model = {
     doCheckin, getCheckinUser,
     previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
     bioMarkEdited, bioSetStatus, bioSetReviewed, bioHashMatches, bioHashOf, bioQueueState, sameBioText,
+    bioTruncateForDisplay, BIO_DISPLAY_MAX_BYTES,
     expirePendingBioEntries, expireStaleBioEntries, getLiveBio, getLiveBios,
     pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
     getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
