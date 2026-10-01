@@ -104,7 +104,7 @@
       {% if udoc.realname_name and canManage %} · [{{ udoc.realname_name }}]{% endif %}
     </div>
     <div class="oi33-usercard__badges">
-      {% if not udoc.oi33_profile_hidden %}
+      {% if not udoc.oi33_profile_hidden and not (udoc.oi33_virtual or (udoc._id is number and udoc._id < 0)) %}
         {% if udoc.realname_flag == 3 %}<span class="oi33-usercard__tag">行政管理员</span>
         {% elif udoc.realname_flag == 2 %}<span class="oi33-usercard__tag">管理员</span>
         {% elif udoc.realname_flag == 1 %}<span class="oi33-usercard__tag">已认证</span>
