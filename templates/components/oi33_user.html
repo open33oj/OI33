@@ -1,7 +1,11 @@
 {% macro render_inline(udoc, avatar=true, badge=true, modbadge=true, levelbadge=true) %}
 {% if udoc %}
+{# Hydro virtual users (negative uid, `vuser` collection) are display-only
+   contest participants with no realname state; keep showing their own name
+   instead of the anonymized "UID xxx" placeholder. #}
+{% set _oi33Virtual = udoc.oi33_virtual or (udoc._id is number and udoc._id < 0) %}
 <span class="user-profile-link">
-  {% if udoc.oi33_profile_hidden or udoc.realname_flag is undefined %}
+  {% if udoc.oi33_profile_hidden or (udoc.realname_flag is undefined and not _oi33Virtual) %}
     {% if avatar %}<img class="small user-profile-avatar v-center" loading="lazy" src="{{ avatarUrl('') }}" width="20" height="20">{% endif %}
     <a class="user-profile-name" href="{{ url('user_detail', uid=udoc._id) }}">UID {{ udoc._id }}</a>
   {% else %}

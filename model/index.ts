@@ -1,5 +1,5 @@
 import {
-    getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
+    getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity, isVirtualUserId,
     coinInc, coinBillCount, coinGetAll, coinUserBillCount, coinGetUser, coinGetLeaderboard,
     setBirthday, getTodayBirthdays, getAllBirthdays, getBirthdayCount, getRecentBirthdays,
     setBadge, getBadgedUsers, removeBadge,
@@ -168,7 +168,7 @@ export { contractColl } from './contract';
 export { algorithmItemColl, userAlgorithmColl, algorithmConfigColl } from './algorithm';
 
 const oi33Model = {
-    getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity,
+    getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity, isVirtualUserId,
     coinInc, coinBillCount, coinGetAll, coinUserBillCount, coinGetUser, coinGetLeaderboard,
     setBirthday, getTodayBirthdays, getAllBirthdays, getBirthdayCount, getRecentBirthdays,
     setBadge, getBadgedUsers, removeBadge,

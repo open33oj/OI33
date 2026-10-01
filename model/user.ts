@@ -145,8 +145,23 @@ function restoreOi33Identity(udoc: any) {
     setPrivateDisplayField(udoc, 'oi33_identity_anonymized', false);
 }
 
+// Hydro keeps display-only virtual accounts (imported contest participants
+// without a real account) in a separate `vuser` collection under negative ids:
+// UserModel.ensureVuser allocates -1000, -1001, ... and getById resolves
+// anything below -999 there. They have no oi33_user record and no realname
+// state, so the anonymization gate below would rewrite their name to
+// `UID -1000`. They are display-only, so keep their own name instead, and set
+// `oi33_virtual` so templates render them like a normal user rather than
+// falling back to the "UID xxx" placeholder.
+export function isVirtualUserId(uid: unknown): boolean {
+    const id = Number(uid);
+    return Number.isSafeInteger(id) && id < 0;
+}
+
 export function mergeOi33Fields(udoc: any, oi33: Oi33User | undefined, fields?: string[]) {
-    const profileHidden = (oi33?.realname_flag ?? 0) < 1;
+    const virtual = isVirtualUserId(udoc?._id);
+    udoc.oi33_virtual = virtual;
+    const profileHidden = !virtual && (oi33?.realname_flag ?? 0) < 1;
     udoc.oi33_profile_hidden = profileHidden;
     // Bio display gate, shared by user_detail and the homepage ranking: the
     // profile must be verified, the bio AI-approved, and the current normalized
