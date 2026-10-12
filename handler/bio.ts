@@ -3,7 +3,7 @@ import {
 } from 'hydrooj';
 import { oi33Model } from '../model';
 import { checkOi33Admin } from './utils';
-import { bioHashOf, normalizeText, runAiVerdict } from './moderate';
+import { bioHashOf, evaluateContent, moderationEnabled, normalizeText } from '../model/moderate';
 
 // Bio edits go through Hydro core's HomeSettingsHandler (no content review
 // there), so everything here hangs off its lifecycle hooks: the before-hook
@@ -77,11 +77,11 @@ async function moderateBioAsync(uid: number, bio: string, hash: string) {
     try {
         const cfg = await oi33Model.aiGetConfig();
         // Moderation explicitly switched off by an admin: auto-approve.
-        if ((cfg.moderation_enabled ?? '1') !== '1') {
+        if (!moderationEnabled(cfg)) {
             await oi33Model.bioSetStatus(uid, hash, 'approved');
             return;
         }
-        const result = await runAiVerdict(uid, normalizeText(bio), hash, cfg);
+        const result = (await evaluateContent(uid, bio, cfg)).verdict;
         const applied = await oi33Model.bioSetStatus(
             uid, hash, result.verdict === 'pass' ? 'approved' : 'rejected',
         );
@@ -111,7 +111,7 @@ async function runBioReviewBatch(users: { _id: number, bio: string }[]) {
     };
     try {
         const cfg = await oi33Model.aiGetConfig();
-        const enabled = (cfg.moderation_enabled ?? '1') === '1';
+        const enabled = moderationEnabled(cfg);
         const oi33Dict = await oi33Model.getUserDataByUids(users.map((u) => u._id));
         for (const u of users) {
             try {
@@ -136,7 +136,7 @@ async function runBioReviewBatch(users: { _id: number, bio: string }[]) {
                     let approved = true;
                     let applied = false;
                     if (enabled) {
-                        const result = await runAiVerdict(u._id, normalizeText(bio), hash, cfg);
+                        const result = (await evaluateContent(u._id, bio, cfg)).verdict;
                         approved = result.verdict === 'pass';
                         // The verdict was computed from the text read above and
                         // the AI call takes seconds: re-read before writing, so a

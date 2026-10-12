@@ -422,7 +422,7 @@ hydrooj addon remove frontend-33oj
 
 - **喵喵**与**算法掌握**不再出现在资料页，只能通过右侧头像卡片里的快捷跳转进入独立页面。
 - 右侧侧边栏：**头像卡片**（头像 · 昵称 · UID · 身份徽标，第二行是 AtCoder / Codeforces 主页链接（有才显示），然后是提交 / 通过 / RP，再往下是快捷跳转）→ **我的小猫**（小猫动画 + 猫粮 / 猫罐头余额 + 同款链接行：猫猫广场 / 账户明细 / 罐头交易 / 奖章拍卖 / 系统说明）。内核的「题目标签」卡片已从资料页去掉。资料页**不再显示**内核的「我的资料 / 消息 / 账号设置…」侧边菜单（这些入口已在右上角头像下拉框里），`/home/` 下的页面保持原样。
-- **快捷跳转**不再单独成卡，直接接在头像卡下面，样式与卡内一致（链接行，不是按钮）：个人页面、站内消息、最新喵喵、算法掌握、全部奖章、硬币账单，一条分割线之后是编辑个人信息、编辑 OI33 资料（算法掌握 / 硬币账单 / 编辑 OI33 资料需要本人或 OI33 身份 ≥ 2，未登录访客不显示站内消息与最新喵喵）。其中**「最新喵喵」指向当前页面这位用户的喵喵页**（`/oi33/meow/user/:uid`，谁的页面点进去就是谁的），不是访问者自己的喵喵。
+- **快捷跳转**不再单独成卡，直接接在头像卡下面，样式与卡内一致（链接行，不是按钮）：个人页面、站内消息、我的喵喵/他的喵喵、喵喵时间线、算法掌握、全部奖章、硬币账单，一条分割线之后是编辑个人信息、编辑 OI33 资料（算法掌握 / 硬币账单 / 编辑 OI33 资料需要本人或 OI33 身份 ≥ 2，未登录访客不显示站内消息、「我的/他的喵喵」与喵喵时间线）。其中**「我的喵喵/他的喵喵」指向当前页面这位用户的喵喵页**（`/oi33/meow/user/:uid`，谁的页面点进去就是谁的），本人的页面显示「我的喵喵」、看别人的页面显示「他的喵喵」；**「喵喵时间线」**指向全站喵喵主页 `/oi33/meow`。
 - **分栏**：主列 / 侧边栏为 9 / 3 栏。
 - **独立页面**：`/oi33/meow/user/:uid`、`/oi33/medals/user/:uid`、`/oi33/algorithm/user/:uid`（及评定页 `/oi33/algorithm/user/:uid/edit`）采用「左侧内容 + 右侧头像卡片」的两栏布局（同样 9 / 3 栏），与喵喵一致。
 - 公共组件在 `templates/partials/oi33_profile.html`（`userCard`（含快捷跳转）/ `bioCard` / `bioScript` / `style`），资料页与各独立页共用；喵喵页的关注 / 取关按钮通过 `{% call %}` 追加在头像卡底部。
@@ -815,3 +815,17 @@ OI33 内置 Wiki 百科，支持 Markdown 页面 CRUD、多级分类目录和 JS
 - `client_secret` 仅创建时显示一次；授权码 10 分钟有效且一次性；token 均哈希存储
 - `redirect_uri` 必须与注册完全匹配；`state` 务必校验
 - 所有 OAuth 操作记录在 `oi33_log`，可在管理仪表盘查看
+
+## 开发校验
+
+```bash
+npm run typecheck           # 后端 tsc：只对项目代码判成败（node_modules 里的既有诊断被过滤）
+npm run typecheck:frontend  # 前端 page 脚本
+npm run lint                # eslint（非类型感知；类型问题交给 typecheck）
+npm run check:locales       # locales/zh.yaml 解析校验 + oi33 页面标题覆盖率（已并入 npm test）
+npm test                    # 纯函数单测 + locale 校验
+```
+
+纯函数（不 import hydrooj/DB）都放在 `model/*-rules.ts` 里便于单测：审核规则与简介判定（`moderate-rules.ts`）、NOI 大纲编号（`algorithm-rules.ts`）、猫咪地图计划校验（`cat-map-plan-rules.ts`）、奖章分类与等级（`medal-rules.ts`）。`typescript` 固定在 devDependencies 的 `~5.9.3`——不固定时安装 eslint 之类的 peer 依赖会把它升到 TS 6，`tsconfig.json` 的 `baseUrl` 会直接变成硬报错。
+
+**页面标题**：任何带 `{% set page_name = "oi33_xxx" %}` 的模板，都必须在 `locales/zh.yaml` 登记 `oi33_xxx: '中文标题'`（`npm run check:locales` 会强制检查；YAML 里同一个键出现两次会让 js-yaml 拒绝加载**整份** locale，启动时报 `duplicated mapping key`，所以别在文件后半段重复登记）。`handler.renderTitle(page_name)` 用它渲染浏览器标签页标题，漏登记时标签会显示原始的 `page_name`。新增页面时请一并补上。

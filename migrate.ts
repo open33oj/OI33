@@ -86,9 +86,9 @@ export async function previewMigration() {
         algorithmItems,
         algorithmLegacyIds,
     ] = await Promise.all([
-        db.collection('coin').countDocuments(),
-        db.collection('paste').countDocuments(),
-        db.collection('birthday').countDocuments(),
+        db.collection('coin' as any).countDocuments(),
+        db.collection('paste' as any).countDocuments(),
+        db.collection('birthday' as any).countDocuments(),
         db.collection('user').countDocuments({
             $or: [
                 { coin_now: { $exists: true } },
@@ -99,7 +99,7 @@ export async function previewMigration() {
             ],
         }),
         db.collection('oi33_log').countDocuments({ type: 'oauth' }),
-        db.collection('oi33_cat_can_batch').countDocuments(),
+        db.collection('oi33_cat_can_batch' as any).countDocuments(),
         rawDb.collection('oi33_school').countDocuments(),
         // Legacy 成就 collections still waiting for the 奖章 rename.
         Promise.all([
@@ -170,7 +170,7 @@ export async function migrate() {
 
     try {
         // Step 1: Coin bills: coin → oi33_coin_bill
-        const oldBills = await db.collection('coin').find({}).toArray();
+        const oldBills = await db.collection('coin' as any).find({}).toArray();
         for (const bill of oldBills) {
             try {
                 const exists = await db.collection('oi33_coin_bill').findOne({ _id: bill._id });
@@ -194,7 +194,7 @@ export async function migrate() {
 
     try {
         // Step 2: Pastes: paste → oi33_paste
-        const oldPastes = await db.collection('paste').find({}).toArray();
+        const oldPastes = await db.collection('paste' as any).find({}).toArray();
         for (const paste of oldPastes) {
             try {
                 const exists = await db.collection('oi33_paste').findOne({ _id: paste._id });
@@ -228,7 +228,7 @@ export async function migrate() {
 
         // 3a: Birthdays from birthday collection
         try {
-            const birthdays = await db.collection('birthday').find({}).toArray();
+            const birthdays = await db.collection('birthday' as any).find({}).toArray();
             for (const b of birthdays) {
                 const uid = b.userId;
                 if (!uid) continue;
@@ -349,7 +349,7 @@ export async function migrate() {
 
     try {
         // Step 8: Remove the obsolete lot-based cat-can inventory. oi33_user.cat_can is authoritative.
-        const legacyBatchColl = db.collection('oi33_cat_can_batch');
+        const legacyBatchColl = db.collection('oi33_cat_can_batch' as any);
         result.legacyCatCanBatchesDeleted = await legacyBatchColl.countDocuments();
         try {
             await legacyBatchColl.drop();
@@ -402,7 +402,7 @@ export async function migrate() {
         }
         // Rewrite legacy log entries created under the old "stream" naming.
         await db.collection('oi33_log').updateMany(
-            { type: 'stream' }, { $set: { type: 'meow' } },
+            { type: 'stream' } as any, { $set: { type: 'meow' } },
         );
         await db.collection('oi33_log').updateMany(
             { type: 'cat_account', action: 'stream_post' }, { $set: { action: 'meow_post' } },

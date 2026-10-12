@@ -1,0 +1,31 @@
+<div class="section side">
+  <div class="section__header">
+    <h1 class="section__title">{{ _('Discussion Nodes') }}</h1>
+  </div>
+  <div class="section__body"><ul class="group-list">
+  {%- for category, nodes in vnodes|groupby('content') -%}
+    <li class="group-list__item">
+      <h2 class="section__title">{{ category }}</h2>
+      <ol class="chip-list">
+      {%- for node in nodes -%}
+        <li class="chip-list__item"><a class="typo-a" href="{{ url('discussion_node', type=model.discussion.typeDisplay[model.document.TYPE_DISCUSSION_NODE], name=node.docId) }}">{{ node.docId }}</a></li>
+      {%- endfor -%}
+      </ol>
+    </li>
+  {%- endfor -%}
+    <li class="group-list__item">
+      <h2 class="section__title">题目讨论</h2>
+      <ol class="chip-list">
+        <li class="chip-list__item"><a class="typo-a" href="{{ url('oi33_problem_discussions') }}">所有题目讨论</a></li>
+      </ol>
+    </li>
+    {% if handler.user.hasPerm(perm.PERM_VIEW_PROBLEM_SOLUTION) %}
+    <li class="group-list__item">
+      <h2 class="section__title">题解</h2>
+      <ol class="chip-list">
+        <li class="chip-list__item"><a class="typo-a" href="{{ url('oi33_solutions') }}">全部题解</a></li>
+      </ol>
+    </li>
+    {% endif %}
+  </ul></div>
+</div>

@@ -22,11 +22,14 @@ import { apply as applyContract } from './handler/contract';
 import { apply as applyContest } from './handler/contest';
 import { apply as applyDraw } from './handler/draw';
 import { apply as applyAlgorithm } from './handler/algorithm';
+import { apply as applySolution } from './handler/solution';
+import { apply as applyDiscuss } from './handler/discuss';
 import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
 import { ensureCatCanIndexes, ensureCurrentCatCanPrice } from './model/cat-can';
 import { ensureCatAccountIndexes } from './model/cat-account';
-import { ensureCatMapIndexes, recountSchoolCatTerritories, runCatMapPlansDue } from './model/cat-map';
+import { ensureCatMapIndexes, recountSchoolCatTerritories } from './model/cat-map';
+import { runCatMapPlansDue } from './model/cat-map-plan';
 import { ensureSchoolCatIndexes, settleSchoolCatWeeklyRewards } from './model/school-cat';
 import { ensureMeowIndexes } from './model/meow';
 import { medalEvaluateUser, ensureMedalIndexes } from './model/medal';
@@ -90,34 +93,54 @@ async function maintainSchoolCatRewards() {
     }
 }
 
+// A failure inside one sub-apply must not take the whole addon down: without
+// this guard a single throw (e.g. a bad cordis `inject` in a patch, which is
+// what `cannot get property "x" without inject` means) aborts `apply()` and NO
+// oi33 route gets registered at all. Log loudly and keep the remaining,
+// independent features working.
+async function applyPart(name: string, ctx: Context, fn: (ctx: Context) => any) {
+    try {
+        await fn(ctx);
+    } catch (e) {
+        console.error(`[oi33] "${name}" failed to apply; oi33 keeps running without it:`, e);
+    }
+}
+
 export async function apply(ctx: Context) {
-    applyPatches(ctx);
+    await applyPart('patches', ctx, applyPatches);
     ctx.injectUI('UserDropdown', 'oi33_admin', {
         icon: 'crown',
         displayName: 'oi33_admin',
     }, (handler: any) => (handler.user.realname_flag || 0) >= 2);
-    await applyUser(ctx);
-    await applyContent(ctx);
-    await applyAdmin(ctx);
-    await applyProfile(ctx);
-    await applyJudgeMonitor(ctx);
-    await applyToken(ctx);
-    await applyWiki(ctx);
-    await applyPermissions(ctx);
-    await applyOAuth(ctx);
-    await applyCatCan(ctx);
-    await applyCatAccount(ctx);
-    await applySchoolCat(ctx);
-    await applyAi(ctx);
-    await applyModerate(ctx);
-    await applyBio(ctx);
-    await applyMeow(ctx);
-    await applyMedal(ctx);
-    await applyAuction(ctx);
-    await applyContract(ctx);
-    await applyContest(ctx);
-    await applyDraw(ctx);
-    await applyAlgorithm(ctx);
+    const parts: Array<[string, (ctx: Context) => any]> = [
+        ['user', applyUser],
+        ['content', applyContent],
+        ['admin', applyAdmin],
+        ['profile', applyProfile],
+        ['judgeMonitor', applyJudgeMonitor],
+        ['token', applyToken],
+        ['wiki', applyWiki],
+        ['permissions', applyPermissions],
+        ['oauth', applyOAuth],
+        ['catCan', applyCatCan],
+        ['catAccount', applyCatAccount],
+        ['schoolCat', applySchoolCat],
+        ['ai', applyAi],
+        ['moderate', applyModerate],
+        ['bio', applyBio],
+        ['meow', applyMeow],
+        ['medal', applyMedal],
+        ['auction', applyAuction],
+        ['contract', applyContract],
+        ['contest', applyContest],
+        ['draw', applyDraw],
+        ['algorithm', applyAlgorithm],
+        ['solution', applySolution],
+        ['discuss', applyDiscuss],
+    ];
+    for (const [name, fn] of parts) {
+        await applyPart(name, ctx, fn);
+    }
     if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0') {
         ctx.on('app/started', async () => {
             try {

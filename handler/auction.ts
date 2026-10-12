@@ -5,7 +5,7 @@ import {
 import { oi33Model, userMedalColl } from '../model';
 import { remainText } from '../model/auction';
 import type { Oi33Auction } from '../model/types';
-import { checkOi33Admin, checkUserFlag } from './utils';
+import { checkOi33Admin, checkUserFlag, loadOi33Users } from './utils';
 
 function field(body: any, name: string): string {
     const value = body?.[name];
@@ -19,14 +19,8 @@ async function getViewerInfo(uid: number): Promise<{ flag: number; cans: number 
 }
 
 async function buildUserDict(domainId: string, uids: number[]) {
-    const unique = [...new Set(uids.filter((uid) => Number.isSafeInteger(uid) && uid > 0))];
-    if (!unique.length) return {};
-    const udict = await UserModel.getList(domainId, unique);
-    const oi33Data = await oi33Model.getUserDataByUids(unique);
-    for (const uid of unique) {
-        if (udict[uid] && oi33Data[uid]) oi33Model.mergeOi33Fields(udict[uid], oi33Data[uid]);
-    }
-    return udict;
+    const unique = uids.filter((uid) => Number.isSafeInteger(uid) && uid > 0);
+    return loadOi33Users(domainId, unique);
 }
 
 class AuctionListHandler extends Handler {

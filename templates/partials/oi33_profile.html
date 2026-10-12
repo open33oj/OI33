@@ -142,8 +142,10 @@
       <li><a href="{{ url('user_detail', uid=udoc._id) }}"><span class="icon icon-account--circle"></span>个人页面</a></li>
       {% if handler.user._id %}
       <li><a href="{{ url('home_messages') if isSelf else url('home_messages', query={target:udoc._id}) }}"><span class="icon icon-mail"></span>站内消息</a></li>
-      {# 最新喵喵指向当前页面这位用户的喵喵页，而不是访问者自己的。 #}
-      <li><a href="{{ url('oi33_meow_user', uid=udoc._id) }}"><span class="icon icon-comment--multiple"></span>最新喵喵</a></li>
+      {# 当前页面这位用户自己的页面显示「我的喵喵」，看别人的页面显示「他的喵喵」；
+         另附「喵喵时间线」入口指向全站喵喵主页。 #}
+      <li><a href="{{ url('oi33_meow_user', uid=udoc._id) }}"><span class="icon icon-comment--multiple"></span>{{ '我的喵喵' if isSelf else '他的喵喵' }}</a></li>
+      <li><a href="{{ url('oi33_meow_main') }}"><span class="icon icon-schedule"></span>喵喵时间线</a></li>
       {% endif %}
       {% if isSelf or canManage %}
       <li><a href="{{ url('oi33_algorithm_user', uid=udoc._id) }}"><span class="icon icon-star"></span>算法掌握</a></li>

@@ -273,7 +273,7 @@ export async function apply(ctx: Context) {
         'updateRatings',
         'Update AtCoder / Codeforces ratings for all users with approved accounts',
         Schema.object({}),
-        runUpdateRatings,
+        runUpdateRatings as any,
     );
 
     ctx.addScript(

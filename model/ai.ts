@@ -5,13 +5,13 @@ import type {
     Oi33AiProvider, Oi33AiProviderModel, Oi33AiUsage,
 } from './types';
 
-export const aiAnalysisColl = db.collection<Oi33AiAnalysis>('oi33_ai_analysis');
-export const aiBatchColl = db.collection<Oi33AiBatchStatus>('oi33_ai_batch');
-export const aiConfigColl = db.collection<Oi33AiConfig>('oi33_ai_config');
-export const aiProblemSummaryColl = db.collection<Oi33AiProblemSummary>('oi33_ai_problem_summary');
-export const aiProviderColl = db.collection<Oi33AiProvider>('oi33_ai_provider');
-export const aiAccessColl = db.collection<Oi33AiAccess>('oi33_ai_access');
-export const aiUsageColl = db.collection<Oi33AiUsage>('oi33_ai_usage');
+export const aiAnalysisColl = db.collection('oi33_ai_analysis');
+export const aiBatchColl = db.collection('oi33_ai_batch');
+export const aiConfigColl = db.collection('oi33_ai_config');
+export const aiProblemSummaryColl = db.collection('oi33_ai_problem_summary');
+export const aiProviderColl = db.collection('oi33_ai_provider');
+export const aiAccessColl = db.collection('oi33_ai_access');
+export const aiUsageColl = db.collection('oi33_ai_usage');
 
 const LEGACY_AI33_COLLECTIONS = [
     'ai33_analysis', 'ai33_config', 'ai33_problem_summary',
@@ -22,7 +22,7 @@ const LEGACY_AI33_COLLECTIONS = [
 export async function dropLegacyAi33Collections() {
     for (const name of LEGACY_AI33_COLLECTIONS) {
         try {
-            await db.collection(name).drop();
+            await db.collection(name as any).drop();
             console.info(`[oi33] dropped legacy collection ${name}`);
         } catch (e: any) {
             // NamespaceNotFound = already gone; anything else is worth logging.
@@ -329,4 +329,275 @@ export async function aiSaveConfig(data: Partial<Omit<Oi33AiConfig, '_id'>>) {
         { $set: data },
         { upsert: true },
     );
+}
+
+// --- Reusable chat client -------------------------------------------------
+// Feature modules should call `aiChat` / `aiChatStream` instead of talking to
+// the provider directly: provider/model resolution, usage logging and cost
+// accounting live here once, so a caller only describes the prompt and who
+// pays the bill. The lower-level `aiChatCompletion*` helpers are exposed for
+// the rare caller that needs to branch on the raw response (e.g. the analysis
+// stream that charges a balance itself).
+
+export interface ChatConfig {
+    provider: string;
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    price: Oi33AiProviderModel | null;
+}
+
+const DEFAULT_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+// Exported so the admin provider form can offer the same fallback base URL.
+export const AI_DEFAULT_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+
+export interface ChatResult {
+    content: string;
+    usage: any;
+    finishReason: string;
+    error: string;
+}
+
+export interface ChatCallOptions {
+    // External cancellation (e.g. a websocket disconnect) in addition to the
+    // internal timeout.
+    signal?: AbortSignal;
+    // DeepSeek thinking-mode effort; omitted unless set.
+    effort?: string;
+    timeoutMs?: number;
+}
+
+export interface AiUsageInput {
+    uid: number;
+    // Usage bucket; matched against Oi33AiUsage so the stats aggregation stays
+    // exhaustive.
+    type: Oi33AiUsage['type'];
+    rid?: string;
+    domainId?: string;
+    pid?: number;
+    deducted?: boolean;
+}
+
+export interface ChatRequest extends ChatCallOptions {
+    // Pass either an already-resolved config (avoids resolving twice when the
+    // caller checked `apiKey` up front) or a model name.
+    config?: ChatConfig;
+    model?: string;
+    system: string;
+    user: string;
+    maxTokens?: number;
+    json?: boolean;
+    // When present, one usage row is written and `cost` is computed.
+    usage?: AiUsageInput;
+}
+
+export interface ChatResponse extends ChatResult {
+    model: string;
+    provider: string;
+    price: Oi33AiProviderModel | null;
+    cost: number;
+}
+
+export async function aiResolveChatConfig(modelName: string): Promise<ChatConfig> {
+    const resolved = await aiResolveModel(modelName);
+    if (resolved) return { ...resolved, model: modelName };
+    return {
+        provider: '',
+        baseUrl: AI_DEFAULT_BASE_URL,
+        apiKey: DEFAULT_API_KEY,
+        model: modelName,
+        price: null,
+    };
+}
+
+export function aiCalcCost(usage: any, price: Oi33AiProviderModel | null): number {
+    if (!usage || !price) return 0;
+    const hit = usage.prompt_cache_hit_tokens || 0;
+    const miss = usage.prompt_cache_miss_tokens ?? Math.max(0, (usage.prompt_tokens || 0) - hit);
+    const output = usage.completion_tokens || 0;
+    return (miss * price.input + hit * (price.inputCached ?? price.input) + output * price.output) / 1e6;
+}
+
+// Bridges an external AbortSignal onto the internal controller that also
+// carries the timeout, so an abort from either source cancels the request.
+function forwardSignal(opts: ChatCallOptions, controller: AbortController): () => void {
+    if (!opts.signal) return () => {};
+    if (opts.signal.aborted) {
+        controller.abort();
+        return () => {};
+    }
+    const onAbort = () => controller.abort();
+    opts.signal.addEventListener('abort', onAbort);
+    return () => opts.signal!.removeEventListener('abort', onAbort);
+}
+
+export async function aiChatCompletion(
+    config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 1024, json = false,
+    opts: ChatCallOptions = {},
+): Promise<ChatResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs || 120000);
+    const detach = forwardSignal(opts, controller);
+    try {
+        const resp = await fetch(`${config.baseUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify({
+                model: config.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt },
+                ],
+                max_tokens: maxTokens,
+                ...(json ? { response_format: { type: 'json_object' } } : {}),
+                ...(opts.effort ? { reasoning_effort: opts.effort } : {}),
+            }),
+            signal: controller.signal,
+        });
+        if (!resp.ok) return { content: '', usage: null, finishReason: '', error: `API error (${resp.status}): ${await resp.text()}` };
+        const data = await resp.json();
+        return {
+            content: data.choices?.[0]?.message?.content?.trim() || '',
+            usage: data.usage || null,
+            finishReason: data.choices?.[0]?.finish_reason || '',
+            error: '',
+        };
+    } catch (e: any) {
+        return { content: '', usage: null, finishReason: '', error: e.name === 'AbortError' ? 'Request timed out' : e.message };
+    } finally {
+        clearTimeout(timer);
+        detach();
+    }
+}
+
+// Streaming variant of aiChatCompletion: forwards content / reasoning chunks to
+// callbacks while accumulating the same final result shape.
+export async function aiChatCompletionStream(
+    config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 8192,
+    onChunk?: (text: string) => void, onRChunk?: (text: string) => void,
+    opts: ChatCallOptions = {},
+): Promise<ChatResult> {
+    const controller = new AbortController();
+    // Generous window: reasoning models may think for minutes before the first
+    // content token arrives.
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs || 180000);
+    const detach = forwardSignal(opts, controller);
+    let fullText = '';
+    let usage: any = null;
+    let finishReason = '';
+    try {
+        const resp = await fetch(`${config.baseUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify({
+                model: config.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt },
+                ],
+                stream: true,
+                // DeepSeek only reports token usage on streams when asked.
+                stream_options: { include_usage: true },
+                max_tokens: maxTokens,
+                ...(opts.effort ? { reasoning_effort: opts.effort } : {}),
+            }),
+            signal: controller.signal,
+        });
+        if (!resp.ok) return { content: '', usage: null, finishReason: '', error: `API error (${resp.status}): ${await resp.text()}` };
+        const reader = (resp.body as any).getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data: ')) continue;
+                const data = trimmed.slice(6);
+                if (data === '[DONE]') continue;
+                try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.usage) usage = parsed.usage;
+                    const choice = parsed.choices?.[0];
+                    if (choice?.finish_reason) finishReason = choice.finish_reason;
+                    const delta = choice?.delta;
+                    if (delta?.reasoning_content) onRChunk?.(delta.reasoning_content);
+                    if (delta?.content) {
+                        fullText += delta.content;
+                        onChunk?.(delta.content);
+                    }
+                } catch {}
+            }
+        }
+        return { content: fullText.trim(), usage, finishReason, error: '' };
+    } catch (e: any) {
+        return { content: '', usage: null, finishReason: '', error: e.name === 'AbortError' ? 'Request timed out' : e.message };
+    } finally {
+        clearTimeout(timer);
+        detach();
+    }
+}
+
+async function resolveRequestConfig(req: ChatRequest): Promise<ChatConfig> {
+    if (req.config) return req.config;
+    return aiResolveChatConfig(req.model || 'deepseek-v4-flash');
+}
+
+async function recordUsage(req: ChatRequest, config: ChatConfig, result: ChatResult): Promise<number> {
+    const cost = aiCalcCost(result.usage, config.price);
+    if (req.usage) {
+        await aiAddUsage({
+            uid: req.usage.uid,
+            type: req.usage.type,
+            rid: req.usage.rid,
+            domainId: req.usage.domainId,
+            pid: req.usage.pid,
+            provider: config.provider,
+            model: config.model,
+            promptTokens: result.usage?.prompt_tokens || 0,
+            completionTokens: result.usage?.completion_tokens || 0,
+            cacheHitTokens: result.usage?.prompt_cache_hit_tokens || 0,
+            cost,
+            deducted: !!req.usage.deducted,
+        });
+    }
+    return cost;
+}
+
+// One-shot chat: resolve config → call → record usage → return cost.
+export async function aiChat(req: ChatRequest): Promise<ChatResponse> {
+    const config = await resolveRequestConfig(req);
+    const result = await aiChatCompletion(
+        config, req.system, req.user, req.maxTokens ?? 1024, !!req.json, req,
+    );
+    const cost = await recordUsage(req, config, result);
+    return {
+        ...result, model: config.model, provider: config.provider, price: config.price, cost,
+    };
+}
+
+export interface ChatStreamRequest extends ChatRequest {
+    onChunk?: (text: string) => void;
+    onRChunk?: (text: string) => void;
+}
+
+// Streaming chat with the same usage/cost handling as aiChat.
+export async function aiChatStream(req: ChatStreamRequest): Promise<ChatResponse> {
+    const config = await resolveRequestConfig(req);
+    const result = await aiChatCompletionStream(
+        config, req.system, req.user, req.maxTokens ?? 8192, req.onChunk, req.onRChunk, req,
+    );
+    const cost = await recordUsage(req, config, result);
+    return {
+        ...result, model: config.model, provider: config.provider, price: config.price, cost,
+    };
 }

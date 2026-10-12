@@ -721,7 +721,8 @@ export interface Oi33AiConfig {
     moderation_rate_limit?: number;
 }
 
-export type Oi33ModerationKind = 'topic' | 'reply' | 'tailreply' | 'topic_edit' | 'reply_edit' | 'tailreply_edit' | 'bio';
+export type Oi33ModerationKind = 'topic' | 'reply' | 'tailreply' | 'topic_edit' | 'reply_edit' | 'tailreply_edit'
+    | 'solution' | 'solution_edit' | 'solution_reply' | 'solution_reply_edit' | 'bio';
 export type Oi33ModerationVerdict = 'pass' | 'block' | 'review';
 export type Oi33ModerationSource = 'rules' | 'ai' | 'cache' | 'fuse' | 'ratelimit' | 'error';
 // 'stale' = closed without a decision because the entry can never be applied
@@ -736,6 +737,10 @@ export interface Oi33ModerationTarget {
     did?: ObjectId;
     drid?: ObjectId;
     drrid?: ObjectId;
+    // 题解（core TYPE_PROBLEM_SOLUTION）与其下的评论：psid = 题解文档，
+    // psrid = 评论子文档。它们和讨论共用同一套审核流程。
+    psid?: ObjectId;
+    psrid?: ObjectId;
 }
 
 // --- 喵喵 (犇犇-style short blog) ---

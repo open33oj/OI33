@@ -1,11 +1,28 @@
-import { readFileSync } from 'fs';
-import path from 'path';
-import { db, ValidationError } from 'hydrooj';
+import { db } from 'hydrooj';
 import { addLog } from './log';
 import { userColl } from './user';
+import { algorithmListItems, normalizeDifficulty } from './algorithm-item';
 import type {
-    Oi33AlgorithmConfig, Oi33AlgorithmItem, Oi33UserAlgorithm,
+    Oi33AlgorithmConfig, Oi33AlgorithmItem,
 } from './types';
+
+// Item persistence/administration lives in algorithm-item.ts and the bundled
+// NOI outline + id import/migration in algorithm-outline.ts. Both are
+// re-exported here so `model/algorithm` keeps exporting the same names.
+export {
+    algorithmListItems, algorithmGetItem, algorithmCountItems,
+    algorithmSaveItem, algorithmDeleteItem, algorithmSetItemEnabled, algorithmBulkSetEnabled,
+} from './algorithm-item';
+export type { AlgorithmItemInput } from './algorithm-item';
+export {
+    normalizeOutlineId, algorithmOutlineData, algorithmOutlineMeta,
+    algorithmImportOutline, algorithmEnsureOutlineImported,
+    algorithmDropBasicsSection, algorithmMigrateOutlineIds,
+} from './algorithm-outline';
+export type {
+    AlgorithmOutline, AlgorithmOutlineEntry,
+    AlgorithmImportResult, AlgorithmIdMigrationResult,
+} from './algorithm-outline';
 
 // --- Collections ---
 
@@ -70,18 +87,12 @@ export function algorithmLevelName(level: unknown): string {
     return ALGORITHM_LEVEL_NAMES[algorithmNormalizeLevel(level)];
 }
 
-function normalizeDifficulty(value: unknown): number {
-    const difficulty = Math.floor(Number(value));
-    if (!Number.isSafeInteger(difficulty) || difficulty < 0 || difficulty > ALGORITHM_MAX_DIFFICULTY) return 0;
-    return difficulty;
-}
-
 // Both rating upserts and the outline import can lose a race against a
 // concurrent writer that inserts the same unique key between our read and our
 // write. MongoDB reports E11000 in a few shapes (plain error, bulk write
 // result, or per-operation writeErrors), so detect all of them and let the
 // caller retry those ops as plain updates.
-function isDuplicateKeyError(error: any): boolean {
+export function isDuplicateKeyError(error: any): boolean {
     if (!error) return false;
     if (error.code === 11000 || error.code === 11001) return true;
     const writeErrors = error.writeErrors || (typeof error.getWriteErrors === 'function' ? error.getWriteErrors() : null);
@@ -90,90 +101,6 @@ function isDuplicateKeyError(error: any): boolean {
     }
     const resultErrors = error.result?.getWriteErrors ? error.result.getWriteErrors() : null;
     return Array.isArray(resultErrors) && resultErrors.some((item: any) => item?.code === 11000);
-}
-
-// --- Bundled NOI outline ---
-
-export interface AlgorithmOutlineEntry {
-    id: string;
-    text: string;
-    levelId: string;
-    levelName: string;
-    sectionId: string;
-    sectionName: string;
-    subsectionId: string | null;
-    subsectionName: string | null;
-    difficulty: number;
-    order: number;
-}
-
-export interface AlgorithmOutline {
-    title: string;
-    edition: string;
-    items: AlgorithmOutlineEntry[];
-}
-
-const outlineFile = path.join(__dirname, 'noi-outline-2025.json');
-let outlineCache: AlgorithmOutline | null = null;
-
-// The official document numbers this chapter 「二、内容」, so every raw id
-// starts with `2.` and appends the item ordinal with a dash, e.g. `2.1.1-12`
-// or `2.1.2.11-5`. We drop the document number and use dots throughout, so the
-// stored ids read `1.1.12` / `1.2.11.5`. Only ids in that shape are touched;
-// custom group ids (`c:` / `s:`) and `custom-*` item ids pass through.
-export function normalizeOutlineId(raw: unknown): string {
-    return String(raw ?? '')
-        .trim()
-        .replace(/^2\./, '')
-        .replace(/-(\d+)$/, '.$1');
-}
-
-// The outline ships with the addon (model/noi-outline-2025.json) so the plugin
-// stays self-contained: administrators import it once, then edit the resulting
-// items freely without depending on an external file path.
-export function algorithmOutlineData(): AlgorithmOutline {
-    if (!outlineCache) {
-        const raw = JSON.parse(readFileSync(outlineFile, 'utf-8'));
-        const list = Array.isArray(raw?.items) ? raw.items : [];
-        const items: AlgorithmOutlineEntry[] = list.map((entry: any, index: number) => {
-            const rawId = String(entry?.id || '').trim();
-            const subsectionName = entry?.subsection ? String(entry.subsection).trim() : '';
-            // The flat item id ends with `-<index within subsection>`; the
-            // prefix is the subsection id (and equals the section id for
-            // items that hang directly off a section).
-            const rawSubsectionId = subsectionName && rawId.includes('-')
-                ? rawId.slice(0, rawId.lastIndexOf('-'))
-                : null;
-            const subsectionId = rawSubsectionId ? normalizeOutlineId(rawSubsectionId) : null;
-            return {
-                id: normalizeOutlineId(rawId),
-                text: String(entry?.text || '').trim(),
-                levelId: normalizeOutlineId(entry?.levelId),
-                levelName: String(entry?.level || '').trim(),
-                sectionId: normalizeOutlineId(entry?.sectionId),
-                sectionName: String(entry?.section || '').trim(),
-                subsectionId,
-                subsectionName: subsectionId ? subsectionName : null,
-                difficulty: normalizeDifficulty(entry?.difficulty),
-                order: Number.isFinite(Number(entry?.index)) ? Number(entry.index) : index + 1,
-            };
-        }).filter((item: AlgorithmOutlineEntry) => item.id && item.text);
-        outlineCache = {
-            title: String(raw?.meta?.title || '全国青少年信息学奥林匹克系列竞赛大纲'),
-            edition: String(raw?.meta?.edition || '2025 年修订版'),
-            items,
-        };
-    }
-    return outlineCache;
-}
-
-export function algorithmOutlineMeta() {
-    const outline = algorithmOutlineData();
-    return {
-        title: outline.title,
-        edition: outline.edition,
-        itemCount: outline.items.length,
-    };
 }
 
 // --- Indexes ---
@@ -217,23 +144,6 @@ export async function algorithmSaveConfig(
         reason: `selfEdit=${set.selfEdit === undefined ? 'unchanged' : !!set.selfEdit}`,
     });
     return algorithmGetConfig();
-}
-
-// --- Item reads ---
-
-export async function algorithmListItems(opts: { enabledOnly?: boolean } = {}): Promise<Oi33AlgorithmItem[]> {
-    const filter = opts.enabledOnly ? { enabled: { $ne: false } } : {};
-    const docs = await algorithmItemColl.find(filter as any).sort({ order: 1, _id: 1 }).toArray();
-    return docs as unknown as Oi33AlgorithmItem[];
-}
-
-export async function algorithmGetItem(id: string): Promise<Oi33AlgorithmItem | null> {
-    const doc = await algorithmItemColl.findOne({ _id: String(id) });
-    return (doc as unknown as Oi33AlgorithmItem) || null;
-}
-
-export async function algorithmCountItems(): Promise<number> {
-    return await algorithmItemColl.countDocuments({});
 }
 
 // --- Grouping ---
@@ -610,345 +520,3 @@ export async function algorithmSetLevels(
     return { updated, cleared, skipped, unchanged };
 }
 
-// --- Item writes (administration) ---
-
-export interface AlgorithmItemInput {
-    id?: string;
-    text: string;
-    note?: string;
-    levelName: string;
-    sectionName: string;
-    subsectionName?: string;
-    difficulty?: unknown;
-    order?: unknown;
-    enabled?: boolean;
-}
-
-function generateCustomItemId() {
-    return `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// Resolve the stored 级/板块/子板块 ids for a submitted item. When the name is
-// unchanged the existing id is kept; a name that already exists elsewhere is
-// reused (so a hand-typed section merges into the real one); a genuinely new
-// name gets a deterministic `c:`/`s:` id so repeated saves group together.
-async function resolveGrouping(
-    existing: Oi33AlgorithmItem | null,
-    levelName: string, sectionName: string, subsectionName: string,
-): Promise<{ levelId: string; sectionId: string; subsectionId: string | null }> {
-    let levelId = existing?.levelId || '';
-    if (!levelId || existing!.levelName !== levelName) {
-        const found: any = await algorithmItemColl.findOne({ levelName }, { projection: { levelId: 1 } });
-        levelId = found?.levelId || `c:${levelName}`;
-    }
-    let sectionId = existing?.sectionId || '';
-    if (!sectionId || existing!.levelId !== levelId || existing!.sectionName !== sectionName) {
-        const found: any = await algorithmItemColl.findOne(
-            { levelId, sectionName }, { projection: { sectionId: 1 } },
-        );
-        sectionId = found?.sectionId || `c:${levelId}:${sectionName}`;
-    }
-    let subsectionId: string | null = existing?.subsectionId || null;
-    if (!subsectionName) {
-        subsectionId = null;
-    } else if (!subsectionId || existing!.subsectionName !== subsectionName || existing!.sectionId !== sectionId) {
-        const found: any = await algorithmItemColl.findOne(
-            { sectionId, subsectionName }, { projection: { subsectionId: 1 } },
-        );
-        subsectionId = found?.subsectionId || `s:${sectionId}:${subsectionName}`;
-    }
-    return { levelId, sectionId, subsectionId };
-}
-
-export async function algorithmSaveItem(input: AlgorithmItemInput, operator: number): Promise<Oi33AlgorithmItem> {
-    const text = String(input.text || '').trim();
-    if (!text || [...text].length > ALGORITHM_MAX_TEXT) {
-        throw new ValidationError(`算法项目名称应为 1–${ALGORITHM_MAX_TEXT} 字。`);
-    }
-    const note = String(input.note || '').trim();
-    if ([...note].length > ALGORITHM_MAX_NOTE) {
-        throw new ValidationError(`备注不能超过 ${ALGORITHM_MAX_NOTE} 字。`);
-    }
-    const levelName = String(input.levelName || '').trim();
-    const sectionName = String(input.sectionName || '').trim();
-    const subsectionName = String(input.subsectionName || '').trim();
-    for (const [label, value] of [['级别', levelName], ['板块', sectionName], ['子板块', subsectionName]] as const) {
-        if (label === '子板块' && !value) continue;
-        if (!value || [...value].length > ALGORITHM_MAX_GROUP_NAME) {
-            throw new ValidationError(`${label}名称应为 1–${ALGORITHM_MAX_GROUP_NAME} 字。`);
-        }
-    }
-    const difficulty = normalizeDifficulty(input.difficulty);
-    const order = Number(input.order);
-    if (!Number.isFinite(order) || Math.abs(order) > 1e9) {
-        throw new ValidationError('排序值无效。');
-    }
-
-    // A stale edit form (the item was deleted meanwhile) simply becomes a new
-    // custom item instead of silently recreating the old id.
-    const existing = input.id ? await algorithmGetItem(input.id) : null;
-    const { levelId, sectionId, subsectionId } = await resolveGrouping(
-        existing, levelName, sectionName, subsectionName,
-    );
-    const now = new Date();
-    const id = existing?._id || generateCustomItemId();
-    const doc = {
-        text,
-        note,
-        levelId,
-        levelName,
-        sectionId,
-        sectionName,
-        subsectionId,
-        subsectionName: subsectionName || null,
-        difficulty,
-        order,
-        enabled: input.enabled !== false,
-        source: existing?.source || 'custom',
-        idVersion: 2,
-        updatedAt: now,
-    };
-    if (existing) {
-        await algorithmItemColl.updateOne({ _id: id }, { $set: doc });
-    } else {
-        await algorithmItemColl.updateOne(
-            { _id: id },
-            { $set: doc, $setOnInsert: { createdAt: now, createdBy: operator } },
-            { upsert: true },
-        );
-    }
-    await addLog({
-        type: 'algorithm', userId: operator,
-        action: existing ? 'item_edit' : 'item_create',
-        reason: `${id} ${text}`,
-    });
-    return (await algorithmGetItem(id))!;
-}
-
-export async function algorithmDeleteItem(id: string, operator: number): Promise<boolean> {
-    const result = await algorithmItemColl.deleteOne({ _id: String(id) });
-    if (!result.deletedCount) return false;
-    // Ratings for a removed item are meaningless and would resurface if the
-    // same outline id is re-imported later.
-    await userAlgorithmColl.deleteMany({ itemId: String(id) });
-    await addLog({ type: 'algorithm', userId: operator, action: 'item_delete', reason: String(id) });
-    return true;
-}
-
-export async function algorithmSetItemEnabled(id: string, enabled: boolean, operator: number): Promise<boolean> {
-    const result = await algorithmItemColl.updateOne(
-        { _id: String(id) }, { $set: { enabled: !!enabled, updatedAt: new Date() } },
-    );
-    if (!result.matchedCount) return false;
-    await addLog({
-        type: 'algorithm', userId: operator,
-        action: enabled ? 'item_enable' : 'item_disable', reason: String(id),
-    });
-    return true;
-}
-
-export async function algorithmBulkSetEnabled(
-    scope: { levelId?: string; sectionId?: string }, enabled: boolean, operator: number,
-): Promise<number> {
-    const filter: Record<string, any> = {};
-    if (scope.levelId) filter.levelId = String(scope.levelId);
-    if (scope.sectionId) filter.sectionId = String(scope.sectionId);
-    if (!Object.keys(filter).length) throw new ValidationError('请选择要批量操作的级别或板块。');
-    const result = await algorithmItemColl.updateMany(
-        filter, { $set: { enabled: !!enabled, updatedAt: new Date() } },
-    );
-    await addLog({
-        type: 'algorithm', userId: operator,
-        action: enabled ? 'bulk_enable' : 'bulk_disable',
-        reason: `${scope.levelId || ''}${scope.sectionId ? ` / ${scope.sectionId}` : ''} (${result.modifiedCount})`,
-    });
-    return result.modifiedCount;
-}
-
-export interface AlgorithmImportResult {
-    inserted: number;
-    updated: number;
-    skipped: number;
-    total: number;
-    edition: string;
-}
-
-// Import (or refresh) the bundled NOI outline. New items are always inserted;
-// existing items are only touched when `overwrite` is set, so re-running the
-// import never silently reverts an administrator's edits. `enabled` survives
-// an overwrite, keeping deliberately hidden items hidden.
-export async function algorithmImportOutline(
-    operator: number, opts: { overwrite?: boolean } = {},
-): Promise<AlgorithmImportResult> {
-    // Self-heal installs that imported before ids were normalized: rename the
-    // old rows first so this import matches them instead of inserting 277
-    // duplicates next to them. No-op once everything is normalized.
-    await algorithmMigrateOutlineIds();
-    const outline = algorithmOutlineData();
-    if (outline.items.length > ALGORITHM_MAX_ITEMS) {
-        throw new ValidationError(`大纲项目过多（超过 ${ALGORITHM_MAX_ITEMS} 项）。`);
-    }
-    const ids = outline.items.map((item) => item.id);
-    const existingDocs = await algorithmItemColl.find({ _id: { $in: ids } })
-        .project({ _id: 1 }).toArray();
-    const existingIds = new Set(existingDocs.map((doc: any) => String(doc._id)));
-    const now = new Date();
-    const ops: any[] = [];
-    let inserted = 0;
-    let updated = 0;
-    let skipped = 0;
-    for (const item of outline.items) {
-        const doc = {
-            text: item.text,
-            levelId: item.levelId,
-            levelName: item.levelName,
-            sectionId: item.sectionId,
-            sectionName: item.sectionName,
-            subsectionId: item.subsectionId,
-            subsectionName: item.subsectionName,
-            difficulty: item.difficulty,
-            order: item.order,
-            source: ALGORITHM_OUTLINE_SOURCE,
-            idVersion: 2,
-            updatedAt: now,
-        };
-        if (existingIds.has(item.id)) {
-            if (opts.overwrite) {
-                ops.push({ updateOne: { filter: { _id: item.id }, update: { $set: doc } } });
-                updated++;
-            } else {
-                skipped++;
-            }
-            continue;
-        }
-        ops.push({
-            updateOne: {
-                filter: { _id: item.id },
-                update: {
-                    $set: doc,
-                    $setOnInsert: { enabled: true, createdAt: now, createdBy: operator },
-                },
-                upsert: true,
-            },
-        });
-        inserted++;
-    }
-    if (ops.length) {
-        try {
-            await algorithmItemColl.bulkWrite(ops, { ordered: false });
-        } catch (e) {
-            if (!isDuplicateKeyError(e)) throw e;
-            // Two imports running at once can race on the same item id; the
-            // winner already inserted the document, so update it instead.
-            for (const op of ops) {
-                await algorithmItemColl.updateOne(op.updateOne.filter, op.updateOne.update, { upsert: true });
-            }
-        }
-    }
-    await algorithmConfigColl.updateOne(
-        { _id: ALGORITHM_CONFIG_ID },
-        {
-            $set: {
-                outlineVersion: outline.edition,
-                lastImportAt: now,
-                updatedAt: now,
-                updatedBy: operator,
-            },
-        },
-        { upsert: true },
-    );
-    await addLog({
-        type: 'algorithm', userId: operator, action: 'import',
-        reason: `${outline.edition}: +${inserted} / ~${updated} / skip ${skipped}`,
-    });
-    return {
-        inserted, updated, skipped, total: outline.items.length, edition: outline.edition,
-    };
-}
-
-// Called by /oi33/migrate: import the outline once, when no item exists yet.
-// Idempotent — an install that already has items is left untouched.
-export async function algorithmEnsureOutlineImported(operator: number) {
-    if (await algorithmCountItems()) return { inserted: 0, skipped: true };
-    const result = await algorithmImportOutline(operator);
-    return { inserted: result.inserted, skipped: false };
-}
-
-// Called by /oi33/migrate: delete the excluded 「基础知识与编程环境」 items (and the
-// ratings pointing at them) from installs that imported them before the outline
-// changed. Idempotent — a second run finds nothing left to delete.
-export async function algorithmDropBasicsSection(): Promise<{ items: number; ratings: number }> {
-    const docs = await algorithmItemColl
-        .find({ sectionName: ALGORITHM_DROPPED_SECTION })
-        .project({ _id: 1 })
-        .toArray();
-    const ids = docs.map((doc: any) => String(doc._id));
-    if (!ids.length) return { items: 0, ratings: 0 };
-    const ratings = await userAlgorithmColl.deleteMany({ itemId: { $in: ids } });
-    const items = await algorithmItemColl.deleteMany({ _id: { $in: ids } });
-    return { items: items.deletedCount || 0, ratings: ratings.deletedCount || 0 };
-}
-
-export interface AlgorithmIdMigrationResult {
-    itemsRenamed: number;
-    fieldsRewritten: number;
-    ratingsRenamed: number;
-}
-
-// One-shot, idempotent rewrite for installs that imported the outline before
-// ids were normalized:
-//   item _id       2.1.1-12  -> 1.1.12
-//   levelId        2.1       -> 1
-//   sectionId      2.1.1     -> 1.1
-//   subsectionId   2.1.2.11  -> 1.2.11
-// User ratings follow their item. Custom items keep their own `custom-*` _id
-// but their group ids are rewritten too, since they may have inherited an
-// outline section id from `resolveGrouping`. Only rows without `idVersion: 2`
-// are touched, and they are marked as they are processed — the transform is
-// NOT safely re-appliable on its own (a new-format `2.1.12` from 提高级 would
-// lose another `2.`), so the marker is what makes this idempotent.
-export async function algorithmMigrateOutlineIds(): Promise<AlgorithmIdMigrationResult> {
-    const result: AlgorithmIdMigrationResult = { itemsRenamed: 0, fieldsRewritten: 0, ratingsRenamed: 0 };
-    const docs = await algorithmItemColl.find({ idVersion: { $ne: 2 } } as any).toArray();
-    for (const doc of docs as any[]) {
-        const oldId = String(doc._id);
-        const newId = normalizeOutlineId(oldId);
-        const levelId = normalizeOutlineId(doc.levelId);
-        const sectionId = normalizeOutlineId(doc.sectionId);
-        const subsectionId = doc.subsectionId ? normalizeOutlineId(doc.subsectionId) : (doc.subsectionId ?? null);
-        const nextFields: Record<string, any> = { idVersion: 2 };
-        if (levelId !== doc.levelId) nextFields.levelId = levelId;
-        if (sectionId !== doc.sectionId) nextFields.sectionId = sectionId;
-        if (subsectionId !== (doc.subsectionId ?? null)) nextFields.subsectionId = subsectionId;
-        const hasFieldChanges = Object.keys(nextFields).length > 1;
-
-        if (newId !== oldId) {
-            // `_id` is immutable, so re-insert under the new id and drop the old
-            // one; ratings keyed by the old id are moved over.
-            const { _id, ...rest } = doc;
-            await algorithmItemColl.replaceOne(
-                { _id: newId },
-                { ...rest, ...nextFields, _id: newId } as any,
-                { upsert: true },
-            );
-            await algorithmItemColl.deleteOne({ _id: oldId });
-            const renamed = await userAlgorithmColl.updateMany(
-                { itemId: oldId }, { $set: { itemId: newId } },
-            );
-            result.ratingsRenamed += renamed.modifiedCount || 0;
-            result.itemsRenamed++;
-        } else {
-            await algorithmItemColl.updateOne(
-                { _id: oldId }, { $set: { ...nextFields, updatedAt: new Date() } },
-            );
-        }
-        if (hasFieldChanges) result.fieldsRewritten++;
-    }
-    if (result.itemsRenamed || result.fieldsRewritten) {
-        await addLog({
-            type: 'algorithm', userId: 0, action: 'import',
-            reason: `outline id normalize: rename ${result.itemsRenamed}, fields ${result.fieldsRewritten}, ratings ${result.ratingsRenamed}`,
-        });
-    }
-    return result;
-}
