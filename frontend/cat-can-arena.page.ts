@@ -4,9 +4,10 @@ import {
 import './cat-can-arena.css';
 import { CAT_FRAMES, CAT_PIXEL_COLORS } from './cat-sprites';
 import { mountBigCatLayer } from './cat-big-arena.page';
+import { MAP_HEIGHT, MAP_WIDTH, MapPlan, MapPlayer, MapState } from './cat-map-shared';
+import { mountPalettes, paletteColor, paletteTextColor, PALETTE_VALUES } from './cat-map-palette';
+import { mountAdminPaintForm } from './cat-map-admin-paint';
 
-const MAP_WIDTH = 1000;
-const MAP_HEIGHT = 1000;
 // 帝国区为距边框 250 格的环形区域，中央 500×500 为 00区（与服务端 model/cat-map.ts 同步）。
 const CORE_ZONE_MIN = 250;
 const CORE_ZONE_MAX = MAP_WIDTH - CORE_ZONE_MIN - 1;
@@ -29,279 +30,6 @@ const PLAN_SYNC_INTERVAL_MS = 3000;
 // 连续拿不到新视图多少次后转入慢速重试。
 const PLAN_SYNC_RETRY_LIMIT = 3;
 const PLAN_SYNC_BACKOFF_MS = 15000;
-
-interface MapPlayer {
-    uid: number;
-    uname: string;
-    x: number;
-    y: number;
-    cans: number;
-    food: number;
-    availableAt: number;
-    freeColorAvailable: boolean;
-}
-
-interface MapPlanStep {
-    index: number;
-    x: number;
-    y: number;
-    color: number;
-    executed: boolean;
-}
-
-interface MapPlan {
-    status: 'active' | 'done' | 'stopped';
-    cursor: number;
-    steps: MapPlanStep[];
-    maxSteps: number;
-    originX: number;
-    originY: number;
-    nextAt: number;
-    failReason: string;
-    updatedAt: number;
-}
-
-interface MapState {
-    width: number;
-    height: number;
-    players: MapPlayer[];
-    cells: [number, number, number, number][];
-    me: MapPlayer | null;
-    canJoin: boolean;
-    plan?: MapPlan | null;
-    planMaxSteps?: number;
-    serverTime: number;
-}
-
-function paletteColorValue(code: number) {
-    const standard = [
-        0x000000, 0x800000, 0x008000, 0x808000, 0x000080, 0x800080, 0x008080, 0xC0C0C0,
-        0x808080, 0xFF0000, 0x00FF00, 0xFFFF00, 0x0000FF, 0xFF00FF, 0x00FFFF, 0xFFFFFF,
-    ];
-    if (code < 16) return standard[code];
-    if (code < 232) {
-        const value = code - 16;
-        const levels = [0, 95, 135, 175, 215, 255];
-        return (levels[Math.floor(value / 36)] << 16)
-            | (levels[Math.floor(value / 6) % 6] << 8)
-            | levels[value % 6];
-    }
-    const gray = 8 + (code - 232) * 10;
-    return (gray << 16) | (gray << 8) | gray;
-}
-
-function paletteColor(code: number) {
-    return `#${paletteColorValue(code).toString(16).padStart(6, '0')}`;
-}
-
-// 计划编号要压在颜色圆圈上：按 WCAG 相对亮度取黑/白中对比度更高的那个，
-// 深色底用白字、浅色底用黑字。
-function paletteTextColor(code: number) {
-    const value = paletteColorValue(code);
-    const channel = (raw: number) => {
-        const scaled = raw / 255;
-        return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
-    };
-    const luminance = 0.2126 * channel((value >> 16) & 0xff)
-        + 0.7152 * channel((value >> 8) & 0xff)
-        + 0.0722 * channel(value & 0xff);
-    const againstBlack = (luminance + 0.05) / 0.05;
-    const againstWhite = 1.05 / (luminance + 0.05);
-    return againstBlack >= againstWhite ? '#111111' : '#ffffff';
-}
-
-const PALETTE_VALUES = new Uint32Array(Array.from({ length: 256 }, (_, code) => paletteColorValue(code)));
-
-function mountPalettes() {
-    document.querySelectorAll<HTMLElement>('[data-palette]').forEach((palette) => {
-        if (palette.dataset.mounted) return;
-        palette.dataset.mounted = '1';
-        const scope = palette.closest('dialog, form') || document;
-        const input = scope.querySelector<HTMLInputElement>('[data-color-input]');
-        const preview = scope.querySelector<HTMLElement>('[data-color-preview]');
-        const update = (value: number) => {
-            const color = Math.max(0, Math.min(255, Math.floor(value || 0)));
-            if (input) input.value = String(color);
-            if (preview) preview.style.background = paletteColor(color);
-            palette.querySelectorAll('button').forEach((button, index) => button.classList.toggle('is-selected', index === color));
-        };
-        for (let code = 0; code < 256; code++) {
-            const swatch = document.createElement('button');
-            swatch.type = 'button';
-            swatch.textContent = String(code);
-            swatch.title = `颜色码 ${code}`;
-            swatch.setAttribute('aria-label', `选择颜色码 ${code}`);
-            swatch.style.background = paletteColor(code);
-            swatch.addEventListener('click', () => update(code));
-            palette.append(swatch);
-        }
-        input?.addEventListener('input', () => update(Number(input.value)));
-        update(Number(input?.value || 34));
-    });
-}
-
-function mountAdminPaintForm() {
-    const form = document.querySelector<HTMLFormElement>('[data-admin-paint-form]');
-    const fields = form?.querySelector<HTMLElement>('[data-rect-fields]');
-    if (!form || !fields) return;
-    const inputs = fields.querySelectorAll<HTMLInputElement>('input');
-    const rowStartInput = form.querySelector<HTMLInputElement>('[name="rowStart"]')!;
-    const columnStartInput = form.querySelector<HTMLInputElement>('[name="columnStart"]')!;
-    const rowEndInput = form.querySelector<HTMLInputElement>('[name="rowEnd"]')!;
-    const columnEndInput = form.querySelector<HTMLInputElement>('[name="columnEnd"]')!;
-    const canvas = form.querySelector<HTMLCanvasElement>('[data-admin-paint-canvas]');
-    const selectionText = form.querySelector<HTMLElement>('[data-admin-selection]');
-    fields.hidden = false;
-    inputs.forEach((input) => {
-        input.disabled = false;
-        input.required = true;
-    });
-    if (selectionText) selectionText.textContent = '点击或拖动选择矩形';
-    if (!canvas) return;
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    const layer = document.createElement('canvas');
-    layer.width = MAP_WIDTH;
-    layer.height = MAP_HEIGHT;
-    const layerContext = layer.getContext('2d')!;
-    layerContext.fillStyle = '#fff';
-    layerContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
-    let scale = 1;
-    let offsetX = 0;
-    let offsetY = 0;
-    let initialized = false;
-    let selection: { rowStart: number; columnStart: number; rowEnd: number; columnEnd: number } | null = null;
-    let drag: {
-        startX: number; startY: number; startRow: number; startColumn: number;
-        offsetX: number; offsetY: number; pan: boolean;
-    } | null = null;
-
-    const size = () => ({ width: canvas.clientWidth, height: canvas.clientHeight });
-    const clamp = () => {
-        const view = size();
-        const margin = 70;
-        offsetX = Math.min(view.width - margin, Math.max(margin - MAP_WIDTH * scale, offsetX));
-        offsetY = Math.min(view.height - margin, Math.max(margin - MAP_HEIGHT * scale, offsetY));
-    };
-    const fit = () => {
-        const view = size();
-        scale = Math.min(view.width / MAP_WIDTH, view.height / MAP_HEIGHT);
-        offsetX = (view.width - MAP_WIDTH * scale) / 2;
-        offsetY = (view.height - MAP_HEIGHT * scale) / 2;
-        initialized = true;
-    };
-    const draw = () => {
-        const view = size();
-        context.clearRect(0, 0, view.width, view.height);
-        context.fillStyle = '#e9ece9';
-        context.fillRect(0, 0, view.width, view.height);
-        context.imageSmoothingEnabled = false;
-        context.drawImage(layer, offsetX, offsetY, MAP_WIDTH * scale, MAP_HEIGHT * scale);
-        context.strokeStyle = '#111';
-        context.strokeRect(offsetX + .5, offsetY + .5, MAP_WIDTH * scale - 1, MAP_HEIGHT * scale - 1);
-        if (selection) {
-            context.fillStyle = 'rgba(255,62,62,.18)';
-            context.strokeStyle = '#ff2f2f';
-            context.lineWidth = 2;
-            const x = offsetX + selection.columnStart * scale;
-            const y = offsetY + selection.rowStart * scale;
-            const width = (selection.columnEnd - selection.columnStart + 1) * scale;
-            const height = (selection.rowEnd - selection.rowStart + 1) * scale;
-            context.fillRect(x, y, width, height);
-            context.strokeRect(x, y, width, height);
-        }
-    };
-    const resize = () => {
-        const ratio = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = Math.max(1, Math.round(rect.width * ratio));
-        canvas.height = Math.max(1, Math.round(rect.height * ratio));
-        context.setTransform(ratio, 0, 0, ratio, 0, 0);
-        if (!initialized) fit();
-        else clamp();
-        draw();
-    };
-    const toCell = (clientX: number, clientY: number) => {
-        const rect = canvas.getBoundingClientRect();
-        return {
-            column: Math.max(0, Math.min(MAP_WIDTH - 1, Math.floor((clientX - rect.left - offsetX) / scale))),
-            row: Math.max(0, Math.min(MAP_HEIGHT - 1, Math.floor((clientY - rect.top - offsetY) / scale))),
-        };
-    };
-    const commitSelection = (startRow: number, startColumn: number, endRow: number, endColumn: number) => {
-        selection = {
-            rowStart: Math.min(startRow, endRow),
-            columnStart: Math.min(startColumn, endColumn),
-            rowEnd: Math.max(startRow, endRow),
-            columnEnd: Math.max(startColumn, endColumn),
-        };
-        rowStartInput.value = String(selection.rowStart);
-        columnStartInput.value = String(selection.columnStart);
-        rowEndInput.value = String(selection.rowEnd);
-        columnEndInput.value = String(selection.columnEnd);
-        if (selectionText) selectionText.textContent = selection.rowStart === selection.rowEnd && selection.columnStart === selection.columnEnd
-            ? `已选择 1×1 矩形 (${selection.rowStart}, ${selection.columnStart})`
-            : `已选择矩形 (${selection.rowStart}, ${selection.columnStart}) ～ (${selection.rowEnd}, ${selection.columnEnd})`;
-        draw();
-    };
-    canvas.addEventListener('pointerdown', (event) => {
-        const cell = toCell(event.clientX, event.clientY);
-        drag = {
-            startX: event.clientX,
-            startY: event.clientY,
-            startRow: cell.row,
-            startColumn: cell.column,
-            offsetX,
-            offsetY,
-            pan: event.altKey,
-        };
-        canvas.setPointerCapture(event.pointerId);
-        if (!drag.pan) commitSelection(cell.row, cell.column, cell.row, cell.column);
-    });
-    canvas.addEventListener('pointermove', (event) => {
-        if (!drag) return;
-        if (drag.pan) {
-            offsetX = drag.offsetX + event.clientX - drag.startX;
-            offsetY = drag.offsetY + event.clientY - drag.startY;
-            clamp();
-            draw();
-            return;
-        }
-        const cell = toCell(event.clientX, event.clientY);
-        commitSelection(drag.startRow, drag.startColumn, cell.row, cell.column);
-    });
-    const endDrag = () => { drag = null; };
-    canvas.addEventListener('pointerup', endDrag);
-    canvas.addEventListener('pointercancel', endDrag);
-    canvas.addEventListener('wheel', (event) => {
-        event.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        const pointerX = event.clientX - rect.left;
-        const pointerY = event.clientY - rect.top;
-        const column = (pointerX - offsetX) / scale;
-        const row = (pointerY - offsetY) / scale;
-        scale = Math.max(.25, Math.min(48, scale * Math.exp(-event.deltaY * .0015)));
-        offsetX = pointerX - column * scale;
-        offsetY = pointerY - row * scale;
-        clamp();
-        draw();
-    }, { passive: false });
-    form.querySelector<HTMLButtonElement>('[data-admin-fit]')?.addEventListener('click', () => {
-        fit();
-        draw();
-    });
-    window.addEventListener('resize', resize);
-    request.get(form.dataset.stateUrl || '/oi33/arena/state').then((state: MapState) => {
-        state.cells.forEach(([x, y, color]) => {
-            layerContext.fillStyle = paletteColor(color);
-            layerContext.fillRect(x, y, 1, 1);
-        });
-        draw();
-    }).catch((e) => {
-        if (selectionText) selectionText.textContent = `地图加载失败：${e.message || e}`;
-    });
-    window.requestAnimationFrame(resize);
-}
 
 function mountMap() {
     mountPalettes();
@@ -361,18 +89,67 @@ function mountMap() {
     cellColors.fill(-1);
     const cellCatIds = new Int32Array(MAP_WIDTH * MAP_HEIGHT);
     cellCatIds.fill(-1);
+    // 大猫视图中「有主领地」的边界格集合：只保留至少有一条边与邻居归属不同的
+    // 格子。渲染时遍历这个集合画黑色描边，避免逐帧扫描整张 1000×1000 地图。
+    const territoryBorderCells = new Set<number>();
+    const isOwnedTerritoryCell = (index: number) => cellColors[index] >= 0 && cellCatIds[index] !== 0;
+    const territoryNeighborDiffers = (index: number, nx: number, ny: number) => {
+        if (nx < 0 || ny < 0 || nx >= MAP_WIDTH || ny >= MAP_HEIGHT) return true;
+        const neighbor = ny * MAP_WIDTH + nx;
+        // 未涂色与「已涂色但无大猫」（catId 0）都视作无主，彼此之间不画边界。
+        return (cellColors[neighbor] >= 0 ? cellCatIds[neighbor] : 0) !== cellCatIds[index];
+    };
+    const refreshTerritoryBoundaryCell = (x: number, y: number) => {
+        if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return;
+        const index = y * MAP_WIDTH + x;
+        if (!isOwnedTerritoryCell(index)) {
+            territoryBorderCells.delete(index);
+            return;
+        }
+        if (territoryNeighborDiffers(index, x - 1, y)
+            || territoryNeighborDiffers(index, x + 1, y)
+            || territoryNeighborDiffers(index, x, y - 1)
+            || territoryNeighborDiffers(index, x, y + 1)) {
+            territoryBorderCells.add(index);
+        } else {
+            territoryBorderCells.delete(index);
+        }
+    };
+    const refreshTerritoryBoundaryAround = (x: number, y: number) => {
+        refreshTerritoryBoundaryCell(x, y);
+        refreshTerritoryBoundaryCell(x - 1, y);
+        refreshTerritoryBoundaryCell(x + 1, y);
+        refreshTerritoryBoundaryCell(x, y - 1);
+        refreshTerritoryBoundaryCell(x, y + 1);
+    };
     const overviewLayer = document.createElement('canvas');
     overviewLayer.width = MAP_WIDTH;
     overviewLayer.height = MAP_HEIGHT;
     const overviewContext = overviewLayer.getContext('2d')!;
     overviewContext.fillStyle = '#ffffff';
     overviewContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+    // 大猫视角的底图只把「已涂色」格写成不透明像素；未占领格留空（透明），
+    // 渲染时垫在下面的斜纹图案会透出来，从而不会与白色领地色混淆。
     const territoryLayer = document.createElement('canvas');
     territoryLayer.width = MAP_WIDTH;
     territoryLayer.height = MAP_HEIGHT;
     const territoryContext = territoryLayer.getContext('2d')!;
-    territoryContext.fillStyle = '#ffffff';
-    territoryContext.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+    const territoryHatchTile = document.createElement('canvas');
+    territoryHatchTile.width = 10;
+    territoryHatchTile.height = 10;
+    const territoryHatchContext = territoryHatchTile.getContext('2d')!;
+    territoryHatchContext.fillStyle = '#f4f6f9';
+    territoryHatchContext.fillRect(0, 0, 10, 10);
+    territoryHatchContext.strokeStyle = '#dbe1e8';
+    territoryHatchContext.lineWidth = 3;
+    territoryHatchContext.beginPath();
+    // 45° 斜纹，三条不同截距保证 10×10 平铺无缝。
+    for (const offset of [-10, 0, 10]) {
+        territoryHatchContext.moveTo(offset, 0);
+        territoryHatchContext.lineTo(offset + 10, 10);
+    }
+    territoryHatchContext.stroke();
+    const territoryHatch = context.createPattern(territoryHatchTile, 'repeat') || '#eef1f5';
     const animations = new Map<number, { fromX: number; fromY: number; toX: number; toY: number; start: number; teleport: boolean }>();
     let showGrid = false;
     let showCats = true;
@@ -482,16 +259,30 @@ function mountMap() {
         territoryRebuildFrame = 0;
         const pixels = territoryContext.createImageData(MAP_WIDTH, MAP_HEIGHT);
         const data = pixels.data;
+        territoryBorderCells.clear();
         for (let index = 0; index < cellColors.length; index++) {
-            const color = cellColors[index] < 0
-                ? 0xFFFFFF
-                // 已涂色格子的 catId 必为真实归属（0 = 无大猫，负数 = 特殊大猫）。
-                : bigCats?.colorValueFor(cellCatIds[index]) ?? 0xB8BCC2;
             const offset = index * 4;
+            if (cellColors[index] < 0) {
+                // 未占领格：透明（露出斜纹图案），alpha 默认即 0。
+                data[offset + 3] = 0;
+                continue;
+            }
+            // 已涂色格子的 catId 必为真实归属（0 = 无大猫，负数 = 特殊大猫）。
+            const color = bigCats?.colorValueFor(cellCatIds[index]) ?? 0xB8BCC2;
             data[offset] = color >> 16;
             data[offset + 1] = (color >> 8) & 0xFF;
             data[offset + 2] = color & 0xFF;
             data[offset + 3] = 0xFF;
+            if (cellCatIds[index] !== 0) {
+                const x = index % MAP_WIDTH;
+                const y = (index - x) / MAP_WIDTH;
+                if (territoryNeighborDiffers(index, x - 1, y)
+                    || territoryNeighborDiffers(index, x + 1, y)
+                    || territoryNeighborDiffers(index, x, y - 1)
+                    || territoryNeighborDiffers(index, x, y + 1)) {
+                    territoryBorderCells.add(index);
+                }
+            }
         }
         territoryContext.putImageData(pixels, 0, 0);
         invalidate();
@@ -509,6 +300,7 @@ function mountMap() {
         overviewContext.fillRect(x, y, 1, 1);
         territoryContext.fillStyle = bigCats?.colorFor(cellCatIds[index]) || '#b8bcc2';
         territoryContext.fillRect(x, y, 1, 1);
+        refreshTerritoryBoundaryAround(x, y);
         invalidate();
     };
     const setRect = (
@@ -531,6 +323,12 @@ function mountMap() {
         for (let row = rowStart; row <= rowEnd; row++) {
             cellColors.fill(color, row * MAP_WIDTH + columnStart, row * MAP_WIDTH + columnEnd + 1);
             cellCatIds.fill(catId, row * MAP_WIDTH + columnStart, row * MAP_WIDTH + columnEnd + 1);
+        }
+        // 受影响格子的归属变了，连同外圈一格一起刷新边界集合。
+        for (let row = Math.max(0, rowStart - 1); row <= Math.min(MAP_HEIGHT - 1, rowEnd + 1); row++) {
+            for (let column = Math.max(0, columnStart - 1); column <= Math.min(MAP_WIDTH - 1, columnEnd + 1); column++) {
+                refreshTerritoryBoundaryCell(column, row);
+            }
         }
         invalidate();
     };
@@ -665,6 +463,35 @@ function mountMap() {
         context.restore();
     };
 
+    // 大猫领地的黑色描边：只处理可见范围内的边界格，线宽固定为 1～4px 的屏幕
+    // 像素（不随缩放变粗），所以 1 格大小的领地也不会被黑边整块吃掉。
+    const drawTerritoryBorders = (origin: { x: number; y: number }, width: number, height: number) => {
+        if (!territoryBorderCells.size) return;
+        const firstX = Math.max(0, Math.floor(-origin.x / viewScale));
+        const firstY = Math.max(0, Math.floor(-origin.y / viewScale));
+        const lastX = Math.min(MAP_WIDTH - 1, Math.ceil((width - origin.x) / viewScale));
+        const lastY = Math.min(MAP_HEIGHT - 1, Math.ceil((height - origin.y) / viewScale));
+        context.save();
+        context.strokeStyle = '#000000';
+        context.lineWidth = Math.max(1, Math.min(4, viewScale * .1));
+        context.beginPath();
+        const edge = (x0: number, y0: number, x1: number, y1: number) => {
+            context.moveTo(origin.x + x0 * viewScale, origin.y + y0 * viewScale);
+            context.lineTo(origin.x + x1 * viewScale, origin.y + y1 * viewScale);
+        };
+        territoryBorderCells.forEach((index) => {
+            const x = index % MAP_WIDTH;
+            const y = (index - x) / MAP_WIDTH;
+            if (x < firstX || x > lastX || y < firstY || y > lastY) return;
+            if (territoryNeighborDiffers(index, x, y - 1)) edge(x, y, x + 1, y);
+            if (territoryNeighborDiffers(index, x + 1, y)) edge(x + 1, y, x + 1, y + 1);
+            if (territoryNeighborDiffers(index, x, y + 1)) edge(x, y + 1, x + 1, y + 1);
+            if (territoryNeighborDiffers(index, x - 1, y)) edge(x, y, x, y + 1);
+        });
+        context.stroke();
+        context.restore();
+    };
+
     const renderMap = (width: number, height: number) => {
         context.fillStyle = paletteColor(238);
         context.fillRect(0, 0, width, height);
@@ -678,7 +505,15 @@ function mountMap() {
         const mapWidth = snap(MAP_WIDTH * viewScale);
         const mapHeight = snap(MAP_HEIGHT * viewScale);
         context.imageSmoothingEnabled = false;
-        context.drawImage(showBigCats ? territoryLayer : overviewLayer, origin.x, origin.y, mapWidth, mapHeight);
+        if (showBigCats) {
+            // 未占领格在底图里是透明的：先铺斜纹图案，再叠领地像素，最后描黑边。
+            context.fillStyle = territoryHatch;
+            context.fillRect(origin.x, origin.y, mapWidth, mapHeight);
+            context.drawImage(territoryLayer, origin.x, origin.y, mapWidth, mapHeight);
+            drawTerritoryBorders(origin, width, height);
+        } else {
+            context.drawImage(overviewLayer, origin.x, origin.y, mapWidth, mapHeight);
+        }
         if (showGrid) {
             context.strokeStyle = 'rgba(0,0,0,.72)';
             context.lineWidth = 1;

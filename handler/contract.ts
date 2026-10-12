@@ -3,7 +3,7 @@ import {
     param,
 } from 'hydrooj';
 import { oi33Model } from '../model';
-import { checkUserFlag } from './utils';
+import { checkUserFlag, loadOi33Users } from './utils';
 
 function field(body: any, name: string): string {
     const value = body?.[name];
@@ -34,11 +34,7 @@ class ContractListHandler extends Handler {
             ...outgoing.map((contract) => contract.buyer),
             ...resolved.flatMap((contract) => [contract.seller, contract.buyer]),
         ])];
-        const udict = uids.length ? await UserModel.getList('', uids) : {};
-        const oi33Dict = uids.length ? await oi33Model.getUserDataByUids(uids) : {};
-        for (const id of uids) {
-            if (udict[id] && oi33Dict[id]) oi33Model.mergeOi33Fields(udict[id], oi33Dict[id]);
-        }
+        const udict = uids.length ? await loadOi33Users('', uids) : {};
         this.response.template = 'oi33_contracts.html';
         this.response.body = {
             incoming, outgoing, resolved, sellable,

@@ -6,8 +6,23 @@ import type {
     Oi33MedalRuleType, Oi33UserMedal,
 } from './types';
 import { addLog, logColl } from './log';
+import {
+    AUTOMATIC_RULE_TYPES, MEDAL_AUTOMATIC_SERIES, MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES,
+    isAutomaticRuleType, medalAutomaticRuleText, medalAwardView, medalCategoryName,
+    medalCategoryOf, medalCategoryRank, medalDisplayRung, medalGroupByCategory,
+    medalIsLevelSeries, medalLevelOf, medalSortedLevels, medalThresholdLevel, medalView,
+} from './medal-rules';
 import { meowMedalPostAdd, meowDelete, meowPostColl } from './meow';
 import { userColl } from './user';
+
+// The pure category/level rules live in ./medal-rules (no hydrooj/DB imports) so
+// they can be unit-tested; re-exported here to keep the public API unchanged.
+export {
+    AUTOMATIC_RULE_TYPES, MEDAL_AUTOMATIC_SERIES, MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES,
+    isAutomaticRuleType, medalAutomaticRuleText, medalAwardView, medalCategoryName,
+    medalCategoryOf, medalCategoryRank, medalDisplayRung, medalGroupByCategory,
+    medalIsLevelSeries, medalLevelOf, medalSortedLevels, medalThresholdLevel, medalView,
+};
 
 export const medalColl = db.collection('oi33_medal');
 export const userMedalColl = db.collection('oi33_user_medal');
@@ -76,220 +91,12 @@ export async function ensureMedalIndexes() {
     ]);
 }
 
-// The automatic rule types a rule evaluator may dispatch on. `certification`
-// medals are never automatic: an administrator hands them out and upgrades
-// them, so they stay out of every evaluation pass.
-export const AUTOMATIC_RULE_TYPES: Oi33MedalAutomaticRuleType[] = [
-    'accepted_problems',
-    'checkin_streak',
-    'checkin_total',
-    'cat_food_balance',
-    'cat_can_balance',
-];
-
-export function isAutomaticRuleType(type: unknown): type is Oi33MedalAutomaticRuleType {
-    return AUTOMATIC_RULE_TYPES.includes(type as Oi33MedalAutomaticRuleType);
-}
-
-// Canonical series identity forged by the initial import and by the migration
-// that turns the old one-medal-per-threshold layout into upgradable ladders.
-// The ids are stable because the medal id is public and printed in the UI.
-export const MEDAL_AUTOMATIC_SERIES: Record<
-    Oi33MedalAutomaticRuleType,
-    { id: string; name: string; description: string }
-> = {
-    accepted_problems: {
-        id: 'ac', name: '题海',
-        description: '按通过的不同题号题目数量自动升级。',
-    },
-    checkin_streak: {
-        id: 'streak', name: '长明',
-        description: '按连续登录天数自动升级。',
-    },
-    checkin_total: {
-        id: 'login', name: '足迹',
-        description: '按累计登录天数自动升级。',
-    },
-    cat_food_balance: {
-        id: 'food', name: '粮仓',
-        description: '按猫粮余额历史峰值自动升级。',
-    },
-    cat_can_balance: {
-        id: 'can', name: '罐藏',
-        description: '按猫罐头持有量自动升级。',
-    },
-};
-
-// Human-readable condition for one automatic threshold, shared by the handler
-// form, the initial import and the migration.
-export function medalAutomaticRuleText(type: Oi33MedalRuleType, threshold: number): string {
-    if (type === 'accepted_problems') return `通过 ${threshold} 道题号不同的题目`;
-    if (type === 'checkin_streak') return `连续登录 ${threshold} 天`;
-    if (type === 'checkin_total') return `累计登录 ${threshold} 天`;
-    if (type === 'cat_food_balance') {
-        const amount = threshold % 1000 === 0 ? `${threshold / 1000} kg` : `${threshold} g`;
-        return `猫粮余额曾达到 ${amount}`;
-    }
-    if (type === 'cat_can_balance') return `猫罐头持有 ${threshold} 个`;
-    return '';
-}
-
-// The four public families, in catalogue/display order: 可售卖 → 奖项认证 →
-// 一般 → OJ 自动.
-export const MEDAL_CATEGORIES: Oi33MedalCategory[] = ['saleable', 'certification', 'manual', 'oj'];
-
-export const MEDAL_CATEGORY_NAMES: Record<Oi33MedalCategory, string> = {
-    saleable: '可售卖奖章',
-    certification: '奖项认证奖章',
-    manual: '一般奖章',
-    oj: 'OJ 成就奖章',
-};
-
-// Category is derived, never stored: `saleable` wins over an automatic rule so
-// a medal cannot be both auctioned and rule-granted at the same time, and
-// `certification` is decided by its own ruleType.
-export function medalCategoryOf(medal: any): Oi33MedalCategory {
-    if (medal?.ruleType === 'certification') return 'certification';
-    if (medal?.saleable === true) return 'saleable';
-    return AUTOMATIC_RULE_TYPES.includes(medal?.ruleType) ? 'oj' : 'manual';
-}
-
-export function medalCategoryName(medal: any): string {
-    return MEDAL_CATEGORY_NAMES[medalCategoryOf(medal)];
-}
-
-// Attach the derived category (and its display name) so handlers and
-// templates never re-derive it. Certification ladders are normalised to
-// ascending level order here, which makes every consumer order-safe.
-export function medalView<T extends Record<string, any>>(medal: T) {
-    const category = medalCategoryOf(medal);
-    return {
-        ...medal,
-        ...(Array.isArray((medal as any).levels)
-            ? {
-                levels: [...(medal as any).levels].sort(
-                    (a: any, b: any) => Number(a?.level || 0) - Number(b?.level || 0),
-                ),
-            }
-            : {}),
-        category,
-        categoryName: MEDAL_CATEGORY_NAMES[category],
-    };
-}
-
-// Display order for medal lists: the user's enumeration order — auctionable
-// medals, then certification series, then general hand-outs, then automatic OJ
-// series. The `order` field (and fetch order) breaks ties within a group via a
-// stable sort.
-export function medalCategoryRank(medal: any) {
-    return MEDAL_CATEGORIES.indexOf(medalCategoryOf(medal));
-}
-
-export function medalGroupByCategory(medals: any[]) {
-    const groups: Record<Oi33MedalCategory, any[]> = {
-        saleable: [], certification: [], manual: [], oj: [],
-    };
-    for (const medal of medals) groups[medalCategoryOf(medal)].push(medal);
-    return groups;
-}
 
 export async function medalGet(id: string) {
     const medal = await medalColl.findOne({ _id: id });
     return medal ? medalView(medal) : null;
 }
 
-// --- Upgradable series levels (奖项认证奖章 / OJ 成就奖章) ---
-
-export function medalSortedLevels(medal: any): Oi33MedalLevel[] {
-    const levels = Array.isArray(medal?.levels) ? medal.levels : [];
-    return [...levels].sort((a, b) => Number(a?.level || 0) - Number(b?.level || 0));
-}
-
-// Strict lookup, used by every write path: an explicit level must exist on the
-// ladder (or the highest rung is returned when no level is named).
-export function medalLevelOf(medal: any, level?: number | null): Oi33MedalLevel | null {
-    const levels = medalSortedLevels(medal);
-    if (!levels.length) return null;
-    const wanted = Number(level);
-    if (Number.isSafeInteger(wanted) && wanted > 0) {
-        return levels.find((item) => Number(item.level) === wanted) || null;
-    }
-    return levels[levels.length - 1];
-}
-
-// Forgiving lookup used only for rendering: an award can hold a rung an
-// administrator has since removed from the ladder, and a blank medal would be
-// worse than showing the closest surviving rung — the highest one at or below
-// the held level, else the lowest.
-export function medalDisplayRung(medal: any, level?: number | null): Oi33MedalLevel | null {
-    const levels = medalSortedLevels(medal);
-    if (!levels.length) return null;
-    const wanted = Number(level);
-    if (!Number.isFinite(wanted) || wanted <= 0) return levels[levels.length - 1];
-    const exact = levels.find((item) => Number(item.level) === wanted);
-    if (exact) return exact;
-    const below = levels.filter((item) => Number(item.level) < wanted);
-    return below.length ? below[below.length - 1] : levels[0];
-}
-
-// A definition is an upgradable series when it is one of the two level-bearing
-// families and actually carries a ladder. Used to decide whether an award holds
-// a rung and whether a grant must name one.
-export function medalIsLevelSeries(medal: any): boolean {
-    const category = medalCategoryOf(medal);
-    if (category !== 'certification' && category !== 'oj') return false;
-    return medalSortedLevels(medal).length > 0;
-}
-
-// Highest rung whose automatic threshold is met by `value`. Rungs without a
-// positive threshold are skipped, so a partially filled ladder is harmless.
-export function medalThresholdLevel(medal: any, value: number): Oi33MedalLevel | null {
-    let best: Oi33MedalLevel | null = null;
-    for (const item of medalSortedLevels(medal)) {
-        const threshold = Number(item.threshold);
-        if (!Number.isFinite(threshold) || threshold <= 0) continue;
-        if (value >= threshold && (!best || Number(item.level) > Number(best.level))) best = item;
-    }
-    return best;
-}
-
-// Resolved display record for one award. For upgradable series the held level's
-// own name/description/pixel art replaces the series defaults; every other
-// family falls back to the definition itself.
-export function medalAwardView(award: any, medal: any) {
-    const category = medalCategoryOf(medal);
-    const levels = medalSortedLevels(medal);
-    const leveled = levels.length > 0 && (category === 'certification' || category === 'oj');
-    // A legacy award that predates the level migration carries no rung: holding
-    // the series at all means at least the lowest rung was reached, so render
-    // that rather than falsely claiming the top rung.
-    let held = Number(award?.level);
-    if (leveled && (!Number.isSafeInteger(held) || held <= 0)) {
-        held = Number(levels[0]?.level) || 1;
-    }
-    const rung = leveled ? medalDisplayRung(medal, held) : null;
-    // `level` is what the user actually holds (a leveled award always reports
-    // one); `displayLevel` is the rung whose art/name is rendered, and
-    // `levelMissing` flags a held level that no longer exists on the ladder.
-    const level = leveled
-        ? (Number.isSafeInteger(held) && held > 0 ? held : (rung ? Number(rung.level) : null))
-        : null;
-    return {
-        category,
-        categoryName: MEDAL_CATEGORY_NAMES[category],
-        leveled,
-        level,
-        levelMissing: leveled && level !== null
-            && !levels.some((item) => Number(item.level) === level),
-        displayLevel: rung ? Number(rung.level) : null,
-        levelCount: levels.length,
-        levelName: rung?.name || '',
-        name: rung ? `${medal.name} · ${rung.name}` : (medal?.name || ''),
-        description: rung?.description || medal?.description || '',
-        imageData: rung?.imageData || medal?.imageData || '',
-        imageSize: rung?.imageSize || medal?.imageSize || 24,
-    };
-}
 
 export async function medalList() {
     const medals = await medalColl.find().sort({ order: 1, _id: 1 }).toArray();
@@ -375,301 +182,13 @@ export async function medalSave(input: {
 
 // --- Definition import / export -------------------------------------------
 //
-// The payload carries definitions only: names, rules, pixel art and level
-// ladders. Awards, announcements and moderation state are deliberately
-// excluded, so a file can be moved to another installation — or another OJ's
-// medal set can be loaded here — without touching who holds what.
-
-const MEDAL_EXPORT_FORMAT = 'oi33-medals';
-const MEDAL_EXPORT_VERSION = 1;
-const MAX_IMPORT_MEDALS = 500;
-const MAX_MEDAL_IMAGE_BYTES = 256 * 1024;
-const MAX_MEDAL_LEVELS = 24;
-const MEDAL_IMAGE_SIZES = new Set([8, 16, 24, 32]);
-const MEDAL_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-const MEDAL_RULE_TYPES = new Set<Oi33MedalRuleType>([
-    'manual', 'accepted_problems', 'checkin_streak', 'checkin_total',
-    'cat_food_balance', 'cat_can_balance', 'certification',
-]);
-
-export interface MedalDefinitionExport {
-    format: string;
-    version: number;
-    exportedAt: string;
-    count: number;
-    medals: any[];
-}
-
-export async function medalExportDefinitions(): Promise<MedalDefinitionExport> {
-    const medals = await medalColl.find().sort({ order: 1, _id: 1 }).toArray();
-    return {
-        format: MEDAL_EXPORT_FORMAT,
-        version: MEDAL_EXPORT_VERSION,
-        exportedAt: new Date().toISOString(),
-        count: medals.length,
-        medals: medals.map((medal) => {
-            const levels = medalSortedLevels(medal);
-            return {
-                id: medal._id,
-                name: medal.name,
-                description: medal.description,
-                rule: medal.rule,
-                ruleType: medal.ruleType,
-                ...(Number(medal.threshold) > 0 ? { threshold: Number(medal.threshold) } : {}),
-                imageData: medal.imageData,
-                imageSize: medal.imageSize,
-                ...(levels.length
-                    ? {
-                        levels: levels.map((level) => ({
-                            level: level.level,
-                            name: level.name,
-                            ...(level.description ? { description: level.description } : {}),
-                            imageData: level.imageData,
-                            imageSize: level.imageSize,
-                            ...(Number(level.threshold) > 0 ? { threshold: Number(level.threshold) } : {}),
-                        })),
-                    }
-                    : {}),
-                order: Number(medal.order) || 0,
-                saleable: medal.saleable === true,
-            };
-        }),
-    };
-}
-
-// A base64 PNG data URL of one of the four allowed square sizes, or null.
-function normalizeMedalImage(raw: unknown): { imageData: string; imageSize: Oi33MedalImageSize } | null {
-    const value = String(raw ?? '').trim();
-    const match = /^data:image\/png;base64,([A-Za-z0-9+/=\s]+)$/.exec(value);
-    if (!match) return null;
-    let data: Buffer;
-    try {
-        data = Buffer.from(match[1].replace(/\s+/g, ''), 'base64');
-    } catch {
-        return null;
-    }
-    if (data.length < 24 || data.length > MAX_MEDAL_IMAGE_BYTES) return null;
-    if (data.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a'
-        || data.subarray(12, 16).toString('ascii') !== 'IHDR') return null;
-    const width = data.readUInt32BE(16);
-    const height = data.readUInt32BE(20);
-    if (width !== height || !MEDAL_IMAGE_SIZES.has(width)) return null;
-    return { imageData: value, imageSize: width as Oi33MedalImageSize };
-}
-
-function normalizeImportedLevel(
-    raw: any,
-    index: number,
-    fallback: { imageData: string; imageSize: Oi33MedalImageSize },
-    medalId: string,
-    warnings: string[],
-): Oi33MedalLevel {
-    const name = String(raw?.name ?? '').trim().slice(0, 50) || `Lv.${index + 1}`;
-    const description = String(raw?.description ?? '').trim().slice(0, 200);
-    const image = normalizeMedalImage(raw?.imageData);
-    if (!image && raw?.imageData) {
-        warnings.push(`${medalId}: 等级「${name}」的像素图无效，已改用系列图标。`);
-    }
-    const threshold = Number.parseInt(String(raw?.threshold ?? ''), 10);
-    return {
-        level: index + 1,
-        name,
-        ...(description ? { description } : {}),
-        imageData: (image || fallback).imageData,
-        imageSize: (image || fallback).imageSize,
-        ...(Number.isSafeInteger(threshold) && threshold > 0 ? { threshold } : {}),
-    };
-}
-
-interface NormalizedMedalDefinition {
-    _id: string;
-    fields: Record<string, any>;
-    warnings: string[];
-}
-
-// Turn one foreign definition into the fields this plugin stores. IDs are
-// lower-cased and stripped of characters the plugin cannot address, and an
-// optional prefix can be prepended to avoid collisions with local medals.
-function normalizeImportedMedal(raw: any, index: number, idPrefix: string): NormalizedMedalDefinition {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        throw new Error(`第 ${index + 1} 项不是一个奖章对象。`);
-    }
-    const warnings: string[] = [];
-    const rawId = String(raw.id ?? raw._id ?? raw.medalId ?? '').trim();
-    const id = `${idPrefix}${rawId}`
-        .trim().toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 64);
-    if (!id || !MEDAL_ID_RE.test(id)) {
-        throw new Error(`第 ${index + 1} 项缺少可用的奖章 ID（原始值：${rawId || '空'}）。`);
-    }
-    const name = String(raw.name ?? '').trim().slice(0, 50);
-    if (!name) throw new Error(`奖章「${id}」缺少名称。`);
-
-    const rawType = String(raw.ruleType ?? '').trim();
-    let ruleType: Oi33MedalRuleType;
-    if (MEDAL_RULE_TYPES.has(rawType as Oi33MedalRuleType)) {
-        ruleType = rawType as Oi33MedalRuleType;
-    } else {
-        ruleType = 'manual';
-        warnings.push(`${id}: 未知 ruleType「${rawType || '空'}」，已按一般奖章导入。`);
-    }
-
-    const image = normalizeMedalImage(raw.imageData);
-    if (!image && raw.imageData) warnings.push(`${id}: 像素图无效，已改用默认奖章图标。`);
-    const base = image || { imageData: INITIAL_MEDAL_IMAGES[0], imageSize: 24 as Oi33MedalImageSize };
-
-    const isLeveled = ruleType === 'certification' || isAutomaticRuleType(ruleType);
-    let levels: Oi33MedalLevel[] | undefined;
-    if (isLeveled && Array.isArray(raw.levels) && raw.levels.length) {
-        const rows = raw.levels
-            .filter((item: any) => item && typeof item === 'object')
-            .slice(0, MAX_MEDAL_LEVELS)
-            .map((item: any, i: number) => normalizeImportedLevel(item, i, base, id, warnings));
-        if (raw.levels.length > MAX_MEDAL_LEVELS) {
-            warnings.push(`${id}: 等级过多，只保留前 ${MAX_MEDAL_LEVELS} 级。`);
-        }
-        if (ruleType === 'certification') {
-            levels = rows;
-        } else {
-            // OJ rungs are driven by their thresholds; a rung without one can
-            // never be reached, so it is dropped rather than silently kept.
-            const withThreshold = rows.filter((item) => Number(item.threshold) > 0);
-            if (withThreshold.length !== rows.length) {
-                warnings.push(`${id}: 忽略了 ${rows.length - withThreshold.length} 个没有阈值的等级。`);
-            }
-            levels = withThreshold
-                .sort((a, b) => Number(a.threshold) - Number(b.threshold))
-                .map((item, i) => ({ ...item, level: i + 1 }));
-        }
-    }
-
-    const flatThreshold = Number.parseInt(String(raw.threshold ?? ''), 10);
-    const topThreshold = levels && levels.length
-        ? Number(levels[levels.length - 1].threshold) || 0
-        : (Number.isSafeInteger(flatThreshold) && flatThreshold > 0 ? flatThreshold : 0);
-    const automatic = isAutomaticRuleType(ruleType);
-    if (automatic && topThreshold <= 0) {
-        warnings.push(`${id}: 自动奖章没有任何可用阈值，导入后不会自动发放。`);
-    }
-
-    let rule = String(raw.rule ?? '').trim().slice(0, 500);
-    if (!rule) {
-        if (ruleType === 'certification') {
-            rule = levels && levels.length
-                ? `${levels.length} 级认证：${levels.map((item) => item.name).join(' < ')}`
-                : '奖项认证奖章';
-        } else if (automatic) {
-            rule = topThreshold > 0
-                ? `${medalAutomaticRuleText(ruleType, topThreshold)} 起逐级自动升级`
-                : '由系统按指标自动升级';
-        } else {
-            rule = '由管理员根据活动结果发放';
-        }
-    }
-
-    // Only 一般奖章 may be marked saleable: the evaluator skips saleable
-    // definitions and certification ignores the flag.
-    if (raw.saleable === true && ruleType !== 'manual') {
-        warnings.push(`${id}: 只有一般奖章可以标记为可售卖，已忽略 saleable。`);
-    }
-
-    const fields: Record<string, any> = {
-        name,
-        description: String(raw.description ?? '').trim().slice(0, 500) || name,
-        rule,
-        ruleType,
-        imageData: base.imageData,
-        imageSize: base.imageSize,
-        order: Number.isSafeInteger(Number(raw.order)) ? Number(raw.order) : 0,
-        saleable: raw.saleable === true && ruleType === 'manual',
-    };
-    if (isLeveled && levels && levels.length) fields.levels = levels;
-    if (automatic && topThreshold > 0) fields.threshold = topThreshold;
-    return { _id: id, fields, warnings };
-}
-
-export interface MedalImportOptions {
-    // 'merge' overwrites an existing definition with the same id; 'insert'
-    // keeps the local one and counts the import as skipped.
-    mode?: 'merge' | 'insert';
-    idPrefix?: string;
-    operator: number;
-}
-
-export interface MedalImportResult {
-    total: number;
-    created: number;
-    updated: number;
-    skipped: number;
-    failed: number;
-    warnings: string[];
-    errors: string[];
-}
-
-export async function medalImportDefinitions(
-    payload: unknown,
-    options: MedalImportOptions,
-): Promise<MedalImportResult> {
-    const list = Array.isArray(payload)
-        ? payload
-        : (Array.isArray((payload as any)?.medals) ? (payload as any).medals : null);
-    if (!list) {
-        throw new ValidationError('导入内容格式无效：应为奖章数组，或包含 medals 数组的导出文件。');
-    }
-    if (!list.length) throw new ValidationError('导入内容里没有任何奖章定义。');
-    if (list.length > MAX_IMPORT_MEDALS) {
-        throw new ValidationError(`单次最多导入 ${MAX_IMPORT_MEDALS} 枚奖章。`);
-    }
-    const mode = options.mode === 'insert' ? 'insert' : 'merge';
-    const idPrefix = String(options.idPrefix ?? '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-    const now = new Date();
-    const result: MedalImportResult = {
-        total: list.length, created: 0, updated: 0, skipped: 0, failed: 0,
-        warnings: [], errors: [],
-    };
-    const seen = new Set<string>();
-    for (let index = 0; index < list.length; index++) {
-        try {
-            const normalized = normalizeImportedMedal(list[index], index, idPrefix);
-            if (seen.has(normalized._id)) {
-                result.skipped++;
-                result.warnings.push(`${normalized._id}: 文件内重复，已保留最先出现的一条。`);
-                continue;
-            }
-            seen.add(normalized._id);
-            const existing = await medalColl.findOne({ _id: normalized._id });
-            if (existing && mode === 'insert') {
-                result.skipped++;
-                continue;
-            }
-            const unset: Record<string, ''> = {};
-            if (!normalized.fields.levels) unset.levels = '';
-            if (!('threshold' in normalized.fields)) unset.threshold = '';
-            await medalColl.updateOne(
-                { _id: normalized._id },
-                {
-                    $set: { ...normalized.fields, updatedAt: now },
-                    $setOnInsert: { createdAt: now, createdBy: options.operator },
-                    ...(Object.keys(unset).length ? { $unset: unset } : {}),
-                },
-                { upsert: true },
-            );
-            if (existing) result.updated++; else result.created++;
-            result.warnings.push(...normalized.warnings);
-        } catch (e: any) {
-            result.failed++;
-            result.errors.push(e?.message || `第 ${index + 1} 项导入失败。`);
-        }
-    }
-    await addLog({
-        type: 'medal', userId: options.operator, action: 'definition_import',
-        reason: `total=${result.total} created=${result.created} updated=${result.updated} `
-            + `skipped=${result.skipped} failed=${result.failed}`,
-    });
-    return result;
-}
+// The payload (definitions only, never award records) is implemented in
+// ./medal-definitions; the public names are re-exported here so the model
+// barrel and ./migrate.ts keep importing them from ./medal.
+export {
+    MedalDefinitionExport, MedalImportOptions, MedalImportResult,
+    medalExportDefinitions, medalImportDefinitions,
+} from './medal-definitions';
 
 export async function medalDelete(id: string, operator: number) {
     const awards = await userMedalColl.countDocuments({ medalId: id });
@@ -948,7 +467,9 @@ interface InitialMedalGroup {
 }
 
 const INITIAL_THRESHOLDS = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048];
-const INITIAL_MEDAL_IMAGES = [
+// Exported for ./medal-definitions, which falls back to these icons when an
+// imported definition carries no usable pixel art.
+export const INITIAL_MEDAL_IMAGES = [
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAA6UlEQVR4AcyRgQkCMQxFy82huIMzOIkTuIErOIGTuIJDiO6h94QPoU2wPVtR+OTyr/kvV6frcfscqSnNv8NlnUZojk5vAA+j9D+A82aVJPu18qjW13PVFzC8vz2SRE8AVR6VHt+qCmAHvBDeR34TgBA2JdAq8jnTBGCgVdWAaMvI1yLVAO9qCIl83qEqACFsKtEzTJVHpce3cgEclnSYYUkeVR6VPlcBIJjDEn0+1NIXAIJbAj6dLQB2gO2/BYaAHuEs6wJ6hbuAnuEuABOIFd5SFVfEn5praThzBQCzp34DOO3uaYS4iRcAAAD//zJp41IAAAAGSURBVAMAI4Hm6TXgFL8AAAAASUVORK5CYII=',
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAA30lEQVR4AcyRgQ0CIQxFm5tD4w7O4CRO4Aau4ARO4goOYXQPvWfyE1LgAgjmLvmhLe1/wE338/49UpPN3+m2tRGare0LIBil9QCuu41J/rbUfU150Q0wOD5eJpFjwIqIcyoChMOhoYDhvo+rAJhj6k2W8irAklFurxjQcnqgxYDap8EcFQEw5wYSOcPKfUwuJQEaZFUjplKq5vfUEwEwVTMruZpb1giAaYtRbiYChI2c/ldgFtDDnMMmAb3Mk4Ce5kkARSChqLUqeiJ+qlerOXMRgGJP/QdwOTxthHiJDwAAAP//0AWwbgAAAAZJREFUAwCKJ9rpq4UaHQAAAABJRU5ErkJggg==',
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAA5UlEQVR4AcyRgQ3CIBBFSefQuIMzOIkTuIErOIGTuIJDGN1D+0x+cil3kSI0bfJz8DneBzrcz/t3Tw1p/E63beqhEZ2+AQx6aT0B190mSfa28qjW17joBmw+Pl5JYg6AKo/KHN+qKMBusBCgds0bzwoAHkGjtVkB3gnxIjhrxQERJPKBo+IA72l+wYsDgAOTmLMZyVPFs3JvoGaqmoFKnjddU08WAFTNVOZqrqlZANAaULQnC7CNnP7fwDCgBZzDugGt4G5AS7gbgEmIFV6tsifip05VC2dfFoDZUssEXA7P1EO8xAcAAP//ruSLFgAAAAZJREFUAwCh0uzp5qUSbAAAAABJRU5ErkJggg==',

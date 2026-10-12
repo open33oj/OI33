@@ -49,7 +49,7 @@ export async function previewCatFoodBackfill() {
         .project({ _id: 1, checkin_cnt_all: 1, checkin_cnt_now: 1, checkin_time: 1, cat_food: 1 }).toArray();
     return {
         users: docs.length,
-        amount: docs.reduce((sum, doc) => sum + getCatFoodBackfillGrant(doc), 0),
+        amount: docs.reduce((sum, doc) => sum + getCatFoodBackfillGrant(doc as any), 0),
     };
 }
 
@@ -326,7 +326,7 @@ export async function bioSetReviewed(userId: number, bioHash: string, status: 'a
 export const billColl = db.collection('oi33_coin_bill');
 
 export async function coinInc(userId: number, rootId: number, amount: number, text: string) {
-    await billColl.insertOne({ userId, rootId, amount, text });
+    await billColl.insertOne({ userId, rootId, amount, text } as any);
     await userColl.updateOne(
         { _id: userId },
         { $inc: { coin_now: amount, ...(amount > 0 ? { coin_all: amount } : {}) } },
@@ -427,12 +427,33 @@ export async function getRealnamedUsers() {
     return await userColl.find({ realname_flag: { $exists: true } }).toArray();
 }
 
+function escapeRegExp(text: string) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// The site-wide user autocomplete (core `user.users` API) only matches
+// uid/uname/displayName/mail, so an OI33 admin who knows only a student's real
+// name cannot find the account. `realname_name` is sensitive: callers must gate
+// this on the viewer's realname_flag >= 2 before returning any hit.
+export async function searchUserIdsByRealname(keyword: string, limit = 10, exact = false): Promise<number[]> {
+    const text = String(keyword ?? '').trim();
+    if (!text) return [];
+    const pattern = exact ? `^${escapeRegExp(text)}$` : `^${escapeRegExp(text)}`;
+    const docs = await userColl.find(
+        // realname_flag >= 1 keeps a stray name on an unverified record from
+        // ever surfacing (real names are only meaningful for verified users).
+        { realname_flag: { $gte: 1 }, realname_name: { $regex: new RegExp(pattern, 'i') } },
+        { projection: { _id: 1 } },
+    ).limit(Math.max(1, Math.min(50, Math.floor(Number(limit)) || 10))).toArray();
+    return docs.map((doc) => Number(doc._id)).filter((id) => Number.isSafeInteger(id));
+}
+
 // --- Checkin ---
 
 export async function doCheckin(userId: number, todayStr: string) {
     await backfillCatFoodForUser(userId);
     const doc = await userColl.findOne({ _id: userId });
-    const prev = doc || {};
+    const prev: Partial<Oi33User> = doc || {};
     if (doc?.checkin_time === todayStr) {
         return {
             checkedIn: false,

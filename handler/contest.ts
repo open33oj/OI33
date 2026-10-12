@@ -174,7 +174,7 @@ export function apply(ctx: Context) {
     // submissions stay journaled in the contest.
     const origDetailPrepare = ProblemDetailHandler.prototype._prepare;
     ProblemDetailHandler.prototype._prepare = async function _prepare(rawArgs: any) {
-        await origDetailPrepare.call(this, rawArgs);
+        await (origDetailPrepare as any).call(this, rawArgs);
         const { tdoc, tsdoc, response } = this as any;
         const mode = response?.body?.mode;
         if (tdoc?.rule !== 'oc' || (mode !== 'correction' && mode !== 'none')) return;

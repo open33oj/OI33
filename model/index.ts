@@ -1,145 +1,27 @@
-import {
-    getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity, isVirtualUserId,
-    coinInc, coinBillCount, coinGetAll, coinUserBillCount, coinGetUser, coinGetLeaderboard,
-    setBirthday, getTodayBirthdays, getAllBirthdays, getBirthdayCount, getRecentBirthdays,
-    setBadge, getBadgedUsers, removeBadge,
-    setRealname, getRealnamedUsers,
-    doCheckin, getCheckinUser,
-    previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
-    getAllUsersData, getRatedUsers,
-    bioMarkEdited, bioSetStatus, bioSetReviewed,
-    bioTruncateForDisplay, BIO_DISPLAY_MAX_BYTES,
-    expirePendingBioEntries, expireStaleBioEntries, getLiveBio, getLiveBios,
-} from './user';
-import {
-    pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
-} from './paste';
-import {
-    wikiAdd, wikiImport, wikiEdit, wikiGet, wikiGetApproved, wikiGetOrCreateIndex,
-    wikiDelete,
-    wikiCatGetAll, wikiCatAdd, wikiCatEdit, wikiCatDelete,
-} from './wiki';
-import {
-    submitRequest, directUpdate, approveRequest, rejectRequest,
-    getPendingRequests, getPendingRequestCount,
-    getRequestById, getRequestsByIds, getUserPendingRequests,
-    applyRequestPayload,
-} from './request';
-import {
-    createToken, getTokensByUid, getAllActiveTokens, getTokenByHash, deleteToken, touchToken,
-} from './token';
-import {
-    createClient, getClients, getClient, deleteClient, verifyClientSecret,
-    redirectAllowed, createCode, consumeCode,
-    createAccessToken, getAccessTokenByRaw, refreshAccessToken, revokeToken, revokeAllForClient,
-    logDeny, DEFAULT_SCOPES,
-} from './oauth';
-import {
-    getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
-    getCatFoodLogCount, getCatFoodLogs,
-} from './log';
-import {
-    getOrCreateCurrentMarket, getCurrentQuote, getCatCanDayChange, ensureCurrentCatCanPrice,
-    ensureCatCanIndexes, ensureCatCanPool, buyCatCans, sellCatCans, adjustCatCans, calibrateCatCanPool,
-    getCatCanPage,
-    CAT_CAN_ADMIN_ADJUSTMENT_MAX,
-} from './cat-can';
-import {
-    ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
-    createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
-    reverseCatCanTransaction, purgeUnverifiedCatAssets,
-} from './cat-account';
-import {
-    ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
-    moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
-    refreshCatMapTerritories, recountSchoolCatTerritories, getCatMapCooldownMinutes,
-    getCatMapConfig, saveCatMapConfig, getCatMapPlan, getCatMapPlanView,
-    saveCatMapPlan, stopCatMapPlan, advanceCatMapPlan, runCatMapPlansDue,
-    buildCatMapPlanView, validateCatMapPlanShape, normalizeCatMapPlanMaxSteps,
-    CAT_MAP_PLAN_MAX_STEPS_DEFAULT, CAT_MAP_PLAN_MAX_STEPS_LIMIT, CAT_MAP_PLAN_RETRY_LIMIT,
-} from './cat-map';
-import {
-    ensureSchoolCatIndexes, searchSchools, listSchools, getSchool, getSchoolView,
-    getBigCatWorldState, getSchoolCatRanking, bindSchoolCat, unbindSchoolCat, feedSchoolCat, getSchoolCatDetail,
-    setSchoolCatTerritoryColor, schoolCatKey, schoolIdFromCatKey,
-    createSpecialSchoolCat, renameSpecialSchoolCat, listSpecialSchoolCats, transferSchoolCat,
-    isAdminSchoolCatRecord, backfillSchoolCatMoveContributions,
-    getSchoolCatWeeklyRewardStatus, listSchoolCatWeeklyRewards,
-    getSchoolCatWeeklyRewardDetail, getSchoolCatWeeklyRewardRollbackCheck,
-    settleSchoolCatWeeklyRewards, rollbackSchoolCatWeeklyRewards,
-    schoolCatRewardPeriod, schoolCatTerritoryBaseReward,
-    schoolCatColorCss, schoolDisplay, schoolUrl, removeSchoolCatBinding,
-} from './school-cat';
-import {
-    aiGetRecordDetail, aiIsContestRecord,
-    aiGetAnalysis, aiSaveAnalysis, aiDeleteAnalysis,
-    aiGetProblemSummary, aiSaveProblemSummary, aiSaveProblemDifficulty,
-    aiBatchGetStatus, aiBatchSaveStatus,
-    aiGetAccess, aiGetAccessList, aiSetAccess, aiAddQuota, aiRemoveAccess, aiDeductBalance,
-    aiGetProviders, aiSaveProvider, aiDeleteProvider,
-    aiUpsertProviderModel, aiDeleteProviderModel, aiResolveModel,
-    aiAddUsage, aiGetUsageStats, aiGetUsedMap,
-    aiGetConfig, aiSaveConfig,
-} from './ai';
-import {
-    ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
-    modListRecent, modSetStatus, modExpireEntries,
-    modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
-    bioHashMatches, bioHashOf, bioQueueState, sameBioText,
-} from './moderate';
-import {
-    ensureMeowIndexes, meowDateKey, meowDailyFreeAvailable,
-    meowGetPost, meowLastPost, meowCooldownAnchorPost, meowCooldownRemaining, meowCooldownText, meowRefundCan,
-    meowPostAdd, meowMedalPostAdd, meowFeed, meowUserPosts,
-    meowResolveVerdict, meowForwardCount, meowListPending, meowListRecent, meowListAll, meowDelete, meowTodayStats, meowSetStatus,
-    meowFollow, meowUnfollow, meowIsFollowing,
-    meowFollowingList, meowFollowerList, meowFollowingCount, meowFollowerCount,
-    meowFollowingMap, meowFollowedByMap,
-    meowToggleLike, meowLikedMap,
-    setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
-    MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
-} from './meow';
-import {
-    ensureMedalIndexes, medalGet, medalList, medalCatalogue, medalSave,
-    medalDelete, medalGetUserAwards, medalListRecentAwards, medalListAwardsPaginated, medalAwardStats,
-    medalListLevelHolders,
-    medalExportDefinitions, medalImportDefinitions,
-    medalGrant, medalRevoke, medalEvaluateUser, medalEvaluateAll, medalSetLevel,
-    medalCategoryOf, medalCategoryName, medalCategoryRank, medalGroupByCategory,
-    medalLevelOf, medalDisplayRung, medalSortedLevels, medalAwardView,
-    medalIsLevelSeries, medalThresholdLevel, medalAutomaticRuleText,
-    medalMigrateAutomaticLevels,
-    MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES, MEDAL_AUTOMATIC_SERIES, AUTOMATIC_RULE_TYPES,
-    medalGetAcceptedDomains, medalSetAcceptedDomains,
-    medalAcceptedDomainIncluded, medalImportInitialDefinitions,
-} from './medal';
-import {
-    ensureAuctionIndexes, auctionGet, auctionCreate, auctionBid, auctionSettle,
-    auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
-    auctionGetBids, auctionSaleableShowcase,
-} from './auction';
-import {
-    ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
-    contractAccept, contractDecline, contractCancel, contractDelete, contractListIncoming,
-    contractListOutgoing, contractListRecentResolved,
-    CONTRACT_FEE_PERCENT, contractFeeAmount,
-} from './contract';
-import {
-    ensureAlgorithmIndexes, algorithmGetConfig, algorithmSaveConfig,
-    algorithmListItems, algorithmGetItem, algorithmCountItems,
-    algorithmGroupItems, algorithmComputeStats,
-    algorithmProfileView, algorithmSetLevels,
-    algorithmMonthKey, algorithmNextUpdateDate,
-    algorithmGetSelfQuota, algorithmClaimSelfQuota, algorithmReleaseSelfQuota, algorithmResetSelfQuota,
-    algorithmSaveItem, algorithmDeleteItem, algorithmSetItemEnabled, algorithmBulkSetEnabled,
-    algorithmImportOutline, algorithmEnsureOutlineImported, algorithmMigrateOutlineIds,
-    algorithmDropBasicsSection,
-    algorithmOutlineData, algorithmOutlineMeta, normalizeOutlineId,
-    algorithmNormalizeLevel, algorithmLevelName,
-    ALGORITHM_LEVELS, ALGORITHM_LEVEL_NAMES, ALGORITHM_MAX_LEVEL,
-    ALGORITHM_MAX_TEXT, ALGORITHM_MAX_NOTE, ALGORITHM_MAX_GROUP_NAME, ALGORITHM_MAX_ITEMS,
-    ALGORITHM_CONFIG_ID, ALGORITHM_DROPPED_SECTION,
-} from './algorithm';
+// OI33 model barrel. Each module is imported as a namespace and spread into
+// `oi33Model`, so adding an export to a model file is picked up automatically
+// instead of having to be listed twice (import list + object literal).
+import * as userModel from './user';
+import * as pasteModel from './paste';
+import * as wikiModel from './wiki';
+import * as requestModel from './request';
+import * as oauthModel from './oauth';
+// Spread after oauth: both export `tokenColl` (oauth's own token collection);
+// the barrel's named `oauthTokenColl` export disambiguates them.
+import * as tokenModel from './token';
+import * as logModel from './log';
+import * as catCanModel from './cat-can';
+import * as catAccountModel from './cat-account';
+import * as catMapModel from './cat-map';
+import * as catMapPlanModel from './cat-map-plan';
+import * as schoolCatModel from './school-cat';
+import * as aiModel from './ai';
+import * as moderateModel from './moderate';
+import * as meowModel from './meow';
+import * as medalModel from './medal';
+import * as auctionModel from './auction';
+import * as contractModel from './contract';
+import * as algorithmModel from './algorithm';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -168,109 +50,25 @@ export { contractColl } from './contract';
 export { algorithmItemColl, userAlgorithmColl, algorithmConfigColl } from './algorithm';
 
 const oi33Model = {
-    getUserDataByUids, mergeOi33Fields, anonymizeOi33Identity, isVirtualUserId,
-    coinInc, coinBillCount, coinGetAll, coinUserBillCount, coinGetUser, coinGetLeaderboard,
-    setBirthday, getTodayBirthdays, getAllBirthdays, getBirthdayCount, getRecentBirthdays,
-    setBadge, getBadgedUsers, removeBadge,
-    setRealname, getRealnamedUsers,
-    doCheckin, getCheckinUser,
-    previewCatFoodBackfill, backfillCatFoodForUser, backfillAllCatFood,
-    bioMarkEdited, bioSetStatus, bioSetReviewed, bioHashMatches, bioHashOf, bioQueueState, sameBioText,
-    bioTruncateForDisplay, BIO_DISPLAY_MAX_BYTES,
-    expirePendingBioEntries, expireStaleBioEntries, getLiveBio, getLiveBios,
-    pasteAdd, pasteEdit, pasteGet, pasteDel, pasteCountUser, pasteGetUser,
-    getAllUsersData, getRatedUsers, getRecentActivities, getRecentActivitiesPaginated, compactRequestLogs,
-    getCatFoodLogCount, getCatFoodLogs,
-    getOrCreateCurrentMarket, getCurrentQuote, getCatCanDayChange, ensureCurrentCatCanPrice,
-    ensureCatCanIndexes, ensureCatCanPool, buyCatCans, sellCatCans, adjustCatCans, calibrateCatCanPool,
-    getCatCanPage,
-    CAT_CAN_ADMIN_ADJUSTMENT_MAX,
-    ensureCatAccountIndexes, formatCatFood, getCatAccountPage, grantCatFood,
-    createCatFoodBatchPreview, getCatFoodBatchPreview, confirmCatFoodBatchPreview,
-    reverseCatCanTransaction, purgeUnverifiedCatAssets,
-    ensureCatMapIndexes, joinCatMapPlayer, getCatMapSnapshot,
-    moveCatMapPlayer, setCatMapCellColor, adminPaintCatMap, adminRelocateCatMapPlayer,
-    refreshCatMapTerritories, recountSchoolCatTerritories, getCatMapCooldownMinutes,
-    getCatMapConfig, saveCatMapConfig, getCatMapPlan, getCatMapPlanView,
-    saveCatMapPlan, stopCatMapPlan, advanceCatMapPlan, runCatMapPlansDue,
-    buildCatMapPlanView, validateCatMapPlanShape, normalizeCatMapPlanMaxSteps,
-    CAT_MAP_PLAN_MAX_STEPS_DEFAULT, CAT_MAP_PLAN_MAX_STEPS_LIMIT, CAT_MAP_PLAN_RETRY_LIMIT,
-    ensureSchoolCatIndexes, searchSchools, listSchools, getSchool, getSchoolView,
-    getBigCatWorldState, getSchoolCatRanking, bindSchoolCat, unbindSchoolCat, feedSchoolCat, getSchoolCatDetail,
-    setSchoolCatTerritoryColor, schoolCatKey, schoolIdFromCatKey,
-    createSpecialSchoolCat, renameSpecialSchoolCat, listSpecialSchoolCats, transferSchoolCat,
-    isAdminSchoolCatRecord, backfillSchoolCatMoveContributions,
-    getSchoolCatWeeklyRewardStatus, listSchoolCatWeeklyRewards,
-    getSchoolCatWeeklyRewardDetail, getSchoolCatWeeklyRewardRollbackCheck,
-    settleSchoolCatWeeklyRewards, rollbackSchoolCatWeeklyRewards,
-    schoolCatRewardPeriod, schoolCatTerritoryBaseReward,
-    schoolCatColorCss, schoolDisplay, schoolUrl, removeSchoolCatBinding,
-    submitRequest, directUpdate, approveRequest, rejectRequest,
-    getPendingRequests, getPendingRequestCount, getRequestById, getRequestsByIds, getUserPendingRequests,
-    applyRequestPayload,
-    createToken, getTokensByUid, getAllActiveTokens, getTokenByHash, deleteToken, touchToken,
-    createClient, getClients, getClient, deleteClient, verifyClientSecret,
-    redirectAllowed, createCode, consumeCode,
-    createAccessToken, getAccessTokenByRaw, refreshAccessToken, revokeToken, revokeAllForClient,
-    logDeny, DEFAULT_SCOPES,
-    wikiAdd, wikiImport, wikiEdit, wikiGet, wikiGetApproved, wikiGetOrCreateIndex,
-    wikiDelete,
-    wikiCatGetAll, wikiCatAdd, wikiCatEdit, wikiCatDelete,
-    aiGetRecordDetail, aiIsContestRecord,
-    aiGetAnalysis, aiSaveAnalysis, aiDeleteAnalysis,
-    aiGetProblemSummary, aiSaveProblemSummary, aiSaveProblemDifficulty,
-    aiBatchGetStatus, aiBatchSaveStatus,
-    aiGetAccess, aiGetAccessList, aiSetAccess, aiAddQuota, aiRemoveAccess, aiDeductBalance,
-    aiGetProviders, aiSaveProvider, aiDeleteProvider,
-    aiUpsertProviderModel, aiDeleteProviderModel, aiResolveModel,
-    aiAddUsage, aiGetUsageStats, aiGetUsedMap,
-    aiGetConfig, aiSaveConfig,
-    ensureModerationIndexes, modAdd, modCloseMissingTarget, modGet, modListPending,
-    modListRecent, modSetStatus, modExpireEntries,
-    modFindCachedVerdict, modCountTodayByUid, modTodayCost, modStats,
-    ensureMeowIndexes, meowDateKey, meowDailyFreeAvailable,
-    meowGetPost, meowLastPost, meowCooldownAnchorPost, meowCooldownRemaining, meowCooldownText, meowRefundCan,
-    meowPostAdd, meowMedalPostAdd, meowFeed, meowUserPosts,
-    meowResolveVerdict, meowForwardCount, meowListPending, meowListRecent, meowListAll, meowDelete, meowTodayStats, meowSetStatus,
-    meowFollow, meowUnfollow, meowIsFollowing,
-    meowFollowingList, meowFollowerList, meowFollowingCount, meowFollowerCount,
-    meowFollowingMap, meowFollowedByMap,
-    meowToggleLike, meowLikedMap,
-    setMeowReviewKicker, meowAdminUids, meowHomeFeed, meowBuildChain,
-    MEOW_POST_CAN_COST, MEOW_POST_COOLDOWN_MS,
-    ensureMedalIndexes, medalGet, medalList, medalCatalogue, medalSave,
-    medalDelete, medalGetUserAwards, medalListRecentAwards, medalListAwardsPaginated, medalAwardStats,
-    medalListLevelHolders,
-    medalExportDefinitions, medalImportDefinitions,
-    medalGrant, medalRevoke, medalEvaluateUser, medalEvaluateAll, medalSetLevel,
-    medalCategoryOf, medalCategoryName, medalCategoryRank, medalGroupByCategory,
-    medalLevelOf, medalDisplayRung, medalSortedLevels, medalAwardView,
-    medalIsLevelSeries, medalThresholdLevel, medalAutomaticRuleText,
-    medalMigrateAutomaticLevels,
-    MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES, MEDAL_AUTOMATIC_SERIES, AUTOMATIC_RULE_TYPES,
-    medalGetAcceptedDomains, medalSetAcceptedDomains,
-    medalAcceptedDomainIncluded, medalImportInitialDefinitions,
-    ensureAuctionIndexes, auctionGet, auctionCreate, auctionBid, auctionSettle,
-    auctionSettleExpired, auctionCancel, auctionListActive, auctionListRecentFinished,
-    auctionGetBids, auctionSaleableShowcase,
-    ensureContractIndexes, contractGet, contractListSellableAwards, contractCreate,
-    contractAccept, contractDecline, contractCancel, contractDelete, contractListIncoming,
-    contractListOutgoing, contractListRecentResolved,
-    CONTRACT_FEE_PERCENT, contractFeeAmount,
-    ensureAlgorithmIndexes, algorithmGetConfig, algorithmSaveConfig,
-    algorithmListItems, algorithmGetItem, algorithmCountItems,
-    algorithmGroupItems, algorithmComputeStats,
-    algorithmProfileView, algorithmSetLevels,
-    algorithmMonthKey, algorithmNextUpdateDate,
-    algorithmGetSelfQuota, algorithmClaimSelfQuota, algorithmReleaseSelfQuota, algorithmResetSelfQuota,
-    algorithmSaveItem, algorithmDeleteItem, algorithmSetItemEnabled, algorithmBulkSetEnabled,
-    algorithmImportOutline, algorithmEnsureOutlineImported, algorithmMigrateOutlineIds,
-    algorithmDropBasicsSection,
-    algorithmOutlineData, algorithmOutlineMeta, normalizeOutlineId,
-    algorithmNormalizeLevel, algorithmLevelName,
-    ALGORITHM_LEVELS, ALGORITHM_LEVEL_NAMES, ALGORITHM_MAX_LEVEL,
-    ALGORITHM_MAX_TEXT, ALGORITHM_MAX_NOTE, ALGORITHM_MAX_GROUP_NAME, ALGORITHM_MAX_ITEMS,
-    ALGORITHM_CONFIG_ID, ALGORITHM_DROPPED_SECTION,
+    ...userModel,
+    ...pasteModel,
+    ...wikiModel,
+    ...requestModel,
+    ...oauthModel,
+    ...tokenModel,
+    ...logModel,
+    ...catCanModel,
+    ...catAccountModel,
+    ...catMapModel,
+    ...catMapPlanModel,
+    ...schoolCatModel,
+    ...aiModel,
+    ...moderateModel,
+    ...meowModel,
+    ...medalModel,
+    ...auctionModel,
+    ...contractModel,
+    ...algorithmModel,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -286,6 +84,8 @@ declare module 'hydrooj' {
         oi33_token: import('./types').Oi33Token;
         oi33_log: import('./types').Oi33Log;
         oi33_request: import('./types').Oi33Request;
+        oi33_wiki: import('./types').Oi33Wiki;
+        oi33_wiki_category: import('./types').Oi33WikiCategoryDoc;
         oi33_oauth_client: import('./types').Oi33OAuthClient;
         oi33_oauth_code: import('./types').Oi33OAuthCode;
         oi33_oauth_token: import('./types').Oi33OAuthToken;
@@ -302,6 +102,7 @@ declare module 'hydrooj' {
         oi33_school_feed_history: import('./types').Oi33SchoolFeedHistory;
         oi33_school_cat_reward: import('./types').Oi33SchoolCatReward;
         oi33_ai_analysis: import('./types').Oi33AiAnalysis;
+        oi33_ai_batch: import('./types').Oi33AiBatchStatus;
         oi33_ai_config: import('./types').Oi33AiConfig;
         oi33_ai_problem_summary: import('./types').Oi33AiProblemSummary;
         oi33_ai_provider: import('./types').Oi33AiProvider;

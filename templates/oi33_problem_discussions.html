@@ -1,0 +1,28 @@
+{% set page_name = "oi33_problem_discussions" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">题目讨论</h1>
+        <div class="section__tools">
+          <a href="{{ url('discussion_main') }}" class="rounded button">全部讨论</a>
+        </div>
+      </div>
+      {% include "partials/discussion_list.html" %}
+    </div>
+  </div>
+  <div class="medium-3 columns">
+    <div class="section side">
+      <div class="section__header">
+        <h1 class="section__title">题目讨论</h1>
+      </div>
+      <div class="section__body">
+        <p>这里汇总所有题目页面内的讨论。它们不再出现在「全部讨论」里，只在本板块与各自题目页可见。</p>
+      </div>
+    </div>
+    {% include 'partials/discussion_nodes_widget.html' %}
+  </div>
+</div>
+{% endblock %}

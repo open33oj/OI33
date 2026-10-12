@@ -5,8 +5,10 @@ import {
 import { HomeHandler } from 'hydrooj/src/handler/home';
 import { oi33Model } from '../model';
 import { addLog } from '../model/log';
-import { checkOi33Admin, checkUserFlag } from './utils';
-import { checkRules, configReviewWords, configWords, hashOf, mathTooDeep, normalizeText, runAiVerdict } from './moderate';
+import { checkOi33Admin, checkUserFlag, loadOi33Users } from './utils';
+import {
+    checkRules, configReviewWords, configWords, evaluateContent, mathTooDeep, normalizeText,
+} from '../model/moderate';
 
 const MAX_CONTENT_LEN = 256;
 const FEED_PAGE_SIZE = 20;
@@ -70,9 +72,7 @@ async function moderateMeowAsync(uid: number, postId: ObjectId) {
         const post = await oi33Model.meowGetPost(postId);
         if (!post) return;
         const cfg = await oi33Model.aiGetConfig();
-        const normalized = normalizeText(post.content);
-        const hash = hashOf(normalized);
-        const result = await runAiVerdict(uid, normalized, hash, cfg);
+        const { verdict: result } = await evaluateContent(uid, post.content, cfg);
         await oi33Model.meowResolveVerdict(postId, result);
     } catch (e: any) {
         // Fail closed: any unexpected error lands in the human queue.
@@ -87,12 +87,7 @@ async function moderateMeowAsync(uid: number, postId: ObjectId) {
 
 // Shared user-list loader: merges oi33 identity and the mutual-follow maps.
 async function loadUserList(domainId: string, uids: number[], viewerId: number) {
-    const udict = uids.length ? await UserModel.getList(domainId, uids) : {};
-    const oi33Data = await oi33Model.getUserDataByUids(uids);
-    for (const uid of uids) {
-        if (!udict[uid]) continue;
-        oi33Model.mergeOi33Fields(udict[uid], oi33Data[uid]);
-    }
+    const udict = await loadOi33Users(domainId, uids);
     const [followingMap, followedByMap] = await Promise.all([
         oi33Model.meowFollowingMap(viewerId, uids),
         oi33Model.meowFollowedByMap(viewerId, uids),
@@ -113,12 +108,7 @@ async function prepareMeowPosts(domainId: string, rawPosts: any[], viewerUid: nu
         posts.push({ ...raw, pid: raw._id.toHexString(), chain, html: await linkifyMentions(domainId, raw.content) });
     }
     const allUids = [...new Set([...rawPosts.map((p) => p.uid), ...chainUids])];
-    const udict = allUids.length ? await UserModel.getList(domainId, allUids) : {};
-    const oi33Data = await oi33Model.getUserDataByUids(allUids);
-    for (const uid of allUids) {
-        if (!udict[uid]) continue;
-        oi33Model.mergeOi33Fields(udict[uid], oi33Data[uid]);
-    }
+    const udict = await loadOi33Users(domainId, allUids);
     const likedMap = await oi33Model.meowLikedMap(viewerUid, rawPosts.map((p) => p._id));
     return { posts, udict, likedMap };
 }
@@ -158,12 +148,9 @@ class MeowMainHandler extends Handler {
             // Resolve chain authors for the forward block in the compose area.
             const extraUids = chain.map((c) => c.uid).filter((u) => !udict[u]);
             if (extraUids.length) {
-                const extraUdict = await UserModel.getList(domainId, extraUids);
-                const oi33Extra = await oi33Model.getUserDataByUids(extraUids);
+                const extraUdict = await loadOi33Users(domainId, extraUids);
                 for (const u of extraUids) {
-                    if (!extraUdict[u]) continue;
-                    oi33Model.mergeOi33Fields(extraUdict[u], oi33Extra[u]);
-                    udict[u] = extraUdict[u];
+                    if (extraUdict[u]) udict[u] = extraUdict[u];
                 }
             }
         }
@@ -410,12 +397,9 @@ class MeowAdminHandler extends Handler {
         const { posts, udict, likedMap } = await prepareMeowPosts('', all.docs, this.user._id);
         const pendingUids = pending.map((p) => p.uid).filter((u) => !udict[u]);
         if (pendingUids.length) {
-            const extra = await UserModel.getList('', pendingUids);
-            const oi33Extra = await oi33Model.getUserDataByUids(pendingUids);
+            const extra = await loadOi33Users('', pendingUids);
             for (const u of pendingUids) {
-                if (!extra[u]) continue;
-                oi33Model.mergeOi33Fields(extra[u], oi33Extra[u]);
-                udict[u] = extra[u];
+                if (extra[u]) udict[u] = extra[u];
             }
         }
         this.response.template = 'oi33_meow_admin.html';
@@ -481,7 +465,7 @@ class MeowDeleteHandler extends Handler {
 // HomeHandler so Hydro's config-driven module loader calls it; nothing is
 // auto-injected into the homepage.
 function registerHomeMeowModule(ctx: Context) {
-    HomeHandler.prototype.getMeow = async function (domainId: string, limit: any) {
+    (HomeHandler.prototype as any).getMeow = async function (domainId: string, limit: any) {
         const n = Math.max(1, Math.min(50, Number(limit) || HOME_FEED_LIMIT));
         const viewerUid = this.user?._id || 0;
         const rawPosts = await oi33Model.meowHomeFeed(viewerUid, n);

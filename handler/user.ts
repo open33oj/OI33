@@ -3,7 +3,7 @@ import {
     Handler, PRIV, Types, param, query, NotFoundError, ForbiddenError, Context,
 } from 'hydrooj';
 import { oi33Model } from '../model';
-import { checkOi33Admin, checkUserFlag } from './utils';
+import { checkOi33Admin, checkUserFlag, loadOi33Users } from './utils';
 
 // --- Coin handlers ---
 
@@ -61,14 +61,8 @@ class BirthdayShowHandler extends Handler {
     async get() {
         const records = await oi33Model.getTodayBirthdays();
         const userIds = records.map((r: any) => r._id);
-        const udict = await UserModel.getList('', userIds);
-        const oi33Dict = await oi33Model.getUserDataByUids(userIds);
-        const udocs = userIds.map((id: number) => {
-            const u = udict[id];
-            if (!u) return null;
-            oi33Model.mergeOi33Fields(u, oi33Dict[id]);
-            return u;
-        }).filter((u: any) => u);
+        const udict = await loadOi33Users('', userIds);
+        const udocs = userIds.map((id: number) => udict[id]).filter((u: any) => u);
         this.response.template = 'oi33_birthday_show.html';
         this.response.body = { udocs, records };
     }
@@ -86,14 +80,8 @@ class BadgeShowHandler extends Handler {
     async get() {
         const oi33Docs = await oi33Model.getBadgedUsers();
         const uids = oi33Docs.map((d: any) => d._id);
-        const udict = await UserModel.getList('', uids);
-        const oi33Dict = await oi33Model.getUserDataByUids(uids);
-        const udocs = uids.map((id: number) => {
-            const u = udict[id];
-            if (!u) return null;
-            oi33Model.mergeOi33Fields(u, oi33Dict[id], ['badge']);
-            return u;
-        }).filter((u: any) => u);
+        const udict = await loadOi33Users('', uids, { fields: ['badge'] });
+        const udocs = uids.map((id: number) => udict[id]).filter((u: any) => u);
         this.response.template = 'oi33_badge_show.html';
         this.response.body = { udocs };
     }
@@ -104,14 +92,8 @@ class BadgeManageHandler extends Handler {
         await checkOi33Admin(this.user._id);
         const oi33Docs = await oi33Model.getBadgedUsers();
         const uids = oi33Docs.map((d: any) => d._id);
-        const udict = await UserModel.getList('', uids);
-        const oi33Dict = await oi33Model.getUserDataByUids(uids);
-        const udocs = uids.map((id: number) => {
-            const u = udict[id];
-            if (!u) return null;
-            oi33Model.mergeOi33Fields(u, oi33Dict[id], ['badge']);
-            return u;
-        }).filter((u: any) => u);
+        const udict = await loadOi33Users('', uids, { fields: ['badge'] });
+        const udocs = uids.map((id: number) => udict[id]).filter((u: any) => u);
         this.response.template = 'oi33_badge_manage.html';
         this.response.body = { udocs };
     }
@@ -135,14 +117,8 @@ class UsersShowHandler extends Handler {
         await checkOi33Admin(this.user._id);
         const { docs, upcount } = await oi33Model.getAllUsersData(page, 50, flag);
         const uids = docs.map((d: any) => d._id);
-        const udict = await UserModel.getList(domainId, uids);
-        const oi33Dict = await oi33Model.getUserDataByUids(uids);
-        const udocs = uids.map((id: number) => {
-            const u = udict[id];
-            if (!u) return null;
-            oi33Model.mergeOi33Fields(u, oi33Dict[id]);
-            return u;
-        }).filter((u: any) => u);
+        const udict = await loadOi33Users(domainId, uids);
+        const udocs = uids.map((id: number) => udict[id]).filter((u: any) => u);
         this.response.template = 'oi33_users.html';
         this.response.body = { udocs, page, upcount, flag };
     }
@@ -192,14 +168,8 @@ class RatingShowHandler extends Handler {
         if (!['atcoder', 'codeforces'].includes(sort)) sort = 'atcoder';
         const { docs, upcount } = await oi33Model.getRatedUsers(sort, page, 50);
         const uids = docs.map((d: any) => d._id);
-        const udict = await UserModel.getList(domainId, uids);
-        const oi33Dict = await oi33Model.getUserDataByUids(uids);
-        const udocs = uids.map((id: number) => {
-            const u = udict[id];
-            if (!u) return null;
-            oi33Model.mergeOi33Fields(u, oi33Dict[id]);
-            return u;
-        }).filter((u: any) => u);
+        const udict = await loadOi33Users(domainId, uids);
+        const udocs = uids.map((id: number) => udict[id]).filter((u: any) => u);
         this.response.template = 'oi33_rating.html';
         this.response.body = { udocs, page, upcount, sort };
     }
