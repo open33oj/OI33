@@ -10,6 +10,9 @@
         <h1 class="section__title">全部题解</h1>
         <div class="section__tools">
           <span class="oi33-solutions__count">共 {{ total }} 篇</span>
+          {% if handler.user.realname_flag and handler.user.realname_flag >= 2 %}
+          <a class="rounded button" href="{{ url('oi33_solutions_featured') }}">题解加精管理</a>
+          {% endif %}
         </div>
       </div>
       <div class="section__body">
@@ -42,6 +45,7 @@
                 {% endif %}
               </td>
               <td class="oi33-solutions__content">
+                {% if psdoc.featured %}<span class="oi33-solutions__featured" title="精华题解">精华</span>{% endif %}
                 <a href="{{ url('problem_solution_detail', pid=psdoc.parentId, sid=psdoc._id) }}">{{ psdoc.content|truncate(160) }}</a>
               </td>
               <td style="white-space:nowrap;">
@@ -68,5 +72,9 @@
   .oi33-solutions__content a { color:inherit; }
   .oi33-solutions__content a:hover { color:var(--accent-color,#55b6e2); }
   .oi33-solutions__empty { color:#888; }
+  .oi33-solutions__featured {
+    display:inline-block; margin-right:.35rem; padding:0 .35rem; border-radius:4px;
+    background:#e8a33d; color:#fff; font-size:.75em; font-weight:600; vertical-align:1px;
+  }
 </style>
 {% endblock %}

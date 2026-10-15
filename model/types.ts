@@ -557,6 +557,51 @@ export interface Oi33UserMedal {
 
 // --- Medal auctions ---
 
+// --- 盲盒奖章 (medal blind box) ---
+
+export interface Oi33BlindboxItem {
+    medalId: string;
+    // Integer weight; every pool's items sum to 100.
+    probability: number;
+}
+
+export interface Oi33MedalBlindbox {
+    _id: ObjectId;
+    name: string;
+    // Purchases are refused before this moment.
+    openAt: Date;
+    // Price in cat cans.
+    price: number;
+    items: Oi33BlindboxItem[];
+    enabled: boolean;
+    createdAt: Date;
+    createdBy: number;
+    updatedAt: Date;
+    updatedBy: number;
+}
+
+export interface Oi33BlindboxLog {
+    _id: ObjectId;
+    uid: number;
+    poolId: ObjectId;
+    poolName: string;
+    medalId: string;
+    price: number;
+    createdAt: Date;
+}
+
+// --- 题解加精 (featured problem solutions) ---
+
+export interface Oi33SolutionConfig {
+    _id: string; // 'main'
+    // Reward handed to a non-admin solution author when the solution is
+    // featured. 'none' disables the reward.
+    featureRewardType: 'none' | 'can' | 'food';
+    featureRewardAmount: number;
+    updatedAt: Date;
+    updatedBy?: number;
+}
+
 export interface Oi33Auction {
     _id: ObjectId;
     medalId: string;

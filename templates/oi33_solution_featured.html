@@ -1,0 +1,130 @@
+{% set page_name = "oi33_solutions_featured" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% import "components/paginator.html" as paginator with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">题解加精</h1>
+        <div class="section__tools">
+          <span class="oi33-featured__count">精华 {{ featuredCount }} / 共 {{ total }} 篇{% if featuredOnly %}（只显示精华）{% endif %}</span>
+          {% if featuredOnly %}
+          <a class="rounded button" href="{{ url('oi33_solutions_featured') }}">显示全部</a>
+          {% else %}
+          <a class="rounded button" href="{{ url('oi33_solutions_featured', query={only: 'featured'}) }}">只看精华</a>
+          {% endif %}
+          <a class="rounded button" href="{{ url('oi33_solutions') }}">全部题解</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <form method="post" action="{{ url('oi33_solution_feature_config') }}" class="oi33-featured__config">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <strong>加精奖励</strong>
+          <span class="oi33-featured__hint">给「作者不是管理员（flag &lt; 2）」的题解加精时发放，同一篇题解只发一次。</span>
+          <div class="oi33-featured__config-row">
+            <select name="featureRewardType" class="select">
+              {% for option in rewardTypes %}
+              <option value="{{ option.value }}"{% if config.featureRewardType == option.value %} selected{% endif %}>{{ option.text }}</option>
+              {% endfor %}
+            </select>
+            <input type="number" class="textbox" name="featureRewardAmount" min="0" max="1000000" step="1"
+                   value="{{ config.featureRewardAmount }}">
+            <button type="submit" class="rounded primary button">保存奖励设置</button>
+            <span class="oi33-featured__hint">当前：{{ rewardText }}</span>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">题解列表</h1>
+      </div>
+      <div class="section__body">
+        {% if psdocs.length %}
+        <table class="data-table oi33-featured">
+          <colgroup>
+            <col style="width:9rem;">
+            <col style="width:14rem;">
+            <col>
+            <col style="width:11rem;">
+            <col style="width:11rem;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>题目</th>
+              <th>题解</th>
+              <th>作者</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {%- for psdoc in psdocs -%}
+            {% set pdoc = pdocs[psdoc.parentId] %}
+            <tr>
+              <td style="white-space:nowrap;">{{ datetimeSpan(psdoc._id)|safe }}</td>
+              <td>
+                {% if pdoc %}
+                <a href="{{ url('problem_detail', pid=pdoc.pid|default(psdoc.parentId)) }}">{{ pdoc.title }}</a>
+                {% else %}
+                <span class="oi33-featured__missing">题目 #{{ psdoc.parentId }} 已不可见</span>
+                {% endif %}
+              </td>
+              <td class="oi33-featured__content">
+                {% if psdoc.featured %}<span class="oi33-featured__badge">精华</span>{% endif %}
+                {% if psdoc.hidden %}<span class="oi33-featured__hidden">审核中</span>{% endif %}
+                <a href="{{ url('problem_solution_detail', pid=psdoc.parentId, sid=psdoc._id) }}">{{ psdoc.content|truncate(140) }}</a>
+              </td>
+              <td style="white-space:nowrap;">
+                {% if udict[psdoc.owner] %}{{ user.render_inline(udict[psdoc.owner], false, false) }}{% else %}UID {{ psdoc.owner }}{% endif %}
+                {% if psdoc.vote %}<span class="oi33-featured__vote" title="得票">▲ {{ psdoc.vote }}</span>{% endif %}
+              </td>
+              <td>
+                {% if psdoc.hidden %}
+                <span class="oi33-featured__hint">审核中不可加精</span>
+                {% else %}
+                <form method="post" action="{{ url('oi33_solution_feature') }}" style="display:inline;">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="psid" value="{{ psdoc._id }}">
+                  <input type="hidden" name="featured" value="{{ 0 if psdoc.featured else 1 }}">
+                  <input type="hidden" name="redirect" value="{{ url('oi33_solutions_featured', query={only: 'featured'} if featuredOnly else {}) }}">
+                  <button type="submit" class="rounded button">{{ '取消精华' if psdoc.featured else '设为精华' }}</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {%- endfor -%}
+          </tbody>
+        </table>
+        {{ paginator.render(page, upcount) }}
+        {% else %}
+        <p class="oi33-featured__hint">没有符合条件的题解。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .oi33-featured__count { color:#888; font-size:.85em; }
+  .oi33-featured__hint { color:#888; font-size:.85em; }
+  .oi33-featured__config-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin-top:.5rem; }
+  .oi33-featured__config-row .select, .oi33-featured__config-row .textbox { margin-bottom:0; }
+  .oi33-featured__config-row .textbox { width:8rem; }
+  .oi33-featured__badge {
+    display:inline-block; margin-right:.35rem; padding:0 .35rem; border-radius:4px;
+    background:#e8a33d; color:#fff; font-size:.75em; font-weight:600;
+  }
+  .oi33-featured__hidden {
+    display:inline-block; margin-right:.35rem; padding:0 .35rem; border-radius:4px;
+    background:#c62828; color:#fff; font-size:.75em; font-weight:600;
+  }
+  .oi33-featured__vote { color:#888; font-size:.82em; margin-left:.3rem; }
+  .oi33-featured__content { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+  .oi33-featured__content a { color:inherit; }
+  .oi33-featured__content a:hover { color:var(--accent-color,#55b6e2); }
+  .oi33-featured__missing { color:#999; }
+</style>
+{% endblock %}

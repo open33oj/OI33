@@ -23,6 +23,7 @@ import { apply as applyContest } from './handler/contest';
 import { apply as applyDraw } from './handler/draw';
 import { apply as applyAlgorithm } from './handler/algorithm';
 import { apply as applySolution } from './handler/solution';
+import { apply as applyBlindbox } from './handler/blindbox';
 import { apply as applyDiscuss } from './handler/discuss';
 import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
@@ -37,6 +38,7 @@ import { ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
 import { ensureLogIndexes } from './model/log';
 import { ensureAlgorithmIndexes } from './model/algorithm';
+import { ensureBlindboxIndexes } from './model/blindbox';
 
 let catCanTimer: NodeJS.Timeout | undefined;
 let catCanMaintenanceRunning = false;
@@ -136,6 +138,7 @@ export async function apply(ctx: Context) {
         ['draw', applyDraw],
         ['algorithm', applyAlgorithm],
         ['solution', applySolution],
+        ['blindbox', applyBlindbox],
         ['discuss', applyDiscuss],
     ];
     for (const [name, fn] of parts) {
@@ -163,6 +166,7 @@ export async function apply(ctx: Context) {
                 await ensureModerationIndexes();
                 await ensureMeowIndexes();
                 await ensureMedalIndexes();
+                await ensureBlindboxIndexes();
                 await ensureAuctionIndexes();
                 await ensureContractIndexes();
                 await ensureAlgorithmIndexes();

@@ -23,6 +23,8 @@ import * as auctionModel from './auction';
 import * as contractModel from './contract';
 import * as algorithmModel from './algorithm';
 import * as homeConfigModel from './home-config';
+import * as blindboxModel from './blindbox';
+import * as solutionFeatureModel from './solution-feature';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -50,6 +52,8 @@ export { auctionColl, auctionBidColl } from './auction';
 export { contractColl } from './contract';
 export { algorithmItemColl, userAlgorithmColl, algorithmConfigColl } from './algorithm';
 export { homeConfigColl } from './home-config';
+export { blindboxColl, blindboxLogColl } from './blindbox';
+export { solutionConfigColl } from './solution-feature';
 
 const oi33Model = {
     ...userModel,
@@ -72,6 +76,8 @@ const oi33Model = {
     ...contractModel,
     ...algorithmModel,
     ...homeConfigModel,
+    ...blindboxModel,
+    ...solutionFeatureModel,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -124,6 +130,9 @@ declare module 'hydrooj' {
         oi33_user_algorithm: import('./types').Oi33UserAlgorithm;
         oi33_algorithm_config: import('./types').Oi33AlgorithmConfig;
         oi33_home_config: import('./types').Oi33HomeConfig;
+        oi33_medal_blindbox: import('./types').Oi33MedalBlindbox;
+        oi33_medal_blindbox_log: import('./types').Oi33BlindboxLog;
+        oi33_solution_config: import('./types').Oi33SolutionConfig;
     }
 }
 

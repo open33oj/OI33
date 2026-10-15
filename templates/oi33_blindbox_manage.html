@@ -1,0 +1,174 @@
+{% set page_name = "oi33_blindbox_manage" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    {% if error %}
+    <div class="section">
+      <div class="section__body">
+        <div class="oi33-blindbox-manage__error">{{ error }}</div>
+      </div>
+    </div>
+    {% endif %}
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ '编辑盲盒' if form.id else '新建盲盒' }}</h1>
+        <div class="section__tools">
+          {% if form.id %}
+          <a class="rounded button" href="{{ url('oi33_blindbox_manage') }}">改为新建</a>
+          {% endif %}
+          <a class="rounded button" href="{{ url('oi33_blindbox') }}">看用户页</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <form method="post" action="{{ url('oi33_blindbox_save') }}">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <input type="hidden" name="id" value="{{ form.id }}">
+          <div class="row">
+            <div class="medium-4 columns">
+              <label class="oi33-blindbox-manage__label">
+                名称
+                <input type="text" class="textbox" name="name" maxlength="40" required value="{{ form.name }}">
+              </label>
+            </div>
+            <div class="medium-4 columns">
+              <label class="oi33-blindbox-manage__label">
+                价格（猫罐头）
+                <input type="number" class="textbox" name="price" min="1" max="{{ priceMax }}" step="1" required value="{{ form.price }}">
+              </label>
+            </div>
+            <div class="medium-4 columns">
+              <label class="oi33-blindbox-manage__label">
+                开放购买时间
+                <input type="datetime-local" class="textbox" name="openAt" required value="{{ form.openAt }}">
+              </label>
+            </div>
+          </div>
+          <label class="oi33-blindbox-manage__check">
+            <input type="checkbox" name="enabled" value="1"{% if form.enabled %} checked{% endif %}>
+            上架（下架后用户无法购买，但仍保留记录）
+          </label>
+
+          <h2 class="oi33-blindbox-manage__h">奖章与出现几率</h2>
+          <p class="oi33-blindbox-manage__hint">
+            每个奖章填一个 1-100 的整数几率，<strong>所有几率之和必须等于 100</strong>；
+            留空的奖章行会被忽略。可拍卖奖章、认证奖章与有等级阶梯的奖章不能放进盲盒。
+          </p>
+          <table class="data-table oi33-blindbox-manage__rows">
+            <thead>
+              <tr>
+                <th style="width:3rem;">#</th>
+                <th>奖章</th>
+                <th style="width:9rem;">出现几率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for index in range(0, rowCount) %}
+              {% set row = form.items[index] %}
+              <tr>
+                <td>{{ index + 1 }}</td>
+                <td>
+                  <select name="medalId_{{ index }}" class="select">
+                    <option value="">（不使用）</option>
+                    {% for medal in candidates %}
+                    <option value="{{ medal._id }}"{% if row and row.medalId == medal._id %} selected{% endif %}>
+                      {{ medal.name }}（{{ medal.categoryName }}）
+                    </option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td>
+                  <input type="number" class="textbox" name="probability_{{ index }}" min="1" max="100" step="1"
+                         value="{{ row.probability if row else '' }}" placeholder="0">
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <button type="submit" class="rounded primary button">保存盲盒</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">已有盲盒（{{ pools.length }}）</h1>
+        <div class="section__tools">
+          <span class="oi33-blindbox-manage__hint">每天每人最多购买 {{ dailyLimit }} 次（所有盲盒共用）</span>
+        </div>
+      </div>
+      <div class="section__body">
+        {% if pools.length %}
+        <table class="data-table">
+          <colgroup>
+            <col>
+            <col style="width:8rem;">
+            <col style="width:12rem;">
+            <col style="width:6rem;">
+            <col style="width:9rem;">
+            <col style="width:12rem;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>名称 / 奖章</th>
+              <th>价格</th>
+              <th>开放时间</th>
+              <th>状态</th>
+              <th>几率合计</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pool in pools %}
+            <tr>
+              <td>
+                <div><strong>{{ pool.name }}</strong></div>
+                <div class="oi33-blindbox-manage__pool-items">
+                  {% for item in pool.items %}{{ item.medalId }} {{ item.probability }}%{% if not loop.last %} · {% endif %}{% endfor %}
+                </div>
+              </td>
+              <td>{{ pool.price }} 猫罐头</td>
+              <td>{{ datetimeSpan(pool.openAt)|safe }}</td>
+              <td>{{ '上架' if pool.enabled else '已下架' }}</td>
+              <td class="{{ 'is-bad' if pool.probabilitySum != 100 }}">
+                {{ pool.probabilitySum }}{% if pool.probabilitySum != 100 %}（应为 100）{% endif %}
+              </td>
+              <td>
+                <a class="rounded button" href="{{ url('oi33_blindbox_manage', query={edit: pool._id}) }}">编辑</a>
+                <form method="post" action="{{ url('oi33_blindbox_toggle', id=pool._id) }}" style="display:inline;">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="enabled" value="{{ 0 if pool.enabled else 1 }}">
+                  <button type="submit" class="rounded button">{{ '下架' if pool.enabled else '上架' }}</button>
+                </form>
+                <form method="post" action="{{ url('oi33_blindbox_delete', id=pool._id) }}" style="display:inline;"
+                      onsubmit="return confirm('删除盲盒「{{ pool.name }}」？用户的购买记录会保留。');">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <button type="submit" class="rounded button">删除</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="oi33-blindbox-manage__hint">还没有盲盒，用上面的表单创建一个。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .oi33-blindbox-manage__label { display:block; font-size:.85em; color:#666; }
+  .oi33-blindbox-manage__label .textbox { margin-bottom:.6rem; }
+  .oi33-blindbox-manage__check { display:block; font-size:.88em; margin:.4rem 0 .8rem; }
+  .oi33-blindbox-manage__h { font-size:1rem; margin:1.2rem 0 .4rem; }
+  .oi33-blindbox-manage__hint { color:#888; font-size:.85em; }
+  .oi33-blindbox-manage__error { color:#c62828; border-left:3px solid #d32f2f; padding-left:.6rem; }
+  .oi33-blindbox-manage__rows .textbox, .oi33-blindbox-manage__rows .select { margin-bottom:0; }
+  .oi33-blindbox-manage__pool-items { color:#888; font-size:.78em; overflow-wrap:anywhere; }
+  .oi33-blindbox-manage__pool-items .is-bad { color:#c62828; }
+  td.is-bad { color:#c62828; }
+  .oi33-blindbox-manage__rows select.select { width:100%; }
+</style>
+{% endblock %}
