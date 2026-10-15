@@ -191,7 +191,51 @@ async function blindboxReleaseDaily(uid: number, day: string): Promise<void> {
 }
 
 export async function blindboxLogs(uid: number, limit = 20): Promise<any[]> {
-    return await blindboxLogColl.find({ uid } as any).sort({ createdAt: -1 }).limit(limit).toArray();
+    const logs = await blindboxLogColl.find({ uid } as any).sort({ createdAt: -1 }).limit(limit).toArray();
+    return await blindboxAttachMedals(logs);
+}
+
+// 分页版开盒记录（右侧「查看全部」页用），返回 `{ logs, total, upcount }`。
+export async function blindboxLogPage(uid: number, page = 1, limit = 20) {
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(limit) || 20));
+    const [total, totals] = await Promise.all([
+        blindboxLogColl.countDocuments({ uid } as any),
+        blindboxLogColl.aggregate([
+            { $match: { uid } },
+            { $group: { _id: null, spent: { $sum: '$price' }, copies: { $sum: 1 } } },
+        ]).toArray(),
+    ]);
+    const upcount = Math.max(1, Math.ceil(total / safeLimit));
+    const current = Math.max(1, Math.min(upcount, Math.floor(page) || 1));
+    const logs = await blindboxLogColl.find({ uid } as any)
+        .sort({ createdAt: -1 })
+        .skip((current - 1) * safeLimit)
+        .limit(safeLimit)
+        .toArray();
+    return {
+        logs: await blindboxAttachMedals(logs),
+        total,
+        upcount,
+        page: current,
+        pageSize: safeLimit,
+        spent: Math.max(0, Number((totals[0] as any)?.spent) || 0),
+    };
+}
+
+// 给每条开盒记录挂上奖章定义（名称 / 像素图），列表与分页页共用。
+export async function blindboxAttachMedals(logs: any[]): Promise<any[]> {
+    const medalIds = [...new Set(logs.map((log: any) => String(log.medalId)))];
+    const medals = medalIds.length
+        ? await medalColl.find({ _id: { $in: medalIds } } as any).toArray()
+        : [];
+    const medalDict = new Map<string, any>(
+        medals.map((medal: any): [string, any] => [String(medal._id), medal]),
+    );
+    return logs.map((log: any) => ({
+        ...log,
+        medal: medalDict.get(String(log.medalId)) || null,
+        stars: medalStarLevel(log.copies || 1),
+    }));
 }
 
 export interface BlindboxPurchaseResult {

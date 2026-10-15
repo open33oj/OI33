@@ -1,0 +1,84 @@
+{% set page_name = "oi33_blindbox_logs" %}
+{% extends "layout/basic.html" %}
+{% import "components/paginator.html" as paginator with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">我的盲盒开盒记录</h1>
+        <div class="section__tools">
+          <span class="oi33-bbl__summary">
+            共 {{ total }} 次 · 花费 {{ spent }} 猫罐头 · 今日剩余 <strong>{{ remaining }}</strong> / {{ dailyLimit }} 次
+          </span>
+          <a href="{{ url('oi33_blindbox') }}" class="rounded button">返回盲盒</a>
+        </div>
+      </div>
+      <div class="section__body">
+        {% if logs.length %}
+        <table class="data-table oi33-bbl">
+          <colgroup>
+            <col style="width:9rem;">
+            <col style="width:16rem;">
+            <col style="width:7rem;">
+            <col>
+            <col style="width:7rem;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>开出的奖章</th>
+              <th>持有 / 星级</th>
+              <th>盲盒</th>
+              <th>花费</th>
+            </tr>
+          </thead>
+          <tbody>
+            {%- for log in logs -%}
+            <tr>
+              <td style="white-space:nowrap;">{{ datetimeSpan(log.createdAt)|safe }}</td>
+              <td>
+                <span class="oi33-bbl__medal">
+                  {% if log.medal %}
+                  <img class="oi33-bbl__icon" src="{{ log.medal.imageData }}" width="28" height="28"
+                    alt="{{ log.medal.name }}">
+                  {% else %}
+                  <span class="oi33-bbl__icon oi33-bbl__icon--missing">?</span>
+                  {% endif %}
+                  <a href="{{ url('oi33_medal_catalogue') }}">{{ log.medal.name|default(log.medalId) }}</a>
+                </span>
+              </td>
+              <td class="oi33-bbl__own">
+                ×{{ log.copies or 1 }}{% if log.stars %} <span class="oi33-bbl__stars">★{{ log.stars }}</span>{% endif %}
+              </td>
+              <td>{{ log.poolName }}</td>
+              <td class="oi33-bbl__price">{{ log.price }} 罐头</td>
+            </tr>
+            {%- endfor -%}
+          </tbody>
+        </table>
+        {{ paginator.render(page, upcount) }}
+        {% else %}
+        <p class="oi33-bbl__empty">还没有购买过盲盒。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .oi33-bbl__summary { color:#888; font-size:.85em; }
+  .oi33-bbl__medal { display:flex; align-items:center; gap:.45rem; }
+  .oi33-bbl__icon {
+    width:28px; height:28px; flex:0 0 28px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .oi33-bbl__icon--missing {
+    display:flex; align-items:center; justify-content:center;
+    color:#999; border:1px dashed rgba(127,127,127,.4); border-radius:6px;
+  }
+  .oi33-bbl__own { font-variant-numeric:tabular-nums; }
+  .oi33-bbl__stars { color:#e8a33d; font-weight:600; }
+  .oi33-bbl__price { color:#d97706; white-space:nowrap; }
+  .oi33-bbl__empty { color:#888; }
+</style>
+{% endblock %}
