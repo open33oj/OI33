@@ -10,7 +10,8 @@ import {
     AUTOMATIC_RULE_TYPES, MEDAL_AUTOMATIC_SERIES, MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES,
     isAutomaticRuleType, medalAutomaticRuleText, medalAwardView, medalCategoryName,
     medalCategoryOf, medalCategoryRank, medalDisplayRung, medalGroupByCategory,
-    medalIsLevelSeries, medalLevelOf, medalSortedLevels, medalThresholdLevel, medalView,
+    medalIsLevelSeries, medalLevelLabel, medalLevelOf, medalSortedLevels, medalStarLevel,
+    medalThresholdLevel, medalView,
 } from './medal-rules';
 import { meowMedalPostAdd, meowDelete, meowPostColl } from './meow';
 import { userColl } from './user';
@@ -21,7 +22,8 @@ export {
     AUTOMATIC_RULE_TYPES, MEDAL_AUTOMATIC_SERIES, MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES,
     isAutomaticRuleType, medalAutomaticRuleText, medalAwardView, medalCategoryName,
     medalCategoryOf, medalCategoryRank, medalDisplayRung, medalGroupByCategory,
-    medalIsLevelSeries, medalLevelOf, medalSortedLevels, medalThresholdLevel, medalView,
+    medalIsLevelSeries, medalLevelLabel, medalLevelOf, medalSortedLevels, medalStarLevel,
+    medalThresholdLevel, medalView,
 };
 
 export const medalColl = db.collection('oi33_medal');
@@ -867,8 +869,24 @@ export async function medalGrant(
         await userMedalColl.insertOne(grant);
     } catch (e: any) {
         if (e?.code !== 11000) throw e;
-        const existing = await userMedalColl.findOne({ uid, medalId });
+        const existing: any = await userMedalColl.findOne({ uid, medalId });
         if (!existing) throw e;
+        // 一般奖章可以重复获得（盲盒开出重复的、管理员重复发放）：累加数量并
+        // 由数量换算星级（floor(log2(count))）。其它系列仍然只记一枚。
+        if (medalCategoryOf(medal) === 'manual') {
+            // `count` is absent on awards created before this feature and means
+            // "one copy", hence the $ifNull default of 1 before adding the new one.
+            const updated: any = await userMedalColl.findOneAndUpdate(
+                { _id: existing._id } as any,
+                [{ $set: { count: { $add: [{ $ifNull: ['$count', 1] }, 1] } } }] as any,
+                { returnDocument: 'after' } as any,
+            );
+            await addLog({
+                type: 'medal', userId: uid, sender: grantedBy,
+                action: 'grant', medalId, reason: `重复获得（第 ${Number(updated?.count) || 2} 枚）`,
+            } as any);
+            return { grant: updated || existing, created: false };
+        }
         return { grant: existing, created: false };
     }
 
@@ -944,7 +962,7 @@ async function medalUpgradeAwardLevel(
     await addLog({
         type: 'medal', userId: uid, action: 'level_update',
         medalId: medal._id, level: targetLevel,
-        reason: `Lv.${previousLevel ?? '-'} → Lv.${targetLevel}（自动升级）`,
+        reason: `第 ${previousLevel ?? '-'} 级 → 第 ${targetLevel} 级（自动升级）`,
     });
     return { created: false, upgraded: true, previousLevel, level: targetLevel };
 }
@@ -1000,7 +1018,7 @@ export async function medalSetLevel(
     await addLog({
         type: 'medal', userId: uid, sender: operator,
         action: 'level_update', medalId, level: target,
-        reason: `Lv.${previousLevel ?? '-'} → Lv.${target}`,
+        reason: `第 ${previousLevel ?? '-'} 级 → 第 ${target} 级`,
     });
     return { created: false, previousLevel, level: target };
 }

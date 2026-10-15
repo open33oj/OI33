@@ -31,6 +31,7 @@
     margin-top:.5rem; font-size:.85rem; max-width:100%;
     overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
   }
+  .oi33-showcase-stars { color:#e8a33d; font-weight:600; }
   .oi33-medal-empty { color:#777; font-size:.85em; }
   .oi33-bio-hint { color:#777; font-size:.85em; margin:0; }
   /* 学习记录：通过题目 / 最近活动 / 最近题解合并在一个 section 里，三块都默认折叠。 */
@@ -86,7 +87,7 @@
           <div class="oi33-showcase-badge" title="{{ award.view.name }}：{{ award.view.description }}">
             <img class="oi33-showcase-pixel" src="{{ award.view.imageData }}" width="64" height="64"
               alt="{{ award.view.name }}">
-            <span class="oi33-showcase-name">{{ award.view.name }}</span>
+            <span class="oi33-showcase-name">{{ award.view.name }}{% if award.view.stars %} <span class="oi33-showcase-stars">★{{ award.view.stars }}</span>{% endif %}</span>
           </div>
           {% endfor %}
         </div>

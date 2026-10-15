@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-    medalAwardView, medalCategoryOf, medalDisplayRung, medalIsLevelSeries, medalLevelOf,
-    medalSortedLevels, medalThresholdLevel,
+    medalAwardView, medalCategoryOf, medalDisplayRung, medalIsLevelSeries, medalLevelLabel,
+    medalLevelOf, medalSortedLevels, medalStarLevel, medalThresholdLevel, medalView,
 } from './medal-rules.ts';
 
 const level = (lvl: number, threshold?: number, extra: Record<string, any> = {}) => ({
@@ -91,4 +91,56 @@ test('medalAwardView renders a legacy or removed rung instead of a blank medal',
     assert.equal(plain.leveled, false);
     assert.equal(plain.level, null);
     assert.equal(plain.name, '参与奖');
+});
+
+test('medalStarLevel maps duplicate counts to stars', () => {
+    assert.equal(medalStarLevel(0), 0);
+    assert.equal(medalStarLevel(1), 0);
+    assert.equal(medalStarLevel(2), 1);
+    assert.equal(medalStarLevel(3), 1);
+    assert.equal(medalStarLevel(4), 2);
+    assert.equal(medalStarLevel(7), 2);
+    assert.equal(medalStarLevel(8), 3);
+    assert.equal(medalStarLevel(15), 3);
+    assert.equal(medalStarLevel(16), 4);
+    assert.equal(medalStarLevel(undefined), 0);
+});
+
+test('medalLevelLabel drops the legacy Lv.N prefix', () => {
+    assert.equal(medalLevelLabel({ level: 1, name: '一等奖' }), '一等奖');
+    assert.equal(medalLevelLabel({ level: 2, name: 'Lv.2 二等奖' }), '二等奖');
+    assert.equal(medalLevelLabel({ level: 3, name: 'lv3' }), '第 3 级');
+    assert.equal(medalLevelLabel({ level: 4, name: '' }), '第 4 级');
+    assert.equal(medalLevelLabel({ level: 5 }), '第 5 级');
+});
+
+test('medalAwardView reports count and stars for 一般奖章', () => {
+    const medal = { _id: 'm', name: '银猫', ruleType: 'manual' };
+    const once = medalAwardView({ medalId: 'm', count: 1 }, medal);
+    assert.equal(once.category, 'manual');
+    assert.equal(once.count, 1);
+    assert.equal(once.stars, 0);
+    const many = medalAwardView({ medalId: 'm', count: 6 }, medal);
+    assert.equal(many.count, 6);
+    assert.equal(many.stars, 2);
+    // 其它系列永远只有一枚，星级恒为 0
+    const oj = medalAwardView({ medalId: 'o', count: 9 }, { _id: 'o', name: 'AC', ruleType: 'accepted_problems' });
+    assert.equal(oj.count, 1);
+    assert.equal(oj.stars, 0);
+});
+
+test('medalView adds a label to every rung', () => {
+    const view = medalView({
+        _id: 'c',
+        name: '认证',
+        ruleType: 'certification',
+        levels: [
+            { level: 2, name: 'Lv.2 银' },
+            { level: 1, name: '铜' },
+            { level: 3, name: 'Lv.3' },
+        ],
+    });
+    // 阶梯一律按 level 升序，且每级都带上去掉 Lv. 前缀的显示名
+    assert.deepEqual(view.levels.map((item: any) => item.level), [1, 2, 3]);
+    assert.deepEqual(view.levels.map((item: any) => item.label), ['铜', '银', '第 3 级']);
 });

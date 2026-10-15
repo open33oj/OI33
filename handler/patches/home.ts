@@ -157,16 +157,17 @@ export function applyHomePatches() {
         const now = new Date();
         // The market/auction block is decorative: a failure here must never
         // take down the homepage, so degrade to hiding that part instead.
-        let market: { quote: any, auctionCount: number } | null = null;
+        let market: { quote: any, auctionCount: number, blindboxCount: number } | null = null;
         try {
             // Settle anything whose deadline passed while nobody was watching,
             // so the widget never advertises a finished auction as live.
             await oi33Model.auctionSettleExpired(now);
-            const [quote, activeAuctions] = await Promise.all([
+            const [quote, activeAuctions, blindboxCount] = await Promise.all([
                 oi33Model.getCatCanDayChange(now),
                 oi33Model.auctionListActive(now),
+                oi33Model.blindboxOpenCount(now).catch(() => 0),
             ]);
-            market = { quote, auctionCount: activeAuctions.length };
+            market = { quote, auctionCount: activeAuctions.length, blindboxCount };
         } catch (e) {
             console.error('[oi33] homepage side widget market/auction failed:', e);
         }

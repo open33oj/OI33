@@ -52,7 +52,8 @@
           <h2 class="oi33-blindbox-manage__h">奖章与出现几率</h2>
           <p class="oi33-blindbox-manage__hint">
             每个奖章填一个 1-100 的整数几率，<strong>所有几率之和必须等于 100</strong>；
-            留空的奖章行会被忽略。可拍卖奖章、认证奖章与有等级阶梯的奖章不能放进盲盒。
+            留空的奖章行会被忽略。盲盒只出售<strong>一般奖章</strong>（可拍卖 / 认证 / OJ 成就奖章都有自己的发放渠道）；
+            抽到重复的一般奖章会累加数量并升星（星级 = ⌊log₂ 数量⌋）。
           </p>
           <table class="data-table oi33-blindbox-manage__rows">
             <thead>
@@ -125,7 +126,7 @@
               <td>
                 <div><strong>{{ pool.name }}</strong></div>
                 <div class="oi33-blindbox-manage__pool-items">
-                  {% for item in pool.items %}{{ item.medalId }} {{ item.probability }}%{% if not loop.last %} · {% endif %}{% endfor %}
+                  {% for item in pool.items %}{{ item.medalName }} {{ item.probability }}%{% if not loop.last %} · {% endif %}{% endfor %}
                 </div>
               </td>
               <td>{{ pool.price }} 猫罐头</td>

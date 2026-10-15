@@ -19,9 +19,10 @@
           <li class="medal-list__row">
             <img class="medal-list__icon" src="{{ award.view.imageData }}" alt="{{ award.view.name }}">
             <span class="medal-list__name">{{ award.view.name }}</span>
+            {% if award.view.stars %}<span class="medal-list__stars" title="已获得 {{ award.view.count }} 枚">★{{ award.view.stars }}</span>{% endif %}
             <span class="medal-list__tag medal-list__tag--{{ award.view.category }}">{{ award.view.categoryName }}</span>
             {% if award.view.levelMissing %}
-            <span class="medal-list__warn" title="该等级已从系列中移除，暂按最接近的等级展示">Lv.{{ award.view.level }} 已移除</span>
+            <span class="medal-list__warn" title="该等级已从系列中移除，暂按最接近的等级展示">{{ award.view.levelName or ('第 ' ~ award.view.level ~ ' 级') }} 已移除</span>
             {% endif %}
             <span class="medal-list__desc" title="{{ award.view.description }}">{{ award.view.description }}</span>
             <span class="medal-list__time">{{ datetimeSpan(award.earnedAt)|safe }}获得</span>
@@ -45,8 +46,8 @@
                 <input type="hidden" name="level" value="{{ level.level }}">
                 <button type="submit"
                   class="rounded button medal-level-button{% if level.level == award.view.level %} medal-level-button--current{% endif %}"
-                  title="{{ level.name }}{% if level.threshold %}（阈值 {{ level.threshold }}）{% endif %}"
-                  {% if level.level == award.view.level %}disabled{% endif %}>Lv.{{ level.level }}</button>
+                  title="{{ level.label or level.name }}{% if level.threshold %}（阈值 {{ level.threshold }}）{% endif %}"
+                  {% if level.level == award.view.level %}disabled{% endif %}>{{ level.label or level.name }}</button>
               </form>
               {% endfor %}
             </div>
@@ -75,6 +76,7 @@
     object-fit:fill; image-rendering:crisp-edges; image-rendering:pixelated;
   }
   .medal-list__name { flex:0 0 auto; font-weight:600; }
+  .medal-list__stars { flex:0 0 auto; color:#e8a33d; font-weight:600; font-size:.85em; letter-spacing:.05em; }
   .medal-list__tag {
     flex:0 0 auto; font-size:.75em; padding:.05rem .45rem; border-radius:999px;
     border:1px solid rgba(127,127,127,.4); color:#777;

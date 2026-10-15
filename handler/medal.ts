@@ -466,7 +466,16 @@ class MedalGrantHandler extends Handler {
         const result = await oi33Model.medalGrant(
             uid, medalId, this.user._id, 'manual',
         );
-        if (!result.created) throw new ValidationError('该用户已经获得这个奖章。');
+        if (!result.created) {
+            // 一般奖章可以重复发放：数量 +1 并升星（星级 = ⌊log₂ 数量⌋）；
+            // 其它系列仍然只能拥有一枚。
+            const count = Math.max(1, Math.floor(Number((result.grant as any)?.count) || 1));
+            if (count <= 1) throw new ValidationError('该用户已经获得这个奖章。');
+            const stars = oi33Model.medalStarLevel(count);
+            const text = `已再获得一枚「${medal.name}」（第 ${count} 枚${stars ? `，★${stars}` : ''}）`;
+            this.response.redirect = `/oi33/medals/user/${uid}?notification=${encodeURIComponent(text)}`;
+            return;
+        }
         this.response.redirect = `/oi33/medals/user/${uid}?notification=奖章已发放`;
     }
 }
@@ -486,7 +495,7 @@ class MedalLevelHandler extends Handler {
             ? '奖章已发放'
             : result.previousLevel === result.level
                 ? '该用户已经是这个等级'
-                : `奖章等级已从 Lv.${result.previousLevel ?? '-'} 更新为 Lv.${result.level}`;
+                : `奖章等级已从第 ${result.previousLevel ?? '-'} 级更新为第 ${result.level} 级`;
         const back = field(body, 'back');
         const target = back === 'manage' ? this.url('oi33_medal_manage', { query: { uid } }) : `/oi33/medals/user/${uid}`;
         this.response.redirect = `${target}${target.includes('?') ? '&' : '?'}notification=${encodeURIComponent(notification)}`;

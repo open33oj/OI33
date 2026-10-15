@@ -8,8 +8,9 @@ import { checkOi33Admin } from './utils';
 // 总和 100）；用户每次购买按几率获得其中一个，每天最多购买 3 次（跨组共用额度）。
 // 纯规则与存储在 model/blindbox-rules.ts 与 model/blindbox.ts。
 
-function buyNotification(name: string, medal: string, remaining: number) {
-    return `盲盒「${name}」开出了奖章「${medal}」，今天还可以购买 ${remaining} 次。`;
+function buyNotification(name: string, medal: string, copies: number, stars: number, remaining: number) {
+    const upgrade = copies > 1 ? `（第 ${copies} 枚，★${stars}）` : '';
+    return `盲盒「${name}」开出了奖章「${medal}」${upgrade}，今天还可以购买 ${remaining} 次。`;
 }
 
 // 表单值：优先用管理员刚提交的内容（校验失败时回填），否则用被编辑的盲盒。
@@ -75,7 +76,11 @@ class BlindboxBuyHandler extends Handler {
         const result = await oi33Model.blindboxPurchase(this.user._id, poolId);
         const medal = await oi33Model.medalGet(result.medalId);
         this.response.redirect = this.url('oi33_blindbox', {
-            query: { notification: buyNotification(result.poolName, medal?.name || result.medalId, result.remaining) },
+            query: {
+                notification: buyNotification(
+                    result.poolName, medal?.name || result.medalId, result.copies, result.stars, result.remaining,
+                ),
+            },
         });
     }
 }
