@@ -1,4 +1,4 @@
-import { Context, DocumentModel, NotFoundError, ObjectId, PERM } from 'hydrooj';
+import { Context, DocumentModel, NotFoundError, ObjectId, PERM, SolutionModel } from 'hydrooj';
 import { ProblemSolutionHandler, ProblemSolutionRawHandler } from 'hydrooj/src/handler/problem';
 import { RecordMainConnectionHandler } from 'hydrooj/src/handler/record';
 import { oi33Model } from '../../model';
@@ -7,6 +7,15 @@ import { cloneUserForDisplay } from './shared';
 // Responses that bypass the UserModel patches (raw aggregations, websocket
 // pushes) still have to be anonymized / masked before they reach the client.
 export function applyDisplayPatches(ctx: Context) {
+    // 题解列表顺序：精华题解在前、一般题解在后，两组内部都按投票数倒序。
+    // Core 的 ProblemSolutionHandler 用 SolutionModel.getMulti 分页，所以直接
+    // 换掉它的 sort 即可（缺省字段在 MongoDB 里等于 null，布尔值排在 null 之后，
+    // 因此 `featured: -1` 正好把精华排在前面）。
+    const origSolutionGetMulti = SolutionModel.getMulti;
+    SolutionModel.getMulti = function patchedSolutionGetMulti(this: any, domainId: string, pid: number, query: any = {}) {
+        return origSolutionGetMulti.call(this, domainId, pid, query).sort({ featured: -1, vote: -1 });
+    } as any;
+
     // Keep user-detail JSON/template data anonymous. The original username/avatar
     // are stored as non-enumerable fields for the OI33 manager template exception.
     ctx.on('handler/after/UserDetail', (h: any) => {

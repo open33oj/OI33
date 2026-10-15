@@ -873,10 +873,10 @@ export async function medalGrant(
     }
 
     // Managers (realname_flag >= 2) do not get an automatic meow post.
-    // Announcements are also limited to auctionable (saleable) medals and
-    // manual admin grants; automatic rule, auction and contract grants stay
-    // silent.
-    if (announce && (medal.saleable === true || source === 'manual')
+    // Announcements are also limited to auctionable (saleable) medals, manual
+    // admin grants and blind-box pulls; automatic rule, auction and contract
+    // grants stay silent.
+    if (announce && (medal.saleable === true || source === 'manual' || source === 'blindbox')
         && await medalAnnounceAllowed(uid)) {
         try {
             const post = await meowMedalPostAdd(uid, medal, medalAwardView(grant, medal));

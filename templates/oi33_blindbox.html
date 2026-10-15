@@ -1,0 +1,121 @@
+{% set page_name = "oi33_blindbox" %}
+{% extends "layout/basic.html" %}
+{% import "components/paginator.html" as paginator with context %}
+{% block content %}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">盲盒奖章</h1>
+        <div class="section__tools">
+          <span class="oi33-blindbox__quota">
+            今日剩余 <strong>{{ remaining }}</strong> / {{ dailyLimit }} 次 · 猫罐头 <strong>{{ catCan }}</strong>
+          </span>
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="oi33-blindbox__intro">
+          购买一次盲盒会按几率获得组内的一个奖章（只会在你还没有的奖章里抽取），猫罐头一次扣除。
+          每天最多购买 {{ dailyLimit }} 次，所有盲盒共用这个次数，北京时间 0 点重置。
+        </p>
+        {% if pools.length %}
+        {% for pool in pools %}
+        <div class="oi33-blindbox__pool{{ '' if pool.open and pool.newCount else ' is-closed' }}">
+          <div class="oi33-blindbox__pool-head">
+            <span class="oi33-blindbox__name">{{ pool.name }}</span>
+            <span class="oi33-blindbox__price">{{ pool.price }} 猫罐头</span>
+          </div>
+          <div class="oi33-blindbox__meta">
+            <span>开放时间：{{ datetimeSpan(pool.openAt)|safe }}</span>
+            {% if not pool.open %}<span class="oi33-blindbox__tag">未开放 / 已下架</span>{% endif %}
+            {% if pool.newCount %}<span>还有 {{ pool.newCount }} 个未获得</span>{% else %}<span class="oi33-blindbox__tag">已集齐</span>{% endif %}
+          </div>
+          <ul class="oi33-blindbox__items">
+            {% for row in pool.rows %}
+            <li class="{{ 'is-owned' if row.owned }}">
+              <span class="oi33-blindbox__item-name">{{ row.medal.name|default(row.medalId) }}</span>
+              <span class="oi33-blindbox__item-prob">{{ row.probability }}%</span>
+              {% if row.owned %}<span class="oi33-blindbox__owned">已获得</span>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          <div class="oi33-blindbox__actions">
+            {% if pool.open and pool.newCount %}
+            <form method="post" action="{{ url('oi33_blindbox_buy') }}"
+                  onsubmit="return confirm('花费 {{ pool.price }} 个猫罐头购买一次「{{ pool.name }}」？');">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <input type="hidden" name="poolId" value="{{ pool._id }}">
+              {% if remaining > 0 and catCan >= pool.price %}
+              <button type="submit" class="rounded primary button">购买一次（{{ pool.price }} 猫罐头）</button>
+              {% else %}
+              <button type="button" class="rounded button" disabled>
+                {% if remaining <= 0 %}今日次数已用完{% else %}猫罐头不足{% endif %}
+              </button>
+              {% endif %}
+            </form>
+            {% else %}
+            <button type="button" class="rounded button" disabled>
+              {% if not pool.open %}暂不可购买{% else %}已全部获得{% endif %}
+            </button>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="oi33-blindbox__empty">管理员还没有配置任何盲盒。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="medium-3 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">我的开盒记录</h1>
+      </div>
+      <div class="section__body">
+        {% if logs.length %}
+        <ul class="oi33-blindbox__logs">
+          {% for log in logs %}
+          <li>
+            <div class="oi33-blindbox__log-medal">{{ log.medal.name|default(log.medalId) }}</div>
+            <div class="oi33-blindbox__log-meta">{{ log.poolName }} · {{ log.price }} 猫罐头 · {{ datetimeSpan(log.createdAt)|safe }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="oi33-blindbox__empty">还没有购买过盲盒。</p>
+        {% endif %}
+        <p class="oi33-blindbox__links">
+          <a href="{{ url('oi33_medal_catalogue') }}">奖章目录</a> ·
+          <a href="{{ url('oi33_auction') }}">奖章拍卖</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .oi33-blindbox__quota { color:#888; font-size:.85em; }
+  .oi33-blindbox__intro { color:#777; font-size:.88em; margin-bottom:.8rem; }
+  .oi33-blindbox__pool { border:1px solid rgba(127,127,127,.25); border-radius:8px; padding:.7rem .85rem; margin-bottom:.8rem; }
+  .oi33-blindbox__pool.is-closed { opacity:.6; }
+  .oi33-blindbox__pool-head { display:flex; align-items:baseline; justify-content:space-between; gap:.6rem; }
+  .oi33-blindbox__name { font-weight:600; font-size:1.05em; }
+  .oi33-blindbox__price { color:#d97706; font-weight:600; white-space:nowrap; }
+  .oi33-blindbox__meta { display:flex; flex-wrap:wrap; gap:.3rem .8rem; color:#888; font-size:.82em; margin-top:.25rem; }
+  .oi33-blindbox__tag { color:#c62828; }
+  .oi33-blindbox__items { list-style:none; margin:.5rem 0 0; padding:0; display:flex; flex-wrap:wrap; gap:.3rem .5rem; }
+  .oi33-blindbox__items li { display:flex; align-items:center; gap:.3rem; padding:.15rem .5rem; border:1px solid rgba(127,127,127,.25); border-radius:999px; font-size:.85em; }
+  .oi33-blindbox__items li.is-owned { opacity:.5; }
+  .oi33-blindbox__item-prob { color:#2e7d32; font-variant-numeric:tabular-nums; }
+  .oi33-blindbox__owned { color:#888; font-size:.9em; }
+  .oi33-blindbox__actions { margin-top:.6rem; }
+  .oi33-blindbox__actions .button { margin-bottom:0; }
+  .oi33-blindbox__logs { list-style:none; margin:0; padding:0; }
+  .oi33-blindbox__logs li { padding:.4rem 0; border-bottom:1px solid rgba(127,127,127,.15); }
+  .oi33-blindbox__logs li:last-child { border-bottom:0; }
+  .oi33-blindbox__log-medal { font-weight:600; }
+  .oi33-blindbox__log-meta { color:#888; font-size:.78em; }
+  .oi33-blindbox__empty { color:#888; }
+  .oi33-blindbox__links { margin-top:.8rem; font-size:.85em; }
+</style>
+{% endblock %}

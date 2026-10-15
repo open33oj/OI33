@@ -9,6 +9,7 @@
         <h1 class="section__title">奖章拍卖</h1>
         <div class="section__tools">
           <a href="{{ url('oi33_medal_catalogue') }}" class="rounded button">奖章目录</a>
+          {% if handler.user._id %}<a href="{{ url('oi33_blindbox') }}" class="rounded button">盲盒奖章</a>{% endif %}
           {% if handler.user._id %}<a href="{{ url('oi33_contracts') }}" class="rounded button">我的交易合同</a>{% endif %}
         </div>
       </div>

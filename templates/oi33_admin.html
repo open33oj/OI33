@@ -138,6 +138,7 @@
               {{ adminLink(url('oi33_medal_catalogue'), '奖章目录', '四系列公开目录') }}
               {{ adminLink(url('oi33_auction'), '奖章拍卖', '进行中与已结束') }}
               {{ adminLink(url('oi33_auction_create'), '发起拍卖', '上架可售卖奖章') }}
+              {{ adminLink(url('oi33_blindbox_manage'), '盲盒奖章', '奖章组合、几率与开放时间') }}
               {{ adminLink(url('oi33_contracts'), '奖章合同', '成交后的转让') }}
             </ul>
           </div>
@@ -150,6 +151,7 @@
               {{ adminLink(url('oi33_ai_moderation'), 'AI 审核', ('待处理 ' ~ modPendingCount) if modPendingCount else '规则 / AI 配置与记录') }}
               {{ adminLink(url('oi33_ai_bio_review'), '简介批量审查', '重跑个人简介审核') }}
               {{ adminLink(url('oi33_solutions'), '全部题解', '全站题解时间线') }}
+              {{ adminLink(url('oi33_solutions_featured'), '题解加精', '精华题解与加精奖励') }}
               {{ adminLink(url('oi33_problem_discussions'), '题目讨论', '题目内讨论汇总') }}
               {{ adminLink(url('oi33_paste_all'), '全部剪贴板', '公开粘贴') }}
               {{ adminLink(url('oi33_wiki_pages'), 'Wiki 页面', '全部条目') }}
