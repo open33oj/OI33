@@ -10,8 +10,6 @@
       <div class="section__header">
         <h1 class="section__title">猫粮与罐头账户 · UID {{ uid }}</h1>
         <div class="section__tools">
-          {% if canManage %}<a href="{{ url('oi33_cat_food_grant') }}" class="rounded primary button">调整猫资产</a>{% endif %}
-          {% if canBatchGrant %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放猫粮</a>{% endif %}
           <a href="{{ url('user_detail', uid=uid) }}" class="rounded button">返回个人页面</a>
         </div>
       </div>

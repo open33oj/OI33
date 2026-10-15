@@ -676,6 +676,39 @@ export interface Oi33AlgorithmConfig {
     updatedBy?: number;
 }
 
+// --- Homepage side card (今日运势 / 倒计时 / 猫罐头行情 / 拍卖) ---
+// Configured on /oi33/admin/home instead of the `hydrooj.homepage` system
+// setting; the YAML is only used once to seed this document on upgrade.
+
+export interface Oi33HomeLuckType {
+    text: string;
+    color: string; // #rrggbb
+}
+
+export interface Oi33HomeCountdownDate {
+    name: string;
+    date: string; // YYYY-MM-DD
+}
+
+export interface Oi33HomeConfig {
+    _id: string; // 'main'
+    enabled: boolean;
+    // Which homepage column the card is injected into when the `hydrooj.homepage`
+    // YAML does not place the legacy `checkin` / `countdown` sections itself.
+    column: 'sidebar' | 'main';
+    // 7 luck levels, index = checkin_luck (0-6).
+    luck_type: Oi33HomeLuckType[];
+    // UIDs that always draw 大吉.
+    luck_vip: number[];
+    countdown: {
+        title: string;
+        max_dates: number;
+        dates: Oi33HomeCountdownDate[];
+    };
+    updatedAt: Date;
+    updatedBy?: number;
+}
+
 export interface Oi33AiAnalysis {
     _id: string;
     rid: string;

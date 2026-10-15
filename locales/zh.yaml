@@ -18,6 +18,7 @@ View: '查看'
 
 # --- Page titles (used by handler.renderTitle for browser tab) ---
 oi33_admin: 'OI33 管理后台'
+oi33_admin_home: '首页侧栏卡片配置'
 oi33_judge_monitor: '评测机监控'
 oi33_migrate: '数据迁移'
 oi33_coin_inc: '发放硬币'
@@ -138,6 +139,7 @@ Flag: '身份'
 'Verify realname to draw': '完成实名认证后可抽取'
 'Draw Today Fortune': '抽取今日运势'
 'Consecutive days': '已连续打卡'
+'Total checkins': '累计打卡'
 'days, total': '天，累计打卡'
 days: '天'
 

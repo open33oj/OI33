@@ -22,6 +22,7 @@ import * as medalModel from './medal';
 import * as auctionModel from './auction';
 import * as contractModel from './contract';
 import * as algorithmModel from './algorithm';
+import * as homeConfigModel from './home-config';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -48,6 +49,7 @@ export { medalColl, userMedalColl } from './medal';
 export { auctionColl, auctionBidColl } from './auction';
 export { contractColl } from './contract';
 export { algorithmItemColl, userAlgorithmColl, algorithmConfigColl } from './algorithm';
+export { homeConfigColl } from './home-config';
 
 const oi33Model = {
     ...userModel,
@@ -69,6 +71,7 @@ const oi33Model = {
     ...auctionModel,
     ...contractModel,
     ...algorithmModel,
+    ...homeConfigModel,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -120,6 +123,7 @@ declare module 'hydrooj' {
         oi33_algorithm_item: import('./types').Oi33AlgorithmItem;
         oi33_user_algorithm: import('./types').Oi33UserAlgorithm;
         oi33_algorithm_config: import('./types').Oi33AlgorithmConfig;
+        oi33_home_config: import('./types').Oi33HomeConfig;
     }
 }
 
