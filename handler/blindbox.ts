@@ -50,14 +50,15 @@ async function buildManageView(edit: ObjectId | undefined, extra: Record<string,
     };
 }
 
+// 右侧只列最近 RECENT_LIMIT 条，更多走 /oi33/blindbox/logs 的分页页。
+const RECENT_LIMIT = 10;
+
 class BlindboxHandler extends Handler {
     async get() {
-        const [view, logs, medals] = await Promise.all([
+        const [view, logs] = await Promise.all([
             oi33Model.blindboxOverview(this.user._id),
-            oi33Model.blindboxLogs(this.user._id, 12),
-            oi33Model.medalList(),
+            oi33Model.blindboxLogs(this.user._id, RECENT_LIMIT),
         ]);
-        const medalDict = new Map(medals.map((medal: any) => [String(medal._id), medal]));
         this.response.template = 'oi33_blindbox.html';
         this.response.body = {
             pools: view.pools,
@@ -65,7 +66,22 @@ class BlindboxHandler extends Handler {
             remaining: view.remaining,
             dailyLimit: oi33Model.BLINDBOX_DAILY_LIMIT,
             catCan: view.catCan,
-            logs: logs.map((log: any) => ({ ...log, medal: medalDict.get(String(log.medalId)) || null })),
+            logs,
+        };
+    }
+}
+
+class BlindboxLogsHandler extends Handler {
+    @query('page', Types.PositiveInt, true)
+    async get(domainId: string, page = 1) {
+        const result = await oi33Model.blindboxLogPage(this.user._id, page);
+        const [view] = await Promise.all([oi33Model.blindboxOverview(this.user._id)]);
+        this.response.template = 'oi33_blindbox_logs.html';
+        this.response.body = {
+            ...result,
+            dailyLimit: oi33Model.BLINDBOX_DAILY_LIMIT,
+            catCan: view.catCan,
+            remaining: view.remaining,
         };
     }
 }
@@ -163,6 +179,7 @@ class BlindboxDeleteHandler extends Handler {
 export async function apply(ctx: Context) {
     ctx.Route('oi33_blindbox', '/oi33/blindbox', BlindboxHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_buy', '/oi33/blindbox/buy', BlindboxBuyHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_blindbox_logs', '/oi33/blindbox/logs', BlindboxLogsHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_manage', '/oi33/blindbox/manage', BlindboxManageHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_save', '/oi33/blindbox/save', BlindboxSaveHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_toggle', '/oi33/blindbox/:id/toggle', BlindboxToggleHandler, PRIV.PRIV_USER_PROFILE);

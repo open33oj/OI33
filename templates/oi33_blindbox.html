@@ -7,42 +7,55 @@
       <div class="section__header">
         <h1 class="section__title">盲盒奖章</h1>
         <div class="section__tools">
-          <span class="oi33-blindbox__quota">
+          <span class="oi33-bb__quota">
             今日剩余 <strong>{{ remaining }}</strong> / {{ dailyLimit }} 次 · 猫罐头 <strong>{{ catCan }}</strong>
           </span>
         </div>
       </div>
       <div class="section__body">
-        <p class="oi33-blindbox__intro">
+        <p class="oi33-bb__intro">
           购买一次盲盒会按几率获得组内的一个一般奖章，猫罐头一次扣除。
           抽到已有的奖章不会浪费——同一枚一般奖章每多一枚就升一星（星级 = ⌊log₂ 数量⌋：2 枚 1 星、4 枚 2 星、8 枚 3 星）。
           每天最多购买 {{ dailyLimit }} 次，所有盲盒共用这个次数，北京时间 0 点重置。
         </p>
+
         {% if pools.length %}
         {% for pool in pools %}
-        <div class="oi33-blindbox__pool{{ '' if pool.open else ' is-closed' }}">
-          <div class="oi33-blindbox__pool-head">
-            <span class="oi33-blindbox__name">{{ pool.name }}</span>
-            <span class="oi33-blindbox__price">{{ pool.price }} 猫罐头</span>
+        <article class="oi33-bb__pool{{ '' if pool.open else ' is-closed' }}">
+          <div class="oi33-bb__pool-head">
+            <div class="oi33-bb__pool-title">
+              <span class="oi33-bb__name">{{ pool.name }}</span>
+              {% if not pool.open %}<span class="oi33-bb__tag">未开放 / 已下架</span>{% endif %}
+            </div>
+            <span class="oi33-bb__price">{{ pool.price }} 猫罐头</span>
           </div>
-          <div class="oi33-blindbox__meta">
+          <div class="oi33-bb__pool-meta">
             <span>开放时间：{{ datetimeSpan(pool.openAt)|safe }}</span>
-            {% if not pool.open %}<span class="oi33-blindbox__tag">未开放 / 已下架</span>{% endif %}
             <span>已获得 {{ pool.ownedCount }} / {{ pool.rows.length }} 种</span>
           </div>
-          <ul class="oi33-blindbox__items">
+
+          <ul class="oi33-bb__medals">
             {% for row in pool.rows %}
-            <li class="{{ 'is-owned' if row.owned }}">
-              <span class="oi33-blindbox__item-name">{{ row.medal.name|default(row.medalId) }}</span>
-              <span class="oi33-blindbox__item-prob">{{ row.probability }}%</span>
+            <li class="oi33-bb__medal{{ ' is-owned' if row.owned }}"
+                title="{{ row.medal.name|default(row.medalId) }}：{{ row.probability }}%{% if row.owned %}（已获得 {{ row.count }} 枚）{% endif %}">
+              {% if row.medal %}
+              <img class="oi33-bb__medal-icon" src="{{ row.medal.imageData }}" width="56" height="56"
+                alt="{{ row.medal.name }}">
+              {% else %}
+              <span class="oi33-bb__medal-icon oi33-bb__medal-icon--missing">?</span>
+              {% endif %}
+              <span class="oi33-bb__medal-name">{{ row.medal.name|default(row.medalId) }}</span>
+              <span class="oi33-bb__medal-prob">{{ row.probability }}%</span>
               {% if row.owned %}
-              <span class="oi33-blindbox__owned" title="已获得 {{ row.count }} 枚">×{{ row.count }}</span>
-              {% if row.stars %}<span class="oi33-blindbox__stars">★{{ row.stars }}</span>{% endif %}
+              <span class="oi33-bb__medal-own">×{{ row.count }}{% if row.stars %} ★{{ row.stars }}{% endif %}</span>
+              {% else %}
+              <span class="oi33-bb__medal-own oi33-bb__medal-own--new">未获得</span>
               {% endif %}
             </li>
             {% endfor %}
           </ul>
-          <div class="oi33-blindbox__actions">
+
+          <div class="oi33-bb__actions">
             {% if pool.open %}
             <form method="post" action="{{ url('oi33_blindbox_buy') }}"
                   onsubmit="return confirm('花费 {{ pool.price }} 个猫罐头购买一次「{{ pool.name }}」？');">
@@ -60,33 +73,49 @@
             <button type="button" class="rounded button" disabled>暂不可购买</button>
             {% endif %}
           </div>
-        </div>
+        </article>
         {% endfor %}
         {% else %}
-        <p class="oi33-blindbox__empty">管理员还没有配置任何盲盒。</p>
+        <p class="oi33-bb__empty">管理员还没有配置任何盲盒。</p>
         {% endif %}
       </div>
     </div>
   </div>
+
   <div class="medium-3 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">我的开盒记录</h1>
+        <h1 class="section__title">最近开盒</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_blindbox_logs') }}" class="rounded button">全部记录</a>
+        </div>
       </div>
       <div class="section__body">
         {% if logs.length %}
-        <ul class="oi33-blindbox__logs">
+        <ul class="oi33-bb__logs">
           {% for log in logs %}
           <li>
-            <div class="oi33-blindbox__log-medal">{{ log.medal.name|default(log.medalId) }}{% if log.copies and log.copies > 1 %} <span class="oi33-blindbox__stars">×{{ log.copies }} ★{{ log.stars }}</span>{% endif %}</div>
-            <div class="oi33-blindbox__log-meta">{{ log.poolName }} · {{ log.price }} 猫罐头 · {{ datetimeSpan(log.createdAt)|safe }}</div>
+            {% if log.medal %}
+            <img class="oi33-bb__log-icon" src="{{ log.medal.imageData }}" width="36" height="36"
+              alt="{{ log.medal.name }}">
+            {% else %}
+            <span class="oi33-bb__log-icon oi33-bb__log-icon--missing">?</span>
+            {% endif %}
+            <div class="oi33-bb__log-body">
+              <div class="oi33-bb__log-name">
+                {{ log.medal.name|default(log.medalId) }}
+                {% if log.copies and log.copies > 1 %}<span class="oi33-bb__stars">×{{ log.copies }} ★{{ log.stars }}</span>{% endif %}
+              </div>
+              <div class="oi33-bb__log-meta">{{ log.poolName }} · {{ log.price }} 罐头 · {{ datetimeSpan(log.createdAt)|safe }}</div>
+            </div>
           </li>
           {% endfor %}
         </ul>
+        <p class="oi33-bb__more"><a href="{{ url('oi33_blindbox_logs') }}">查看全部开盒记录 →</a></p>
         {% else %}
-        <p class="oi33-blindbox__empty">还没有购买过盲盒。</p>
+        <p class="oi33-bb__empty">还没有购买过盲盒。</p>
         {% endif %}
-        <p class="oi33-blindbox__links">
+        <p class="oi33-bb__links">
           <a href="{{ url('oi33_medal_catalogue') }}">奖章目录</a> ·
           <a href="{{ url('oi33_auction') }}">奖章拍卖</a>
         </p>
@@ -95,29 +124,67 @@
   </div>
 </div>
 <style>
-  .oi33-blindbox__quota { color:#888; font-size:.85em; }
-  .oi33-blindbox__intro { color:#777; font-size:.88em; margin-bottom:.8rem; }
-  .oi33-blindbox__pool { border:1px solid rgba(127,127,127,.25); border-radius:8px; padding:.7rem .85rem; margin-bottom:.8rem; }
-  .oi33-blindbox__pool.is-closed { opacity:.6; }
-  .oi33-blindbox__pool-head { display:flex; align-items:baseline; justify-content:space-between; gap:.6rem; }
-  .oi33-blindbox__name { font-weight:600; font-size:1.05em; }
-  .oi33-blindbox__price { color:#d97706; font-weight:600; white-space:nowrap; }
-  .oi33-blindbox__meta { display:flex; flex-wrap:wrap; gap:.3rem .8rem; color:#888; font-size:.82em; margin-top:.25rem; }
-  .oi33-blindbox__tag { color:#c62828; }
-  .oi33-blindbox__items { list-style:none; margin:.5rem 0 0; padding:0; display:flex; flex-wrap:wrap; gap:.3rem .5rem; }
-  .oi33-blindbox__items li { display:flex; align-items:center; gap:.3rem; padding:.15rem .5rem; border:1px solid rgba(127,127,127,.25); border-radius:999px; font-size:.85em; }
-  .oi33-blindbox__items li.is-owned { opacity:.5; }
-  .oi33-blindbox__item-prob { color:#2e7d32; font-variant-numeric:tabular-nums; }
-  .oi33-blindbox__owned { color:#888; font-size:.9em; font-variant-numeric:tabular-nums; }
-  .oi33-blindbox__stars { color:#e8a33d; font-weight:600; }
-  .oi33-blindbox__actions { margin-top:.6rem; }
-  .oi33-blindbox__actions .button { margin-bottom:0; }
-  .oi33-blindbox__logs { list-style:none; margin:0; padding:0; }
-  .oi33-blindbox__logs li { padding:.4rem 0; border-bottom:1px solid rgba(127,127,127,.15); }
-  .oi33-blindbox__logs li:last-child { border-bottom:0; }
-  .oi33-blindbox__log-medal { font-weight:600; }
-  .oi33-blindbox__log-meta { color:#888; font-size:.78em; }
-  .oi33-blindbox__empty { color:#888; }
-  .oi33-blindbox__links { margin-top:.8rem; font-size:.85em; }
+  .oi33-bb__quota { color:#888; font-size:.85em; }
+  .oi33-bb__intro { color:#777; font-size:.88em; margin-bottom:.9rem; }
+
+  .oi33-bb__pool { border:1px solid rgba(127,127,127,.22); border-radius:10px; padding:.8rem .95rem; margin-bottom:.9rem; }
+  .oi33-bb__pool.is-closed { opacity:.6; }
+  .oi33-bb__pool-head { display:flex; align-items:baseline; justify-content:space-between; gap:.6rem; }
+  .oi33-bb__pool-title { display:flex; align-items:baseline; gap:.5rem; flex-wrap:wrap; }
+  .oi33-bb__name { font-weight:600; font-size:1.08em; }
+  .oi33-bb__price { color:#d97706; font-weight:600; white-space:nowrap; }
+  .oi33-bb__tag {
+    font-size:.75em; padding:.05rem .4rem; border-radius:999px;
+    border:1px solid rgba(198,40,40,.5); color:#c62828;
+  }
+  .oi33-bb__pool-meta { display:flex; flex-wrap:wrap; gap:.3rem .9rem; color:#888; font-size:.82em; margin-top:.2rem; }
+
+  .oi33-bb__medals {
+    list-style:none; margin:.7rem 0 0; padding:0;
+    display:grid; gap:.6rem; grid-template-columns:repeat(auto-fill, minmax(6.6rem, 1fr));
+  }
+  .oi33-bb__medal {
+    display:flex; flex-direction:column; align-items:center; gap:.15rem;
+    padding:.55rem .4rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
+    background:rgba(127,127,127,.04); text-align:center; min-width:0;
+  }
+  .oi33-bb__medal.is-owned { border-color:rgba(232,163,61,.55); background:rgba(232,163,61,.07); }
+  .oi33-bb__medal-icon {
+    width:56px; height:56px; flex:0 0 56px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .oi33-bb__medal-icon--missing {
+    display:flex; align-items:center; justify-content:center;
+    color:#999; font-size:1.2em; border:1px dashed rgba(127,127,127,.4); border-radius:6px;
+  }
+  .oi33-bb__medal-name {
+    font-size:.85em; font-weight:600; max-width:100%;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .oi33-bb__medal-prob { color:#2e7d32; font-size:.85em; font-variant-numeric:tabular-nums; }
+  .oi33-bb__medal-own { color:#e8a33d; font-size:.78em; font-variant-numeric:tabular-nums; }
+  .oi33-bb__medal-own--new { color:#999; }
+  .oi33-bb__actions { margin-top:.75rem; }
+  .oi33-bb__actions .button { margin-bottom:0; }
+
+  .oi33-bb__logs { list-style:none; margin:0; padding:0; }
+  .oi33-bb__logs li { display:flex; align-items:center; gap:.5rem; padding:.4rem 0; border-bottom:1px solid rgba(127,127,127,.14); }
+  .oi33-bb__logs li:last-child { border-bottom:0; }
+  .oi33-bb__log-icon {
+    width:36px; height:36px; flex:0 0 36px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .oi33-bb__log-icon--missing {
+    display:flex; align-items:center; justify-content:center;
+    color:#999; border:1px dashed rgba(127,127,127,.4); border-radius:6px;
+  }
+  .oi33-bb__log-body { min-width:0; }
+  .oi33-bb__log-name { font-weight:600; font-size:.9em; overflow-wrap:anywhere; }
+  .oi33-bb__stars { color:#e8a33d; font-size:.85em; margin-left:.2rem; }
+  .oi33-bb__log-meta { color:#888; font-size:.76em; }
+  .oi33-bb__more { margin:.55rem 0 0; font-size:.85em; }
+  .oi33-bb__empty { color:#888; }
+  .oi33-bb__links { margin-top:.8rem; font-size:.85em; }
+  .theme--dark .oi33-bb__intro, [data-mantine-color-scheme=dark] .oi33-bb__intro { color:#aaa; }
 </style>
 {% endblock %}
