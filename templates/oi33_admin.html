@@ -15,6 +15,10 @@
   {%- endif -%}
 {%- endmacro %}
 
+{% macro adminLink(href, name, desc) -%}
+<li class="oi33-admin-link"><a href="{{ href }}">{{ name }}</a>{% if desc %}<span class="oi33-admin-link__desc">{{ desc }}</span>{% endif %}</li>
+{%- endmacro %}
+
 {% block content %}
 <style>
   .oi33-timeline {
@@ -54,6 +58,19 @@
   .theme--dark .oi33-timeline__status-approved { color: #6fcf76; }
   .theme--dark .oi33-timeline__status-rejected { color: #ef6c6c; }
   .theme--dark .oi33-timeline__status-cancelled { color: #6a6a6a; }
+  .oi33-admin-todo { margin:0 0 1.4rem; padding:.9rem 1.1rem; border:1px solid rgba(198,40,40,.35); border-radius:10px; background:rgba(198,40,40,.06); }
+  .oi33-admin-todo__title { font-size:.9rem; font-weight:700; color:#c62828; margin-bottom:.5rem; }
+  .theme--dark .oi33-admin-todo__title { color:#ef6c6c; }
+  .oi33-admin-todo__items { display:flex; flex-wrap:wrap; gap:.6rem; }
+  .oi33-admin-todo__item { display:inline-flex; align-items:center; gap:.45rem; padding:.2rem .75rem; border-radius:999px; background:rgba(198,40,40,.12); font-weight:600; }
+  .oi33-admin-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:1rem; margin-bottom:2.2rem; }
+  .oi33-admin-card { border:1px solid rgba(127,127,127,.22); border-radius:10px; padding:.9rem 1rem 1rem; }
+  .oi33-admin-card__title { margin:0 0 .6rem; padding-bottom:.45rem; border-bottom:1px solid rgba(127,127,127,.16); font-size:.95rem; }
+  .oi33-admin-card__list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.3rem; }
+  .oi33-admin-link { display:flex; align-items:baseline; justify-content:space-between; gap:.8rem; line-height:1.4; }
+  .oi33-admin-link a { font-weight:600; }
+  .oi33-admin-link__desc { opacity:.55; font-size:.8em; text-align:right; }
+  .oi33-admin-card__action { margin-top:.7rem; }
 </style>
 
 <div class="row">
@@ -65,125 +82,122 @@
 
       <div class="section__body">
 
-        <!-- Quick links -->
-        <div style="margin-bottom:3rem;">
-          <h3 style="margin-bottom:1rem;">{{ _('Quick Links') }}</h3>
+        <!-- Every management page, grouped by area (the single admin hub). -->
+        {% if pendingCount or meowPendingCount or modPendingCount %}
+        <div class="oi33-admin-todo">
+          <div class="oi33-admin-todo__title">待处理</div>
+          <div class="oi33-admin-todo__items">
+            {% if pendingCount %}<a class="oi33-admin-todo__item" href="{{ url('oi33_requests') }}">审批申请 <b>{{ pendingCount }}</b></a>{% endif %}
+            {% if meowPendingCount %}<a class="oi33-admin-todo__item" href="{{ url('oi33_meow_admin') }}">喵喵待审 <b>{{ meowPendingCount }}</b></a>{% endif %}
+            {% if modPendingCount %}<a class="oi33-admin-todo__item" href="{{ url('oi33_ai_moderation') }}">AI 审核 <b>{{ modPendingCount }}</b></a>{% endif %}
+          </div>
+        </div>
+        {% endif %}
 
-          <div style="margin-bottom:1.2rem;">
-            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">用户</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="{{ url('oi33_users') }}" class="primary rounded button">{{ _('OI33 All Users') }}</a>
-              <a href="{{ url('oi33_admin_accounts') }}" class="rounded button">账号与 IP</a>
-              <a href="{{ url('oi33_admin_user_create') }}" class="rounded button">新建用户</a>
-              <a href="{{ url('oi33_admin_user_password') }}" class="rounded button">重置密码</a>
-              <a href="{{ url('oi33_admin_mail_blacklist') }}" class="rounded button">邮箱黑名单</a>
-              <a href="{{ url('oi33_requests') }}" class="{% if pendingCount %}primary {% endif %}rounded button">
-                {{ _('Pending Requests') }}{% if pendingCount %} ({{ pendingCount }}){% endif %}
-              </a>
-              <a href="{{ url('oi33_birthday_all') }}" class="rounded button">生日列表</a>
-              <a href="{{ url('oi33_badge_show') }}" class="rounded button">徽章列表</a>
-              <a href="{{ url('oi33_badge_manage') }}" class="rounded button">{{ _('Manage Badges') }}</a>
-              <a href="{{ url('oi33_permissions') }}" class="rounded button">权限说明</a>
-              <a href="{{ url('oi33_at_cf_rating') }}" class="rounded button">AT / CF Rating 排名</a>
-            </div>
+        <div class="oi33-admin-grid">
+          <div class="oi33-admin-card">
+            <h3 class="oi33-admin-card__title">用户与账号</h3>
+            <ul class="oi33-admin-card__list">
+              {{ adminLink(url('oi33_users'), '全部用户', '按实名 / 身份筛选') }}
+              {{ adminLink(url('oi33_admin_accounts'), '账号与 IP', '注册信息与登录 IP') }}
+              {{ adminLink(url('oi33_admin_user_create'), '新建用户', '直接创建账号') }}
+              {{ adminLink(url('oi33_admin_user_password'), '重置密码', '仅普通用户') }}
+              {{ adminLink(url('oi33_admin_mail_blacklist'), '邮箱黑名单', '禁止域名注册 / 换绑') }}
+              {{ adminLink(url('oi33_requests'), '审批申请', ('待处理 ' ~ pendingCount) if pendingCount else '生日 / 实名 / 徽章 / AT-CF') }}
+              {{ adminLink(url('oi33_badge_show'), '徽章列表', '全站徽章展示') }}
+              {{ adminLink(url('oi33_badge_manage'), '徽章管理', '颁发与撤销') }}
+              {{ adminLink(url('oi33_birthday_all'), '生日列表', '全部用户生日') }}
+              {{ adminLink(url('oi33_permissions'), '权限说明', '身份与权限对照') }}
+            </ul>
           </div>
 
-          <div style="margin-bottom:1.2rem;">
-            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">发放</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="{{ url('oi33_coin_show') }}" class="rounded button">金币概览</a>
-              <a href="{{ url('oi33_coin_inc') }}" class="rounded button">{{ _('Grant Coins') }}</a>
-              <a href="{{ url('oi33_coin_bill', uid=0) }}" class="rounded button">{{ _('All Records') }}</a>
-              <a href="{{ url('oi33_cat_food_grant') }}" class="rounded button">调整猫粮 / 罐头</a>
-              <a href="{{ url('oi33_cat_food_contest_reward') }}" class="rounded button">比赛奖励结算</a>
-              <a href="{{ url('oi33_cat_can') }}" class="rounded button">猫罐头市场 / 经济指标</a>
-              {% if (handler.user.realname_flag or 0) >= 2 %}<a href="{{ url('oi33_cat_food_bulk') }}" class="rounded button">批量发放猫粮</a>{% endif %}
-              {% if (handler.user.realname_flag or 0) >= 3 %}
-              <form method="post" action="{{ url('oi33_admin_cat_asset_purge') }}" style="display:inline;"
-                    onsubmit="return confirm('确认销毁所有未认证用户的猫粮（视作管理员扣除）、将其猫罐头回流储备池、把小猫移出猫猫广场并清空其对大猫的贡献（含历史投喂记录）？此操作不可撤销。');">
-                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                <button type="submit" class="rounded button">清理未认证猫资产</button>
-              </form>
-              {% endif %}
-            </div>
+          <div class="oi33-admin-card">
+            <h3 class="oi33-admin-card__title">经济与猫罐头</h3>
+            <ul class="oi33-admin-card__list">
+              {{ adminLink(url('oi33_coin_show'), '金币概览', '余额排行与统计') }}
+              {{ adminLink(url('oi33_coin_inc'), '发放硬币', '正负均可') }}
+              {{ adminLink(url('oi33_coin_bill', uid=0), '全部硬币流水', '按时间倒序') }}
+              {{ adminLink(url('oi33_cat_food_grant'), '调整猫粮 / 罐头', '单人增减') }}
+              {% if adminFlag >= 2 %}{{ adminLink(url('oi33_cat_food_bulk'), '批量发放猫粮', '粘贴 UID 列表') }}{% endif %}
+              {{ adminLink(url('oi33_cat_food_contest_reward'), '比赛奖励结算', '按成绩生成发放清单') }}
+              {{ adminLink(url('oi33_cat_can'), '猫罐头市场', '行情与经济指标') }}
+            </ul>
+            {% if adminFlag >= 3 %}
+            <form class="oi33-admin-card__action" method="post" action="{{ url('oi33_admin_cat_asset_purge') }}"
+                  onsubmit="return confirm('确认销毁所有未认证用户的猫粮（视作管理员扣除）、将其猫罐头回流储备池、把小猫移出猫猫广场并清空其对大猫的贡献（含历史投喂记录）？此操作不可撤销。');">
+              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <button type="submit" class="rounded button">清理未认证猫资产</button>
+            </form>
+            {% endif %}
           </div>
 
-          <div style="margin-bottom:1.2rem;">
-            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">奖章</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="{{ url('oi33_medal_manage') }}" class="rounded button">奖章管理</a>
-              <a href="{{ url('oi33_medal_catalogue') }}" class="rounded button">奖章目录</a>
-              <a href="{{ url('oi33_auction') }}" class="rounded button">奖章拍卖</a>
-              <a href="{{ url('oi33_auction_create') }}" class="rounded button">发起拍卖</a>
-              <a href="{{ url('oi33_contracts') }}" class="rounded button">奖章合同</a>
-            </div>
+          <div class="oi33-admin-card">
+            <h3 class="oi33-admin-card__title">奖章与拍卖</h3>
+            <ul class="oi33-admin-card__list">
+              {{ adminLink(url('oi33_medal_manage'), '奖章管理', '定义、授予、等级与配置') }}
+              {{ adminLink(url('oi33_medal_catalogue'), '奖章目录', '四系列公开目录') }}
+              {{ adminLink(url('oi33_auction'), '奖章拍卖', '进行中与已结束') }}
+              {{ adminLink(url('oi33_auction_create'), '发起拍卖', '上架可售卖奖章') }}
+              {{ adminLink(url('oi33_contracts'), '奖章合同', '成交后的转让') }}
+            </ul>
           </div>
 
-          <div style="margin-bottom:1.2rem;">
-            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">教学</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="{{ url('oi33_algorithm_manage') }}" class="rounded button">算法项目管理</a>
-              <a href="{{ url('oi33_algorithm_user', uid=handler.user._id) }}" class="rounded button">我的算法掌握</a>
-            </div>
+          <div class="oi33-admin-card">
+            <h3 class="oi33-admin-card__title">内容与审核</h3>
+            <ul class="oi33-admin-card__list">
+              {{ adminLink(url('oi33_meow_main'), '喵喵时间线', '全站喵喵') }}
+              {{ adminLink(url('oi33_meow_admin'), '喵喵审核', ('待处理 ' ~ meowPendingCount) if meowPendingCount else '人工复核') }}
+              {{ adminLink(url('oi33_ai_moderation'), 'AI 审核', ('待处理 ' ~ modPendingCount) if modPendingCount else '规则 / AI 配置与记录') }}
+              {{ adminLink(url('oi33_ai_bio_review'), '简介批量审查', '重跑个人简介审核') }}
+              {{ adminLink(url('oi33_solutions'), '全部题解', '全站题解时间线') }}
+              {{ adminLink(url('oi33_problem_discussions'), '题目讨论', '题目内讨论汇总') }}
+              {{ adminLink(url('oi33_paste_all'), '全部剪贴板', '公开粘贴') }}
+              {{ adminLink(url('oi33_wiki_pages'), 'Wiki 页面', '全部条目') }}
+              {{ adminLink(url('oi33_wiki_categories'), 'Wiki 分类', '目录维护') }}
+              {{ adminLink(url('oi33_wiki_bulk_import'), 'Wiki 导入', 'JSON 批量导入') }}
+              {{ adminLink(url('oi33_wiki_bulk_export'), 'Wiki 导出', '导出全部页面') }}
+            </ul>
           </div>
 
-          <div style="margin-bottom:1.2rem;">
-            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">内容</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="{{ url('oi33_meow_main') }}" class="rounded button">{{ _('Meow') }}</a>
-              <a href="{{ url('oi33_meow_admin') }}" class="{% if meowPendingCount %}primary {% endif %}rounded button">
-                {{ _('Meow Review') }}{% if meowPendingCount %} ({{ meowPendingCount }}){% endif %}
-              </a>
-              <a href="{{ url('oi33_ai_moderation') }}" class="{% if modPendingCount %}primary {% endif %}rounded button">
-                AI 审核{% if modPendingCount %} ({{ modPendingCount }}){% endif %}
-              </a>
-              <a href="{{ url('oi33_ai_bio_review') }}" class="rounded button">简介批量审查</a>
-              <a href="{{ url('oi33_paste_all') }}" class="rounded button">{{ _('All Pastes') }}</a>
-              <a href="{{ url('oi33_solutions') }}" class="rounded button">全部题解</a>
-              <a href="{{ url('oi33_problem_discussions') }}" class="rounded button">题目讨论</a>
-              <a href="{{ url('oi33_paste_manage') }}" class="rounded button">我的 Paste</a>
-              <a href="{{ url('oi33_paste_create') }}" class="rounded button">新建 Paste</a>
-              <a href="{{ url('oi33_wiki_main') }}" class="rounded button">{{ _('Wiki Home') }}</a>
-              <a href="{{ url('oi33_wiki_pages') }}" class="rounded button">全部 Wiki 页面</a>
-              <a href="{{ url('oi33_wiki_create') }}" class="rounded button">{{ _('New Page') }}</a>
-              <a href="{{ url('oi33_wiki_categories') }}" class="rounded button">{{ _('Categories') }}</a>
-              <a href="{{ url('oi33_wiki_bulk_import') }}" class="rounded button">{{ _('Import') }}</a>
-              <a href="{{ url('oi33_wiki_bulk_export') }}" class="rounded button">{{ _('Export All') }}</a>
-            </div>
+          <div class="oi33-admin-card">
+            <h3 class="oi33-admin-card__title">教学与算法</h3>
+            <ul class="oi33-admin-card__list">
+              {{ adminLink(url('oi33_algorithm_manage'), '算法项目管理', '大纲导入、项目增删改') }}
+              {{ adminLink(url('oi33_algorithm_user', uid=handler.user._id), '我的算法掌握', '查看自己的面板') }}
+            </ul>
           </div>
 
-          <div style="margin-bottom:1.2rem;">
-            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">猫猫</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="{{ url('oi33_cat_can_arena') }}" class="rounded button">猫猫广场</a>
-              <a href="{{ url('oi33_school_cat_ranking') }}" class="rounded button">大猫领地榜</a>
-              {% if adminFlag >= 3 %}<a href="{{ url('oi33_school_cat_rewards') }}" class="rounded button">每周大猫奖励结算</a>{% endif %}
-              {% if (handler.user.realname_flag or 0) >= 3 %}<a href="{{ url('oi33_cat_map_admin') }}" class="rounded button">像素地图绘图</a>{% endif %}
-            </div>
+          <div class="oi33-admin-card">
+            <h3 class="oi33-admin-card__title">猫猫世界</h3>
+            <ul class="oi33-admin-card__list">
+              {{ adminLink(url('oi33_cat_can_arena'), '猫猫广场', '实时地图与投喂') }}
+              {{ adminLink(url('oi33_school_cat_ranking'), '大猫领地榜', '领地、体重与投喂榜') }}
+              {% if adminFlag >= 3 %}{{ adminLink(url('oi33_school_cat_rewards'), '每周大猫奖励结算', '快照、发放与回滚') }}{% endif %}
+              {% if adminFlag >= 3 %}{{ adminLink(url('oi33_cat_map_admin'), '像素地图绘图', '后台绘制与强制迁移') }}{% endif %}
+            </ul>
           </div>
 
-          <div style="margin-bottom:1.2rem;">
-            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">AI</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="{{ url('oi33_ai_admin') }}" class="rounded button">AI 总览</a>
-              <a href="{{ url('oi33_ai_access') }}" class="rounded button">AI 用户额度</a>
-              <a href="{{ url('oi33_ai_models') }}" class="rounded button">模型 / Provider</a>
-              <a href="{{ url('oi33_ai_summary') }}" class="rounded button">单题精简题意</a>
-              <a href="{{ url('oi33_ai_summary_batch') }}" class="rounded button">批量精简题意</a>
-              <a href="{{ url('oi33_ai_moderation') }}" class="rounded button">审核配置与记录</a>
-              <a href="{{ url('oi33_ai_bio_review') }}" class="rounded button">简介批量审查</a>
-            </div>
+          <div class="oi33-admin-card">
+            <h3 class="oi33-admin-card__title">AI 能力</h3>
+            <ul class="oi33-admin-card__list">
+              {{ adminLink(url('oi33_ai_admin'), 'AI 总览', '用量与成本') }}
+              {{ adminLink(url('oi33_ai_access'), 'AI 用户额度', '白名单与余额') }}
+              {{ adminLink(url('oi33_ai_models'), '模型 / Provider', '接口与提示词') }}
+              {{ adminLink(url('oi33_ai_summary'), '单题精简题意', '生成与缓存') }}
+              {{ adminLink(url('oi33_ai_summary_batch'), '批量精简题意', '按题号区间补齐') }}
+            </ul>
           </div>
 
-          <div>
-            <div style="font-size:0.85rem;opacity:0.6;margin-bottom:0.4rem;">系统</div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-              <a href="{{ url('oi33_migrate') }}" class="rounded button">{{ _('Run Migration') }}</a>
-              <a href="{{ url('oi33_judge_monitor') }}" class="rounded button">{{ _('Judge Monitor') }}</a>
-              {% if canPrivAll %}<a href="{{ url('oi33_tokens') }}" class="rounded button">{{ _('API Tokens') }}</a>{% endif %}
-              <a href="{{ url('oi33_oauth_clients') }}" class="rounded button">{{ _('OAuth Clients') }}</a>
-              <a href="{{ url('oi33_permissions') }}" class="rounded button">{{ _('Permissions') }}</a>
-            </div>
+          <div class="oi33-admin-card">
+            <h3 class="oi33-admin-card__title">外观与系统</h3>
+            <ul class="oi33-admin-card__list">
+              {{ adminLink(url('oi33_admin_home'), '首页侧栏卡片', '运势、倒计时与行情显示') }}
+              {{ adminLink(url('oi33_judge_monitor'), '评测机监控', '心跳与企业微信告警') }}
+              {{ adminLink(url('oi33_migrate'), '数据迁移', '从旧插件导入（幂等）') }}
+              {{ adminLink(url('oi33_oauth_clients'), 'OAuth 应用', '第三方登录接入') }}
+              {% if canPrivAll %}{{ adminLink(url('oi33_tokens'), 'API Token', '只读 Bearer Token') }}{% endif %}
+              {{ adminLink(url('oi33_at_cf_rating'), 'AT / CF Rating 排名', '外部 rating 榜') }}
+            </ul>
           </div>
         </div>
 

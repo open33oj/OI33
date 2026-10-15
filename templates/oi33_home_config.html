@@ -1,0 +1,124 @@
+{% set page_name = "oi33_admin_home" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">首页侧栏卡片</h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_admin') }}" class="rounded button">{{ _('Back to Admin') }}</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="oi33-home-config__intro">
+          这里配置首页右下角那张「今日运势 / 倒计时 / 猫罐头价格 / 奖章拍卖」卡片，保存后立即生效
+          （不再需要改系统设置里的 <code>hydrooj.homepage</code>；升级时会自动把旧配置导入到这里）。
+        </p>
+
+        {% if error %}
+        <blockquote class="note oi33-home-config__error">{{ error }}</blockquote>
+        {% endif %}
+
+        <form method="post" action="{{ url('oi33_admin_home') }}">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+
+          <h3 class="oi33-home-config__h">显示</h3>
+          <div class="row">
+            <div class="medium-4 columns form__item">
+              <label class="checkbox">
+                <input type="checkbox" name="enabled" value="1" {% if config.enabled %}checked{% endif %}>
+                在首页显示这张卡片
+              </label>
+            </div>
+            <div class="medium-4 columns form__item">
+              <label>放置位置
+                <select class="select" name="column">
+                  <option value="sidebar" {% if config.column != 'main' %}selected{% endif %}>右侧侧栏（窄栏）</option>
+                  <option value="main" {% if config.column == 'main' %}selected{% endif %}>左侧主列（宽栏）</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <p class="oi33-home-config__hint">
+            只有当你把 <code>hydrooj.homepage</code> 里的 <code>checkin</code> / <code>countdown</code> 两个键删掉后，
+            「放置位置」才会生效；保留它们时沿用原来那一列的位置。
+          </p>
+
+          <h3 class="oi33-home-config__h">运势文字与颜色（7 级，对应 checkin_luck 0-6）</h3>
+          <div class="oi33-home-config__luck">
+            {% for row in luckLevels %}
+            <div class="oi33-home-config__luck-row">
+              <span class="oi33-home-config__luck-index">{{ row.index }}</span>
+              <input class="textbox" type="text" name="luck_text_{{ row.index }}" value="{{ row.text }}"
+                     maxlength="12" placeholder="第 {{ row.index + 1 }} 级文字">
+              <input class="oi33-home-config__color" type="color" name="luck_color_{{ row.index }}"
+                     value="{{ row.color }}" title="文字颜色">
+              <code class="oi33-home-config__color-code">{{ row.color }}</code>
+            </div>
+            {% endfor %}
+          </div>
+
+          <h3 class="oi33-home-config__h">始终显示大吉的 UID</h3>
+          <div class="row">
+            <div class="medium-8 columns form__item">
+              <label>UID 列表（逗号或空格分隔，可留空）
+                <input class="textbox" type="text" name="luck_vip" value="{{ luckVipText }}"
+                       placeholder="例如：1, 2">
+              </label>
+            </div>
+          </div>
+
+          <h3 class="oi33-home-config__h">倒计时</h3>
+          <p class="oi33-home-config__hint">卡片不再显示任何标题，倒计时直接以多行居中显示在签到区下面。</p>
+          <div class="row">
+            <div class="medium-3 columns form__item">
+              <label>最多显示几条
+                <input class="textbox" type="number" name="countdown_max_dates" min="1" max="50"
+                       value="{{ config.countdown.max_dates }}">
+              </label>
+            </div>
+          </div>
+          <div class="form__item">
+            <label>日期列表（每行一条，过期自动隐藏）
+              <textarea class="textbox" name="countdown_dates" rows="6"
+                        placeholder="NOI 2026 | 2026-07-18&#10;CSP-J/S 第一轮 | 2026-09-19">{{ datesText }}</textarea>
+            </label>
+            <p class="oi33-home-config__hint">
+              每行需要包含日期 <code>YYYY-MM-DD</code>，名称写在日期旁边即可（用 <code>|</code>、逗号或空格分隔都行）。
+            </p>
+          </div>
+
+          <div class="oi33-home-config__actions">
+            <button type="submit" class="rounded primary button">保存配置</button>
+            <button type="submit" name="action" value="import_legacy" class="rounded button"
+                    onclick="return confirm('用系统设置（hydrooj.homepage）里的 checkin / countdown 覆盖上面的运势与倒计时配置？显示开关与放置位置不受影响。');">
+              从系统设置导入
+            </button>
+          </div>
+          <p class="oi33-home-config__hint">
+            首次启用时会自动从系统设置导入一次；如果那时系统设置还是空的，可以点「从系统设置导入」手动补一次
+            {%- if legacyDateCount and legacyDateCount > config.countdown.dates.length %}（当前系统设置里还有 {{ legacyDateCount }} 个日期）{%- endif %}。
+          </p>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .oi33-home-config__intro { opacity:.75; }
+  .oi33-home-config__hint { opacity:.6; font-size:.85em; margin-top:.35rem; }
+  .oi33-home-config__h { margin:1.6rem 0 .7rem; padding-bottom:.4rem; border-bottom:1px solid rgba(127,127,127,.18); font-size:1rem; }
+  .oi33-home-config__h:first-of-type { margin-top:.5rem; }
+  .oi33-home-config__error { border-left-color:#d32f2f; color:#c62828; }
+  .oi33-home-config__luck { display:flex; flex-direction:column; gap:.4rem; max-width:34rem; }
+  .oi33-home-config__luck-row { display:flex; align-items:center; gap:.5rem; }
+  .oi33-home-config__luck-index { width:1.2rem; text-align:right; opacity:.5; font-size:.85em; }
+  .oi33-home-config__luck-row .textbox { flex:1 1 auto; margin:0; }
+  .oi33-home-config__color { width:2.6rem; height:2rem; padding:0; border:1px solid rgba(127,127,127,.35); border-radius:4px; background:none; }
+  .oi33-home-config__color-code { width:5.6rem; font-size:.8em; opacity:.6; }
+  .oi33-home-config__actions { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+  .oi33-home-config__actions .button { margin-bottom:0; }
+  .oi33-home-config textarea.textbox { font-family:monospace; }
+</style>
+{% endblock %}

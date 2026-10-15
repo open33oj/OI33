@@ -1,4 +1,4 @@
-import { Handler, PRIV, Types, query, param, Context, UserModel, ObjectId, UserAlreadyExistError, UserNotFoundError, ForbiddenError, ValidationError, BlackListModel, db } from 'hydrooj';
+import { Handler, PRIV, Types, query, param, Context, UserModel, ObjectId, UserAlreadyExistError, UserNotFoundError, ForbiddenError, ValidationError, BlackListModel, SystemModel, db, yaml } from 'hydrooj';
 import Schema from 'schemastery';
 import { oi33Model } from '../model';
 import { addLog } from '../model/log';
@@ -230,6 +230,149 @@ class AdminMailBlacklistDeleteHandler extends Handler {
     }
 }
 
+// --- Homepage side-card config (formerly the `hydrooj.homepage` YAML) ---
+
+const HOME_DATE_RE = /(\d{4}-\d{2}-\d{2})/;
+
+// One date per line: `NOI 2026 | 2026-07-18`, `2026-07-18 NOI 2026` and
+// `2026-07-18,NOI 2026` all parse; lines without a date (or without a name)
+// are reported back so nothing is silently dropped.
+function parseCountdownDateLines(raw: unknown): { dates: any[], invalid: string[] } {
+    const lines = String(raw ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+    const dates: any[] = [];
+    const invalid: string[] = [];
+    for (const line of lines) {
+        const matched = HOME_DATE_RE.exec(line);
+        if (!matched) {
+            invalid.push(line);
+            continue;
+        }
+        const name = line.replace(matched[1], ' ').replace(/[|,，、#]+/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!name) {
+            invalid.push(line);
+            continue;
+        }
+        dates.push({ name, date: matched[1] });
+    }
+    return { dates, invalid };
+}
+
+function formatCountdownDateLines(dates: any[]): string {
+    return (dates || []).map((row: any) => `${row.name} | ${row.date}`).join('\n');
+}
+
+// The legacy config lives in the `hydrooj.homepage` system setting. Read it
+// defensively: the setting service is the primary source, `SystemModel.get` is
+// the fallback (the setting may be unreachable from some code paths), and the
+// value is accepted both as the raw YAML string and as an already-parsed array.
+function legacyHomepageConfig(h: Handler) {
+    try {
+        let raw: any = (h.ctx as any)?.setting?.get?.('hydrooj.homepage');
+        if (!raw) {
+            try {
+                raw = SystemModel.get('hydrooj.homepage');
+            } catch {
+                // keep the setting-service result (undefined) and bail below
+            }
+        }
+        if (!raw) return {};
+        const parsed = typeof raw === 'string' ? yaml.load(raw) : raw;
+        return oi33Model.legacyHomeConfigFromHomepage(parsed);
+    } catch (e) {
+        console.error('[oi33] homepage legacy config parse failed:', e);
+        return {};
+    }
+}
+
+class AdminHomeConfigHandler extends Handler {
+    async get() {
+        await checkOi33Admin(this.user._id);
+        const legacy = legacyHomepageConfig(this);
+        const config = await oi33Model.ensureHomeConfig(legacy);
+        this.response.template = 'oi33_home_config.html';
+        this.response.body = {
+            config,
+            luckLevels: config.luck_type.map((row: any, index: number) => ({ index, ...row })),
+            luckVipText: (config.luck_vip || []).join(', '),
+            datesText: formatCountdownDateLines(config.countdown.dates),
+            legacyDateCount: legacy.countdown?.dates?.length || 0,
+            legacyVipCount: legacy.luck_vip?.length || 0,
+        };
+    }
+
+    async post() {
+        await checkOi33Admin(this.user._id);
+        const body: any = this.request.body || {};
+        // Explicit re-import: overwrite only the parts the system setting still
+        // provides, leaving the display switch and column untouched.
+        if (String(body.action || '') === 'import_legacy') {
+            const legacy = legacyHomepageConfig(this);
+            if (!legacy.countdown && !legacy.luck_type && !legacy.luck_vip) {
+                this.response.redirect = this.url('oi33_admin_home', {
+                    query: { notification: '系统设置（hydrooj.homepage）里没有可导入的 checkin / countdown 配置。' },
+                });
+                return;
+            }
+            const current = await oi33Model.ensureHomeConfig(legacy);
+            const imported = await oi33Model.saveHomeConfig({
+                ...current,
+                ...(legacy.luck_type ? { luck_type: legacy.luck_type } : {}),
+                ...(legacy.luck_vip ? { luck_vip: legacy.luck_vip } : {}),
+                ...(legacy.countdown ? { countdown: legacy.countdown } : {}),
+            }, this.user._id);
+            await addLog({
+                type: 'admin', sender: this.user._id, action: 'home_config_import',
+                reason: `${imported.countdown.dates.length} 个日期`,
+            });
+            this.response.redirect = this.url('oi33_admin_home', {
+                query: {
+                    notification: `已从系统设置导入：${imported.countdown.dates.length} 个倒计时日期、`
+                        + `${imported.luck_vip.length} 个 VIP、运势 ${imported.luck_type.length} 级。`,
+                },
+            });
+            return;
+        }
+        const { dates, invalid } = parseCountdownDateLines(body.countdown_dates);
+        const raw = {
+            enabled: !!body.enabled,
+            column: String(body.column || 'sidebar'),
+            luck_type: Array.from({ length: 7 }, (_, index) => ({
+                text: body[`luck_text_${index}`],
+                color: body[`luck_color_${index}`],
+            })),
+            luck_vip: body.luck_vip,
+            countdown: {
+                title: body.countdown_title,
+                max_dates: body.countdown_max_dates,
+                dates,
+            },
+        };
+        const config = oi33Model.normalizeHomeConfig(raw);
+        if (invalid.length) {
+            const legacy = legacyHomepageConfig(this);
+            this.response.template = 'oi33_home_config.html';
+            this.response.body = {
+                config,
+                luckLevels: config.luck_type.map((row: any, index: number) => ({ index, ...row })),
+                luckVipText: String(body.luck_vip ?? ''),
+                datesText: String(body.countdown_dates ?? ''),
+                legacyDateCount: legacy.countdown?.dates?.length || 0,
+                legacyVipCount: legacy.luck_vip?.length || 0,
+                error: `以下日期行无法解析（每行需要包含 YYYY-MM-DD，例如「NOI 2026 | 2026-07-18」）：${invalid.join('；')}`,
+            };
+            return;
+        }
+        await oi33Model.saveHomeConfig(raw, this.user._id);
+        await addLog({
+            type: 'admin', sender: this.user._id, action: 'home_config_update',
+            reason: config.enabled ? `启用（${config.column === 'main' ? '主列' : '侧栏'}）` : '停用',
+        });
+        this.response.redirect = this.url('oi33_admin_home', {
+            query: { notification: '首页侧栏卡片配置已保存。' },
+        });
+    }
+}
+
 // --- Migration handler ---
 
 class MigrateHandler extends Handler {
@@ -267,6 +410,7 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_admin_cat_asset_purge', '/oi33/admin/cat-assets/purge', AdminCatAssetPurgeHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_admin_mail_blacklist', '/oi33/admin/mail-blacklist', AdminMailBlacklistHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_admin_mail_blacklist_delete', '/oi33/admin/mail-blacklist/:domain/delete', AdminMailBlacklistDeleteHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route('oi33_admin_home', '/oi33/admin/home', AdminHomeConfigHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_migrate', '/oi33/migrate', MigrateHandler, PRIV.PRIV_USER_PROFILE);
 
     ctx.addScript(
