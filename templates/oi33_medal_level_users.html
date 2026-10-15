@@ -7,8 +7,8 @@
     <div class="section">
       <div class="section__header">
         <h1 class="section__title level-medal-title">
-          <img class="level-medal-icon" src="{{ rung.imageData }}" width="40" height="40" alt="{{ rung.name }}">
-          {{ medal.name }} · Lv.{{ rung.level }} {{ rung.name }}
+          <img class="level-medal-icon" src="{{ rung.imageData }}" width="40" height="40" alt="{{ rung.label or rung.name }}">
+          {{ medal.name }} · {{ rung.label or rung.name }}
         </h1>
         <div class="section__tools">
           <a href="{{ url('oi33_medal_catalogue') }}" class="rounded button">返回奖章目录</a>
@@ -23,7 +23,7 @@
         <div class="level-medal-switch">
           {% for level in levels %}
           <a class="rounded button{% if level.level == rung.level %} primary{% endif %}"
-            href="{{ url('oi33_medal_level_users', id=medal._id, level=level.level) }}">Lv.{{ level.level }} {{ level.name }}</a>
+            href="{{ url('oi33_medal_level_users', id=medal._id, level=level.level) }}">{{ level.label or level.name }}</a>
           {% endfor %}
         </div>
         {% if awards.length %}

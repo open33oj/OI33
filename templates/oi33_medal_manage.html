@@ -58,8 +58,8 @@
   <ol class="medal-series__levels">
     {% for level in (medal.levels or []) %}
     <li class="medal-series__level">
-      <img class="medal-series__level-icon" src="{{ level.imageData }}" width="32" height="32" alt="{{ level.name }}">
-      <span class="medal-series__level-name">Lv.{{ level.level }} {{ level.name }}</span>
+      <img class="medal-series__level-icon" src="{{ level.imageData }}" width="32" height="32" alt="{{ level.label or level.name }}">
+      <span class="medal-series__level-name">{{ level.label or level.name }}</span>
       {% if showThreshold and level.threshold %}<span class="medal-series__level-desc">阈值 {{ level.threshold }}</span>{% endif %}
       {% if level.description %}<span class="medal-series__level-desc">{{ level.description }}</span>{% endif %}
     </li>
@@ -291,7 +291,7 @@
                 <p class="medal-help">
                   每个等级有自己的名称与像素画，用户已获得的等级以该等级的像素画与名称展示。
                   OJ 成就奖章还要给每个等级填写自动发放阈值（必须由低到高严格递增）。
-                  保存后会自动按当前顺序重排为 Lv.1…Lv.N；删除一行即从梯子上移除该等级。
+                  保存后会自动按当前顺序重排等级序号（1…N）；删除一行即从梯子上移除该等级。
                 </p>
                 <input type="hidden" name="levels_json" id="medal-levels-json" value="">
                 <div id="medal-levels" class="medal-levels">
@@ -406,7 +406,7 @@
                 {% else %}
                   {{ award.medalId }}
                 {% endif %}
-                {% if award.level %}<small class="medal-meta">Lv.{{ award.level }}</small>{% endif %}
+                {% if award.level %}<small class="medal-meta">{{ award.levelName or ('第 ' ~ award.level ~ ' 级') }}</small>{% endif %}
               </td>
               <td>{{ '手动授予' if award.source == 'manual' else award.source }}</td>
               <td>{{ datetimeSpan(award.earnedAt)|safe }}</td>
@@ -692,8 +692,8 @@
       }
       var html = '';
       for (var i = 0; i < ladders.length; i++) {
-        html += '<option value="' + ladders[i].level + '">Lv.' + ladders[i].level
-          + ' ' + ladders[i].name
+        html += '<option value="' + ladders[i].level + '">'
+          + (ladders[i].label || ladders[i].name || ('第 ' + ladders[i].level + ' 级'))
           + (ladders[i].threshold ? '（阈值 ' + ladders[i].threshold + '）' : '')
           + '</option>';
       }

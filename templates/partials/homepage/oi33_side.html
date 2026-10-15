@@ -75,6 +75,9 @@
       <p class="oi33-home-side__auction-link">
         <a href="{{ url('oi33_auction') }}">{% if payload.market.auctionCount %}{{ payload.market.auctionCount }} 个奖章拍卖中{% else %}暂无奖章拍卖{% endif %}</a>
       </p>
+      <p class="oi33-home-side__auction-link oi33-home-side__blindbox-link">
+        <a href="{{ url('oi33_blindbox') }}">{% if payload.market.blindboxCount %}有 {{ payload.market.blindboxCount }} 个盲盒可抽取{% else %}暂无盲盒可抽取{% endif %}</a>
+      </p>
     </div>
     {% endif %}
   </div>
@@ -115,6 +118,7 @@
   .oi33-home-side__change.is-up { color:#d32f2f; }
   .oi33-home-side__change.is-down { color:#2e7d32; }
   .section__body.oi33-home-side__body .oi33-home-side__auction-link { margin:.35rem 0 0; font-size:.9em; text-align:center; }
+  .section__body.oi33-home-side__body .oi33-home-side__blindbox-link { margin-top:.15rem; }
   .theme--dark .oi33-home-side__quote-title,
   [data-mantine-color-scheme=dark] .oi33-home-side__quote-title { color:#e6e6e6; }
   .theme--dark .oi33-home-side__change,

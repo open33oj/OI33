@@ -97,7 +97,8 @@ function normalizeImportedLevel(
     medalId: string,
     warnings: string[],
 ): Oi33MedalLevel {
-    const name = String(raw?.name ?? '').trim().slice(0, 50) || `Lv.${index + 1}`;
+    // 不再用「Lv.N」作为默认名：等级在界面上直接显示名称，序号只是排序。
+    const name = String(raw?.name ?? '').trim().slice(0, 50) || `第 ${index + 1} 级`;
     const description = String(raw?.description ?? '').trim().slice(0, 200);
     const image = normalizeMedalImage(raw?.imageData);
     if (!image && raw?.imageData) {

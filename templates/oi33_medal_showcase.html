@@ -27,7 +27,7 @@
                 {% if award.medalId in selected %}checked{% endif %}>
               <img class="showcase-pixel" src="{{ award.view.imageData }}" width="48" height="48"
                 alt="{{ award.view.name }}">
-              <span class="showcase-name">{{ award.view.name }}</span>
+              <span class="showcase-name">{{ award.view.name }}{% if award.view.stars %} <span class="showcase-stars">★{{ award.view.stars }}</span>{% endif %}</span>
               <input type="number" class="showcase-pos" name="pos_{{ award.medalId }}"
                 min="1" max="{{ max }}" step="1" placeholder="顺序"
                 value="{{ positions[award.medalId] or '' }}">
@@ -56,6 +56,7 @@
   .showcase-item input { margin:0; }
   .showcase-pixel { width:48px; height:48px; object-fit:fill; image-rendering:crisp-edges; image-rendering:pixelated; }
   .showcase-name { font-size:.85rem; overflow:hidden; max-width:100%; white-space:nowrap; text-overflow:ellipsis; }
+  .showcase-stars { color:#e8a33d; font-weight:600; }
   .showcase-pos {
     display:none; width:4.5rem; padding:0.1rem 0.3rem; text-align:center;
     border:1px solid rgba(127,127,127,.35); border-radius:4px; background:transparent; color:inherit;

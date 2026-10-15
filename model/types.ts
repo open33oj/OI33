@@ -552,6 +552,9 @@ export interface Oi33UserMedal {
     // rung. Absent on every other family, where the medal is held or not held
     // at all.
     level?: number;
+    // 一般奖章 only: how many copies the user has collected. Absent means one.
+    // The star level is derived (floor(log2(count))) and never stored.
+    count?: number;
     announcementPostId?: ObjectId;
 }
 

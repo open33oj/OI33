@@ -14,7 +14,7 @@ import type { Oi33BlindboxItem, Oi33MedalBlindbox } from './types';
 import { addLog } from './log';
 import { adjustCatCans } from './cat-can';
 import {
-    medalCategoryOf, medalColl, medalGrant, medalIsLevelSeries, userMedalColl,
+    medalCategoryOf, medalColl, medalGrant, medalIsLevelSeries, medalStarLevel, userMedalColl,
 } from './medal';
 import { userColl } from './user';
 import {
@@ -36,14 +36,11 @@ export async function ensureBlindboxIndexes() {
     ]);
 }
 
-// A pool may only contain medals a blind box can hand out: no auctionable
-// (saleable) medals, which are unique server-wide, and no levelled ladders,
-// which are earned by rule or by an administrator.
+// 盲盒是一般奖章的售卖形式，所以池子里只能放一般奖章：可售卖奖章全服唯一（走拍卖
+// 与合同）、认证奖章与 OJ 成就奖章有自己的发放渠道（比赛认证 / 自动规则）。
 export function blindboxMedalIssue(medal: any): string | null {
     if (!medal) return '奖章不存在。';
-    const category = medalCategoryOf(medal);
-    if (category === 'saleable') return '可拍卖奖章不能放进盲盒（全站唯一）。';
-    if (category === 'certification') return '认证奖章不能放进盲盒。';
+    if (medalCategoryOf(medal) !== 'manual') return '盲盒只能放一般奖章。';
     if (medalIsLevelSeries(medal)) return '有等级阶梯的奖章不能放进盲盒。';
     return null;
 }
@@ -56,7 +53,24 @@ export function toBlindboxId(raw: unknown): ObjectId | null {
 
 export async function blindboxList(): Promise<any[]> {
     const pools = await blindboxColl.find().sort({ openAt: -1, createdAt: -1 }).toArray();
-    return pools.map((pool) => ({ ...pool, probabilitySum: blindboxItemsSum(pool.items || []) }));
+    const medalIds = [...new Set(pools.flatMap((pool: any) => (pool.items || []).map((item: any) => item.medalId)))];
+    const medals = medalIds.length ? await medalColl.find({ _id: { $in: medalIds } } as any).toArray() : [];
+    const nameOf = new Map<string, string>(
+        medals.map((medal: any): [string, string] => [String(medal._id), String(medal.name || medal._id)]),
+    );
+    return pools.map((pool: any) => ({
+        ...pool,
+        items: (pool.items || []).map((item: any) => ({
+            ...item,
+            medalName: nameOf.get(item.medalId) || item.medalId,
+        })),
+        probabilitySum: blindboxItemsSum(pool.items || []),
+    }));
+}
+
+// 首页侧栏卡片用：当前可以购买（已上架且已到开放时间）的盲盒数量。
+export async function blindboxOpenCount(now = new Date()): Promise<number> {
+    return await blindboxColl.countDocuments({ enabled: true, openAt: { $lte: now } } as any);
 }
 
 export async function blindboxGet(id: ObjectId): Promise<any | null> {
@@ -185,6 +199,9 @@ export interface BlindboxPurchaseResult {
     poolName: string;
     medalId: string;
     price: number;
+    // 抽到后该奖章的持有数量与对应星级（重复的一般奖章会升星）。
+    copies: number;
+    stars: number;
     remaining: number;
 }
 
@@ -202,16 +219,10 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
     // A missing oi33 profile counts as unverified, exactly like checkUserFlag.
     if ((Number(buyer?.realname_flag) || 0) < 1) throw new ValidationError('完成实名认证后才能购买盲盒。');
 
-    // Only medals the buyer does not own yet stay in the pool, so a purchase
-    // never burns cans on a duplicate. The configured weights keep their
-    // relative ratio among the remaining medals.
+    // 每次购买都在整组里按权重抽取。抽到已有的一般奖章不会浪费——medalGrant 会把
+    // 该奖章的数量 +1，星级随数量提升（floor(log2(count))）。
     const items: Oi33BlindboxItem[] = (pool.items || []).filter((item: any) => item?.medalId);
-    const owned = await userMedalColl.find(
-        { uid, medalId: { $in: items.map((item) => item.medalId) } } as any,
-    ).project({ medalId: 1 } as any).toArray();
-    const ownedIds = new Set(owned.map((row: any) => String(row.medalId)));
-    const available = items.filter((item) => !ownedIds.has(item.medalId));
-    if (!available.length) throw new ValidationError('这组奖章你已经全部拥有了。');
+    if (!items.length) throw new ValidationError('该盲盒还没有配置奖章。');
 
     const day = blindboxDayKey(now);
     const price = Number(pool.price) || 0;
@@ -227,10 +238,13 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
         throw new ValidationError(e?.message || '猫罐头扣除失败。');
     }
 
-    const total = blindboxItemsSum(available);
-    const medalId = pickBlindboxMedal(available, Math.floor(Math.random() * Math.max(1, total)))!;
+    const total = blindboxItemsSum(items);
+    const medalId = pickBlindboxMedal(items, Math.floor(Math.random() * Math.max(1, total)))!;
+    let copies = 1;
     try {
-        await medalGrant(uid, medalId, uid, 'blindbox', true);
+        // 重复的一般奖章会由 medalGrant 累加数量（星级随数量提升）。
+        const granted = await medalGrant(uid, medalId, uid, 'blindbox', true);
+        copies = Math.max(1, Math.floor(Number((granted.grant as any)?.count) || 1));
     } catch (e: any) {
         // Refund both the cans and the daily quota.
         try {
@@ -249,6 +263,7 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
         poolName: pool.name,
         medalId,
         price,
+        copies,
         createdAt: now,
     };
     await blindboxLogColl.insertOne(log);
@@ -263,8 +278,9 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
     try {
         await MessageModel.send(
             1, uid,
-            `你购买的盲盒「${pool.name}」开出了奖章「${(medal as any)?.name || medalId}」。`
-            + `今天还可以购买 ${Math.max(0, BLINDBOX_DAILY_LIMIT - remaining)} 次。`,
+            `你购买的盲盒「${pool.name}」开出了奖章「${(medal as any)?.name || medalId}」`
+            + (copies > 1 ? `（第 ${copies} 枚，★${medalStarLevel(copies)}）` : '')
+            + `。今天还可以购买 ${Math.max(0, BLINDBOX_DAILY_LIMIT - remaining)} 次。`,
         );
     } catch (e) {
         console.error('[oi33] blindbox notification failed:', e);
@@ -274,6 +290,8 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
         poolName: pool.name,
         medalId,
         price,
+        copies,
+        stars: medalStarLevel(copies),
         remaining: Math.max(0, BLINDBOX_DAILY_LIMIT - remaining),
     };
 }
@@ -292,18 +310,26 @@ export async function blindboxOverview(uid: number, now = new Date()) {
     const medalDict = new Map<string, any>(
         medals.map((medal: any): [string, any] => [String(medal._id), medal]),
     );
-    const ownedIds = new Set(owned.map((row: any) => String(row.medalId)));
+    const heldDict = new Map<string, any>(
+        owned.map((row: any): [string, any] => [String(row.medalId), row]),
+    );
     return {
         pools: pools.map((pool: any) => {
-            const rows = (pool.items || []).map((item: any) => ({
-                ...item,
-                medal: medalDict.get(item.medalId) || null,
-                owned: ownedIds.has(item.medalId),
-            }));
+            const rows = (pool.items || []).map((item: any) => {
+                const held = heldDict.get(item.medalId);
+                const count = held ? Math.max(1, Math.floor(Number(held.count) || 1)) : 0;
+                return {
+                    ...item,
+                    medal: medalDict.get(item.medalId) || null,
+                    owned: !!held,
+                    count,
+                    stars: held ? medalStarLevel(count) : 0,
+                };
+            });
             return {
                 ...pool,
                 rows,
-                newCount: rows.filter((row: any) => !row.owned).length,
+                ownedCount: rows.filter((row: any) => row.owned).length,
                 open: !!pool.enabled && new Date(pool.openAt).getTime() <= now.getTime(),
             };
         }),

@@ -493,8 +493,8 @@
               <span class="oi33-timeline__tag">奖章</span>
               {{ userLink(a.userId) }}
               <span class="oi33-timeline__note">
-                {% if a.action == 'grant' %}获得了奖章{% if a.level %}（Lv.{{ a.level }}）{% endif %}
-                {% elif a.action == 'level_update' %}的奖章认证等级更新为 Lv.{{ a.level }}
+                {% if a.action == 'grant' %}获得了奖章{% if a.levelName %}（{{ a.levelName }}）{% elif a.level %}（第 {{ a.level }} 级）{% endif %}
+                {% elif a.action == 'level_update' %}的奖章认证等级更新为{% if a.levelName %}{{ a.levelName }}{% else %}第 {{ a.level }} 级{% endif %}
                 {% elif a.action == 'revoke' %}被撤销奖章
                 {% elif a.action == 'definition_create' %}创建了奖章定义
                 {% elif a.action == 'definition_edit' %}修改了奖章定义

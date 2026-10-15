@@ -89,6 +89,24 @@ export function medalCategoryName(medal: any): string {
     return MEDAL_CATEGORY_NAMES[medalCategoryOf(medal)];
 }
 
+// 一般奖章可以重复获得（盲盒开出重复的一般奖章、管理员重复发放都会累加数量），
+// 数量换算成星级：floor(log2(count))，即 1 枚 0 星、2-3 枚 1 星、4-7 枚 2 星…
+export function medalStarLevel(count: unknown): number {
+    const value = Math.floor(Number(count));
+    if (!Number.isSafeInteger(value) || value < 2) return 0;
+    return Math.floor(Math.log2(value));
+}
+
+// 等级阶梯的显示名：管理员填的名称直接用，并且去掉历史数据里自动生成的
+// 「Lv.N」前缀（旧导入默认名），避免界面上出现多余的 Lv.序号。
+export function medalLevelLabel(level: any): string {
+    const raw = String(level?.name ?? '').trim();
+    const stripped = raw.replace(/^Lv\.?\s*\d+\s*[:：.、-]?\s*/i, '').trim();
+    if (stripped) return stripped;
+    const ordinal = Number(level?.level);
+    return Number.isSafeInteger(ordinal) && ordinal > 0 ? `第 ${ordinal} 级` : raw;
+}
+
 // Attach the derived category (and its display name) so handlers and
 // templates never re-derive it. Certification ladders are normalised to
 // ascending level order here, which makes every consumer order-safe.
@@ -98,9 +116,9 @@ export function medalView<T extends Record<string, any>>(medal: T) {
         ...medal,
         ...(Array.isArray((medal as any).levels)
             ? {
-                levels: [...(medal as any).levels].sort(
-                    (a: any, b: any) => Number(a?.level || 0) - Number(b?.level || 0),
-                ),
+                levels: [...(medal as any).levels]
+                    .sort((a: any, b: any) => Number(a?.level || 0) - Number(b?.level || 0))
+                    .map((level: any) => ({ ...level, label: medalLevelLabel(level) })),
             }
             : {}),
         category,
@@ -200,6 +218,10 @@ export function medalAwardView(award: any, medal: any) {
     const level = leveled
         ? (Number.isSafeInteger(held) && held > 0 ? held : (rung ? Number(rung.level) : null))
         : null;
+    // 一般奖章可以重复获得：award.count 记录持有数量，星级由数量换算
+    // （1 枚 0 星不做展示）。其它系列永远只有一枚。
+    const count = category === 'manual' ? Math.max(1, Math.floor(Number(award?.count) || 1)) : 1;
+    const rungLabel = rung ? medalLevelLabel(rung) : '';
     return {
         category,
         categoryName: MEDAL_CATEGORY_NAMES[category],
@@ -209,10 +231,12 @@ export function medalAwardView(award: any, medal: any) {
             && !levels.some((item) => Number(item.level) === level),
         displayLevel: rung ? Number(rung.level) : null,
         levelCount: levels.length,
-        levelName: rung?.name || '',
-        name: rung ? `${medal.name} · ${rung.name}` : (medal?.name || ''),
+        levelName: rungLabel,
+        name: rung ? `${medal.name} · ${rungLabel}` : (medal?.name || ''),
         description: rung?.description || medal?.description || '',
         imageData: rung?.imageData || medal?.imageData || '',
         imageSize: rung?.imageSize || medal?.imageSize || 24,
+        count,
+        stars: category === 'manual' ? medalStarLevel(count) : 0,
     };
 }
