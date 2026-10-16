@@ -4,6 +4,7 @@ import { applyHomePatches } from './home';
 import { applyDisplayPatches } from './display';
 import { applyTemplateGuard } from './template-guard';
 import { applyTokenPatches } from './token';
+import { applySystemSettingPatches } from './system-setting';
 
 // All OI33 monkey-patches, grouped by the Hydro surface they touch. index.ts
 // calls this once during addon startup, before any request is served.
@@ -13,4 +14,5 @@ export function applyPatches(ctx: Context) {
     applyDisplayPatches(ctx);
     applyTemplateGuard(ctx);
     applyTokenPatches(ctx);
+    applySystemSettingPatches();
 }

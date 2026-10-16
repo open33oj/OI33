@@ -12,6 +12,7 @@ import {
     algorithmEnsureOutlineImported, algorithmMigrateOutlineIds, algorithmOutlineMeta,
     algorithmDropBasicsSection,
 } from './model/algorithm';
+import { judgeMonitorMigrateFromSettings } from './model/judge-monitor';
 
 // hydrooj's `db` export is a Proxy over MongoService, which only exposes
 // `collection()` etc. — the raw mongodb Db (with listCollections / admin) is
@@ -165,6 +166,7 @@ export async function migrate() {
         algorithmRatingsRenamed: 0,
         algorithmBasicsItemsRemoved: 0,
         algorithmBasicsRatingsRemoved: 0,
+        judgeMonitorImported: false,
         errors: [] as string[],
     };
 
@@ -578,6 +580,18 @@ export async function migrate() {
         result.algorithmBasicsRatingsRemoved = dropped.ratings;
     } catch (e: any) {
         result.errors.push(`Step 17 (drop outline basics section): ${e.message}`);
+    }
+
+    try {
+        // Step 18: the 评测机监控 state moved out of the core `system` settings
+        // collection into `oi33_judge_monitor`. Writing a system setting
+        // broadcasts `system/setting`, which makes @hydrooj/ui-default rebuild
+        // the whole frontend bundle — unacceptable for a check that runs every
+        // 5 minutes. Copies the legacy values once; `$setOnInsert` keeps it
+        // idempotent and never clobbers later edits.
+        result.judgeMonitorImported = await judgeMonitorMigrateFromSettings();
+    } catch (e: any) {
+        result.errors.push(`Step 18 (judge monitor state → oi33_judge_monitor): ${e.message}`);
     }
 
     return result;

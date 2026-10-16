@@ -25,6 +25,7 @@ import * as algorithmModel from './algorithm';
 import * as homeConfigModel from './home-config';
 import * as blindboxModel from './blindbox';
 import * as solutionFeatureModel from './solution-feature';
+import * as judgeMonitorModel from './judge-monitor';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -54,6 +55,7 @@ export { algorithmItemColl, userAlgorithmColl, algorithmConfigColl } from './alg
 export { homeConfigColl } from './home-config';
 export { blindboxColl, blindboxLogColl } from './blindbox';
 export { solutionConfigColl } from './solution-feature';
+export { judgeMonitorColl } from './judge-monitor';
 
 const oi33Model = {
     ...userModel,
@@ -78,6 +80,7 @@ const oi33Model = {
     ...homeConfigModel,
     ...blindboxModel,
     ...solutionFeatureModel,
+    ...judgeMonitorModel,
 };
 
 global.Hydro.model.oi33 = oi33Model;
@@ -133,6 +136,7 @@ declare module 'hydrooj' {
         oi33_medal_blindbox: import('./types').Oi33MedalBlindbox;
         oi33_medal_blindbox_log: import('./types').Oi33BlindboxLog;
         oi33_solution_config: import('./types').Oi33SolutionConfig;
+        oi33_judge_monitor: import('./types').Oi33JudgeMonitorDoc;
     }
 }
 

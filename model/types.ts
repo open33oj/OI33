@@ -951,6 +951,37 @@ export interface Oi33AiAccess {
     createdAt: Date;
 }
 
+// --- 评测机监控 (judge monitor) ---
+
+// Config and state share a single document. It used to live in the core
+// `system` settings collection, but every `SystemModel.set` broadcasts
+// `system/setting`, which makes @hydrooj/ui-default rebuild the whole frontend
+// bundle — far too expensive for a check that runs every 5 minutes. Keeping it
+// in an `oi33_*` collection also keeps the monitor working across workers
+// without any cross-process event.
+export interface Oi33JudgeMonitorConfig {
+    enabled: boolean;
+    includeServer: boolean;
+    webhook: string;
+}
+
+export type Oi33JudgeMonitorNotifyKind = '' | 'offline' | 'recovery' | 'delta';
+
+export interface Oi33JudgeMonitorDoc extends Oi33JudgeMonitorConfig {
+    _id: string; // 'main'
+    // null = never checked yet; [] = the last check found every machine
+    // offline. The two must stay distinguishable, otherwise "all offline"
+    // would be re-treated as a first run on every tick.
+    lastOnlineMids: string[] | null;
+    lastCheckAt: Date | null;
+    lastCheckTotal: number | null;
+    lastCheckOnline: number | null;
+    lastNotifyAt: Date | null;
+    lastNotifyKind: Oi33JudgeMonitorNotifyKind;
+    updatedAt: Date;
+    updatedBy?: number;
+}
+
 export interface Oi33AiUsage {
     _id: ObjectId;
     uid: number; // 0 = system (e.g. summary generation)

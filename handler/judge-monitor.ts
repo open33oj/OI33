@@ -1,19 +1,11 @@
 import {
-    Context, Handler, PRIV, SystemModel, Types, db, param,
+    Context, Handler, PRIV, Types, db, param,
 } from 'hydrooj';
+import { oi33Model } from '../model';
+import type { Oi33JudgeMonitorDoc } from '../model/types';
 import { checkOi33Admin } from './utils';
 
 const statusColl = db.collection('status');
-
-const KEY_ENABLED = 'oi33.judge_monitor.enabled';
-const KEY_INCLUDE_SERVER = 'oi33.judge_monitor.include_server';
-const KEY_WEBHOOK = 'oi33.judge_monitor.webhook';
-const KEY_LAST_STATE = 'oi33.judge_monitor.last_state';
-const KEY_LAST_CHECK_AT = 'oi33.judge_monitor.last_check_at';
-const KEY_LAST_CHECK_TOTAL = 'oi33.judge_monitor.last_check_total';
-const KEY_LAST_CHECK_ONLINE = 'oi33.judge_monitor.last_check_online';
-const KEY_LAST_NOTIFY_AT = 'oi33.judge_monitor.last_notify_at';
-const KEY_LAST_NOTIFY_KIND = 'oi33.judge_monitor.last_notify_kind';
 
 // hydrojudge 每 20 分钟心跳一次（packages/hydrojudge/src/hosts/hydro.ts: 1200000ms），
 // 留 2 分钟容忍网络抖动，judge 22 分钟未上报即判定离线。
@@ -22,6 +14,11 @@ const KEY_LAST_NOTIFY_KIND = 'oi33.judge_monitor.last_notify_kind';
 const JUDGE_THRESHOLD_MS = 22 * 60 * 1000;
 const SERVER_THRESHOLD_MS = 32 * 60 * 1000;
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+
+// 监控配置与状态都存在 oi33_judge_monitor 单文档里（model/judge-monitor.ts）。
+// 注意不要改回 SystemModel.set：那会广播 system/setting，触发 ui-default 全量
+// 重建前端 bundle（每 5 分钟一次的 esbuild），并让每个带 config 的插件重新解析
+// 配置、给评测机重推语言配置。
 
 interface JudgeStatus {
     mid: string;
@@ -33,8 +30,7 @@ interface JudgeStatus {
     ip?: string;
 }
 
-async function getJudgeStatuses(): Promise<JudgeStatus[]> {
-    const includeServer = SystemModel.get(KEY_INCLUDE_SERVER) as boolean | undefined;
+async function getJudgeStatuses(includeServer: boolean): Promise<JudgeStatus[]> {
     const types: string[] = includeServer ? ['judge', 'server'] : ['judge'];
     const docs = await statusColl.find({ type: { $in: types } }).sort({ updateAt: -1 }).toArray();
     const now = Date.now();
@@ -165,43 +161,44 @@ function buildDeltaMessage(
     return lines.join('\n');
 }
 
+// One scheduled (or manual) check. Everything it persists goes into a single
+// oi33_judge_monitor write at the end, so a tick costs one findOne + one
+// updateOne and emits no events at all.
 async function runScheduledCheck(force = false) {
-    if (!force && !SystemModel.get(KEY_ENABLED)) return;
-    const statuses = await getJudgeStatuses();
+    const state = await oi33Model.judgeMonitorGet();
+    if (!force && !state.enabled) return;
+
+    const statuses = await getJudgeStatuses(state.includeServer);
     const onlineMids = statuses.filter((s) => s.online).map((s) => s.mid);
     const onlineCount = onlineMids.length;
     const now = new Date();
+    const patch: Partial<Omit<Oi33JudgeMonitorDoc, '_id' | 'updatedAt'>> = {
+        lastCheckAt: now,
+        lastCheckTotal: statuses.length,
+        lastCheckOnline: onlineCount,
+    };
 
-    await SystemModel.set(KEY_LAST_CHECK_AT, now.toISOString());
-    await SystemModel.set(KEY_LAST_CHECK_TOTAL, statuses.length);
-    await SystemModel.set(KEY_LAST_CHECK_ONLINE, onlineCount);
-
-    const webhookUrl = SystemModel.get(KEY_WEBHOOK) as string;
-    if (!webhookUrl) return;
-    if (!statuses.length) return;
-
-    const prevStateRaw = SystemModel.get(KEY_LAST_STATE) as string | undefined;
-    if (!prevStateRaw) {
-        await SystemModel.set(KEY_LAST_STATE, JSON.stringify(onlineMids));
+    const webhookUrl = state.webhook;
+    if (!webhookUrl || !statuses.length) {
+        await oi33Model.judgeMonitorPatch(patch, now);
         return;
     }
 
-    let prevOnlineMids: string[];
-    try {
-        prevOnlineMids = JSON.parse(prevStateRaw);
-        if (!Array.isArray(prevOnlineMids) || !prevOnlineMids.every((m) => typeof m === 'string')) {
-            throw new Error('Invalid state format');
-        }
-    } catch {
-        await SystemModel.set(KEY_LAST_STATE, JSON.stringify(onlineMids));
+    // The last check result is only meaningful once we have one; `null` marks
+    // "never checked" and must not be confused with "everything was offline".
+    if (state.lastOnlineMids === null) {
+        patch.lastOnlineMids = onlineMids;
+        await oi33Model.judgeMonitorPatch(patch, now);
         return;
     }
-    const currentSet = new Set(onlineMids);
-    const prevSet = new Set(prevOnlineMids);
-    const joinedMids = [...currentSet].filter((m) => !prevSet.has(m));
-    const leftMids = [...prevSet].filter((m) => !currentSet.has(m));
 
-    if (joinedMids.length === 0 && leftMids.length === 0) return;
+    const { joined: joinedMids, left: leftMids } = oi33Model.judgeMonitorOnlineDiff(
+        state.lastOnlineMids, onlineMids,
+    );
+    if (!joinedMids.length && !leftMids.length) {
+        await oi33Model.judgeMonitorPatch(patch, now);
+        return;
+    }
 
     const joined = statuses.filter((s) => joinedMids.includes(s.mid));
     const left = leftMids.map((mid) => {
@@ -210,10 +207,10 @@ async function runScheduledCheck(force = false) {
     });
 
     const allOffline = onlineCount === 0;
-    const wasAllOffline = prevOnlineMids.length === 0;
+    const wasAllOffline = state.lastOnlineMids.length === 0;
 
     let message: string;
-    let kind: string;
+    let kind: Oi33JudgeMonitorDoc['lastNotifyKind'];
     if (allOffline && !wasAllOffline) {
         message = buildOfflineMessage(statuses);
         kind = 'offline';
@@ -226,48 +223,32 @@ async function runScheduledCheck(force = false) {
     }
 
     await sendWecom(webhookUrl, message);
-    await SystemModel.set(KEY_LAST_STATE, JSON.stringify(onlineMids));
-    await SystemModel.set(KEY_LAST_NOTIFY_KIND, kind);
-    await SystemModel.set(KEY_LAST_NOTIFY_AT, now.toISOString());
+    patch.lastOnlineMids = onlineMids;
+    patch.lastNotifyKind = kind;
+    patch.lastNotifyAt = now;
+    await oi33Model.judgeMonitorPatch(patch, now);
 }
 
-function buildBody(statuses: JudgeStatus[]) {
+function buildBody(statuses: JudgeStatus[], state: Oi33JudgeMonitorDoc) {
     const onlineCount = statuses.filter((s) => s.online).length;
     const liveState = statuses.length === 0
         ? 'no_judges'
         : onlineCount === 0
             ? 'offline'
             : 'online';
-    const lastCheckAt = SystemModel.get(KEY_LAST_CHECK_AT) as string | undefined;
-    const lastCheckTotal = SystemModel.get(KEY_LAST_CHECK_TOTAL) as number | undefined;
-    const lastCheckOnline = SystemModel.get(KEY_LAST_CHECK_ONLINE) as number | undefined;
-    const lastNotifyAt = SystemModel.get(KEY_LAST_NOTIFY_AT) as string | undefined;
-    const lastNotifyKind = SystemModel.get(KEY_LAST_NOTIFY_KIND) as string | undefined;
-    const lastStateRaw = SystemModel.get(KEY_LAST_STATE) as string | undefined;
-    let lastState: string;
-    if (lastStateRaw) {
-        try {
-            const mids: string[] = JSON.parse(lastStateRaw);
-            lastState = mids.length === 0 ? 'offline' : 'online';
-        } catch {
-            lastState = lastStateRaw;
-        }
-    } else {
-        lastState = '';
-    }
     return {
         statuses,
         onlineCount,
         liveState,
-        enabled: !!SystemModel.get(KEY_ENABLED),
-        includeServer: !!SystemModel.get(KEY_INCLUDE_SERVER),
-        webhookUrl: (SystemModel.get(KEY_WEBHOOK) as string) || '',
-        lastState: lastState || '',
-        lastCheckAt: lastCheckAt ? new Date(lastCheckAt) : null,
-        lastCheckTotal: lastCheckTotal ?? null,
-        lastCheckOnline: lastCheckOnline ?? null,
-        lastNotifyAt: lastNotifyAt ? new Date(lastNotifyAt) : null,
-        lastNotifyKind: lastNotifyKind || '',
+        enabled: state.enabled,
+        includeServer: state.includeServer,
+        webhookUrl: state.webhook,
+        lastState: oi33Model.judgeMonitorNotifyState(state.lastOnlineMids),
+        lastCheckAt: state.lastCheckAt,
+        lastCheckTotal: state.lastCheckTotal,
+        lastCheckOnline: state.lastCheckOnline,
+        lastNotifyAt: state.lastNotifyAt,
+        lastNotifyKind: state.lastNotifyKind,
         judgeThresholdMinutes: Math.floor(JUDGE_THRESHOLD_MS / 60000),
         serverThresholdMinutes: Math.floor(SERVER_THRESHOLD_MS / 60000),
         checkIntervalMinutes: Math.floor(CHECK_INTERVAL_MS / 60000),
@@ -277,9 +258,10 @@ function buildBody(statuses: JudgeStatus[]) {
 class JudgeMonitorHandler extends Handler {
     async get() {
         await checkOi33Admin(this.user._id);
-        const statuses = await getJudgeStatuses();
+        const state = await oi33Model.judgeMonitorGet();
+        const statuses = await getJudgeStatuses(state.includeServer);
         this.response.template = 'oi33_judge_monitor.html';
-        this.response.body = buildBody(statuses);
+        this.response.body = buildBody(statuses, state);
     }
 
     @param('action', Types.String)
@@ -289,35 +271,35 @@ class JudgeMonitorHandler extends Handler {
     async post(domainId: string, action: string, webhook = '', enabled = '', include_server = '') {
         await checkOi33Admin(this.user._id);
         if (action === 'save') {
-            await SystemModel.set(KEY_WEBHOOK, webhook.trim());
-            await SystemModel.set(KEY_ENABLED, enabled === 'on' || enabled === 'true');
-            await SystemModel.set(KEY_INCLUDE_SERVER, include_server === 'on' || include_server === 'true');
+            await oi33Model.judgeMonitorSaveConfig(
+                { webhook: webhook.trim(), enabled, includeServer: include_server },
+                this.user._id,
+            );
             this.response.redirect = this.url('oi33_judge_monitor');
             return;
         }
-        const webhookUrl = (SystemModel.get(KEY_WEBHOOK) as string) || '';
+        const state = await oi33Model.judgeMonitorGet();
+        const webhookUrl = state.webhook;
         let sendResult: { ok: boolean; error?: string } | undefined;
         let checkResult: { triggered: boolean; pushedKind?: string } | undefined;
         if (action === 'send_status') {
-            const statuses = await getJudgeStatuses();
+            const statuses = await getJudgeStatuses(state.includeServer);
             sendResult = await sendWecom(webhookUrl, buildManualMessage(statuses));
         } else if (action === 'test') {
             const msg = `## 🧪 Webhook 测试\n\nOI33 评测机监控 Webhook 测试消息。\n\n> 发送时间：${fmtDate(new Date())}`;
             sendResult = await sendWecom(webhookUrl, msg);
         } else if (action === 'run_check') {
-            const prevNotifyAt = SystemModel.get(KEY_LAST_NOTIFY_AT) as string | undefined;
+            const prevNotifyAt = state.lastNotifyAt ? state.lastNotifyAt.getTime() : null;
             await runScheduledCheck(true);
-            const newNotifyAt = SystemModel.get(KEY_LAST_NOTIFY_AT) as string | undefined;
-            const pushed = newNotifyAt && newNotifyAt !== prevNotifyAt;
-            checkResult = {
-                triggered: true,
-                pushedKind: pushed ? (SystemModel.get(KEY_LAST_NOTIFY_KIND) as string) : undefined,
-            };
+            const after = await oi33Model.judgeMonitorGet();
+            const pushed = !!after.lastNotifyAt
+                && (prevNotifyAt === null || after.lastNotifyAt.getTime() !== prevNotifyAt);
+            checkResult = { triggered: true, pushedKind: pushed ? after.lastNotifyKind : undefined };
         }
-        const statuses = await getJudgeStatuses();
+        const statuses = await getJudgeStatuses(state.includeServer);
         this.response.template = 'oi33_judge_monitor.html';
         this.response.body = {
-            ...buildBody(statuses),
+            ...buildBody(statuses, state),
             sendResult,
             checkResult,
             action,
