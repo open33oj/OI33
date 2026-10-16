@@ -248,10 +248,20 @@ export async function medalListAwardsPaginated(page: number, pageSize = 50) {
 }
 
 // Every user currently sitting on one rung of an upgradable series. The
-// catalogue links each certification level here; earliest achievers render
-// first so the page reads like a hall of fame.
+// catalogue links each level here; earliest achievers render first so the page
+// reads like a hall of fame.
 export async function medalListLevelHolders(medalId: string, level: number) {
     return await userMedalColl.find({ medalId, level })
+        .sort({ earnedAt: 1, _id: 1 })
+        .toArray();
+}
+
+// Every holder of a definition, whatever its family (一般奖章, OJ 成就 series
+// and their rungs, or the single owner of a 可售卖奖章). The catalogue links
+// each medal here so no medal's holder list is a dead end; level series keep
+// their rung on the award so the page can group them in ladder order.
+export async function medalListHolders(medalId: string) {
+    return await userMedalColl.find({ medalId })
         .sort({ earnedAt: 1, _id: 1 })
         .toArray();
 }

@@ -37,7 +37,10 @@ class CoinBillHandler extends Handler {
     @param('uid', Types.Int)
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, uid: number, page = 1) {
-        if (uid !== this.user._id) await checkOi33Admin(this.user._id);
+        // 管理员可看任意用户的账单；普通用户只能看自己的。
+        const viewerFlag = uid !== this.user._id
+            ? await checkOi33Admin(this.user._id)
+            : await checkUserFlag(this.user._id);
         let ucount: number;
         let upcount: number;
         let bills: any[];
@@ -50,8 +53,24 @@ class CoinBillHandler extends Handler {
             upcount = Math.ceil(ucount / 50);
             bills = await oi33Model.coinGetUser(uid, 50, page);
         }
+        // 流水里只有 uid；这里把发送者 / 接收者（以及被查看的用户）解析成可渲染的
+        // 用户文档，账单页才能显示用户名与认证信息而不是裸 uid。
+        const uids = [...new Set([
+            ...bills.flatMap((bill: any) => [Number(bill.rootId), Number(bill.userId)]),
+            ...(uid ? [uid] : []),
+        ])];
+        const udict = await loadOi33Users(domainId, uids, { viewerFlag });
         this.response.template = 'oi33_coin_bill.html';
-        this.response.body = { uid, bills, upcount, ucount, page };
+        this.response.body = {
+            uid,
+            bills,
+            upcount,
+            ucount,
+            page,
+            udict,
+            viewerFlag,
+            target: uid ? udict[uid] || null : null,
+        };
     }
 }
 

@@ -2,36 +2,71 @@
 {% extends "layout/basic.html" %}
 {% import "components/paginator.html" as paginator with context %}
 {% import "components/nothing.html" as nothing with context %}
+{# 账单里只存 uid，handler 已经把发送者 / 接收者解析成用户文档（udict）。
+   管理员能看到实名（oi33_original_uname / realname_name），其他人只看到昵称；
+   未认证用户按全站规则仍显示为 UID。 #}
+{% macro flagName(flag) %}
+{%- if flag == 3 %}{{ _('Admin') }}
+{%- elif flag == 2 %}{{ _('Teacher') }}
+{%- elif flag == 1 %}{{ _('Verified') }}
+{%- else %}{{ _('Unverified') }}{% endif -%}
+{% endmacro %}
+{% macro userCell(uid) %}
+{% set udoc = udict[uid] %}
+{% if udoc %}
+{% set showReal = viewerFlag >= 2 %}
+<span class="oi33-coin-bill__user-cell">
+  <a class="oi33-coin-bill__user" href="{{ url('user_detail', uid=uid) }}">{{ (udoc.oi33_original_uname or udoc.uname) if showReal else udoc.uname }}</a>
+  <span class="oi33-coin-bill__meta">
+    <span class="oi33-coin-bill__flag oi33-coin-bill__flag--{{ udoc.realname_flag or 0 }}">{{ flagName(udoc.realname_flag or 0) }}</span>
+    {% if showReal and udoc.realname_name %}<span class="oi33-coin-bill__realname">{{ udoc.realname_name }}</span>{% endif %}
+  </span>
+</span>
+{% else %}
+<span class="oi33-coin-bill__user-cell">
+  <span class="oi33-coin-bill__user">UID {{ uid }}</span>
+</span>
+{% endif %}
+{% endmacro %}
 {% block content %}
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">{{ uid }}{{ _('Record for') }}</h1>
-        {% if (handler.user.realname_flag or 0) >= 2 %}
+        <h1 class="section__title">
+          {% if uid and target %}
+          {{ (target.oi33_original_uname or target.uname) if viewerFlag >= 2 else target.uname }}{{ _('Record for') }}
+          {% elif uid %}
+          UID {{ uid }}{{ _('Record for') }}
+          {% else %}
+          {{ _('All Coin Bills') }}
+          {% endif %}
+        </h1>
         <div class="section__tools">
+          {% if viewerFlag >= 2 %}
+          <a href="{{ url('oi33_coin_inc') }}" class="rounded button">{{ _('Grant Coins') }}</a>
           <a href="/oi33/admin" class="rounded button">{{ _('Back to Admin') }}</a>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
       <div class="section__body no-padding">
         <div data-fragment-id="ranking">
           {% if not bills.length %}
           {{ nothing.render(_('No coins yet!')) }}
           {% else %}
-          <table class="data-table">
+          <table class="data-table oi33-coin-bill__table">
             <colgroup>
-              <col class="col--time">
-              <col class="col--uid">
-              <col class="col--uid">
-              <col class="col--amount">
+              <col class="col--time" style="width:9rem;">
+              <col class="col--user" style="width:12rem;">
+              <col class="col--user" style="width:12rem;">
+              <col class="col--amount" style="width:6rem;">
               <col class="col--text" style="width:auto;">
             </colgroup>
             <thead>
               <tr>
                 <th class="col--time">{{ _('Time') }}</th>
-                <th class="col--uid">{{ _('Sender UID') }}</th>
-                <th class="col--uid">{{ _('Receiver UID') }}</th>
+                <th class="col--user">{{ _('Sender') }}</th>
+                <th class="col--user">{{ _('Receiver') }}</th>
                 <th class="col--amount">{{ _('Amount') }}</th>
                 <th class="col--text">{{ _('Reason') }}</th>
               </tr>
@@ -40,8 +75,8 @@
               {%- for bill in bills -%}
               <tr>
                 <td class="col--time">{{ datetimeSpan(bill._id)|safe }}</td>
-                <td class="col--uid">{{ bill.rootId }}</td>
-                <td class="col--uid">{{ bill.userId }}</td>
+                <td class="col--user">{{ userCell(bill.rootId) }}</td>
+                <td class="col--user">{{ userCell(bill.userId) }}</td>
                 <td class="col--amount">{{ bill.amount }}</td>
                 <td class="col--text">{{ bill.text }}</td>
               </tr>
@@ -56,9 +91,30 @@
   </div>
 </div>
 <style>
-  .page--oi33_coin_bill .data-table td.col--text {
+  /* core 的 .data-table td 是 nowrap + overflow:hidden + ellipsis：账单里的
+     昵称 + 认证信息需要换行显示，理由列也要能换行。 */
+  .page--oi33_coin_bill .data-table td.col--text,
+  .page--oi33_coin_bill .data-table td.col--user {
     overflow: visible; white-space: normal; text-overflow: clip;
     overflow-wrap: anywhere; word-break: break-word;
   }
+  .oi33-coin-bill__user-cell { display:flex; flex-direction:column; align-items:flex-start; gap:.05rem; }
+  .oi33-coin-bill__user { font-weight:600; }
+  .oi33-coin-bill__meta { display:flex; align-items:baseline; gap:.35rem; font-size:.78em; color:#888; }
+  .theme--dark .oi33-coin-bill__meta,
+  [data-mantine-color-scheme=dark] .oi33-coin-bill__meta { color:#aaa; }
+  .oi33-coin-bill__flag {
+    padding:0 .4rem; border-radius:999px; white-space:nowrap;
+    border:1px solid rgba(127,127,127,.4);
+  }
+  .oi33-coin-bill__flag--1 { border-color:rgba(47,163,107,.5); color:#2fa36b; }
+  .oi33-coin-bill__flag--2 { border-color:rgba(76,139,245,.5); color:#3a6fd0; }
+  .oi33-coin-bill__flag--3 { border-color:rgba(217,155,43,.55); color:#a8761a; }
+  .theme--dark .oi33-coin-bill__flag--1, [data-mantine-color-scheme=dark] .oi33-coin-bill__flag--1 { color:#5cc98f; }
+  .theme--dark .oi33-coin-bill__flag--2, [data-mantine-color-scheme=dark] .oi33-coin-bill__flag--2 { color:#8fb6f8; }
+  .theme--dark .oi33-coin-bill__flag--3, [data-mantine-color-scheme=dark] .oi33-coin-bill__flag--3 { color:#e2b45f; }
+  .oi33-coin-bill__realname { color:#666; }
+  .theme--dark .oi33-coin-bill__realname,
+  [data-mantine-color-scheme=dark] .oi33-coin-bill__realname { color:#bbb; }
 </style>
 {% endblock %}

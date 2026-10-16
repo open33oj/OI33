@@ -8,6 +8,9 @@
     <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人获得</small>{% endif %}</h3>
     <p>{{ medal.description }}</p>
     {% if medal.rule %}<p class="catalogue-rule">{{ medal.rule }}</p>{% endif %}
+    <p class="catalogue-holders">
+      <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看持有者{% if stat and stat.total %}（{{ stat.total }} 人）{% endif %} →</a>
+    </p>
   </div>
 </article>
 {% endmacro %}
@@ -82,6 +85,9 @@
     </li>
     {% endfor %}
   </ol>
+  <p class="catalogue-holders">
+    <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看全部持有者{% if stat and stat.total %}（{{ stat.total }} 人）{% endif %} →</a>
+  </p>
 </article>
 {% endmacro %}
 {% block content %}
@@ -162,11 +168,12 @@
       <div class="section__body">
         <p class="catalogue-help">
           通过题目、连续与累计登录、猫粮与猫罐头等指标自动发放，无需申请；
-          每个系列内的等级由低到高排列，达到更高阈值时自动升级，浅色等级表示还没有人达到。
+          每个系列内的等级由低到高排列，达到更高阈值时自动升级，浅色等级表示还没有人达到；
+          点击等级或系列底部的链接可查看当前持有者。
         </p>
         {% for medal in groups.oj %}
         {% if (medal.levels or [])|length %}
-        {{ seriesCard(medal, stats[medal._id], true, '获得') }}
+        {{ seriesCard(medal, stats[medal._id], true, '获得', true) }}
         {% else %}
         {{ medalCard(medal, stats[medal._id]) }}
         {% endif %}
@@ -197,6 +204,9 @@
   .catalogue-medal__body { min-width:0; flex:1 1 auto; }
   .catalogue-medal p { margin:.2rem 0; color:#777; white-space:pre-wrap; }
   .catalogue-rule { font-size:.85em; }
+  .catalogue-holders { margin:.45rem 0 0; font-size:.85em; }
+  .catalogue-holders a { text-decoration:none; }
+  .catalogue-holders a:hover { text-decoration:underline; }
   .saleable-grid {
     display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:.85rem;
   }
