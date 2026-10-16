@@ -1,0 +1,99 @@
+{% set page_name = "oi33_medal_holders" %}
+{% extends "layout/basic.html" %}
+{% import "components/user.html" as user with context %}
+{% macro holderRow(award) %}
+<li class="level-medal-list__row">
+  <span class="level-medal-list__user">
+    {% if udict[award.uid] %}{{ user.render_inline(udict[award.uid]) }}{% else %}UID {{ award.uid }}{% endif %}
+    {% if award.copies > 1 %}
+    <span class="medal-holders__copies" data-tooltip="重复获得 {{ award.copies }} 枚，星级 ★{{ award.stars }}">
+      ×{{ award.copies }}{% if award.stars %} ★{{ award.stars }}{% endif %}
+    </span>
+    {% endif %}
+  </span>
+  <span class="level-medal-list__time">{{ datetimeSpan(award.earnedAt)|safe }}获得</span>
+</li>
+{% endmacro %}
+{% macro holderList(list) %}
+{% if list.length %}
+<ul class="level-medal-list">
+  {% for award in list %}{{ holderRow(award) }}{% endfor %}
+</ul>
+{% else %}
+<p class="level-medal-help">目前还没有人获得该等级。</p>
+{% endif %}
+{% endmacro %}
+{% block content %}
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title level-medal-title">
+          <img class="level-medal-icon" src="{{ medal.imageData }}" width="40" height="40" alt="{{ medal.name }}">
+          {{ medal.name }} · 持有者
+        </h1>
+        <div class="section__tools">
+          <a href="{{ url('oi33_medal_catalogue') }}" class="rounded button">返回奖章目录</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="level-medal-help">
+          {{ medal.description }}
+          {% if medal.rule %}（{{ medal.rule }}）{% endif %}
+          共 <strong>{{ count }}</strong> 人持有。
+        </p>
+        {% if leveled %}
+        {% for group in groups %}
+        <div class="medal-holders__group">
+          <h2 class="medal-holders__group-title">
+            <img class="medal-holders__group-icon" src="{{ group.level.imageData }}" width="28" height="28"
+              alt="{{ group.level.label or group.level.name }}">
+            <span>{{ group.level.label or group.level.name }}</span>
+            <span class="medal-holders__group-count">{{ group.awards.length }} 人</span>
+            <a class="rounded button medal-holders__group-link"
+              href="{{ url('oi33_medal_level_users', id=medal._id, level=group.level.level) }}">只看该等级</a>
+          </h2>
+          {{ holderList(group.awards) }}
+        </div>
+        {% endfor %}
+        {% else %}
+        {{ holderList(awards) }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .level-medal-title { display:flex; align-items:center; gap:.6rem; }
+  .level-medal-icon {
+    width:40px; height:40px; flex:0 0 40px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .level-medal-help { color:#777; }
+  .theme--dark .level-medal-help, [data-mantine-color-scheme=dark] .level-medal-help { color:#aaa; }
+  .level-medal-list { list-style:none; margin:0; padding:0; }
+  .level-medal-list__row {
+    display:flex; align-items:baseline; justify-content:space-between; gap:.75rem;
+    padding:.35rem 0; border-bottom:1px dashed rgba(127,127,127,.15); min-width:0; flex-wrap:wrap;
+  }
+  .level-medal-list__user { min-width:0; }
+  .level-medal-list__time { color:#888; font-size:.8em; flex:0 0 auto; }
+  .theme--dark .level-medal-list__time,
+  [data-mantine-color-scheme=dark] .level-medal-list__time { color:#aaa; }
+  .medal-holders__copies { color:#a8761a; font-size:.82em; margin-left:.35rem; white-space:nowrap; }
+  .theme--dark .medal-holders__copies,
+  [data-mantine-color-scheme=dark] .medal-holders__copies { color:#e2b45f; }
+  .medal-holders__group { margin:0 0 1.1rem; }
+  .medal-holders__group-title {
+    display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+    font-size:.95rem; margin:0 0 .35rem; padding-bottom:.3rem;
+    border-bottom:1px solid rgba(127,127,127,.16);
+  }
+  .medal-holders__group-icon {
+    width:28px; height:28px; flex:0 0 28px; object-fit:fill;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+  }
+  .medal-holders__group-count { color:#888; font-size:.82em; font-weight:400; }
+  .medal-holders__group-link { margin-left:auto; }
+</style>
+{% endblock %}

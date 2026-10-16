@@ -21,6 +21,7 @@
       </p>
       <div class="medal-definition__actions">
         <a class="rounded button" href="{{ url('oi33_medal_manage', query={edit:medal._id}) }}">编辑</a>
+        <a class="rounded button" href="{{ url('oi33_medal_holders', id=medal._id) }}">持有者</a>
         {% if medal.category == 'saleable' %}
         <a class="rounded button" href="{{ url('oi33_auction', query={medal:medal._id}) }}">发起拍卖</a>
         {% endif %}
@@ -48,6 +49,7 @@
     </div>
     <div class="medal-series__actions">
       <a class="rounded button" href="{{ url('oi33_medal_manage', query={edit:medal._id}) }}">编辑等级</a>
+      <a class="rounded button" href="{{ url('oi33_medal_holders', id=medal._id) }}">持有者</a>
       <form method="post" action="{{ url('oi33_medal_delete', id=medal._id) }}"
         class="medal-inline-form" onsubmit="return confirm('确定删除这个尚未授予的奖章吗？');">
         <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">

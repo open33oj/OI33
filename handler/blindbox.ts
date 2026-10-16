@@ -1,5 +1,5 @@
 import {
-    Context, Handler, ObjectId, PRIV, Types, ValidationError, param, query,
+    Context, Handler, NotFoundError, ObjectId, PRIV, Types, ValidationError, param, query,
 } from 'hydrooj';
 import { oi33Model } from '../model';
 import { checkOi33Admin } from './utils';
@@ -31,13 +31,18 @@ function manageForm(editing: any, submitted: any) {
     };
 }
 
-async function buildManageView(edit: ObjectId | undefined, extra: Record<string, any> = {}) {
-    const [pools, medals] = await Promise.all([
+// 编辑链接带的是纯字符串 id（`blindboxList()` 里的 `id` 字段），这里再解析成
+// ObjectId 直接取文档：不依赖列表查询，编辑态与列表分页 / 排序无关。
+async function buildManageView(editId: string, extra: Record<string, any> = {}) {
+    const editObjectId = editId ? oi33Model.toBlindboxId(editId) : null;
+    if (editId && !editObjectId) throw new NotFoundError(editId);
+    const [pools, medals, editing] = await Promise.all([
         oi33Model.blindboxList(),
         oi33Model.medalList(),
+        editObjectId ? oi33Model.blindboxGet(editObjectId) : Promise.resolve(null),
     ]);
+    if (editId && !editing) throw new NotFoundError(editId);
     const candidates = medals.filter((medal: any) => !oi33Model.blindboxMedalIssue(medal));
-    const editing = edit ? pools.find((pool: any) => String(pool._id) === String(edit)) || null : null;
     return {
         pools,
         candidates,
@@ -102,11 +107,11 @@ class BlindboxBuyHandler extends Handler {
 }
 
 class BlindboxManageHandler extends Handler {
-    @query('edit', Types.ObjectId, true)
-    async get(domainId: string, edit?: ObjectId) {
+    @query('edit', Types.String, true)
+    async get(domainId: string, edit = '') {
         await checkOi33Admin(this.user._id);
         this.response.template = 'oi33_blindbox_manage.html';
-        this.response.body = await buildManageView(edit);
+        this.response.body = await buildManageView(String(edit || ''));
     }
 }
 
@@ -121,6 +126,10 @@ class BlindboxSaveHandler extends Handler {
                 probability: body[`probability_${index}`],
             });
         }
+        // 编辑既有盲盒时保存后仍回到它的编辑态，否则页面会退回空白的新建表单，
+        // 看起来像是「设置丢了」。
+        const submittedId = String(body.id || '').trim();
+        const editId = submittedId && oi33Model.toBlindboxId(submittedId) ? submittedId : '';
         try {
             await oi33Model.blindboxSave({
                 id: body.id,
@@ -132,23 +141,25 @@ class BlindboxSaveHandler extends Handler {
             }, this.user._id);
         } catch (e: any) {
             if (!(e instanceof ValidationError)) throw e;
-            const editId = oi33Model.toBlindboxId(body.id);
             this.response.template = 'oi33_blindbox_manage.html';
-            this.response.body = await buildManageView(editId || undefined, {
-                error: e.message,
-                submitted: {
-                    id: String(body.id || ''),
-                    name: String(body.name || ''),
-                    price: String(body.price || ''),
-                    openAt: String(body.openAt || ''),
-                    enabled: !!body.enabled,
-                    items: oi33Model.normalizeBlindboxItems(items),
-                },
-            });
+            const submitted = {
+                id: editId,
+                name: String(body.name || ''),
+                price: String(body.price || ''),
+                openAt: String(body.openAt || ''),
+                enabled: !!body.enabled,
+                items: oi33Model.normalizeBlindboxItems(items),
+            };
+            try {
+                this.response.body = await buildManageView(editId, { error: e.message, submitted });
+            } catch {
+                // 被编辑的盲盒在提交后已被删除：退化成新建表单，至少把报错和输入回填出来。
+                this.response.body = await buildManageView('', { error: e.message, submitted });
+            }
             return;
         }
         this.response.redirect = this.url('oi33_blindbox_manage', {
-            query: { notification: '盲盒已保存。' },
+            query: editId ? { edit: editId, notification: '盲盒已保存。' } : { notification: '盲盒已创建。' },
         });
     }
 }

@@ -649,15 +649,15 @@ class MedalUserHandler extends Handler {
     }
 }
 
-// Public page backing a certification level in the catalogue: everybody who
-// currently holds that exact rung. The catalogue links each rung here so the
-// holder count is not a dead end.
+// Public page backing a level in the catalogue: everybody who currently holds
+// that exact rung. Certification and OJ 成就 series both have ladders, so both
+// link their rungs here; the catalogue's holder counts are never a dead end.
 class MedalLevelUsersHandler extends Handler {
     @param('id', Types.String)
     @param('level', Types.Int)
     async get(domainId: string, id: string, level: number) {
         const medal = await oi33Model.medalGet(id);
-        if (!medal || oi33Model.medalCategoryOf(medal) !== 'certification') {
+        if (!medal || !oi33Model.medalIsLevelSeries(medal)) {
             throw new NotFoundError(id);
         }
         const rung = oi33Model.medalLevelOf(medal, level);
@@ -671,6 +671,46 @@ class MedalLevelUsersHandler extends Handler {
             awards,
             udict,
             levels: oi33Model.medalSortedLevels(medal),
+        };
+    }
+}
+
+// Holder list for one definition, whatever family it belongs to: the catalogue
+// links every medal card here (一般奖章 / 未分级的 OJ 成就奖章 / 可售卖奖章 all
+// end up as a flat list; series are grouped by rung in ladder order and offer
+// the per-level switch). Awards whose rung no longer exists on the ladder fall
+// back to the closest surviving one via `medalDisplayRung`.
+class MedalHoldersHandler extends Handler {
+    @param('id', Types.String)
+    async get(domainId: string, id: string) {
+        const medal = await oi33Model.medalGet(id);
+        if (!medal) throw new NotFoundError(id);
+        const awards = await oi33Model.medalListHolders(id);
+        // 一般奖章可以重复获得：数量与派生星级一并给模板（其它系列恒为 1 枚）。
+        const rows = awards.map((award: any) => {
+            const copies = Math.max(1, Math.floor(Number(award.count) || 1));
+            return { ...award, copies, stars: oi33Model.medalStarLevel(copies) };
+        });
+        const udict = await buildUserDict(domainId, rows.map((award: any) => award.uid));
+        const leveled = oi33Model.medalIsLevelSeries(medal);
+        const groups = leveled
+            ? oi33Model.medalSortedLevels(medal).map((level) => ({
+                level,
+                awards: rows.filter(
+                    (award: any) => Number(oi33Model.medalDisplayRung(medal, award.level)?.level)
+                        === Number(level.level),
+                ),
+            }))
+            : [];
+        this.response.template = 'oi33_medal_holders.html';
+        this.response.body = {
+            medal,
+            awards: rows,
+            udict,
+            count: rows.length,
+            leveled,
+            levels: leveled ? oi33Model.medalSortedLevels(medal) : [],
+            groups,
         };
     }
 }
@@ -818,6 +858,11 @@ export async function apply(ctx: Context) {
         'oi33_medal_level_users',
         '/oi33/medals/catalogue/:id/level/:level',
         MedalLevelUsersHandler,
+    );
+    ctx.Route(
+        'oi33_medal_holders',
+        '/oi33/medals/catalogue/:id/holders',
+        MedalHoldersHandler,
     );
     ctx.Route(
         'oi33_medal_showcase',

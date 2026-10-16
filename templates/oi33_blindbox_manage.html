@@ -101,7 +101,7 @@
       </div>
       <div class="section__body">
         {% if pools.length %}
-        <table class="data-table">
+        <table class="data-table oi33-blindbox-manage__table">
           <colgroup>
             <col>
             <col style="width:8rem;">
@@ -135,18 +135,20 @@
               <td class="{{ 'is-bad' if pool.probabilitySum != 100 }}">
                 {{ pool.probabilitySum }}{% if pool.probabilitySum != 100 %}（应为 100）{% endif %}
               </td>
-              <td>
-                <a class="rounded button" href="{{ url('oi33_blindbox_manage', query={edit: pool._id}) }}">编辑</a>
-                <form method="post" action="{{ url('oi33_blindbox_toggle', id=pool._id) }}" style="display:inline;">
-                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                  <input type="hidden" name="enabled" value="{{ 0 if pool.enabled else 1 }}">
-                  <button type="submit" class="rounded button">{{ '下架' if pool.enabled else '上架' }}</button>
-                </form>
-                <form method="post" action="{{ url('oi33_blindbox_delete', id=pool._id) }}" style="display:inline;"
-                      onsubmit="return confirm('删除盲盒「{{ pool.name }}」？用户的购买记录会保留。');">
-                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                  <button type="submit" class="rounded button">删除</button>
-                </form>
+              <td class="oi33-blindbox-manage__actions">
+                <div class="oi33-blindbox-manage__actions-row">
+                  <a class="rounded button" href="{{ url('oi33_blindbox_manage', query={edit: pool.id}) }}">编辑</a>
+                  <form method="post" action="{{ url('oi33_blindbox_toggle', id=pool._id) }}">
+                    <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                    <input type="hidden" name="enabled" value="{{ 0 if pool.enabled else 1 }}">
+                    <button type="submit" class="rounded button">{{ '下架' if pool.enabled else '上架' }}</button>
+                  </form>
+                  <form method="post" action="{{ url('oi33_blindbox_delete', id=pool._id) }}"
+                        onsubmit="return confirm('删除盲盒「{{ pool.name }}」？用户的购买记录会保留。');">
+                    <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                    <button type="submit" class="rounded button">删除</button>
+                  </form>
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -171,5 +173,12 @@
   .oi33-blindbox-manage__pool-items .is-bad { color:#c62828; }
   td.is-bad { color:#c62828; }
   .oi33-blindbox-manage__rows select.select { width:100%; }
+  /* 操作列：core 的 .data-table td 是 nowrap + overflow:hidden + ellipsis，
+     三个按钮放不下时后面的「下架 / 删除」会被裁成一个「…」。这里放开裁切、
+     允许换行，按钮始终完整可见。 */
+  .oi33-blindbox-manage__table td:last-child { overflow:visible; text-overflow:clip; white-space:normal; }
+  .oi33-blindbox-manage__actions-row { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem; }
+  .oi33-blindbox-manage__actions-row form { margin:0; }
+  .oi33-blindbox-manage__actions-row .button { margin:0; white-space:nowrap; }
 </style>
 {% endblock %}

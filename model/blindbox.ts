@@ -60,6 +60,8 @@ export async function blindboxList(): Promise<any[]> {
     );
     return pools.map((pool: any) => ({
         ...pool,
+        // 模板里生成编辑链接用的纯字符串 id（ObjectId 交给 URL helper 容易出意外）。
+        id: String(pool._id),
         items: (pool.items || []).map((item: any) => ({
             ...item,
             medalName: nameOf.get(item.medalId) || item.medalId,
