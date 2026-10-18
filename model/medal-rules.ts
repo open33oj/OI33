@@ -240,3 +240,117 @@ export function medalAwardView(award: any, medal: any) {
         stars: category === 'manual' ? medalStarLevel(count) : 0,
     };
 }
+
+// --- Showcase wall (奖章展示墙) -------------------------------------------
+//
+// The wall is a **192×96 pixel canvas** made of 6×3 equal 32-pixel cells: every
+// medal is drawn at the same size (uniform stamps), so six complete medals fit
+// across and exactly three rows fit down. A placement stores the top-left corner
+// in canvas pixels; the profile shows the canvas scaled up by an integer factor
+// (`medalShowcaseScale`) and the sprites are upscaled from their 8/16/24/32 px
+// originals with nearest-neighbour sampling, so the pixel art stays crisp.
+//
+// 一般奖章可以重复获得，所以同一个 medalId 允许出现多次（份数上限见
+// medalShowcaseCopyLimit）；其它系列每枚奖章最多一份。
+export const MEDAL_SHOWCASE_CELL = 32;
+export const MEDAL_SHOWCASE_COLUMNS = 6;
+export const MEDAL_SHOWCASE_ROWS = 3;
+export const MEDAL_SHOWCASE_WIDTH = MEDAL_SHOWCASE_CELL * MEDAL_SHOWCASE_COLUMNS;
+export const MEDAL_SHOWCASE_HEIGHT = MEDAL_SHOWCASE_CELL * MEDAL_SHOWCASE_ROWS;
+// The editor snaps to whole cells (hold Alt for free pixel placement).
+export const MEDAL_SHOWCASE_SNAP = MEDAL_SHOWCASE_CELL;
+// The canvas holds exactly 6×3 medals, so that is also the placement cap.
+export const MEDAL_SHOWCASE_MAX_PIECES = MEDAL_SHOWCASE_COLUMNS * MEDAL_SHOWCASE_ROWS;
+export const MEDAL_SHOWCASE_MIN_SCALE = 1;
+export const MEDAL_SHOWCASE_MAX_SCALE = 6;
+
+export interface MedalShowcasePiece {
+    id: string;
+    x: number;
+    y: number;
+}
+
+function showcaseCoord(value: unknown, limit: number): number {
+    const raw = Number(value);
+    const coord = Number.isFinite(raw) ? Math.round(raw) : 0;
+    return Math.max(0, Math.min(coord, Math.max(0, limit - MEDAL_SHOWCASE_CELL)));
+}
+
+// Normalise stored/edited data to placements. The current format is a list of
+// `{ id, x, y }`; the legacy 4×4 wall stored an id/null per slot, so those are
+// laid out back onto the 6-column grid (keeping the old order and holes)
+// instead of being lost. Every piece is clamped to whole cells, so it always
+// fits inside the 192×96 canvas.
+export function medalShowcasePieces(raw: unknown): MedalShowcasePiece[] {
+    const list = Array.isArray(raw) ? raw : [];
+    const pieces: MedalShowcasePiece[] = [];
+    const legacy: Array<{ id: string; index: number }> = [];
+    for (let index = 0; index < list.length; index++) {
+        const entry: any = list[index];
+        if (entry && typeof entry === 'object' && typeof entry.id === 'string') {
+            const id = entry.id.trim();
+            if (!id) continue;
+            pieces.push({
+                id,
+                x: showcaseCoord(entry.x, MEDAL_SHOWCASE_WIDTH),
+                y: showcaseCoord(entry.y, MEDAL_SHOWCASE_HEIGHT),
+            });
+        } else if (typeof entry === 'string' && entry.trim()) {
+            legacy.push({ id: entry.trim(), index });
+        }
+    }
+    for (const item of legacy) {
+        // Old 4×4 / slot arrays are re-laid out row by row on the 6×3 grid.
+        const column = item.index % MEDAL_SHOWCASE_COLUMNS;
+        const row = Math.floor(item.index / MEDAL_SHOWCASE_COLUMNS);
+        pieces.push({
+            id: item.id,
+            x: showcaseCoord(column * MEDAL_SHOWCASE_CELL, MEDAL_SHOWCASE_WIDTH),
+            y: showcaseCoord(row * MEDAL_SHOWCASE_CELL, MEDAL_SHOWCASE_HEIGHT),
+        });
+    }
+    return pieces.slice(0, MEDAL_SHOWCASE_MAX_PIECES);
+}
+
+// How many copies of one medal the wall may hold. 一般奖章按星级决定数量
+// （0 星只有一枚，仍可放 1 份；★2 放 2 份；★3 放 3 份…），其他系列的奖章
+// 只能放一份。The view is `medalAwardView()`'s output for the award.
+export function medalShowcaseCopyLimit(view: any): number {
+    if (view?.category !== 'manual') return 1;
+    const stars = Math.floor(Number(view?.stars) || 0);
+    return Math.max(1, Math.min(stars, MEDAL_SHOWCASE_MAX_PIECES));
+}
+
+// Keep the first `limit` placements of each medal and drop the rest. Rendering
+// uses this so a wall saved before the copy limit existed (or a wall whose
+// copies were revoked) still displays a legal layout; `limitOf` returns 0 for
+// medals the user no longer holds, which drops them from the wall.
+export function medalShowcaseTrim(
+    pieces: MedalShowcasePiece[],
+    limitOf: (id: string) => number,
+): MedalShowcasePiece[] {
+    const used = new Map<string, number>();
+    const kept: MedalShowcasePiece[] = [];
+    for (const piece of pieces) {
+        const limit = Math.max(0, Math.floor(Number(limitOf(piece.id)) || 0));
+        const count = (used.get(piece.id) || 0) + 1;
+        if (count > limit) continue;
+        used.set(piece.id, count);
+        kept.push(piece);
+    }
+    return kept;
+}
+
+// Integer display scale for a wall rendered inside `availableWidth` CSS pixels.
+// Never fractional, so the 192×96 canvas keeps square pixels when enlarged.
+export function medalShowcaseScale(
+    availableWidth: unknown,
+    minScale = MEDAL_SHOWCASE_MIN_SCALE,
+    maxScale = MEDAL_SHOWCASE_MAX_SCALE,
+): number {
+    const max = Math.max(1, Math.floor(Number(maxScale) || MEDAL_SHOWCASE_MAX_SCALE));
+    const min = Math.min(max, Math.max(1, Math.floor(Number(minScale) || MEDAL_SHOWCASE_MIN_SCALE)));
+    const width = Math.floor(Number(availableWidth) || 0);
+    if (width <= 0) return min;
+    return Math.min(max, Math.max(min, Math.floor(width / MEDAL_SHOWCASE_WIDTH)));
+}

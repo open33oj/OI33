@@ -69,8 +69,10 @@ export interface Oi33User {
     // Short-lived cross-process lock used to serialize meow submissions.
     meow_post_lock?: ObjectId;
     meow_post_lock_at?: Date;
-    // User-picked medal ids shown in the profile showcase grid (max 16).
-    medal_showcase?: string[];
+    // 192×96 medal wall (6×3 uniform 32px medals): each placement is a medal id plus the top-left
+    // corner in canvas pixels. Legacy rows are the old 4×4 slot arrays
+    // (id/null per slot) and are converted on read.
+    medal_showcase?: Array<{ id: string; x: number; y: number }> | Array<string | null>;
     // Bio AI moderation: status of the bio version identified by bio_hash.
     // Only approved + hash-matching bios are displayed; edits re-review.
     bio_status?: 'pending' | 'approved' | 'rejected';

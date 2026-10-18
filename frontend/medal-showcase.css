@@ -1,0 +1,278 @@
+/* 奖章展示墙（/oi33/medals/showcase）。
+   192×96 的像素画布（6×3 个 32×32 奖章）+ 右侧奖章托盘；画布用 --wall-k 做整数倍放大
+   （由 page 脚本按容器宽度计算），奖章按 { x, y } 绝对定位。
+   类名统一 oi33-wall__ 前缀，只在这个页面出现。 */
+
+.oi33-wall-intro {
+    margin: 0 0 1rem;
+    color: #666;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.theme--dark .oi33-wall-intro,
+[data-mantine-color-scheme=dark] .oi33-wall-intro { color: #aaa; }
+
+.oi33-wall {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .oi33-wall { grid-template-columns: minmax(0, 1fr); }
+}
+
+.oi33-wall__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.55rem;
+    font-size: 0.86rem;
+}
+
+.oi33-wall__count strong { font-size: 1.05rem; }
+
+.oi33-wall__selected {
+    min-width: 8rem;
+    color: #777;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.theme--dark .oi33-wall__selected,
+[data-mantine-color-scheme=dark] .oi33-wall__selected { color: #aaa; }
+
+.oi33-wall__save-state {
+    color: #e8a33d;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.oi33-wall__status {
+    color: #888;
+    font-size: 0.82rem;
+    margin-right: auto;
+}
+
+.oi33-wall__toolbar .oi33-wall__clear { margin-left: auto; }
+
+/* 画布：8 像素一格的点阵底，方便对齐；整块按 --wall-k 缩放。 */
+.oi33-wall__canvas-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.15rem 0.15rem 0.4rem;
+}
+
+/* 用 inset 阴影画边框：不占布局，画布尺寸严格等于 192×96 × --wall-k，
+   指针坐标换算（rect.width / 192）才不会有 1px 偏差。 */
+.oi33-wall__canvas {
+    position: relative;
+    width: calc(var(--wall-k, 1) * var(--wall-w, 192px));
+    height: calc(var(--wall-k, 1) * var(--wall-h, 96px));
+    border-radius: 8px;
+    background-color: rgba(127, 127, 127, 0.04);
+    background-image:
+        linear-gradient(rgba(127, 127, 127, 0.13) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(127, 127, 127, 0.13) 1px, transparent 1px);
+    background-size: calc(var(--wall-k, 1) * var(--wall-cell, 32px)) calc(var(--wall-k, 1) * var(--wall-cell, 32px));
+    box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.28);
+    overflow: hidden;
+    outline: none;
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+}
+
+.oi33-wall__canvas:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--accent-color, #55b6e2);
+}
+
+.oi33-wall__piece {
+    position: absolute;
+    z-index: 1;
+    cursor: grab;
+    touch-action: none;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+}
+
+.oi33-wall__piece img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+    pointer-events: none;
+    -webkit-user-drag: none;
+}
+
+.oi33-wall__piece.is-selected {
+    z-index: 3;
+    outline: 1px dashed var(--accent-color, #55b6e2);
+    outline-offset: 1px;
+}
+
+.oi33-wall__piece.is-dragging {
+    z-index: 4;
+    opacity: 0.8;
+    cursor: grabbing;
+}
+
+/* 从托盘拖出来、还没落地的拖影。 */
+.oi33-wall__piece.is-preview {
+    z-index: 5;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* 拖回托盘时表示「松手就取下」。 */
+.oi33-wall__piece.is-remove { opacity: 0.3; }
+
+.oi33-wall__canvas-hint {
+    margin: 0.4rem 0 0;
+    color: #888;
+    font-size: 0.78rem;
+}
+
+/* 右侧托盘：可滚动、可搜索，已放满的奖章隐藏。 */
+.oi33-wall__tray-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+}
+
+.oi33-wall__tray-title {
+    margin: 0;
+    font-size: 1rem;
+    white-space: nowrap;
+}
+
+.oi33-wall__filter {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid rgba(127, 127, 127, 0.3);
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font-size: 0.85rem;
+}
+
+.oi33-wall__tray {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    gap: 0.5rem;
+    max-height: 28rem;
+    overflow-y: auto;
+    padding: 0.5rem;
+    border: 1px solid rgba(127, 127, 127, 0.18);
+    border-radius: 10px;
+    background: rgba(127, 127, 127, 0.03);
+}
+
+.oi33-wall__medal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    padding: 0.5rem 0.3rem;
+    border: 1px solid rgba(127, 127, 127, 0.2);
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: center;
+    cursor: grab;
+    touch-action: pan-y;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.oi33-wall__medal:hover {
+    border-color: var(--accent-color, #55b6e2);
+    transform: translateY(-1px);
+}
+
+.oi33-wall__medal:active { cursor: grabbing; }
+
+.oi33-wall__medal[hidden] { display: none; }
+
+.oi33-wall__medal.is-armed {
+    border-color: var(--accent-color, #55b6e2);
+    box-shadow: inset 0 0 0 2px var(--accent-color, #55b6e2);
+}
+
+.oi33-wall__medal-pixel {
+    width: 48px;
+    height: 48px;
+    object-fit: fill;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+
+.oi33-wall__medal-name {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.78rem;
+    line-height: 1.3;
+    pointer-events: none;
+}
+
+/* 一般奖章的剩余可摆放份数（按星级算，见 medalShowcaseCopyLimit）。 */
+.oi33-wall__medal-cap {
+    color: #b7862f;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    pointer-events: none;
+}
+
+.theme--dark .oi33-wall__medal-cap,
+[data-mantine-color-scheme=dark] .oi33-wall__medal-cap { color: #e0b060; }
+
+.oi33-wall__tray-empty {
+    grid-column: 1 / -1;
+    margin: 0.5rem 0;
+    color: #888;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.oi33-wall__tray-empty[hidden] { display: none; }
+
+.oi33-wall__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.oi33-wall__actions-hint {
+    color: #888;
+    font-size: 0.82rem;
+}
+
+.oi33-wall-noscript {
+    margin: 0.75rem 0 0;
+    padding: 0.6rem 0.75rem;
+    border: 1px dashed rgba(127, 127, 127, 0.35);
+    border-radius: 8px;
+    color: #888;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+    .oi33-wall__tray { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); max-height: 22rem; }
+    .oi33-wall__toolbar .oi33-wall__selected { min-width: 0; }
+}

@@ -441,12 +441,26 @@ class MedalDeleteHandler extends Handler {
     }
 }
 
+// Append a one-shot notification to a management redirect target. `back` lets
+// the global management page keep its own forms on `/oi33/medals`; everything
+// else returns to the per-user management page.
+function withNotification(target: string, text: string) {
+    return `${target}${target.includes('?') ? '&' : '?'}notification=${encodeURIComponent(text)}`;
+}
+
+function userManageTarget(handler: Handler, uid: number, back: string) {
+    return back === 'manage'
+        ? handler.url('oi33_medal_manage', { query: { uid } })
+        : handler.url('oi33_medal_user_manage', { uid });
+}
+
 class MedalGrantHandler extends Handler {
     async post() {
         await checkOi33Admin(this.user._id);
         const body = this.request.body as any;
         const uid = Number(field(body, 'uid'));
         const medalId = field(body, 'medalId');
+        const target = userManageTarget(this, uid, field(body, 'back'));
         if (!Number.isSafeInteger(uid) || uid <= 0) throw new ValidationError('用户 UID 无效。');
         if (!(await UserModel.getById('', uid))) throw new NotFoundError(uid);
         const medal = await oi33Model.medalGet(medalId);
@@ -459,8 +473,9 @@ class MedalGrantHandler extends Handler {
                 throw new ValidationError('请选择要发放的等级。');
             }
             const result = await oi33Model.medalSetLevel(uid, medalId, level, this.user._id);
-            this.response.redirect = `/oi33/medals/user/${uid}?notification=${
-                encodeURIComponent(result.created ? '奖章已发放' : '奖章等级已更新')}`;
+            this.response.redirect = withNotification(
+                target, result.created ? '奖章已发放' : '奖章等级已更新',
+            );
             return;
         }
         const result = await oi33Model.medalGrant(
@@ -472,11 +487,12 @@ class MedalGrantHandler extends Handler {
             const count = Math.max(1, Math.floor(Number((result.grant as any)?.count) || 1));
             if (count <= 1) throw new ValidationError('该用户已经获得这个奖章。');
             const stars = oi33Model.medalStarLevel(count);
-            const text = `已再获得一枚「${medal.name}」（第 ${count} 枚${stars ? `，★${stars}` : ''}）`;
-            this.response.redirect = `/oi33/medals/user/${uid}?notification=${encodeURIComponent(text)}`;
+            this.response.redirect = withNotification(
+                target, `已再获得一枚「${medal.name}」（第 ${count} 枚${stars ? `，★${stars}` : ''}）`,
+            );
             return;
         }
-        this.response.redirect = `/oi33/medals/user/${uid}?notification=奖章已发放`;
+        this.response.redirect = withNotification(target, '奖章已发放');
     }
 }
 
@@ -496,9 +512,8 @@ class MedalLevelHandler extends Handler {
             : result.previousLevel === result.level
                 ? '该用户已经是这个等级'
                 : `奖章等级已从第 ${result.previousLevel ?? '-'} 级更新为第 ${result.level} 级`;
-        const back = field(body, 'back');
-        const target = back === 'manage' ? this.url('oi33_medal_manage', { query: { uid } }) : `/oi33/medals/user/${uid}`;
-        this.response.redirect = `${target}${target.includes('?') ? '&' : '?'}notification=${encodeURIComponent(notification)}`;
+        const target = userManageTarget(this, uid, field(body, 'back'));
+        this.response.redirect = withNotification(target, notification);
     }
 }
 
@@ -511,7 +526,9 @@ class MedalRevokeHandler extends Handler {
         if (!(await oi33Model.medalRevoke(uid, medalId, this.user._id))) {
             throw new ValidationError('该用户没有这个奖章。');
         }
-        this.response.redirect = `/oi33/medals/user/${uid}?notification=奖章已撤销`;
+        this.response.redirect = withNotification(
+            userManageTarget(this, uid, field(body, 'back')), '奖章已撤销',
+        );
     }
 }
 
@@ -537,70 +554,112 @@ class MedalScanHandler extends Handler {
     }
 }
 
-const SHOWCASE_MAX = 16;
+// The showcase wall is a 192×96 pixel canvas of 6×3 uniform 32px medals (see
+// model/medal-rules.ts):
+// a placement is `{ id, x, y }` with the sprite's top-left corner in canvas
+// pixels. The editor posts the whole wall as JSON in `slots`; the profile and
+// the editor both render it with an integer scale factor so the pixel art
+// stays crisp. Legacy 4×4 data (id/null slots) is converted on read.
+const SHOWCASE_MAX = oi33Model.MEDAL_SHOWCASE_MAX_PIECES;
+
+function showcasePiecesFromBody(body: any): Array<{ id: string; x: number; y: number }> {
+    const raw = body?.slots;
+    if (typeof raw !== 'string' || !raw.trim()) return [];
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw new ValidationError('展示墙数据格式不正确，请刷新页面后重试。');
+    }
+    if (!Array.isArray(parsed)) throw new ValidationError('展示墙数据格式不正确，请刷新页面后重试。');
+    if (parsed.length > SHOWCASE_MAX) {
+        throw new ValidationError(`展示墙最多摆放 ${SHOWCASE_MAX} 枚奖章。`);
+    }
+    return oi33Model.medalShowcasePieces(parsed);
+}
 
 class MedalShowcaseHandler extends Handler {
     async get() {
         if ((await checkUserFlag(this.user._id)) < 1) {
-            throw new ForbiddenError('只有通过认证的用户才能编辑奖章展示柜。');
+            throw new ForbiddenError('只有通过认证的用户才能编辑奖章展示墙。');
         }
         const [awards, oi33Data] = await Promise.all([
             oi33Model.medalGetUserAwards(this.user._id),
             oi33Model.getUserDataByUids([this.user._id]),
         ]);
-        const selected: string[] = oi33Data[this.user._id]?.medal_showcase || [];
-        // Show current selection first, in the saved order, so the existing
-        // arrangement is editable without hunting through the full list.
         const awardMap = new Map(awards.map((award: any) => [String(award.medalId), award]));
-        const selectedAwards = selected.map((id) => awardMap.get(String(id))).filter(Boolean);
-        const rest = awards.filter((award: any) => !selected.includes(String(award.medalId)));
-        const positions = Object.fromEntries(selected.map((id, index) => [id, index + 1]));
+        const limitOf = (id: string) => {
+            const award = awardMap.get(String(id));
+            return award ? oi33Model.medalShowcaseCopyLimit(award.view) : 0;
+        };
+        // Over-limit copies (or medals the user no longer holds) are dropped
+        // here, so the editor always opens in a legal state and saving without
+        // further edits never fails validation.
+        const placed = oi33Model.medalShowcaseTrim(
+            oi33Model.medalShowcasePieces(oi33Data[this.user._id]?.medal_showcase),
+            limitOf,
+        );
+        const placedCount = new Map<string, number>();
+        for (const piece of placed) placedCount.set(piece.id, (placedCount.get(piece.id) || 0) + 1);
+        const editorAwards = awards.map((award: any) => ({
+            ...award,
+            showcaseLimit: oi33Model.medalShowcaseCopyLimit(award.view),
+            showcasePlaced: placedCount.get(String(award.medalId)) || 0,
+        }));
+        const pieces = placed.map((piece) => ({
+            ...piece,
+            size: oi33Model.MEDAL_SHOWCASE_CELL,
+            award: awardMap.get(piece.id) || null,
+        }));
         this.response.template = 'oi33_medal_showcase.html';
         this.response.body = {
-            awards: [...selectedAwards, ...rest],
-            selected,
-            positions,
-            max: SHOWCASE_MAX,
+            awards: editorAwards,
+            pieces,
+            // Prefilled so a page whose script failed to run still submits the
+            // wall it was showing instead of wiping it.
+            slotsJson: JSON.stringify(placed),
+            maxPieces: SHOWCASE_MAX,
+            wallWidth: oi33Model.MEDAL_SHOWCASE_WIDTH,
+            wallHeight: oi33Model.MEDAL_SHOWCASE_HEIGHT,
+            cell: oi33Model.MEDAL_SHOWCASE_CELL,
+            columns: oi33Model.MEDAL_SHOWCASE_COLUMNS,
+            rows: oi33Model.MEDAL_SHOWCASE_ROWS,
+            snap: oi33Model.MEDAL_SHOWCASE_SNAP,
         };
     }
 
     async post() {
         if ((await checkUserFlag(this.user._id)) < 1) {
-            throw new ForbiddenError('只有通过认证的用户才能编辑奖章展示柜。');
+            throw new ForbiddenError('只有通过认证的用户才能编辑奖章展示墙。');
         }
         const body = this.request.body as any;
-        const raw = body?.ids;
-        const checked = [...new Set(
-            (Array.isArray(raw) ? raw : raw ? [raw] : []).map((value) => String(value).trim()).filter(Boolean),
-        )];
-        // Each checked medal carries a position number; sort by it, ties keep
-        // the checkbox order. Missing/invalid numbers sink to the end.
-        const ids = checked
-            .map((id, index) => ({ id, index, pos: Number(field(body, `pos_${id}`)) }))
-            .sort((a, b) => (
-                (Number.isSafeInteger(a.pos) && a.pos >= 1 ? a.pos : Infinity)
-                - (Number.isSafeInteger(b.pos) && b.pos >= 1 ? b.pos : Infinity)
-            ) || a.index - b.index)
-            .map((item) => item.id);
-        if (ids.length > SHOWCASE_MAX) {
-            throw new ValidationError(`展示柜最多展示 ${SHOWCASE_MAX} 个奖章。`);
-        }
         const awards = await oi33Model.medalGetUserAwards(this.user._id);
-        const earned = new Set(awards.map((award: any) => String(award.medalId)));
-        if (ids.some((id) => !earned.has(id))) {
+        const awardMap = new Map(awards.map((award: any) => [String(award.medalId), award]));
+        const pieces = showcasePiecesFromBody(body);
+        if (pieces.some((piece) => !awardMap.has(piece.id))) {
             throw new ValidationError('只能展示自己已经获得的奖章。');
+        }
+        // 一般奖章按星级允许摆多份，其它系列只能摆一份（见 medalShowcaseCopyLimit）。
+        const copies = new Map<string, number>();
+        for (const piece of pieces) copies.set(piece.id, (copies.get(piece.id) || 0) + 1);
+        for (const [id, count] of copies) {
+            const award: any = awardMap.get(id);
+            const limit = oi33Model.medalShowcaseCopyLimit(award?.view);
+            if (count > limit) {
+                throw new ValidationError(`「${award.view.name}」最多只能展示 ${limit} 枚。`);
+            }
         }
         await userColl.updateOne(
             { _id: this.user._id },
-            ids.length ? { $set: { medal_showcase: ids } } : { $unset: { medal_showcase: '' } },
+            pieces.length ? { $set: { medal_showcase: pieces } } : { $unset: { medal_showcase: '' } },
             { upsert: true },
         );
         await addLog({
             type: 'medal', userId: this.user._id, action: 'showcase_update',
-            reason: ids.join(', '),
+            reason: pieces.map((piece) => `${piece.id}@${piece.x},${piece.y}`).join(', '),
         });
         this.response.redirect = this.url('oi33_medal_showcase', {
-            query: { notification: '奖章展示柜已保存' },
+            query: { notification: '奖章展示墙已保存' },
         });
     }
 }
@@ -637,11 +696,54 @@ class MedalUserHandler extends Handler {
         const udoc = await UserModel.getById(domainId, uid);
         if (!udoc) throw new NotFoundError(uid);
         const targetFlag = await checkUserFlag(uid);
-        const viewerFlag = this.user._id ? await checkUserFlag(this.user._id) : 0;
+        // Display-only: management lives on /oi33/medals/user/:uid/manage,
+        // reachable from the admin button on the profile card. This page never
+        // receives revoke / level forms or an admin entry point of its own.
         const awards = targetFlag >= 1 ? await oi33Model.medalGetUserAwards(uid) : [];
         this.response.template = 'oi33_medal_user.html';
+        this.response.body = { udoc, awards };
+    }
+}
+
+// Dedicated per-user medal management: grant, revoke and level changes live
+// here instead of being mixed into the public display page. Kept behind the
+// same OI33 admin flag as /oi33/medals.
+class MedalUserManageHandler extends Handler {
+    @param('uid', Types.Int)
+    async get(domainId: string, uid: number) {
+        await checkOi33Admin(this.user._id);
+        const udoc = await UserModel.getById(domainId, uid);
+        if (!udoc) throw new NotFoundError(uid);
+        const [awards, medals] = await Promise.all([
+            oi33Model.medalGetUserAwards(uid),
+            oi33Model.medalList(),
+        ]);
+        const leveled = medals.filter((medal) => oi33Model.medalIsLevelSeries(medal));
+        const plain = medals.filter((medal) => !oi33Model.medalIsLevelSeries(medal));
+        const byCategory = (list: any[], category: Oi33MedalCategory) => list.filter(
+            (medal: any) => medal.category === category,
+        );
+        // Same order as the global management page: 可售卖 → 奖项认证 → 一般 →
+        // OJ 成就（含尚未迁移成阶梯的旧定义）。
+        const grantMedals = [
+            ...byCategory(plain, 'saleable'),
+            ...byCategory(leveled, 'certification'),
+            ...byCategory(plain, 'manual'),
+            ...byCategory(leveled, 'oj'),
+            ...byCategory(plain, 'oj'),
+        ];
+        const medalLevels = Object.fromEntries(leveled.map((medal) => [medal._id,
+            oi33Model.medalSortedLevels(medal).map((level) => ({
+                level: level.level,
+                name: oi33Model.medalLevelLabel(level),
+                ...(Number(level.threshold) > 0 ? { threshold: Number(level.threshold) } : {}),
+            }))]));
+        this.response.template = 'oi33_medal_user_manage.html';
         this.response.body = {
-            udoc, awards, canManage: viewerFlag >= 2,
+            udoc,
+            awards,
+            grantMedals,
+            medalLevels,
             levels: Object.fromEntries(awards
                 .filter((award: any) => award.view.leveled)
                 .map((award: any) => [award.medalId, oi33Model.medalSortedLevels(award.medal)])),
@@ -733,17 +835,34 @@ function registerMedalUserPanel(ctx: Context) {
                 oi33Model.medalGetUserAwards(uid),
                 viewerUid ? checkUserFlag(viewerUid) : Promise.resolve(0),
             ]);
-            const rawShowcase = targetData?.medal_showcase;
-            const showcaseIds = Array.isArray(rawShowcase) ? rawShowcase : [];
-            // The stored array order is the display order chosen by the user.
+            // The profile renders the same free canvas the user arranged, at an
+            // integer scale (frontend/medal-showcase.page.ts fits it to the
+            // card). Copies beyond the medal's allowance (or medals that no
+            // longer exist) are dropped so the card stays legal.
             const awardMap = new Map(awards.map((award: any) => [String(award.medalId), award]));
-            const showcaseAwards = showcaseIds.map((id) => awardMap.get(String(id))).filter(Boolean);
-            // The profile card only renders the showcase grid (plus the button to
-            // the standalone /oi33/medals/user/:uid page), so the full award list
-            // stays out of the response body — it would ship every medal's PNG.
+            const limitOf = (id: string) => {
+                const award = awardMap.get(String(id));
+                return award ? oi33Model.medalShowcaseCopyLimit(award.view) : 0;
+            };
+            const showcasePieces = oi33Model.medalShowcaseTrim(
+                oi33Model.medalShowcasePieces(targetData?.medal_showcase),
+                limitOf,
+            ).map((piece) => ({
+                ...piece,
+                size: oi33Model.MEDAL_SHOWCASE_CELL,
+                award: awardMap.get(piece.id) || null,
+            }));
+            // The profile card only renders the showcase wall (plus the button
+            // to the standalone /oi33/medals/user/:uid page), so the full award
+            // list stays out of the response body — it would ship every PNG.
             body.oi33MedalPanel = {
-                showcaseAwards,
-                showcaseConfigured: showcaseIds.length > 0,
+                showcasePieces,
+                showcaseConfigured: showcasePieces.length > 0,
+                showcaseWall: {
+                    width: oi33Model.MEDAL_SHOWCASE_WIDTH,
+                    height: oi33Model.MEDAL_SHOWCASE_HEIGHT,
+                    cell: oi33Model.MEDAL_SHOWCASE_CELL,
+                },
                 isSelf: viewerUid === uid,
                 canManage: viewerFlag >= 2,
             };
@@ -868,6 +987,12 @@ export async function apply(ctx: Context) {
         'oi33_medal_showcase',
         '/oi33/medals/showcase',
         MedalShowcaseHandler,
+        PRIV.PRIV_USER_PROFILE,
+    );
+    ctx.Route(
+        'oi33_medal_user_manage',
+        '/oi33/medals/user/:uid/manage',
+        MedalUserManageHandler,
         PRIV.PRIV_USER_PROFILE,
     );
     ctx.Route(

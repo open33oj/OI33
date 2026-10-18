@@ -289,7 +289,7 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
     let copies = 1;
     try {
         // 重复的一般奖章会由 medalGrant 累加数量（星级随数量提升）。
-        const granted = await medalGrant(uid, medalId, uid, 'blindbox', true);
+        const granted = await medalGrant(uid, medalId, uid, 'blindbox');
         copies = Math.max(1, Math.floor(Number((granted.grant as any)?.count) || 1));
     } catch (e: any) {
         // Refund both the cans and the daily quota.

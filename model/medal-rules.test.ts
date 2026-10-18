@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-    medalAwardView, medalCategoryOf, medalDisplayRung, medalIsLevelSeries, medalLevelLabel,
-    medalLevelOf, medalSortedLevels, medalStarLevel, medalThresholdLevel, medalView,
+    MEDAL_SHOWCASE_CELL, MEDAL_SHOWCASE_COLUMNS, MEDAL_SHOWCASE_HEIGHT,
+    MEDAL_SHOWCASE_MAX_PIECES, MEDAL_SHOWCASE_MAX_SCALE, MEDAL_SHOWCASE_ROWS, MEDAL_SHOWCASE_SNAP,
+    MEDAL_SHOWCASE_WIDTH, medalAwardView, medalCategoryOf, medalDisplayRung, medalIsLevelSeries,
+    medalLevelLabel, medalLevelOf, medalShowcaseCopyLimit, medalShowcasePieces, medalShowcaseScale,
+    medalShowcaseTrim, medalSortedLevels, medalStarLevel, medalThresholdLevel, medalView,
 } from './medal-rules.ts';
 
 const level = (lvl: number, threshold?: number, extra: Record<string, any> = {}) => ({
@@ -143,4 +146,93 @@ test('medalView adds a label to every rung', () => {
     // 阶梯一律按 level 升序，且每级都带上去掉 Lv. 前缀的显示名
     assert.deepEqual(view.levels.map((item: any) => item.level), [1, 2, 3]);
     assert.deepEqual(view.levels.map((item: any) => item.label), ['铜', '银', '第 3 级']);
+});
+
+test('the wall is a uniform 6×3 grid of 32 px cells', () => {
+    assert.equal(MEDAL_SHOWCASE_CELL, 32);
+    assert.equal(MEDAL_SHOWCASE_COLUMNS, 6);
+    assert.equal(MEDAL_SHOWCASE_ROWS, 3);
+    assert.equal(MEDAL_SHOWCASE_WIDTH, 192);
+    assert.equal(MEDAL_SHOWCASE_HEIGHT, 96);
+    assert.equal(MEDAL_SHOWCASE_SNAP, 32);
+    assert.equal(MEDAL_SHOWCASE_MAX_PIECES, 18);
+});
+
+test('medalShowcasePieces lays legacy slot arrays onto the 6-column grid', () => {
+    // 旧数据的 id/null 槽位：按原顺序排成 6 列，空洞保留位置
+    assert.deepEqual(medalShowcasePieces(['a', null, 'b']), [
+        { id: 'a', x: 0, y: 0 },
+        { id: 'b', x: 64, y: 0 },
+    ]);
+    // 第七个开始换到第二行，超过三行的旧数据被总数上限截断
+    assert.deepEqual(medalShowcasePieces(['a', 'b', 'c', 'd', 'e', 'f', 'g']), [
+        { id: 'a', x: 0, y: 0 },
+        { id: 'b', x: 32, y: 0 },
+        { id: 'c', x: 64, y: 0 },
+        { id: 'd', x: 96, y: 0 },
+        { id: 'e', x: 128, y: 0 },
+        { id: 'f', x: 160, y: 0 },
+        { id: 'g', x: 0, y: 32 },
+    ]);
+    assert.deepEqual(medalShowcasePieces(undefined), []);
+    assert.deepEqual(medalShowcasePieces('nope'), []);
+});
+
+test('medalShowcasePieces clamps free positions to the 192×96 canvas', () => {
+    const pieces = medalShowcasePieces([
+        { id: 'big', x: -5, y: 200 },
+        { id: 'small', x: 999, y: 3.6 },
+    ]);
+    // 所有奖章统一 32 px，右/下边界最多 192-32 / 96-32；小数坐标四舍五入
+    assert.deepEqual(pieces, [
+        { id: 'big', x: 0, y: MEDAL_SHOWCASE_HEIGHT - MEDAL_SHOWCASE_CELL },
+        { id: 'small', x: MEDAL_SHOWCASE_WIDTH - MEDAL_SHOWCASE_CELL, y: 4 },
+    ]);
+    assert.deepEqual(medalShowcasePieces([]), []);
+});
+
+test('medalShowcasePieces caps the wall at 6×3 placements', () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({ id: `m${i}`, x: 0, y: 0 }));
+    assert.equal(medalShowcasePieces(many).length, MEDAL_SHOWCASE_MAX_PIECES);
+});
+
+test('medalShowcaseCopyLimit lets 一般奖章 repeat by star level', () => {
+    // 只有一枚（0 星）仍然可以摆 1 份；星级就是可摆的份数
+    assert.equal(medalShowcaseCopyLimit({ category: 'manual', stars: 0 }), 1);
+    assert.equal(medalShowcaseCopyLimit({ category: 'manual', stars: 1 }), 1);
+    assert.equal(medalShowcaseCopyLimit({ category: 'manual', stars: 2 }), 2);
+    assert.equal(medalShowcaseCopyLimit({ category: 'manual', stars: 3 }), 3);
+    // 其它系列固定 1 份
+    assert.equal(medalShowcaseCopyLimit({ category: 'oj', stars: 0 }), 1);
+    assert.equal(medalShowcaseCopyLimit({ category: 'certification' }), 1);
+    assert.equal(medalShowcaseCopyLimit({ category: 'saleable' }), 1);
+    assert.equal(medalShowcaseCopyLimit(undefined), 1);
+    // 不会超过 6×3 的摆放总数
+    assert.equal(medalShowcaseCopyLimit({ category: 'manual', stars: 99 }), MEDAL_SHOWCASE_MAX_PIECES);
+});
+
+test('medalShowcaseTrim keeps only the allowed copies', () => {
+    const limit = (id: string) => ({ m1: 2, m2: 1 } as Record<string, number>)[id] || 0;
+    const pieces = [
+        { id: 'm1', x: 0, y: 0 },
+        { id: 'm2', x: 32, y: 0 },
+        { id: 'm1', x: 64, y: 0 },
+        { id: 'm1', x: 96, y: 0 },
+        { id: 'm3', x: 128, y: 0 },
+    ];
+    // 第三份 m1 与已不持有的 m3 被丢弃，其余保持原位置
+    assert.deepEqual(medalShowcaseTrim(pieces, limit), [pieces[0], pieces[1], pieces[2]]);
+    assert.deepEqual(medalShowcaseTrim([], limit), []);
+});
+
+test('medalShowcaseScale only ever returns whole numbers', () => {
+    assert.equal(medalShowcaseScale(MEDAL_SHOWCASE_WIDTH), 1);
+    assert.equal(medalShowcaseScale(MEDAL_SHOWCASE_WIDTH * 2 - 1), 1);
+    assert.equal(medalShowcaseScale(MEDAL_SHOWCASE_WIDTH * 2), 2);
+    assert.equal(medalShowcaseScale(760), 3);
+    assert.equal(medalShowcaseScale(5000), MEDAL_SHOWCASE_MAX_SCALE);
+    assert.equal(medalShowcaseScale(0), 1);
+    // 编辑器可以直接抬高最小倍数（小屏时横向滚动），也可以压低最大倍数
+    assert.equal(medalShowcaseScale(100, 2, 6), 2);
+    assert.equal(medalShowcaseScale(5000, 1, 4), 4);
 });

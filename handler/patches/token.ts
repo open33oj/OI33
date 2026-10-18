@@ -28,9 +28,11 @@ export function applyTokenPatches(ctx: Context) {
         /^\/oi33\/paste\/all(\/|$)/,
         /^\/oi33\/coin\/bill\//,
         /^\/oi33\/cat-food\/bill\//,
-        // Medal catalogue / per-user medal list are read-only views.
+        // Medal catalogue / per-user medal list are read-only views. The
+        // per-user management page (`/oi33/medals/user/:uid/manage`) stays off
+        // the list: it is an admin editing UI even though its GET only reads.
         /^\/oi33\/medals\/catalogue$/,
-        /^\/oi33\/medals\/user\//,
+        /^\/oi33\/medals\/user\/[^/]+$/,
         // Algorithm mastery display page (self or flag>=2 teacher) is read-only.
         // The `/edit` assessment page stays off the list: it is an editing UI,
         // even though its GET only reads.
