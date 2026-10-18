@@ -154,7 +154,7 @@ export async function contractAccept(id: string | ObjectId, buyer: number, now =
             feeBurned = true;
         }
         await userMedalColl.deleteOne({ _id: award._id });
-        await medalGrant(buyer, contract.medalId, 0, 'contract', true);
+        await medalGrant(buyer, contract.medalId, 0, 'contract');
     } catch (e) {
         await userColl.updateOne({ _id: buyer }, { $inc: { cat_food: contract.price } });
         if (sellerCredited) {

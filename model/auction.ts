@@ -204,7 +204,7 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
     if (!settledAuction) return await auctionColl.findOne({ _id: auction._id });
     if (settledAuction.highestBidder != null && settledAuction.highestBid != null) {
         try {
-            await medalGrant(settledAuction.highestBidder, settledAuction.medalId, 0, 'auction', true);
+            await medalGrant(settledAuction.highestBidder, settledAuction.medalId, 0, 'auction');
             // The winning cans return to the AMM pool, and the pool burns
             // reserve food equal to their current sell value — exactly as if
             // the winner sold the cans back and the proceeds were destroyed

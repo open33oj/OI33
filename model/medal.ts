@@ -8,22 +8,30 @@ import type {
 import { addLog, logColl } from './log';
 import {
     AUTOMATIC_RULE_TYPES, MEDAL_AUTOMATIC_SERIES, MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES,
+    MEDAL_SHOWCASE_CELL, MEDAL_SHOWCASE_COLUMNS, MEDAL_SHOWCASE_HEIGHT,
+    MEDAL_SHOWCASE_MAX_PIECES, MEDAL_SHOWCASE_MAX_SCALE, MEDAL_SHOWCASE_MIN_SCALE,
+    MEDAL_SHOWCASE_ROWS, MEDAL_SHOWCASE_SNAP, MEDAL_SHOWCASE_WIDTH,
     isAutomaticRuleType, medalAutomaticRuleText, medalAwardView, medalCategoryName,
     medalCategoryOf, medalCategoryRank, medalDisplayRung, medalGroupByCategory,
-    medalIsLevelSeries, medalLevelLabel, medalLevelOf, medalSortedLevels, medalStarLevel,
-    medalThresholdLevel, medalView,
+    medalIsLevelSeries, medalLevelLabel, medalLevelOf, medalShowcaseCopyLimit,
+    medalShowcasePieces, medalShowcaseScale, medalShowcaseTrim,
+    medalSortedLevels, medalStarLevel, medalThresholdLevel, medalView,
 } from './medal-rules';
-import { meowMedalPostAdd, meowDelete, meowPostColl } from './meow';
+import { meowDelete, meowPostColl } from './meow';
 import { userColl } from './user';
 
 // The pure category/level rules live in ./medal-rules (no hydrooj/DB imports) so
 // they can be unit-tested; re-exported here to keep the public API unchanged.
 export {
     AUTOMATIC_RULE_TYPES, MEDAL_AUTOMATIC_SERIES, MEDAL_CATEGORIES, MEDAL_CATEGORY_NAMES,
+    MEDAL_SHOWCASE_CELL, MEDAL_SHOWCASE_COLUMNS, MEDAL_SHOWCASE_HEIGHT,
+    MEDAL_SHOWCASE_MAX_PIECES, MEDAL_SHOWCASE_MAX_SCALE, MEDAL_SHOWCASE_MIN_SCALE,
+    MEDAL_SHOWCASE_ROWS, MEDAL_SHOWCASE_SNAP, MEDAL_SHOWCASE_WIDTH,
     isAutomaticRuleType, medalAutomaticRuleText, medalAwardView, medalCategoryName,
     medalCategoryOf, medalCategoryRank, medalDisplayRung, medalGroupByCategory,
-    medalIsLevelSeries, medalLevelLabel, medalLevelOf, medalSortedLevels, medalStarLevel,
-    medalThresholdLevel, medalView,
+    medalIsLevelSeries, medalLevelLabel, medalLevelOf, medalShowcaseCopyLimit,
+    medalShowcasePieces, medalShowcaseScale, medalShowcaseTrim,
+    medalSortedLevels, medalStarLevel, medalThresholdLevel, medalView,
 };
 
 export const medalColl = db.collection('oi33_medal');
@@ -296,7 +304,6 @@ export async function medalAwardStats(): Promise<Record<string, MedalAwardStat>>
 export interface MedalEvaluateOptions {
     ruleTypes?: Oi33MedalRuleType[];
     historicalCatFood?: boolean;
-    announce?: boolean;
     source?: string;
 }
 
@@ -413,8 +420,7 @@ export async function medalEvaluateUser(
         );
         if (rungs.length) {
             // Upgradable OJ series: grant or raise the award to the highest rung
-            // the user's indicator has reached. It never downgrades and never
-            // publishes an automatic announcement.
+            // the user's indicator has reached. It never downgrades.
             const target = medalThresholdLevel(definition, value);
             if (!target) continue;
             matched++;
@@ -427,9 +433,7 @@ export async function medalEvaluateUser(
         const threshold = Number(definition.threshold) || 0;
         if (value < threshold) continue;
         matched++;
-        const result = await medalGrant(
-            uid, definition._id, 0, sourceText, options.announce !== false,
-        );
+        const result = await medalGrant(uid, definition._id, 0, sourceText);
         if (result.created) granted.push(definition._id);
     }
     return { checked: definitions.length, matched, granted };
@@ -446,7 +450,6 @@ export async function medalEvaluateAll() {
             if (!user) break;
             const result = await medalEvaluateUser(user._id, {
                 historicalCatFood: true,
-                announce: false,
                 source: 'scan',
             });
             users++;
@@ -852,7 +855,6 @@ export async function medalGrant(
     medalId: string,
     grantedBy = 0,
     source = 'automatic',
-    announce = true,
     level?: number,
 ): Promise<{ grant: Oi33UserMedal; created: boolean }> {
     const medal = await medalColl.findOne({ _id: medalId });
@@ -900,24 +902,6 @@ export async function medalGrant(
         return { grant: existing, created: false };
     }
 
-    // Managers (realname_flag >= 2) do not get an automatic meow post.
-    // Announcements are also limited to auctionable (saleable) medals, manual
-    // admin grants and blind-box pulls; automatic rule, auction and contract
-    // grants stay silent.
-    if (announce && (medal.saleable === true || source === 'manual' || source === 'blindbox')
-        && await medalAnnounceAllowed(uid)) {
-        try {
-            const post = await meowMedalPostAdd(uid, medal, medalAwardView(grant, medal));
-            await userMedalColl.updateOne(
-                { _id: grant._id },
-                { $set: { announcementPostId: post._id } },
-            );
-            grant.announcementPostId = post._id;
-        } catch (e) {
-            await userMedalColl.deleteOne({ _id: grant._id });
-            throw e;
-        }
-    }
     try {
         await addLog({
             type: 'medal', userId: uid, sender: grantedBy,
@@ -929,16 +913,10 @@ export async function medalGrant(
     return { grant, created: true };
 }
 
-// Managers (realname_flag >= 2) never receive automatic announcement posts.
-async function medalAnnounceAllowed(uid: number) {
-    const recipient = await userColl.findOne({ _id: uid }, { projection: { realname_flag: 1 } });
-    return (Number(recipient?.realname_flag) || 0) < 2;
-}
-
 // Automatic (OJ 成就奖章) rule upgrade: raise an existing award to the rung the
-// user has just reached, or create the award at that rung. It never downgrades,
-// never publishes a new announcement, and only refreshes an announcement that
-// already exists.
+// user has just reached, or create the award at that rung. It never downgrades
+// and never publishes to 喵喵 (medal grants are silent since the auto-post rule
+// was removed).
 async function medalUpgradeAwardLevel(
     uid: number,
     medal: any,
@@ -947,7 +925,7 @@ async function medalUpgradeAwardLevel(
 ): Promise<{ created: boolean; upgraded: boolean; previousLevel: number | null; level: number }> {
     const existing = await userMedalColl.findOne({ uid, medalId: medal._id });
     if (!existing) {
-        await medalGrant(uid, medal._id, 0, source, false, targetLevel);
+        await medalGrant(uid, medal._id, 0, source, targetLevel);
         return { created: true, upgraded: true, previousLevel: null, level: targetLevel };
     }
     const previousLevel = Number.isSafeInteger(Number(existing.level)) && Number(existing.level) > 0
@@ -960,15 +938,6 @@ async function medalUpgradeAwardLevel(
         { _id: existing._id },
         { $set: { level: targetLevel, earnedAt: new Date(), source } },
     );
-    if (existing.announcementPostId) {
-        try {
-            const refreshed = await userMedalColl.findOne({ _id: existing._id });
-            await meowMedalPostAdd(uid, medal, medalAwardView(refreshed, medal));
-        } catch (e) {
-            // A failed refresh must not roll back a legitimate upgrade.
-            console.error('[oi33] medal level announcement refresh failed:', e);
-        }
-    }
     await addLog({
         type: 'medal', userId: uid, action: 'level_update',
         medalId: medal._id, level: targetLevel,
@@ -979,9 +948,8 @@ async function medalUpgradeAwardLevel(
 
 // Upgradable series are a ladder: setting a level on a user who does not hold
 // the series yet creates the award, and setting a new level on an existing
-// award upgrades (or corrects) it in place. Re-announcing follows the same
-// manual-grant rule as a fresh grant. Administrators may move either direction;
-// the automatic evaluator only ever upgrades.
+// award upgrades (or corrects) it in place. Administrators may move either
+// direction; the automatic evaluator only ever upgrades.
 export async function medalSetLevel(
     uid: number,
     medalId: string,
@@ -998,7 +966,7 @@ export async function medalSetLevel(
     const target = Number(rung.level);
     const existing = await userMedalColl.findOne({ uid, medalId });
     if (!existing) {
-        await medalGrant(uid, medalId, operator, 'manual', true, target);
+        await medalGrant(uid, medalId, operator, 'manual', target);
         return { created: true, previousLevel: null, level: target };
     }
     const previousLevel = Number.isSafeInteger(Number(existing.level)) && existing.level
@@ -1009,22 +977,6 @@ export async function medalSetLevel(
         { _id: existing._id },
         { $set: { level: target, earnedAt: new Date(), grantedBy: operator, source: 'manual' } },
     );
-    // The existing announcement describes the level just replaced;
-    // meowMedalPostAdd rewrites that same post's text (keeping its likes and id)
-    // so a level change never leaves a stale rung on someone's timeline.
-    if (await medalAnnounceAllowed(uid)) {
-        try {
-            const refreshed = await userMedalColl.findOne({ _id: existing._id });
-            const post = await meowMedalPostAdd(uid, medal, medalAwardView(refreshed, medal));
-            await userMedalColl.updateOne(
-                { _id: existing._id },
-                { $set: { announcementPostId: post._id } },
-            );
-        } catch (e) {
-            // A failed announcement must not roll back a legitimate level change.
-            console.error('[oi33] medal level announcement failed:', e);
-        }
-    }
     await addLog({
         type: 'medal', userId: uid, sender: operator,
         action: 'level_update', medalId, level: target,
@@ -1041,6 +993,8 @@ export async function medalRevoke(
     const grant = await userMedalColl.findOne({ uid, medalId });
     if (!grant) return false;
     await userMedalColl.deleteOne({ _id: grant._id });
+    // Legacy cleanup: awards handed out before the automatic-announcement rule
+    // was removed may still point at a 喵喵 post; revoking the medal removes it.
     if (grant.announcementPostId) {
         await meowDelete(grant.announcementPostId, operator);
     }

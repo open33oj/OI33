@@ -1,6 +1,6 @@
 import { db, ObjectId, ValidationError } from 'hydrooj';
 import type {
-    Oi33Medal, Oi33MeowPost, Oi33MeowStatus,
+    Oi33MeowPost, Oi33MeowStatus,
     Oi33ModerationSource, Oi33ModerationVerdict,
 } from './types';
 import { addLog, logColl } from './log';
@@ -274,66 +274,6 @@ export async function meowPostAdd(
     } finally {
         await releaseMeowPostLock(uid, lock);
     }
-}
-
-// System-generated personal announcement. It is immediately visible, costs no
-// cans, does not use the daily free slot, and is ignored by the user cooldown.
-//
-// Exactly one announcement exists per (user, medal). `view` carries the
-// resolved display record, so re-announcing a certification medal whose level
-// changed rewrites the existing post's text in place instead of leaving a
-// second, stale post behind.
-export async function meowMedalPostAdd(
-    uid: number,
-    medal: Pick<Oi33Medal, '_id' | 'name'>,
-    view?: { name?: string; description?: string; levelName?: string },
-): Promise<Oi33MeowPost> {
-    const displayName = view?.name || medal.name;
-    const fullContent = `🏆 获得奖章「${displayName}」：${view?.description || ''}`;
-    const content = [...fullContent].slice(0, 256).join('');
-    const existing = await meowPostColl.findOne({
-        uid, source: 'medal', medalId: medal._id,
-    });
-    if (existing) {
-        if (existing.content !== content) {
-            await meowPostColl.updateOne({ _id: existing._id }, { $set: { content } });
-            existing.content = content;
-        }
-        return existing;
-    }
-    const now = new Date();
-    const doc: Oi33MeowPost = {
-        _id: new ObjectId(),
-        uid,
-        content,
-        dateKey: meowDateKey(now),
-        status: 'approved',
-        likeCount: 0,
-        canCost: 0,
-        source: 'medal',
-        medalId: medal._id,
-        createdAt: now,
-    };
-    try {
-        await meowPostColl.insertOne(doc);
-    } catch (e: any) {
-        if (e?.code !== 11000) throw e;
-        const raced = await meowPostColl.findOne({
-            uid, source: 'medal', medalId: medal._id,
-        });
-        if (!raced) throw e;
-        return raced;
-    }
-    try {
-        await addLog({
-            type: 'meow', userId: uid, action: 'medal',
-            postId: doc._id.toHexString(), status: 'approved',
-            medalId: medal._id,
-        });
-    } catch (e) {
-        console.error('[oi33] medal meow log failed:', e);
-    }
-    return doc;
 }
 
 // All OI33 managers / executive admins (realname_flag >= 2). Their 信息 is

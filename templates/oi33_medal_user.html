@@ -2,6 +2,8 @@
 {% extends "layout/basic.html" %}
 {% import "partials/oi33_profile.html" as profile with context %}
 {% block content %}
+{# 只读展示页：管理操作（发放 / 撤销 / 升降级）在独立的
+   /oi33/medals/user/:uid/manage 页面，这里不再内嵌任何管理表单。 #}
 <div class="row">
   <div class="medium-9 columns">
     <div class="section">
@@ -9,7 +11,6 @@
         <h1 class="section__title">{{ udoc.uname }} 的全部奖章（{{ awards.length }}）</h1>
         <div class="section__tools">
           <a href="{{ url('user_detail', uid=udoc._id) }}" class="rounded button">返回个人页</a>
-          {% if canManage %}<a href="{{ url('oi33_medal_manage', query={uid:udoc._id}) }}" class="rounded button">奖章管理</a>{% endif %}
         </div>
       </div>
       <div class="section__body">
@@ -26,32 +27,6 @@
             {% endif %}
             <span class="medal-list__desc" title="{{ award.view.description }}">{{ award.view.description }}</span>
             <span class="medal-list__time">{{ datetimeSpan(award.earnedAt)|safe }}获得</span>
-            {% if canManage %}
-            <form method="post" action="{{ url('oi33_medal_revoke') }}" class="medal-list__form"
-              onsubmit="return confirm('确定撤销 {{ udoc.uname }} 的「{{ award.view.name }}」吗？');">
-              <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-              <input type="hidden" name="uid" value="{{ award.uid }}">
-              <input type="hidden" name="medalId" value="{{ award.medalId }}">
-              <button type="submit" class="rounded button">撤销</button>
-            </form>
-            {% endif %}
-            {% if canManage and award.view.leveled %}
-            <div class="medal-list__levels">
-              <span class="medal-list__levels-label">奖章等级</span>
-              {% for level in levels[award.medalId] %}
-              <form method="post" action="{{ url('oi33_medal_level') }}" class="medal-list__form">
-                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                <input type="hidden" name="uid" value="{{ award.uid }}">
-                <input type="hidden" name="medalId" value="{{ award.medalId }}">
-                <input type="hidden" name="level" value="{{ level.level }}">
-                <button type="submit"
-                  class="rounded button medal-level-button{% if level.level == award.view.level %} medal-level-button--current{% endif %}"
-                  title="{{ level.label or level.name }}{% if level.threshold %}（阈值 {{ level.threshold }}）{% endif %}"
-                  {% if level.level == award.view.level %}disabled{% endif %}>{{ level.label or level.name }}</button>
-              </form>
-              {% endfor %}
-            </div>
-            {% endif %}
           </li>
           {% endfor %}
         </ul>
@@ -93,11 +68,6 @@
     overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
   }
   .medal-list__time { flex:0 0 auto; color:#888; font-size:.8em; }
-  .medal-list__form { display:inline; margin:0; }
-  .medal-list__levels { display:flex; align-items:center; gap:.25rem; flex-wrap:wrap; flex-basis:100%; }
-  .medal-list__levels-label { color:#888; font-size:.8em; }
-  .medal-level-button { padding:.1rem .45rem; font-size:.8em; }
-  .medal-level-button--current { opacity:1; font-weight:700; }
   .medal-list-empty { color:#777; font-size:.85em; }
   .theme--dark .medal-list__desc, [data-mantine-color-scheme=dark] .medal-list__desc { color:#aaa; }
   .theme--dark .medal-list__tag, [data-mantine-color-scheme=dark] .medal-list__tag { color:#bbb; }

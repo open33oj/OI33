@@ -80,7 +80,7 @@
           <a href="{{ url('oi33_auction') }}" class="rounded button">奖章拍卖</a>
           <a href="{{ url('oi33_contracts') }}" class="rounded button">奖章合同</a>
           <form method="post" action="{{ url('oi33_medal_scan') }}" style="display:inline;margin:0;"
-            onsubmit="return confirm('将逐个扫描现有 OI33 用户并补发 OJ 成就奖章。扫描补发不会发布喵喵；猫粮按账户明细中的历史最高余额统计。确定开始吗？');">
+            onsubmit="return confirm('将逐个扫描现有 OI33 用户并补发 OJ 成就奖章。扫描补发只授予奖章；猫粮按账户明细中的历史最高余额统计。确定开始吗？');">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <button type="submit" class="rounded button">扫描现有用户</button>
           </form>
@@ -95,6 +95,7 @@
         {% if medals.length or ojMedals.length or certificationMedals.length %}
         <form method="post" action="{{ url('oi33_medal_grant') }}" class="medal-grant-form">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <input type="hidden" name="back" value="manage">
           <div class="row">
             <div class="medium-3 columns form__item">
               <label>用户 UID</label>
@@ -126,8 +127,8 @@
             </div>
           </div>
           <p class="medal-help">
-            一般奖章与可售卖奖章直接发放，成功后自动发布一条公开的个人喵喵，不扣罐头、不占每日免费次数。
-            OJ 成就奖章与奖项认证奖章按等级发放：用户已有该系列时即为升级（或纠正等级）。
+            一般奖章与可售卖奖章直接发放；OJ 成就奖章与奖项认证奖章按等级发放，
+            用户已有该系列时即为升级（或纠正等级）。
           </p>
           <button type="submit" class="rounded primary button">发放奖章</button>
         </form>
@@ -226,7 +227,7 @@
           缩放倍率始终为整数。奖章 ID 将作为后续自动规则的稳定标识，创建后不可更名。
         </p>
         <p class="medal-help">
-          扫描按用户依次执行，不并发查询；扫描补发只授予奖章，不发布个人喵喵。
+          扫描按用户依次执行，不并发查询；扫描补发只授予奖章。
           猫粮指标在扫描时使用统一账户明细倒推历史最高余额，实时达成仍在余额变化后立即检查。
         </p>
 
@@ -374,7 +375,7 @@
       <div class="section__body">
         <p class="medal-help">
           每类指标一个可升级系列：用户同一系列只有一条记录，达到更高阈值时由系统自动升级。
-          升到新等级时不会发布新的喵喵公告；管理员也可以手动补录或纠正等级。
+          管理员也可以手动补录或纠正等级。
         </p>
         {% if ojMedals.length %}
         {% for medal in ojMedals %}
@@ -414,8 +415,9 @@
               <td>{{ datetimeSpan(award.earnedAt)|safe }}</td>
               <td>
                 <form method="post" action="{{ url('oi33_medal_revoke') }}"
-                  onsubmit="return confirm('撤销后，对应的自动奖章喵喵也会被删除。确定继续吗？');">
+                  onsubmit="return confirm('确定撤销这个奖章吗？撤销后不可恢复。');">
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="back" value="manage">
                   <input type="hidden" name="uid" value="{{ award.uid }}">
                   <input type="hidden" name="medalId" value="{{ award.medalId }}">
                   <button type="submit" class="rounded button">撤销</button>

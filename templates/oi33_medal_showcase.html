@@ -1,93 +1,102 @@
-﻿{% set page_name = "oi33_medal_showcase" %}
+{% set page_name = "oi33_medal_showcase" %}
 {% extends "layout/basic.html" %}
 {% block content %}
+{# 奖章展示墙：192×96 的画布，6×3 个同样大小的 32×32 奖章，可以拖到任意格子，
+   个人页按整数倍放大显示（像素画不会被插值糊掉）。
+   有脚本时拖动/点选摆放，没有脚本时只读显示已保存的摆放。 #}
 <div class="row">
   <div class="medium-12 columns">
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">编辑奖章展示柜</h1>
+        <h1 class="section__title">奖章展示墙</h1>
         <div class="section__tools">
           <a href="{{ url('user_detail', uid=handler.user._id) }}" class="rounded button">返回个人页</a>
+          <a href="{{ url('oi33_medal_catalogue') }}" class="rounded button">奖章目录</a>
+          <a href="{{ url('oi33_medal_user', uid=handler.user._id) }}" class="rounded button">全部奖章</a>
         </div>
       </div>
       <div class="section__body">
-        <p class="showcase-help">
-          勾选要展示的奖章，最多 <strong>{{ max }}</strong> 个，将在个人页以 4×4 网格展示。
-          勾选后在数字框里填写展示顺序（1 开始，从左到右、从上到下），保存时按数字从小到大排列。
-          当前已选 <strong id="showcase-count">0</strong> / {{ max }} 个。
-        </p>
         {% if awards.length %}
-        <form method="post" action="{{ url('oi33_medal_showcase') }}" id="showcase-form">
+        <p class="oi33-wall-intro">
+          <span class="oi33-wall-intro__drag">把右侧「我的奖章」拖到左边的画布上：所有奖章都是同样大小的
+            {{ cell }}×{{ cell }} 像素，画布正好排下 {{ columns }} 列 × {{ rows }} 行（{{ wallWidth }}×{{ wallHeight }} 像素）。
+            位置默认吸附到格子（按住 Alt 可自由微调）。拖动已放的奖章可以移动，拖回右侧或按 Delete 取下；
+            也可以先点一枚奖章、再点画布放置。</span>
+          一般奖章按星级可以摆多份（★2 摆 2 枚、★3 摆 3 枚），其它奖章只能摆 1 枚。
+          成品会按整数倍放大显示在个人页。
+        </p>
+        <form method="post" action="{{ url('oi33_medal_showcase') }}" id="oi33-wall-form" class="oi33-wall-form">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-          <div class="showcase-grid">
-            {% for award in awards %}
-            <label class="showcase-item{% if award.medalId in selected %} showcase-item--selected{% endif %}"
-              title="{{ award.view.name }}：{{ award.view.description }}">
-              <input type="checkbox" name="ids" value="{{ award.medalId }}"
-                {% if award.medalId in selected %}checked{% endif %}>
-              <img class="showcase-pixel" src="{{ award.view.imageData }}" width="48" height="48"
-                alt="{{ award.view.name }}">
-              <span class="showcase-name">{{ award.view.name }}{% if award.view.stars %} <span class="showcase-stars">★{{ award.view.stars }}</span>{% endif %}</span>
-              <input type="number" class="showcase-pos" name="pos_{{ award.medalId }}"
-                min="1" max="{{ max }}" step="1" placeholder="顺序"
-                value="{{ positions[award.medalId] or '' }}">
-            </label>
-            {% endfor %}
+          <input type="hidden" name="slots" id="oi33-wall-slots" value="{{ slotsJson }}">
+
+          <div class="oi33-wall" id="oi33-wall">
+            <div class="oi33-wall__board-wrap">
+              <div class="oi33-wall__toolbar">
+                <span class="oi33-wall__count">已放 <strong id="oi33-wall-count">0</strong> 枚</span>
+                <span class="oi33-wall__selected" id="oi33-wall-selected">未选中</span>
+                <button type="button" class="rounded button" id="oi33-wall-remove" disabled>取下所选</button>
+                <button type="button" class="rounded button oi33-wall__clear" id="oi33-wall-clear">清空</button>
+                <span class="oi33-wall__status" id="oi33-wall-status" role="status"></span>
+                <span class="oi33-wall__save-state" id="oi33-wall-dirty" hidden>未保存</span>
+              </div>
+              <div class="oi33-wall__canvas-scroll">
+                <div class="oi33-wall__canvas" id="oi33-wall-canvas" tabindex="0"
+                  role="application" aria-label="奖章展示画布"
+                  data-oi33-medal-wall data-wall-min-scale="1" data-wall-max-scale="6"
+                  data-wall-width="{{ wallWidth }}" data-wall-height="{{ wallHeight }}"
+                  data-snap="{{ snap }}" data-max-pieces="{{ maxPieces }}"
+                  style="--wall-k:1;--wall-w:{{ wallWidth }}px;--wall-h:{{ wallHeight }}px;--wall-cell:{{ cell }}px">
+                  {% for piece in pieces %}
+                  <div class="oi33-wall__piece" data-index="{{ loop.index0 }}"
+                    data-medal-id="{{ piece.id }}" data-x="{{ piece.x }}" data-y="{{ piece.y }}"
+                    style="left:calc(var(--wall-k) * {{ piece.x }}px);top:calc(var(--wall-k) * {{ piece.y }}px);width:calc(var(--wall-k) * {{ piece.size }}px);height:calc(var(--wall-k) * {{ piece.size }}px)"
+                    title="{{ piece.award.view.name }}{% if piece.award.view.stars %} ★{{ piece.award.view.stars }}{% endif %}">
+                    <img src="{{ piece.award.view.imageData }}" alt="{{ piece.award.view.name }}" draggable="false">
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+              <p class="oi33-wall__canvas-hint">{{ columns }}×{{ rows }} 格、每格 {{ cell }}×{{ cell }} 像素（共 {{ wallWidth }}×{{ wallHeight }}），个人页按整数倍显示。</p>
+            </div>
+
+            <div class="oi33-wall__tray-wrap">
+              <div class="oi33-wall__tray-head">
+                <h2 class="oi33-wall__tray-title">我的奖章</h2>
+                <input type="search" class="oi33-wall__filter" id="oi33-wall-filter"
+                  placeholder="搜索奖章" autocomplete="off">
+              </div>
+              <div class="oi33-wall__tray" id="oi33-wall-tray">
+                {% for award in awards %}
+                <button type="button" class="oi33-wall__medal"
+                  data-medal-id="{{ award.medalId }}" data-name="{{ award.view.name }}"
+                  data-limit="{{ award.showcaseLimit }}"
+                  title="{{ award.view.name }}：{{ award.view.description }}"
+                  {% if award.showcasePlaced >= award.showcaseLimit %}hidden{% endif %}>
+                  <img class="oi33-wall__medal-pixel" src="{{ award.view.imageData }}" width="48" height="48"
+                    alt="{{ award.view.name }}" draggable="false">
+                  <span class="oi33-wall__medal-name">{{ award.view.name }}{% if award.view.stars %} <span class="oi33-wall__stars">★{{ award.view.stars }}</span>{% endif %}</span>
+                  {% if award.showcaseLimit > 1 %}<span class="oi33-wall__medal-cap">可放 {{ award.showcaseLimit }} 枚</span>{% endif %}
+                </button>
+                {% endfor %}
+                <p class="oi33-wall__tray-empty" id="oi33-wall-tray-empty" hidden>所有奖章都已经在展示墙上了。</p>
+              </div>
+            </div>
           </div>
-          <button type="submit" class="rounded primary button" style="margin-top:1rem;">保存展示柜</button>
+
+          <div class="oi33-wall__actions">
+            <button type="submit" class="rounded primary button">保存展示墙</button>
+            <span class="oi33-wall__actions-hint">保存后个人页的奖章卡片会按这个摆放显示。</span>
+          </div>
+
+          <noscript>
+            <p class="oi33-wall-noscript">编辑展示墙需要启用 JavaScript；上面显示的是已经保存的摆放位置。</p>
+          </noscript>
         </form>
         {% else %}
-        <p class="showcase-help">你还没有获得奖章。</p>
+        <p class="oi33-wall-intro">你还没有获得奖章，先去<a href="{{ url('oi33_medal_catalogue') }}">奖章目录</a>看看吧。</p>
         {% endif %}
       </div>
     </div>
   </div>
 </div>
-<style>
-  .showcase-help { color:#777; }
-  .theme--dark .showcase-help, [data-mantine-color-scheme=dark] .showcase-help { color:#aaa; }
-  .showcase-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:0.75rem; }
-  .showcase-item {
-    display:flex; flex-direction:column; align-items:center; gap:0.4rem;
-    padding:0.75rem; border:1px solid rgba(127,127,127,.2); border-radius:8px;
-    cursor:pointer; text-align:center;
-  }
-  .showcase-item--selected { border-color:var(--accent-color,#55b6e2); box-shadow:0 0 0 1px var(--accent-color,#55b6e2); }
-  .showcase-item input { margin:0; }
-  .showcase-pixel { width:48px; height:48px; object-fit:fill; image-rendering:crisp-edges; image-rendering:pixelated; }
-  .showcase-name { font-size:.85rem; overflow:hidden; max-width:100%; white-space:nowrap; text-overflow:ellipsis; }
-  .showcase-stars { color:#e8a33d; font-weight:600; }
-  .showcase-pos {
-    display:none; width:4.5rem; padding:0.1rem 0.3rem; text-align:center;
-    border:1px solid rgba(127,127,127,.35); border-radius:4px; background:transparent; color:inherit;
-  }
-  .showcase-item--selected .showcase-pos { display:block; }
-</style>
-<script>
-  (function () {
-    var form = document.getElementById('showcase-form');
-    if (!form) return;
-    var max = {{ max }};
-    var counter = document.getElementById('showcase-count');
-    var boxes = Array.prototype.slice.call(form.querySelectorAll('input[name="ids"]'));
-    function update() {
-      var checked = boxes.filter(function (box) { return box.checked; });
-      counter.textContent = String(checked.length);
-      boxes.forEach(function (box) {
-        box.closest('.showcase-item').classList.toggle('showcase-item--selected', box.checked);
-        if (!box.checked) box.disabled = checked.length >= max;
-      });
-    }
-    boxes.forEach(function (box) { box.addEventListener('change', update); });
-    // Newly checked medals get the next free position number automatically;
-    // the server sorts by these numbers anyway, so this is pure convenience.
-    form.addEventListener('change', function (event) {
-      var box = event.target;
-      if (box.name !== 'ids' || !box.checked) return;
-      var input = form.querySelector('input[name="pos_' + box.value + '"]');
-      if (input && !input.value) input.value = String(boxes.filter(function (b) { return b.checked; }).length);
-    });
-    update();
-  })();
-</script>
 {% endblock %}
