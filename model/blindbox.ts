@@ -8,7 +8,7 @@
 // ./blindbox-rules so they stay unit-testable.
 
 import {
-    MessageModel, ObjectId, ValidationError, db,
+    ObjectId, ValidationError, db,
 } from 'hydrooj';
 import type { Oi33BlindboxItem, Oi33MedalBlindbox } from './types';
 import { addLog } from './log';
@@ -317,20 +317,8 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
         type: 'medal', userId: uid, action: 'blindbox_purchase', medalId, amount: price,
         reason: pool.name,
     } as any);
-    const [medal, remaining] = await Promise.all([
-        medalColl.findOne({ _id: medalId } as any),
-        blindboxDailyUsed(uid, now),
-    ]);
-    try {
-        await MessageModel.send(
-            1, uid,
-            `你购买的盲盒「${pool.name}」开出了奖章「${(medal as any)?.name || medalId}」`
-            + (copies > 1 ? `（第 ${copies} 枚，★${medalStarLevel(copies)}）` : '')
-            + `。今天还可以购买 ${Math.max(0, BLINDBOX_DAILY_LIMIT - remaining)} 次。`,
-        );
-    } catch (e) {
-        console.error('[oi33] blindbox notification failed:', e);
-    }
+    // 开盒结果通过页面跳转的 notification 和开盒记录展示，不再另发私信。
+    const remaining = await blindboxDailyUsed(uid, now);
     return {
         poolId: pool._id,
         poolName: pool.name,
