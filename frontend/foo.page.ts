@@ -1,7 +1,7 @@
 import { $, addPage, NamedPage, UserSelectAutoComplete } from '@hydrooj/ui-default';
 
 addPage(new NamedPage(
-    ['record_main', 'oi33_coin_inc', 'oi33_birthday_set', 'oi33_badge_create', 'oi33_realname_set', 'oi33_cat_food_grant', 'oi33_ai_access'],
+    ['record_main', 'oi33_coin_inc', 'oi33_birthday_set', 'oi33_badge_create', 'oi33_realname_set', 'oi33_cat_food_grant', 'oi33_ai_access', 'oi33_medal_manage'],
     () => {
         const instance: any = (UserSelectAutoComplete as any).getOrConstruct($('[name="uidOrName"]'), {
             clearDefaultValue: false,

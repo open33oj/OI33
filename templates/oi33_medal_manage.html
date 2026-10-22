@@ -97,11 +97,12 @@
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="back" value="manage">
           <div class="row">
-            <div class="medium-3 columns form__item">
-              <label>用户 UID</label>
-              <input class="textbox" type="number" min="1" name="uid" required value="{{ targetUid }}">
+            <div class="medium-4 columns form__item">
+              <label>用户</label>
+              <input class="textbox" type="text" name="uidOrName" autocomplete="off" required
+                placeholder="用户名 / UID（输入后从下拉选择）" value="{{ targetUname }}">
             </div>
-            <div class="medium-5 columns form__item">
+            <div class="medium-4 columns form__item">
               <label>奖章</label>
               <select class="select" name="medalId" id="medal-grant-medal" required>
                 {% for medal in saleableMedals %}
