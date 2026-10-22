@@ -8,6 +8,12 @@ import { checkOi33Admin } from './utils';
 // 总和 100）；用户每次购买按几率获得其中一个，每天最多购买 3 次（跨组共用额度）。
 // 纯规则与存储在 model/blindbox-rules.ts 与 model/blindbox.ts。
 
+// 表单字段转成字符串（同名多值时取第一个），空值统一成 ''。
+function fieldText(body: any, name: string): string {
+    const value = body?.[name];
+    return String(Array.isArray(value) ? value[0] : value ?? '').trim();
+}
+
 function buyNotification(name: string, medal: string, copies: number, stars: number, remaining: number) {
     const upgrade = copies > 1 ? `（第 ${copies} 枚，★${stars}）` : '';
     return `盲盒「${name}」开出了奖章「${medal}」${upgrade}，今天还可以购买 ${remaining} 次。`;
@@ -127,12 +133,17 @@ class BlindboxSaveHandler extends Handler {
             });
         }
         // 编辑既有盲盒时保存后仍回到它的编辑态，否则页面会退回空白的新建表单，
-        // 看起来像是「设置丢了」。
-        const submittedId = String(body.id || '').trim();
-        const editId = submittedId && oi33Model.toBlindboxId(submittedId) ? submittedId : '';
+        // 看起来像是「设置丢了」。id 用 field() 读取（表单值可能是数组），并且
+        // 只要页面处于编辑态就要求解析出有效 id：绝不能在 id 丢失时静默新建一份。
+        const submittedId = fieldText(body, 'id');
+        const parsedId = submittedId ? oi33Model.toBlindboxId(submittedId) : null;
+        const editing = fieldText(body, 'editing') === '1';
+        if (submittedId && !parsedId) throw new ValidationError('盲盒不存在或已删除。');
+        if (editing && !parsedId) throw new ValidationError('盲盒不存在或已删除。');
+        const editId = parsedId ? parsedId.toHexString() : '';
         try {
             await oi33Model.blindboxSave({
-                id: body.id,
+                id: editId,
                 name: body.name,
                 price: body.price,
                 openAt: body.openAt,

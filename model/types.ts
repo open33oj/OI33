@@ -482,6 +482,8 @@ export type Oi33MedalRuleType =
     | 'checkin_total'
     | 'cat_food_balance'
     | 'cat_can_balance'
+    // Number of special medals held (一般 / 可售卖 / 奖项认证; OJ 系列 excluded).
+    | 'special_medals'
     | 'certification';
 
 // The rule types a rule evaluator may dispatch on. Certification medals are

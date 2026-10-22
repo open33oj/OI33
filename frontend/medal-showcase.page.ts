@@ -1,18 +1,18 @@
 import { AutoloadPage, NamedPage, addPage } from '@hydrooj/ui-default';
 import {
     MEDAL_SHOWCASE_CELL, MEDAL_SHOWCASE_HEIGHT, MEDAL_SHOWCASE_MAX_PIECES,
-    MEDAL_SHOWCASE_MAX_SCALE, MEDAL_SHOWCASE_WIDTH, medalShowcaseScale,
+    MEDAL_SHOWCASE_MAX_SCALE, MEDAL_SHOWCASE_SNAP, MEDAL_SHOWCASE_WIDTH, medalShowcaseScale,
 } from '../model/medal-rules';
 import './medal-showcase.css';
 
-// 奖章展示墙：一块 192×96 的像素画布（6×3 个 32×32 奖章），奖章按 { id, x, y } 摆放。
+// 奖章展示墙：一块 320×128 的像素画布（10×4 个 32×32 奖章），奖章按 { id, x, y } 摆放。
 //
 // 个人页与编辑页都由服务端渲染好每个奖章的绝对位置，这里的 AutoloadPage 只
 // 负责按容器宽度算整数放大倍数（--wall-k），让 8/16/24/32 像素的奖章画在
 // 放大后依然清晰；编辑页的 NamedPage 再负责拖动、点选与保存。
 //
 // 编辑器交互：
-// - 从右侧托盘拖到画布：放一份新的；位置吸附 4 像素网格，按住 Alt 自由摆放。
+// - 从右侧托盘拖到画布：放一份新的；默认吸附半格（16 像素），按住 Alt 1 像素自由摆放。
 // - 拖动画布上的奖章：移动；拖回托盘或按 Delete 取下。
 // - 点托盘奖章再点画布：不用拖也能放；方向键微调选中的奖章。
 
@@ -82,9 +82,9 @@ function mountShowcaseWall() {
 
     const wallWidth = Number(canvas.dataset.wallWidth) || MEDAL_SHOWCASE_WIDTH;
     const wallHeight = Number(canvas.dataset.wallHeight) || MEDAL_SHOWCASE_HEIGHT;
-    const snapStep = Math.max(1, Number(canvas.dataset.snap) || MEDAL_SHOWCASE_CELL);
+    const snapStep = Math.max(1, Number(canvas.dataset.snap) || MEDAL_SHOWCASE_SNAP);
     const maxPieces = Math.max(1, Number(canvas.dataset.maxPieces) || MEDAL_SHOWCASE_MAX_PIECES);
-    // 所有奖章在墙上都是同一个 32×32 的大小（画布 6×3 格）。
+    // 所有奖章在墙上都是同一个 32×32 的大小（画布 10×4 格）。
     const cell = MEDAL_SHOWCASE_CELL;
 
     const countEl = document.getElementById('oi33-wall-count');
@@ -363,7 +363,7 @@ function mountShowcaseWall() {
             pieces.splice(state.index, 1);
             selected = -1;
         } else {
-            // 落到另一枚奖章的格子上：两枚互换位置。
+            // 落到另一枚奖章的同一坐标上：两枚互换位置。
             const occupant = pieceIndexAt(state.x, state.y, state.index);
             if (occupant >= 0) {
                 pieces[occupant].x = state.originX;

@@ -105,15 +105,40 @@
       </div>
       <div class="section__body">
         <p class="catalogue-help">
-          奖章分为四类（下方按此顺序展示）：<strong>可售卖奖章</strong>全服唯一，经拍卖与交易合同流转；
+          奖章分为四类，用下面的标签页切换：<strong>一般奖章</strong>由管理员按活动与贡献发放；
+          <strong>可售卖奖章</strong>全服唯一，经拍卖与交易合同流转；
           <strong>奖项认证奖章</strong>记录你在各类比赛中取得过的最高奖项，可随成绩提升而升级；
-          <strong>一般奖章</strong>由管理员按活动与贡献发放；
           <strong>OJ 成就奖章</strong>按做题与活跃指标自动发放，达到更高阈值时自动升级。
         </p>
+        <div class="catalogue-tabs" role="tablist" aria-label="奖章分类">
+          <button type="button" class="catalogue-tab is-active" role="tab" aria-selected="true"
+            data-catalogue-tab="manual">一般奖章（{{ groups.manual.length }}）</button>
+          <button type="button" class="catalogue-tab" role="tab" aria-selected="false"
+            data-catalogue-tab="saleable">可售卖奖章（{{ groups.saleable.length }}）</button>
+          <button type="button" class="catalogue-tab" role="tab" aria-selected="false"
+            data-catalogue-tab="certification">奖项认证奖章（{{ groups.certification.length }}）</button>
+          <button type="button" class="catalogue-tab" role="tab" aria-selected="false"
+            data-catalogue-tab="oj">OJ 成就奖章（{{ groups.oj.length }}）</button>
+        </div>
       </div>
     </div>
 
-    <div class="section">
+    <noscript><style>.catalogue-panel { display:block !important; }</style></noscript>
+
+    <div class="section catalogue-panel is-active" data-catalogue-panel="manual">
+      <div class="section__header">
+        <h2 class="section__title">一般奖章（{{ groups.manual.length }}）</h2>
+      </div>
+      <div class="section__body">
+        <p class="catalogue-help">由管理员按活动结果、长期贡献等规则手动发放。</p>
+        <div class="catalogue-grid">
+          {% for medal in groups.manual %}{{ medalCard(medal, stats[medal._id]) }}{% endfor %}
+        </div>
+        {% if not groups.manual.length %}<p class="catalogue-help">还没有一般奖章。</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="section catalogue-panel" data-catalogue-panel="saleable">
       <div class="section__header">
         <h2 class="section__title">可售卖奖章（{{ groups.saleable.length }}）</h2>
       </div>
@@ -131,7 +156,7 @@
       </div>
     </div>
 
-    <div class="section">
+    <div class="section catalogue-panel" data-catalogue-panel="certification">
       <div class="section__header">
         <h2 class="section__title">奖项认证奖章（{{ groups.certification.length }}）</h2>
       </div>
@@ -148,20 +173,7 @@
       </div>
     </div>
 
-    <div class="section">
-      <div class="section__header">
-        <h2 class="section__title">一般奖章（{{ groups.manual.length }}）</h2>
-      </div>
-      <div class="section__body">
-        <p class="catalogue-help">由管理员按活动结果、长期贡献等规则手动发放。</p>
-        <div class="catalogue-grid">
-          {% for medal in groups.manual %}{{ medalCard(medal, stats[medal._id]) }}{% endfor %}
-        </div>
-        {% if not groups.manual.length %}<p class="catalogue-help">还没有一般奖章。</p>{% endif %}
-      </div>
-    </div>
-
-    <div class="section">
+    <div class="section catalogue-panel" data-catalogue-panel="oj">
       <div class="section__header">
         <h2 class="section__title">OJ 成就奖章（{{ groups.oj.length }}）</h2>
       </div>
@@ -292,5 +304,22 @@
   [data-mantine-color-scheme=dark] .certification-series__level-desc { color:#aaa; }
   .theme--dark .certification-series__level-count,
   [data-mantine-color-scheme=dark] .certification-series__level-count { color:#999; }
+  .catalogue-tabs {
+    display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.8rem;
+    border-bottom:1px solid rgba(127,127,127,.25);
+  }
+  .catalogue-tab {
+    margin:0 0 -1px; padding:.4rem .85rem; background:transparent; color:#666;
+    border:1px solid transparent; border-bottom:0; border-radius:6px 6px 0 0;
+    font:inherit; cursor:pointer;
+  }
+  .catalogue-tab:hover { background:rgba(127,127,127,.07); color:inherit; }
+  .catalogue-tab.is-active {
+    border-color:rgba(127,127,127,.25); background:rgba(127,127,127,.09);
+    color:inherit; font-weight:600;
+  }
+  .theme--dark .catalogue-tab, [data-mantine-color-scheme=dark] .catalogue-tab { color:#aaa; }
+  .catalogue-panel { display:none; }
+  .catalogue-panel.is-active { display:block; }
 </style>
 {% endblock %}

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+    AUTOMATIC_RULE_TYPES, MEDAL_AUTOMATIC_SERIES,
     MEDAL_SHOWCASE_CELL, MEDAL_SHOWCASE_COLUMNS, MEDAL_SHOWCASE_HEIGHT,
     MEDAL_SHOWCASE_MAX_PIECES, MEDAL_SHOWCASE_MAX_SCALE, MEDAL_SHOWCASE_ROWS, MEDAL_SHOWCASE_SNAP,
-    MEDAL_SHOWCASE_WIDTH, medalAwardView, medalCategoryOf, medalDisplayRung, medalIsLevelSeries,
+    MEDAL_SHOWCASE_WIDTH, medalAutomaticRuleText, medalAwardView, medalCategoryOf, medalDisplayRung, medalIsLevelSeries,
     medalLevelLabel, medalLevelOf, medalShowcaseCopyLimit, medalShowcasePieces, medalShowcaseScale,
     medalShowcaseTrim, medalSortedLevels, medalStarLevel, medalThresholdLevel, medalView,
 } from './medal-rules.ts';
@@ -23,6 +24,15 @@ test('medalCategoryOf derives the four families', () => {
     assert.equal(medalCategoryOf({ ruleType: 'certification', saleable: true }), 'certification');
     // saleable wins over an automatic rule: one medal cannot be both
     assert.equal(medalCategoryOf({ ruleType: 'accepted_problems', saleable: true }), 'saleable');
+});
+
+test('special_medals is a first-class automatic (OJ) indicator', () => {
+    assert.ok(AUTOMATIC_RULE_TYPES.includes('special_medals'));
+    assert.equal(MEDAL_AUTOMATIC_SERIES.special_medals.id, 'special');
+    // 新指标属于 OJ 系列，否则会被当成一般奖章
+    assert.equal(medalCategoryOf({ ruleType: 'special_medals' }), 'oj');
+    assert.match(medalAutomaticRuleText('special_medals', 5), /特殊奖章/);
+    assert.match(medalAutomaticRuleText('special_medals', 5), /5/);
 });
 
 test('medalSortedLevels sorts ascending and tolerates a missing ladder', () => {
@@ -148,37 +158,34 @@ test('medalView adds a label to every rung', () => {
     assert.deepEqual(view.levels.map((item: any) => item.label), ['铜', '银', '第 3 级']);
 });
 
-test('the wall is a uniform 6×3 grid of 32 px cells', () => {
+test('the wall is a uniform 10×4 grid of 32 px cells', () => {
     assert.equal(MEDAL_SHOWCASE_CELL, 32);
-    assert.equal(MEDAL_SHOWCASE_COLUMNS, 6);
-    assert.equal(MEDAL_SHOWCASE_ROWS, 3);
-    assert.equal(MEDAL_SHOWCASE_WIDTH, 192);
-    assert.equal(MEDAL_SHOWCASE_HEIGHT, 96);
-    assert.equal(MEDAL_SHOWCASE_SNAP, 32);
-    assert.equal(MEDAL_SHOWCASE_MAX_PIECES, 18);
+    assert.equal(MEDAL_SHOWCASE_COLUMNS, 10);
+    assert.equal(MEDAL_SHOWCASE_ROWS, 4);
+    assert.equal(MEDAL_SHOWCASE_WIDTH, 320);
+    assert.equal(MEDAL_SHOWCASE_HEIGHT, 128);
+    // 半格对齐：16 px
+    assert.equal(MEDAL_SHOWCASE_SNAP, 16);
+    assert.equal(MEDAL_SHOWCASE_MAX_PIECES, 40);
 });
 
-test('medalShowcasePieces lays legacy slot arrays onto the 6-column grid', () => {
-    // 旧数据的 id/null 槽位：按原顺序排成 6 列，空洞保留位置
+test('medalShowcasePieces lays legacy slot arrays onto the 10-column grid', () => {
+    // 旧数据的 id/null 槽位：按原顺序排成 10 列，空洞保留位置
     assert.deepEqual(medalShowcasePieces(['a', null, 'b']), [
         { id: 'a', x: 0, y: 0 },
         { id: 'b', x: 64, y: 0 },
     ]);
-    // 第七个开始换到第二行，超过三行的旧数据被总数上限截断
-    assert.deepEqual(medalShowcasePieces(['a', 'b', 'c', 'd', 'e', 'f', 'g']), [
-        { id: 'a', x: 0, y: 0 },
-        { id: 'b', x: 32, y: 0 },
-        { id: 'c', x: 64, y: 0 },
-        { id: 'd', x: 96, y: 0 },
-        { id: 'e', x: 128, y: 0 },
-        { id: 'f', x: 160, y: 0 },
-        { id: 'g', x: 0, y: 32 },
-    ]);
+    const cols = Array.from({ length: 11 }, (_, i) => `m${i}`);
+    const placed = medalShowcasePieces(cols);
+    // 前 10 个在第一行，第 11 个换到第二行
+    assert.deepEqual(placed.slice(0, 10).map((piece) => piece.x), [0, 32, 64, 96, 128, 160, 192, 224, 256, 288]);
+    assert.deepEqual(placed.slice(0, 10).map((piece) => piece.y), Array(10).fill(0));
+    assert.deepEqual(placed[10], { id: 'm10', x: 0, y: 32 });
     assert.deepEqual(medalShowcasePieces(undefined), []);
     assert.deepEqual(medalShowcasePieces('nope'), []);
 });
 
-test('medalShowcasePieces clamps free positions to the 192×96 canvas', () => {
+test('medalShowcasePieces clamps free positions to the 320×128 canvas', () => {
     const pieces = medalShowcasePieces([
         { id: 'big', x: -5, y: 200 },
         { id: 'small', x: 999, y: 3.6 },
@@ -191,7 +198,7 @@ test('medalShowcasePieces clamps free positions to the 192×96 canvas', () => {
     assert.deepEqual(medalShowcasePieces([]), []);
 });
 
-test('medalShowcasePieces caps the wall at 6×3 placements', () => {
+test('medalShowcasePieces caps the wall at 10×4 placements', () => {
     const many = Array.from({ length: 40 }, (_, i) => ({ id: `m${i}`, x: 0, y: 0 }));
     assert.equal(medalShowcasePieces(many).length, MEDAL_SHOWCASE_MAX_PIECES);
 });
@@ -229,7 +236,7 @@ test('medalShowcaseScale only ever returns whole numbers', () => {
     assert.equal(medalShowcaseScale(MEDAL_SHOWCASE_WIDTH), 1);
     assert.equal(medalShowcaseScale(MEDAL_SHOWCASE_WIDTH * 2 - 1), 1);
     assert.equal(medalShowcaseScale(MEDAL_SHOWCASE_WIDTH * 2), 2);
-    assert.equal(medalShowcaseScale(760), 3);
+    assert.equal(medalShowcaseScale(760), 2);
     assert.equal(medalShowcaseScale(5000), MEDAL_SHOWCASE_MAX_SCALE);
     assert.equal(medalShowcaseScale(0), 1);
     // 编辑器可以直接抬高最小倍数（小屏时横向滚动），也可以压低最大倍数

@@ -28,6 +28,7 @@ const RULE_OPTIONS: Array<{ value: Oi33MedalRuleType; label: string }> = [
     { value: 'checkin_total', label: '累计登录 x 天' },
     { value: 'cat_food_balance', label: '猫粮达到 x g' },
     { value: 'cat_can_balance', label: '猫罐头持有 x 个' },
+    { value: 'special_medals', label: '获得 x 枚特殊奖章（一般 / 可售卖 / 奖项认证）' },
 ];
 const RULE_TYPE_SET = new Set(RULE_OPTIONS.map((item) => item.value));
 
@@ -355,7 +356,15 @@ class MedalSaveHandler extends Handler {
             throw new ValidationError('排序值无效。');
         }
 
+        const editingExisting = field(body, 'editing') === '1';
         const existing = await oi33Model.medalGet(id);
+        // 新建时绝不能静默覆盖同 ID 的已有奖章；编辑时目标必须还存在。
+        if (!editingExisting && existing) {
+            throw new ValidationError(`奖章 ID「${id}」已存在，请换一个 ID。`);
+        }
+        if (editingExisting && !existing) {
+            throw new ValidationError('要编辑的奖章不存在，可能已被删除。');
+        }
         const upload = fileOf(files, 'image');
         const image = hasUpload(upload)
             ? readPixelPng(upload)
@@ -554,7 +563,7 @@ class MedalScanHandler extends Handler {
     }
 }
 
-// The showcase wall is a 192×96 pixel canvas of 6×3 uniform 32px medals (see
+// The showcase wall is a 320×128 pixel canvas of 10×4 uniform 32px medals (see
 // model/medal-rules.ts):
 // a placement is `{ id, x, y }` with the sprite's top-left corner in canvas
 // pixels. The editor posts the whole wall as JSON in `slots`; the profile and
@@ -862,6 +871,7 @@ function registerMedalUserPanel(ctx: Context) {
                     width: oi33Model.MEDAL_SHOWCASE_WIDTH,
                     height: oi33Model.MEDAL_SHOWCASE_HEIGHT,
                     cell: oi33Model.MEDAL_SHOWCASE_CELL,
+                    grid: oi33Model.MEDAL_SHOWCASE_SNAP,
                 },
                 isSelf: viewerUid === uid,
                 canManage: viewerFlag >= 2,

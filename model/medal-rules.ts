@@ -16,6 +16,7 @@ export const AUTOMATIC_RULE_TYPES: Oi33MedalAutomaticRuleType[] = [
     'checkin_total',
     'cat_food_balance',
     'cat_can_balance',
+    'special_medals',
 ];
 
 export function isAutomaticRuleType(type: unknown): type is Oi33MedalAutomaticRuleType {
@@ -49,6 +50,10 @@ export const MEDAL_AUTOMATIC_SERIES: Record<
         id: 'can', name: '罐藏',
         description: '按猫罐头持有量自动升级。',
     },
+    special_medals: {
+        id: 'special', name: '珍藏',
+        description: '按已获得的一般 / 可售卖 / 奖项认证奖章数量自动升级。',
+    },
 };
 
 // Human-readable condition for one automatic threshold, shared by the handler
@@ -62,6 +67,7 @@ export function medalAutomaticRuleText(type: Oi33MedalRuleType, threshold: numbe
         return `猫粮余额曾达到 ${amount}`;
     }
     if (type === 'cat_can_balance') return `猫罐头持有 ${threshold} 个`;
+    if (type === 'special_medals') return `获得 ${threshold} 枚特殊奖章（不含 OJ 成就奖章）`;
     return '';
 }
 
@@ -243,23 +249,25 @@ export function medalAwardView(award: any, medal: any) {
 
 // --- Showcase wall (奖章展示墙) -------------------------------------------
 //
-// The wall is a **192×96 pixel canvas** made of 6×3 equal 32-pixel cells: every
-// medal is drawn at the same size (uniform stamps), so six complete medals fit
-// across and exactly three rows fit down. A placement stores the top-left corner
-// in canvas pixels; the profile shows the canvas scaled up by an integer factor
-// (`medalShowcaseScale`) and the sprites are upscaled from their 8/16/24/32 px
-// originals with nearest-neighbour sampling, so the pixel art stays crisp.
+// The wall is a **320×128 pixel canvas** made of 10×4 equal 32-pixel cells: every
+// medal is drawn at the same size (uniform stamps), so ten complete medals fit
+// across and exactly four rows fit down. A placement stores the top-left corner
+// in canvas pixels; the editor snaps to half a cell (16 px) so medals can also
+// sit on row/column boundaries. The profile shows the canvas scaled up by an
+// integer factor (`medalShowcaseScale`) and the sprites are upscaled from their
+// 8/16/24/32 px originals with nearest-neighbour sampling, so the art stays crisp.
 //
 // 一般奖章可以重复获得，所以同一个 medalId 允许出现多次（份数上限见
 // medalShowcaseCopyLimit）；其它系列每枚奖章最多一份。
 export const MEDAL_SHOWCASE_CELL = 32;
-export const MEDAL_SHOWCASE_COLUMNS = 6;
-export const MEDAL_SHOWCASE_ROWS = 3;
+export const MEDAL_SHOWCASE_COLUMNS = 10;
+export const MEDAL_SHOWCASE_ROWS = 4;
 export const MEDAL_SHOWCASE_WIDTH = MEDAL_SHOWCASE_CELL * MEDAL_SHOWCASE_COLUMNS;
 export const MEDAL_SHOWCASE_HEIGHT = MEDAL_SHOWCASE_CELL * MEDAL_SHOWCASE_ROWS;
-// The editor snaps to whole cells (hold Alt for free pixel placement).
-export const MEDAL_SHOWCASE_SNAP = MEDAL_SHOWCASE_CELL;
-// The canvas holds exactly 6×3 medals, so that is also the placement cap.
+// The editor snaps to half a cell (16 px) so medals can align to a half row or
+// half column; hold Alt for free 1-pixel placement.
+export const MEDAL_SHOWCASE_SNAP = MEDAL_SHOWCASE_CELL / 2;
+// The canvas holds exactly 10×4 medals, so that is also the placement cap.
 export const MEDAL_SHOWCASE_MAX_PIECES = MEDAL_SHOWCASE_COLUMNS * MEDAL_SHOWCASE_ROWS;
 export const MEDAL_SHOWCASE_MIN_SCALE = 1;
 export const MEDAL_SHOWCASE_MAX_SCALE = 6;
@@ -278,9 +286,9 @@ function showcaseCoord(value: unknown, limit: number): number {
 
 // Normalise stored/edited data to placements. The current format is a list of
 // `{ id, x, y }`; the legacy 4×4 wall stored an id/null per slot, so those are
-// laid out back onto the 6-column grid (keeping the old order and holes)
-// instead of being lost. Every piece is clamped to whole cells, so it always
-// fits inside the 192×96 canvas.
+// laid out back onto the 10-column grid (keeping the old order and holes)
+// instead of being lost. Every piece is clamped to the canvas, so it always
+// fits inside the 320×128 wall.
 export function medalShowcasePieces(raw: unknown): MedalShowcasePiece[] {
     const list = Array.isArray(raw) ? raw : [];
     const pieces: MedalShowcasePiece[] = [];
@@ -300,7 +308,7 @@ export function medalShowcasePieces(raw: unknown): MedalShowcasePiece[] {
         }
     }
     for (const item of legacy) {
-        // Old 4×4 / slot arrays are re-laid out row by row on the 6×3 grid.
+        // Old 4×4 / 6×3 / slot arrays are re-laid out row by row on the 10×4 grid.
         const column = item.index % MEDAL_SHOWCASE_COLUMNS;
         const row = Math.floor(item.index / MEDAL_SHOWCASE_COLUMNS);
         pieces.push({
@@ -342,7 +350,7 @@ export function medalShowcaseTrim(
 }
 
 // Integer display scale for a wall rendered inside `availableWidth` CSS pixels.
-// Never fractional, so the 192×96 canvas keeps square pixels when enlarged.
+// Never fractional, so the 320×128 canvas keeps square pixels when enlarged.
 export function medalShowcaseScale(
     availableWidth: unknown,
     minScale = MEDAL_SHOWCASE_MIN_SCALE,

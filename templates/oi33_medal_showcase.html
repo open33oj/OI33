@@ -1,8 +1,8 @@
 {% set page_name = "oi33_medal_showcase" %}
 {% extends "layout/basic.html" %}
 {% block content %}
-{# 奖章展示墙：192×96 的画布，6×3 个同样大小的 32×32 奖章，可以拖到任意格子，
-   个人页按整数倍放大显示（像素画不会被插值糊掉）。
+{# 奖章展示墙：320×128 的画布，10×4 个同样大小的 32×32 奖章，默认对齐半格
+   （16 像素），个人页按整数倍放大显示（像素画不会被插值糊掉）。
    有脚本时拖动/点选摆放，没有脚本时只读显示已保存的摆放。 #}
 <div class="row">
   <div class="medium-12 columns">
@@ -20,8 +20,8 @@
         <p class="oi33-wall-intro">
           <span class="oi33-wall-intro__drag">把右侧「我的奖章」拖到左边的画布上：所有奖章都是同样大小的
             {{ cell }}×{{ cell }} 像素，画布正好排下 {{ columns }} 列 × {{ rows }} 行（{{ wallWidth }}×{{ wallHeight }} 像素）。
-            位置默认吸附到格子（按住 Alt 可自由微调）。拖动已放的奖章可以移动，拖回右侧或按 Delete 取下；
-            也可以先点一枚奖章、再点画布放置。</span>
+            位置默认吸附到半格（{{ snap }} 像素，可对齐半行 / 半列；按住 Alt 可 1 像素微调）。
+            拖动已放的奖章可以移动，拖回右侧或按 Delete 取下；也可以先点一枚奖章、再点画布放置。</span>
           一般奖章按星级可以摆多份（★2 摆 2 枚、★3 摆 3 枚），其它奖章只能摆 1 枚。
           成品会按整数倍放大显示在个人页。
         </p>
@@ -45,7 +45,7 @@
                   data-oi33-medal-wall data-wall-min-scale="1" data-wall-max-scale="6"
                   data-wall-width="{{ wallWidth }}" data-wall-height="{{ wallHeight }}"
                   data-snap="{{ snap }}" data-max-pieces="{{ maxPieces }}"
-                  style="--wall-k:1;--wall-w:{{ wallWidth }}px;--wall-h:{{ wallHeight }}px;--wall-cell:{{ cell }}px">
+                  style="--wall-k:1;--wall-w:{{ wallWidth }}px;--wall-h:{{ wallHeight }}px;--wall-cell:{{ cell }}px;--wall-grid:{{ snap }}px">
                   {% for piece in pieces %}
                   <div class="oi33-wall__piece" data-index="{{ loop.index0 }}"
                     data-medal-id="{{ piece.id }}" data-x="{{ piece.x }}" data-y="{{ piece.y }}"
@@ -56,7 +56,7 @@
                   {% endfor %}
                 </div>
               </div>
-              <p class="oi33-wall__canvas-hint">{{ columns }}×{{ rows }} 格、每格 {{ cell }}×{{ cell }} 像素（共 {{ wallWidth }}×{{ wallHeight }}），个人页按整数倍显示。</p>
+              <p class="oi33-wall__canvas-hint">{{ columns }}×{{ rows }} 格、每格 {{ cell }}×{{ cell }} 像素（共 {{ wallWidth }}×{{ wallHeight }}），默认按半格对齐；个人页按整数倍显示。</p>
             </div>
 
             <div class="oi33-wall__tray-wrap">
