@@ -191,6 +191,7 @@
 | `/oi33/meow/admin/:postId/delete` | OI33 身份 ≥ 2 | 删除喵喵（POST；管理员在信息卡上看到删除按钮） |
 | `/oi33/meow/delete/:postId` | `PRIV_USER_PROFILE`（仅本人，或 OI33 身份 ≥ 2） | 删除自己的喵喵（POST；不退还罐头） |
 | `/oi33/medals` | OI33 身份 ≥ 2 | 奖章管理：奖章定义、四类奖章、自动指标、像素图、等级阶梯、手动授予与撤销、奖章定义导入 / 导出 |
+| `/oi33/medals/:id/edit` | OI33 身份 ≥ 2 | 编辑奖章定义（路径参数；旧的 `?edit=` 查询链接仍兼容）；列表的「编辑 / 编辑等级」按钮会跳到本页并锚定到编辑表单 |
 | `/oi33/medals/save` | OI33 身份 ≥ 2 | 创建/修改奖章定义（POST，`category` 为 `oj`/`saleable`/`manual`/`certification`；认证奖章提交 `levels_json` 与各级 PNG，PNG 原始尺寸仅 8/16/24/32） |
 | `/oi33/medals/config` | OI33 身份 ≥ 2 | 保存 AC 统计域全局配置（POST；留空为全部域，不同域按题目 `sort` 跨域去重） |
 | `/oi33/medals/grant`、`/oi33/medals/revoke` | OI33 身份 ≥ 2 | 授予/撤销用户奖章（POST；认证奖章在表单里同时选等级） |

@@ -260,10 +260,24 @@ class MedalManageHandler extends Handler {
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, edit = '', targetUid?: number, preselect = '', page = 1) {
         await checkOi33Admin(this.user._id);
+        // `@query` 正常会注入 edit；这里再从原始 query 兜一层，避免装饰器/框架
+        // 版本差异导致 ?edit=... 被丢掉时页面悄悄退回空白新建表单。
+        const rawEdit = (this.request as any)?.query?.edit;
         this.response.template = 'oi33_medal_manage.html';
         this.response.body = await buildMedalManageView(domainId, {
-            edit, targetUid, preselect, page,
+            edit: edit || String(rawEdit || ''), targetUid, preselect, page,
         });
+    }
+}
+
+// 编辑页专用路由：id 放在路径里（/oi33/medals/edit/:id），不依赖查询串。
+// 旧链接 ?edit=<id> 仍然保留，但页面里的「编辑」按钮走这条更稳的路。
+class MedalEditHandler extends Handler {
+    @param('id', Types.String)
+    async get(domainId: string, id: string) {
+        await checkOi33Admin(this.user._id);
+        this.response.template = 'oi33_medal_manage.html';
+        this.response.body = await buildMedalManageView(domainId, { edit: String(id || '') });
     }
 }
 
@@ -966,6 +980,14 @@ export async function apply(ctx: Context) {
         'oi33_medal_manage',
         '/oi33/medals',
         MedalManageHandler,
+        PRIV.PRIV_USER_PROFILE,
+    );
+    // 编辑页用 `/oi33/medals/:id/edit`：与 `/oi33/medals/:id/delete` 只差最后一个
+    // 静态段，不会像 `/oi33/medals/edit/:id` 那样和删除 id 为 `edit` 的奖章冲突。
+    ctx.Route(
+        'oi33_medal_edit',
+        '/oi33/medals/:id/edit',
+        MedalEditHandler,
         PRIV.PRIV_USER_PROFILE,
     );
     ctx.Route(
