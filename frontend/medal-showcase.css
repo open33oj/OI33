@@ -15,7 +15,8 @@
 
 .oi33-wall {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    /* 左侧画布优先：编辑器里画布越大越好拖，托盘够放奖章即可。 */
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     gap: 1.25rem;
     align-items: start;
 }

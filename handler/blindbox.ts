@@ -48,7 +48,15 @@ async function buildManageView(editId: string, extra: Record<string, any> = {}) 
         editObjectId ? oi33Model.blindboxGet(editObjectId) : Promise.resolve(null),
     ]);
     if (editId && !editing) throw new NotFoundError(editId);
-    const candidates = medals.filter((medal: any) => !oi33Model.blindboxMedalIssue(medal));
+    // 编辑旧盲盒时，池子里可能还引用着已经不能放进盲盒的奖章（规则收紧前创建的）。
+    // 这些奖章也必须出现在下拉框里并保持选中，否则页面看起来像「没有预填充」，
+    // 一保存还会把这一行静默丢掉；管理员可以在此基础上替换成当前允许的奖章。
+    const referenced = new Set<string>(
+        (editing?.items || []).map((item: any) => String(item.medalId)),
+    );
+    const candidates = medals.filter((medal: any) => (
+        !oi33Model.blindboxMedalIssue(medal) || referenced.has(String(medal._id))
+    ));
     return {
         pools,
         candidates,
@@ -116,8 +124,22 @@ class BlindboxManageHandler extends Handler {
     @query('edit', Types.String, true)
     async get(domainId: string, edit = '') {
         await checkOi33Admin(this.user._id);
+        // `@query` 正常会注入 edit；这里再从原始 query 兜一层，避免装饰器/框架
+        // 版本差异导致 ?edit=... 被丢掉时页面悄悄退回空白新建表单。
+        const rawEdit = (this.request as any)?.query?.edit;
         this.response.template = 'oi33_blindbox_manage.html';
-        this.response.body = await buildManageView(String(edit || ''));
+        this.response.body = await buildManageView(String(edit || rawEdit || ''));
+    }
+}
+
+// 编辑页专用路由：id 放在路径里（/oi33/blindbox/manage/:id），不依赖查询串。
+// 旧链接 ?edit=<id> 仍然保留，但页面内的「编辑」按钮走这条更稳的路。
+class BlindboxEditHandler extends Handler {
+    @param('id', Types.String)
+    async get(domainId: string, id: string) {
+        await checkOi33Admin(this.user._id);
+        this.response.template = 'oi33_blindbox_manage.html';
+        this.response.body = await buildManageView(String(id || ''));
     }
 }
 
@@ -169,9 +191,9 @@ class BlindboxSaveHandler extends Handler {
             }
             return;
         }
-        this.response.redirect = this.url('oi33_blindbox_manage', {
-            query: editId ? { edit: editId, notification: '盲盒已保存。' } : { notification: '盲盒已创建。' },
-        });
+        this.response.redirect = editId
+            ? this.url('oi33_blindbox_edit', { id: editId, query: { notification: '盲盒已保存。' } })
+            : this.url('oi33_blindbox_manage', { query: { notification: '盲盒已创建。' } });
     }
 }
 
@@ -203,6 +225,8 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_blindbox_buy', '/oi33/blindbox/buy', BlindboxBuyHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_logs', '/oi33/blindbox/logs', BlindboxLogsHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_manage', '/oi33/blindbox/manage', BlindboxManageHandler, PRIV.PRIV_USER_PROFILE);
+    // 放在 :id/toggle、:id/delete 之前，路径里的 manage/:id 不会与它们混淆。
+    ctx.Route('oi33_blindbox_edit', '/oi33/blindbox/manage/:id', BlindboxEditHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_save', '/oi33/blindbox/save', BlindboxSaveHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_toggle', '/oi33/blindbox/:id/toggle', BlindboxToggleHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_blindbox_delete', '/oi33/blindbox/:id/delete', BlindboxDeleteHandler, PRIV.PRIV_USER_PROFILE);

@@ -8,8 +8,8 @@ import './medal-showcase.css';
 // 奖章展示墙：一块 320×128 的像素画布（10×4 个 32×32 奖章），奖章按 { id, x, y } 摆放。
 //
 // 个人页与编辑页都由服务端渲染好每个奖章的绝对位置，这里的 AutoloadPage 只
-// 负责按容器宽度算整数放大倍数（--wall-k），让 8/16/24/32 像素的奖章画在
-// 放大后依然清晰；编辑页的 NamedPage 再负责拖动、点选与保存。
+// 负责算缩放倍数（--wall-k）：编辑页用整数倍便于精确拖动，个人页只看展示，
+// 按卡片宽度等比铺满；编辑页的 NamedPage 再负责拖动、点选与保存。
 //
 // 编辑器交互：
 // - 从右侧托盘拖到画布：放一份新的；默认吸附半格（16 像素），按住 Alt 1 像素自由摆放。
@@ -52,7 +52,12 @@ function fitMedalWalls() {
             - (Number.parseFloat(style.paddingRight) || 0);
         const min = Number(wall.dataset.wallMinScale) || 1;
         const max = Number(wall.dataset.wallMaxScale) || MEDAL_SHOWCASE_MAX_SCALE;
-        wall.style.setProperty('--wall-k', String(medalShowcaseScale(available - 2, min, max)));
+        // 编辑页要精确拖动，保持整数倍；个人页只在展示，按容器宽度等比铺满，
+        // 这样窄卡片里也不会在右侧留下一条空白（像素图仍走 nearest-neighbour）。
+        const scale = wall.dataset.wallFill === '1'
+            ? Math.max(min, Math.min(max, available / MEDAL_SHOWCASE_WIDTH))
+            : medalShowcaseScale(available - 2, min, max);
+        wall.style.setProperty('--wall-k', String(scale));
     }
 }
 
