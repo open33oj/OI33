@@ -146,7 +146,7 @@
           <div class="oi33-admin-card">
             <h3 class="oi33-admin-card__title">内容与审核</h3>
             <ul class="oi33-admin-card__list">
-              {{ adminLink(url('oi33_meow_main'), '喵喵时间线', '全站喵喵') }}
+              {{ adminLink(url('oi33_meow_main'), '喵喵广场', '全站喵喵') }}
               {{ adminLink(url('oi33_meow_admin'), '喵喵审核', ('待处理 ' ~ meowPendingCount) if meowPendingCount else '人工复核') }}
               {{ adminLink(url('oi33_ai_moderation'), 'AI 审核', ('待处理 ' ~ modPendingCount) if modPendingCount else '规则 / AI 配置与记录') }}
               {{ adminLink(url('oi33_ai_bio_review'), '简介批量审查', '重跑个人简介审核') }}
