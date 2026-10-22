@@ -61,7 +61,10 @@ async function buildManageView(editId: string, extra: Record<string, any> = {}) 
         pools,
         candidates,
         editing,
-        form: manageForm(editing, extra.submitted),
+        // 不能叫 form：layout/html5.html 把 components/form.html 导入成了 `form`，
+        // Nunjucks 里父模板的这个局部变量会盖住同名的 context 字段，导致编辑页
+        // 永远读到宏对象、回填全空。
+        poolForm: manageForm(editing, extra.submitted),
         rowCount: oi33Model.BLINDBOX_MAX_ITEMS,
         priceMax: oi33Model.BLINDBOX_PRICE_MAX,
         dailyLimit: oi33Model.BLINDBOX_DAILY_LIMIT,

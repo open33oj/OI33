@@ -12,9 +12,9 @@
     {% endif %}
     <div class="section">
       <div class="section__header">
-        <h1 class="section__title">{{ '编辑盲盒' if form.id else '新建盲盒' }}</h1>
+        <h1 class="section__title">{{ '编辑盲盒' if poolForm.id else '新建盲盒' }}</h1>
         <div class="section__tools">
-          {% if form.id %}
+          {% if poolForm.id %}
           <a class="rounded button" href="{{ url('oi33_blindbox_manage') }}">改为新建</a>
           {% endif %}
           <a class="rounded button" href="{{ url('oi33_blindbox') }}">看用户页</a>
@@ -23,31 +23,31 @@
       <div class="section__body">
         <form method="post" action="{{ url('oi33_blindbox_save') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-          <input type="hidden" name="id" value="{{ form.id }}">
+          <input type="hidden" name="id" value="{{ poolForm.id }}">
           {# 明确编辑态：编辑保存必须命中已有盲盒，绝不能在 id 丢失时静默新建。 #}
-          <input type="hidden" name="editing" value="{{ 1 if form.id else 0 }}">
+          <input type="hidden" name="editing" value="{{ 1 if poolForm.id else 0 }}">
           <div class="row">
             <div class="medium-4 columns">
               <label class="oi33-blindbox-manage__label">
                 名称
-                <input type="text" class="textbox" name="name" maxlength="40" required value="{{ form.name }}">
+                <input type="text" class="textbox" name="name" maxlength="40" required value="{{ poolForm.name }}">
               </label>
             </div>
             <div class="medium-4 columns">
               <label class="oi33-blindbox-manage__label">
                 价格（猫罐头）
-                <input type="number" class="textbox" name="price" min="1" max="{{ priceMax }}" step="1" required value="{{ form.price }}">
+                <input type="number" class="textbox" name="price" min="1" max="{{ priceMax }}" step="1" required value="{{ poolForm.price }}">
               </label>
             </div>
             <div class="medium-4 columns">
               <label class="oi33-blindbox-manage__label">
                 开放购买时间
-                <input type="datetime-local" class="textbox" name="openAt" required value="{{ form.openAt }}">
+                <input type="datetime-local" class="textbox" name="openAt" required value="{{ poolForm.openAt }}">
               </label>
             </div>
           </div>
           <label class="oi33-blindbox-manage__check">
-            <input type="checkbox" name="enabled" value="1"{% if form.enabled %} checked{% endif %}>
+            <input type="checkbox" name="enabled" value="1"{% if poolForm.enabled %} checked{% endif %}>
             上架（下架后用户无法购买，但仍保留记录）
           </label>
 
@@ -67,7 +67,7 @@
             </thead>
             <tbody>
               {% for index in range(0, rowCount) %}
-              {% set row = form.items[index] %}
+              {% set row = poolForm.items[index] %}
               <tr>
                 <td>{{ index + 1 }}</td>
                 <td>

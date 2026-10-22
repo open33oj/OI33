@@ -5,11 +5,11 @@
 <article class="catalogue-medal">
   <img class="catalogue-medal__icon" src="{{ medal.imageData }}" width="48" height="48" alt="{{ medal.name }}">
   <div class="catalogue-medal__body">
-    <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人获得，共 {{ stat.copies or stat.total }} 枚</small>{% endif %}</h3>
+    <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">（{{ stat.total }} 人 / {{ stat.copies or stat.total }} 枚）</small>{% endif %}</h3>
     <p>{{ medal.description }}</p>
     {% if medal.rule %}<p class="catalogue-rule">{{ medal.rule }}</p>{% endif %}
     <p class="catalogue-holders">
-      <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看持有者{% if stat and stat.total %}（{{ stat.total }} 人，共 {{ stat.copies or stat.total }} 枚）{% endif %} →</a>
+      <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看持有者 →</a>
     </p>
   </div>
 </article>
@@ -61,7 +61,7 @@
   <div class="certification-series__head">
     <img class="certification-series__icon" src="{{ medal.imageData }}" width="64" height="64" alt="{{ medal.name }}">
     <div class="certification-series__meta">
-      <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人{{ countLabel }}，共 {{ stat.copies or stat.total }} 枚</small>{% endif %}</h3>
+      <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">（{{ stat.total }} 人 / {{ stat.copies or stat.total }} 枚）</small>{% endif %}</h3>
       <p>{{ medal.description }}</p>
     </div>
   </div>
@@ -88,7 +88,7 @@
     {% endfor %}
   </ol>
   <p class="catalogue-holders">
-    <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看全部持有者{% if stat and stat.total %}（{{ stat.total }} 人，共 {{ stat.copies or stat.total }} 枚）{% endif %} →</a>
+    <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看全部持有者 →</a>
   </p>
 </article>
 {% endmacro %}
@@ -183,7 +183,7 @@
   </div>
 </div>
 <style>
-  .catalogue-help { color:#777; }
+  .catalogue-help { color:#777; margin:0 0 .75rem; }
   .theme--dark .catalogue-help, [data-mantine-color-scheme=dark] .catalogue-help { color:#aaa; }
   .catalogue-count { font-size:.7em; font-weight:400; color:#888; }
   .theme--dark .catalogue-count, [data-mantine-color-scheme=dark] .catalogue-count { color:#aaa; }
