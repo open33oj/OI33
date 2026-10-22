@@ -240,6 +240,8 @@ async function buildMedalManageView(domainId: string, params: MedalManageViewPar
         awardPageCount: awardPage.tpcount,
         awardTotal: awardPage.total,
         targetUid: targetUid || '',
+        // 发放表单用经典用户选择器：先回填用户名，选中后提交 uidOrName。
+        targetUname: targetUid ? (udict[targetUid]?.uname || '') : '',
         ruleOptions: RULE_OPTIONS,
         categoryOptions: CATEGORY_OPTIONS,
         medalLevels,
@@ -463,15 +465,37 @@ function userManageTarget(handler: Handler, uid: number, back: string) {
         : handler.url('oi33_medal_user_manage', { uid });
 }
 
+// 发放表单支持两种目标：单用户管理页的隐藏 uid，以及全局管理页的
+// 经典用户选择器（提交 uidOrName，可能是 UID、用户名或「UID n」）。
+async function resolveMedalTargetUid(handler: Handler, body: any): Promise<number> {
+    const domainId = (handler.args as any)?.domainId || '';
+    const rawUid = field(body, 'uid');
+    if (rawUid) {
+        const uid = Number(rawUid);
+        if (!Number.isSafeInteger(uid) || uid <= 0) throw new ValidationError('用户 UID 无效。');
+        if (!(await UserModel.getById(domainId, uid))) throw new NotFoundError(uid);
+        return uid;
+    }
+    const rawName = field(body, 'uidOrName');
+    if (!rawName) throw new ValidationError('请选择要发放的用户。');
+    const anonymous = /^UID\s+(\d+)$/i.exec(rawName);
+    const lookup = (anonymous ? anonymous[1] : rawName).trim();
+    const numeric = Number(lookup);
+    const udoc = (Number.isSafeInteger(numeric) && numeric > 0
+        ? await UserModel.getById(domainId, numeric)
+        : null)
+        || await UserModel.getByUname(domainId, lookup);
+    if (!udoc) throw new NotFoundError(lookup);
+    return Number(udoc._id);
+}
+
 class MedalGrantHandler extends Handler {
     async post() {
         await checkOi33Admin(this.user._id);
         const body = this.request.body as any;
-        const uid = Number(field(body, 'uid'));
+        const uid = await resolveMedalTargetUid(this, body);
         const medalId = field(body, 'medalId');
         const target = userManageTarget(this, uid, field(body, 'back'));
-        if (!Number.isSafeInteger(uid) || uid <= 0) throw new ValidationError('用户 UID 无效。');
-        if (!(await UserModel.getById('', uid))) throw new NotFoundError(uid);
         const medal = await oi33Model.medalGet(medalId);
         if (!medal) throw new ValidationError('奖章不存在。');
         // Upgradable series are granted through the level ladder: the same
