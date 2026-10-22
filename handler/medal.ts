@@ -684,6 +684,12 @@ class MedalCatalogueHandler extends Handler {
             oi33Model.auctionSaleableShowcase(),
             oi33Model.medalAwardStats(),
         ]);
+        // 只有一般奖章会存 `count`（重复获得）；其它系列每人恒为 1 枚，旧数据
+        // 若误带 count 也不让它把「总持有数量」算大。
+        const manualIds = new Set((groups.manual || []).map((medal: any) => String(medal._id)));
+        for (const [id, stat] of Object.entries(stats)) {
+            if (!manualIds.has(id)) stat.copies = stat.total;
+        }
         const uids = saleableRows.filter((row) => row.award).map((row) => row.award!.uid);
         const udict = await buildUserDict('', uids);
         this.response.template = 'oi33_medal_catalogue.html';
@@ -774,13 +780,21 @@ class MedalLevelUsersHandler extends Handler {
         const rung = oi33Model.medalLevelOf(medal, level);
         if (!rung) throw new NotFoundError(String(level));
         const awards = await oi33Model.medalListLevelHolders(id, Number(rung.level));
-        const udict = await buildUserDict(domainId, awards.map((award) => award.uid));
+        // 每个持有人的持有数量（等级系列恒为 1；仍统一走 medalAwardView，
+        // 避免旧数据里的 count 字段被误当成多枚）。
+        const rows = awards.map((award: any) => {
+            const view = oi33Model.medalAwardView(award, medal);
+            return { ...award, copies: view.count, stars: view.stars };
+        });
+        const totalCopies = rows.reduce((sum, award) => sum + award.copies, 0);
+        const udict = await buildUserDict(domainId, rows.map((award) => award.uid));
         this.response.template = 'oi33_medal_level_users.html';
         this.response.body = {
             medal,
             rung,
-            awards,
+            awards: rows,
             udict,
+            totalCopies,
             levels: oi33Model.medalSortedLevels(medal),
         };
     }
@@ -799,19 +813,24 @@ class MedalHoldersHandler extends Handler {
         const awards = await oi33Model.medalListHolders(id);
         // 一般奖章可以重复获得：数量与派生星级一并给模板（其它系列恒为 1 枚）。
         const rows = awards.map((award: any) => {
-            const copies = Math.max(1, Math.floor(Number(award.count) || 1));
-            return { ...award, copies, stars: oi33Model.medalStarLevel(copies) };
+            const view = oi33Model.medalAwardView(award, medal);
+            return { ...award, copies: view.count, stars: view.stars };
         });
+        const totalCopies = rows.reduce((sum, award) => sum + award.copies, 0);
         const udict = await buildUserDict(domainId, rows.map((award: any) => award.uid));
         const leveled = oi33Model.medalIsLevelSeries(medal);
         const groups = leveled
-            ? oi33Model.medalSortedLevels(medal).map((level) => ({
-                level,
-                awards: rows.filter(
+            ? oi33Model.medalSortedLevels(medal).map((level) => {
+                const levelAwards = rows.filter(
                     (award: any) => Number(oi33Model.medalDisplayRung(medal, award.level)?.level)
                         === Number(level.level),
-                ),
-            }))
+                );
+                return {
+                    level,
+                    awards: levelAwards,
+                    copies: levelAwards.reduce((sum, award) => sum + award.copies, 0),
+                };
+            })
             : [];
         this.response.template = 'oi33_medal_holders.html';
         this.response.body = {
@@ -819,6 +838,7 @@ class MedalHoldersHandler extends Handler {
             awards: rows,
             udict,
             count: rows.length,
+            totalCopies,
             leveled,
             levels: leveled ? oi33Model.medalSortedLevels(medal) : [],
             groups,

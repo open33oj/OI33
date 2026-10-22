@@ -5,11 +5,11 @@
 <article class="catalogue-medal">
   <img class="catalogue-medal__icon" src="{{ medal.imageData }}" width="48" height="48" alt="{{ medal.name }}">
   <div class="catalogue-medal__body">
-    <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人获得</small>{% endif %}</h3>
+    <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人获得，共 {{ stat.copies or stat.total }} 枚</small>{% endif %}</h3>
     <p>{{ medal.description }}</p>
     {% if medal.rule %}<p class="catalogue-rule">{{ medal.rule }}</p>{% endif %}
     <p class="catalogue-holders">
-      <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看持有者{% if stat and stat.total %}（{{ stat.total }} 人）{% endif %} →</a>
+      <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看持有者{% if stat and stat.total %}（{{ stat.total }} 人，共 {{ stat.copies or stat.total }} 枚）{% endif %} →</a>
     </p>
   </div>
 </article>
@@ -36,6 +36,8 @@
     {% if row.status == 'held' %}
     <dt>持有者</dt>
     <dd>{% if udict[row.award.uid] %}{{ user.render_inline(udict[row.award.uid], false, false) }}{% else %}UID {{ row.award.uid }}{% endif %}</dd>
+    <dt>持有数量</dt>
+    <dd>{{ row.award.count or 1 }} 枚</dd>
     <dt>获得时间</dt>
     <dd>{{ datetimeSpan(row.award.earnedAt)|safe }}获得{% if row.award.source == 'contract' %}（合同转让）{% endif %}</dd>
     {% elif row.status == 'auction' %}
@@ -59,7 +61,7 @@
   <div class="certification-series__head">
     <img class="certification-series__icon" src="{{ medal.imageData }}" width="64" height="64" alt="{{ medal.name }}">
     <div class="certification-series__meta">
-      <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人{{ countLabel }}</small>{% endif %}</h3>
+      <h3>{{ medal.name }}{% if stat and stat.total %} <small class="catalogue-count">已有 {{ stat.total }} 人{{ countLabel }}，共 {{ stat.copies or stat.total }} 枚</small>{% endif %}</h3>
       <p>{{ medal.description }}</p>
     </div>
   </div>
@@ -86,7 +88,7 @@
     {% endfor %}
   </ol>
   <p class="catalogue-holders">
-    <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看全部持有者{% if stat and stat.total %}（{{ stat.total }} 人）{% endif %} →</a>
+    <a href="{{ url('oi33_medal_holders', id=medal._id) }}">查看全部持有者{% if stat and stat.total %}（{{ stat.total }} 人，共 {{ stat.copies or stat.total }} 枚）{% endif %} →</a>
   </p>
 </article>
 {% endmacro %}

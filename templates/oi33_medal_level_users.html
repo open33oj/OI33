@@ -18,7 +18,7 @@
         <p class="level-medal-help">
           {{ medal.description }}
           {% if rung.description %}（本等级：{{ rung.description }}）{% endif %}
-          共 <strong>{{ awards.length }}</strong> 人获得该等级。
+          共 <strong>{{ awards.length }}</strong> 人获得该等级，合计 <strong>{{ totalCopies }}</strong> 枚。
         </p>
         <div class="level-medal-switch">
           {% for level in levels %}
@@ -32,6 +32,10 @@
           <li class="level-medal-list__row">
             <span class="level-medal-list__user">
               {% if udict[award.uid] %}{{ user.render_inline(udict[award.uid]) }}{% else %}UID {{ award.uid }}{% endif %}
+              <span class="medal-holders__copies"
+                title="持有 {{ award.copies }} 枚{% if award.stars %}，★{{ award.stars }}{% endif %}">
+                ×{{ award.copies }}{% if award.stars %} ★{{ award.stars }}{% endif %}
+              </span>
             </span>
             <span class="level-medal-list__time">{{ datetimeSpan(award.earnedAt)|safe }}获得</span>
           </li>
@@ -62,5 +66,8 @@
   .level-medal-list__time { color:#888; font-size:.8em; flex:0 0 auto; }
   .theme--dark .level-medal-list__time,
   [data-mantine-color-scheme=dark] .level-medal-list__time { color:#aaa; }
+  .medal-holders__copies { color:#a8761a; font-size:.82em; margin-left:.35rem; white-space:nowrap; }
+  .theme--dark .medal-holders__copies,
+  [data-mantine-color-scheme=dark] .medal-holders__copies { color:#e2b45f; }
 </style>
 {% endblock %}
