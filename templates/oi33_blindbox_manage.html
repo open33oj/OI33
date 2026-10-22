@@ -24,6 +24,8 @@
         <form method="post" action="{{ url('oi33_blindbox_save') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="id" value="{{ form.id }}">
+          {# 明确编辑态：编辑保存必须命中已有盲盒，绝不能在 id 丢失时静默新建。 #}
+          <input type="hidden" name="editing" value="{{ 1 if form.id else 0 }}">
           <div class="row">
             <div class="medium-4 columns">
               <label class="oi33-blindbox-manage__label">

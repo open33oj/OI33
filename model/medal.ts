@@ -301,6 +301,21 @@ export async function medalAwardStats(): Promise<Record<string, MedalAwardStat>>
     return stats;
 }
 
+// Number of distinct special medals (一般 / 可售卖 / 奖项认证) a user holds. OJ
+// 成就 awards are excluded, so this indicator cannot feed on itself.
+async function medalCountSpecialAwards(uid: number): Promise<number> {
+    const grants = await userMedalColl.find({ uid }, { projection: { medalId: 1 } }).toArray();
+    if (!grants.length) return 0;
+    const medals = await medalColl.find({
+        _id: { $in: [...new Set(grants.map((grant) => String(grant.medalId)))] },
+    }, { projection: { ruleType: 1, saleable: 1 } }).toArray();
+    const byId = new Map(medals.map((medal) => [String(medal._id), medal]));
+    return grants.reduce((count, grant) => {
+        const medal = byId.get(String(grant.medalId));
+        return count + (medal && medalCategoryOf(medal) !== 'oj' ? 1 : 0);
+    }, 0);
+}
+
 export interface MedalEvaluateOptions {
     ruleTypes?: Oi33MedalRuleType[];
     historicalCatFood?: boolean;
@@ -357,6 +372,7 @@ export async function medalEvaluateUser(
     if (!definitions.length) return { checked: 0, matched: 0, granted: [] as string[] };
 
     const needsAccepted = definitions.some((item) => item.ruleType === 'accepted_problems');
+    const needsSpecial = definitions.some((item) => item.ruleType === 'special_medals');
     const user = await userColl.findOne({ _id: uid });
     // Unverified users never trigger automatic medals.
     if ((Number(user?.realname_flag) || 0) < 1) return { checked: 0, matched: 0, granted: [] as string[] };
@@ -407,6 +423,7 @@ export async function medalEvaluateUser(
         checkin_total: Number(user?.checkin_cnt_all) || 0,
         cat_food_balance: catFoodValue,
         cat_can_balance: Number(user?.cat_can) || 0,
+        special_medals: needsSpecial ? await medalCountSpecialAwards(uid) : 0,
     };
     const granted: string[] = [];
     let matched = 0;
@@ -910,6 +927,12 @@ export async function medalGrant(
     } catch (e) {
         console.error('[oi33] medal grant log failed:', e);
     }
+    // 一般 / 可售卖 / 奖项认证奖章会改变「特殊奖章数量」指标。OJ 发放不触发，
+    // 所以评估器授予 OJ 系列时不会递归。
+    if (medalCategoryOf(medal) !== 'oj') {
+        medalEvaluateUser(uid, { ruleTypes: ['special_medals'], source: 'special' })
+            .catch((e) => console.error('[oi33] special-medal evaluation failed:', e));
+    }
     return { grant, created: true };
 }
 
@@ -992,6 +1015,7 @@ export async function medalRevoke(
 ) {
     const grant = await userMedalColl.findOne({ uid, medalId });
     if (!grant) return false;
+    const medal = await medalColl.findOne({ _id: medalId });
     await userMedalColl.deleteOne({ _id: grant._id });
     // Legacy cleanup: awards handed out before the automatic-announcement rule
     // was removed may still point at a 喵喵 post; revoking the medal removes it.
@@ -1002,5 +1026,11 @@ export async function medalRevoke(
         type: 'medal', userId: uid, sender: operator,
         action: 'revoke', medalId,
     });
+    // Losing a special medal can drop the user below an OJ threshold; refresh
+    // that indicator (OJ medals themselves never trigger this).
+    if (medal && medalCategoryOf(medal) !== 'oj') {
+        medalEvaluateUser(uid, { ruleTypes: ['special_medals'], source: 'special' })
+            .catch((e) => console.error('[oi33] special-medal evaluation failed:', e));
+    }
     return true;
 }

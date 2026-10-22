@@ -1,5 +1,5 @@
 /* 奖章展示墙（/oi33/medals/showcase）。
-   192×96 的像素画布（6×3 个 32×32 奖章）+ 右侧奖章托盘；画布用 --wall-k 做整数倍放大
+   320×128 的像素画布（10×4 个 32×32 奖章）+ 右侧奖章托盘；画布用 --wall-k 做整数倍放大
    （由 page 脚本按容器宽度计算），奖章按 { x, y } 绝对定位。
    类名统一 oi33-wall__ 前缀，只在这个页面出现。 */
 
@@ -61,25 +61,32 @@
 
 .oi33-wall__toolbar .oi33-wall__clear { margin-left: auto; }
 
-/* 画布：8 像素一格的点阵底，方便对齐；整块按 --wall-k 缩放。 */
+/* 画布：半格（16 像素）一点阵底，方便对齐；整块按 --wall-k 缩放。 */
 .oi33-wall__canvas-scroll {
     overflow-x: auto;
     overflow-y: hidden;
     padding: 0.15rem 0.15rem 0.4rem;
 }
 
-/* 用 inset 阴影画边框：不占布局，画布尺寸严格等于 192×96 × --wall-k，
-   指针坐标换算（rect.width / 192）才不会有 1px 偏差。 */
+/* 用 inset 阴影画边框：不占布局，画布尺寸严格等于 320×128 × --wall-k，
+   指针坐标换算（rect.width / 320）才不会有 1px 偏差。 */
 .oi33-wall__canvas {
     position: relative;
-    width: calc(var(--wall-k, 1) * var(--wall-w, 192px));
-    height: calc(var(--wall-k, 1) * var(--wall-h, 96px));
+    width: calc(var(--wall-k, 1) * var(--wall-w, 320px));
+    height: calc(var(--wall-k, 1) * var(--wall-h, 128px));
     border-radius: 8px;
     background-color: rgba(127, 127, 127, 0.04);
+    /* 两层网格：每 32px 一条较深的主格线，每 16px 一条较浅的半格线。 */
     background-image:
-        linear-gradient(rgba(127, 127, 127, 0.13) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(127, 127, 127, 0.13) 1px, transparent 1px);
-    background-size: calc(var(--wall-k, 1) * var(--wall-cell, 32px)) calc(var(--wall-k, 1) * var(--wall-cell, 32px));
+        linear-gradient(rgba(127, 127, 127, 0.22) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(127, 127, 127, 0.22) 1px, transparent 1px),
+        linear-gradient(rgba(127, 127, 127, 0.09) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(127, 127, 127, 0.09) 1px, transparent 1px);
+    background-size:
+        calc(var(--wall-k, 1) * var(--wall-cell, 32px)) calc(var(--wall-k, 1) * var(--wall-cell, 32px)),
+        calc(var(--wall-k, 1) * var(--wall-cell, 32px)) calc(var(--wall-k, 1) * var(--wall-cell, 32px)),
+        calc(var(--wall-k, 1) * var(--wall-grid, 16px)) calc(var(--wall-k, 1) * var(--wall-grid, 16px)),
+        calc(var(--wall-k, 1) * var(--wall-grid, 16px)) calc(var(--wall-k, 1) * var(--wall-grid, 16px));
     box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.28);
     overflow: hidden;
     outline: none;
