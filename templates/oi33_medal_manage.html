@@ -140,10 +140,8 @@
     </div>
 
     <div class="section">
-      <div class="section__header"><h2 class="section__title">奖章定义</h2></div>
+      <div class="section__header"><h2 class="section__title">全局自动发放配置（OJ 成就奖章）</h2></div>
       <div class="section__body">
-        <div class="medal-global-config">
-          <h2>全局自动发放配置（OJ 成就奖章）</h2>
           <form method="post" action="{{ url('oi33_medal_config') }}">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <div class="form__item">
@@ -157,10 +155,12 @@
             </p>
             <button type="submit" class="rounded primary button">保存全局配置</button>
           </form>
-        </div>
+      </div>
+    </div>
 
-        <div class="medal-import-export">
-          <h2>导入 / 导出奖章定义</h2>
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">导入 / 导出奖章定义</h2></div>
+      <div class="section__body">
           <p class="medal-help">
             导出文件只含奖章定义（名称、描述、达成规则、像素画与等级阶梯），不含任何用户持有记录，
             可直接导入到另一套 OI33；也可以把其他 OJ 的奖章整理成同样格式后导入。
@@ -221,18 +221,16 @@
             {% endif %}
           </div>
           {% endif %}
-        </div>
+      </div>
+    </div>
 
+    <div class="section">
+      <div class="section__header"><h2 class="section__title">{{ '编辑奖章' if editing else '新建奖章' }}</h2></div>
+      <div class="section__body">
         <p class="medal-help">
           图片仅支持原始尺寸为 8×8、16×16、24×24、32×32 的 PNG；页面统一放大到 96×96，
           缩放倍率始终为整数。奖章 ID 将作为后续自动规则的稳定标识，创建后不可更名。
         </p>
-        <p class="medal-help">
-          扫描按用户依次执行，不并发查询；扫描补发只授予奖章。
-          猫粮指标在扫描时使用统一账户明细倒推历史最高余额，实时达成仍在余额变化后立即检查。
-        </p>
-
-        <h2>{{ '编辑奖章' if editing else '新建奖章' }}</h2>
         <form method="post" action="{{ url('oi33_medal_save') }}" enctype="multipart/form-data" id="medal-form">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
               {# 区分新建与编辑：新建时 ID 不允许撞库（不能静默覆盖已有奖章）。 #}
@@ -380,6 +378,10 @@
           每类指标一个可升级系列：用户同一系列只有一条记录，达到更高阈值时由系统自动升级。
           管理员也可以手动补录或纠正等级。
         </p>
+        <p class="medal-help">
+          扫描按用户依次执行，不并发查询；扫描补发只授予奖章。
+          猫粮指标在扫描时使用统一账户明细倒推历史最高余额，实时达成仍在余额变化后立即检查。
+        </p>
         {% if ojMedals.length %}
         {% for medal in ojMedals %}
         {{ medalSeries(medal, true) }}
@@ -442,10 +444,6 @@
 </div>
 <style>
   .medal-help { color:#777; }
-  .medal-global-config { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
-  .medal-global-config h2 { margin-top:0; }
-  .medal-import-export { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
-  .medal-import-export h2 { margin-top:0; }
   .medal-import-result { margin-top:.75rem; padding:.75rem .9rem; border:1px solid rgba(127,127,127,.25); border-radius:6px; }
   .medal-import-result details { margin-top:.5rem; }
   .medal-import-result ul { margin:.35rem 0 0; padding-left:1.2rem; }
