@@ -5,11 +5,10 @@
 <li class="level-medal-list__row">
   <span class="level-medal-list__user">
     {% if udict[award.uid] %}{{ user.render_inline(udict[award.uid]) }}{% else %}UID {{ award.uid }}{% endif %}
-    {% if award.copies > 1 %}
-    <span class="medal-holders__copies" data-tooltip="重复获得 {{ award.copies }} 枚，星级 ★{{ award.stars }}">
+    <span class="medal-holders__copies"
+      title="持有 {{ award.copies }} 枚{% if award.stars %}，★{{ award.stars }}{% endif %}">
       ×{{ award.copies }}{% if award.stars %} ★{{ award.stars }}{% endif %}
     </span>
-    {% endif %}
   </span>
   <span class="level-medal-list__time">{{ datetimeSpan(award.earnedAt)|safe }}获得</span>
 </li>
@@ -40,7 +39,7 @@
         <p class="level-medal-help">
           {{ medal.description }}
           {% if medal.rule %}（{{ medal.rule }}）{% endif %}
-          共 <strong>{{ count }}</strong> 人持有。
+          共 <strong>{{ count }}</strong> 人持有，合计 <strong>{{ totalCopies }}</strong> 枚。
         </p>
         {% if leveled %}
         {% for group in groups %}
@@ -49,7 +48,7 @@
             <img class="medal-holders__group-icon" src="{{ group.level.imageData }}" width="28" height="28"
               alt="{{ group.level.label or group.level.name }}">
             <span>{{ group.level.label or group.level.name }}</span>
-            <span class="medal-holders__group-count">{{ group.awards.length }} 人</span>
+            <span class="medal-holders__group-count">{{ group.awards.length }} 人 · 共 {{ group.copies }} 枚</span>
             <a class="rounded button medal-holders__group-link"
               href="{{ url('oi33_medal_level_users', id=medal._id, level=group.level.level) }}">只看该等级</a>
           </h2>

@@ -275,27 +275,41 @@ export async function medalListHolders(medalId: string) {
 }
 
 export interface MedalAwardStat {
+    // Number of distinct holders (one award row per holder and definition).
     total: number;
+    // Total number of medals held: 一般奖章 sums `count`, every other family
+    // holds exactly one per holder.
+    copies: number;
     // Upgradable series only: how many holders sit on each rung.
     byLevel: Record<string, number>;
 }
 
-// Holder counts for the public catalogue. One pass over the award collection;
-// `total` covers every family, `byLevel` is only meaningful for upgradable
+// Holder and copy counts for the public catalogue. One pass over the award
+// collection; `total` is the holder count, `copies` sums the duplicate count
+// stored on 一般奖章 awards, and `byLevel` is only meaningful for upgradable
 // series (where the award carries its rung).
 export async function medalAwardStats(): Promise<Record<string, MedalAwardStat>> {
     const rows = await userMedalColl.aggregate([
-        { $group: { _id: { medalId: '$medalId', level: '$level' }, count: { $sum: 1 } } },
+        {
+            $group: {
+                _id: { medalId: '$medalId', level: '$level' },
+                holders: { $sum: 1 },
+                // Only 一般奖章 awards carry `count`; legacy rows fall back to 1.
+                copies: { $sum: { $max: [1, { $ifNull: ['$count', 1] }] } },
+            },
+        },
     ]).toArray();
     const stats: Record<string, MedalAwardStat> = {};
     for (const row of rows as any[]) {
         const medalId = String(row._id?.medalId ?? '');
         if (!medalId) continue;
-        const stat = stats[medalId] || (stats[medalId] = { total: 0, byLevel: {} });
-        const count = Number(row.count) || 0;
-        stat.total += count;
+        const stat = stats[medalId] || (stats[medalId] = { total: 0, copies: 0, byLevel: {} });
+        const holders = Number(row.holders) || 0;
+        const copies = Number(row.copies) || 0;
+        stat.total += holders;
+        stat.copies += copies;
         if (row._id?.level !== undefined && row._id?.level !== null) {
-            stat.byLevel[String(row._id.level)] = count;
+            stat.byLevel[String(row._id.level)] = holders;
         }
     }
     return stats;
