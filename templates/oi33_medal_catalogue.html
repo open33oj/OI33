@@ -122,78 +122,62 @@
           <button type="button" class="catalogue-tab" role="tab" aria-selected="false"
             data-catalogue-tab="oj">OJ 成就奖章（{{ groups.oj.length }}）</button>
         </div>
-      </div>
-    </div>
 
     <noscript><style>.catalogue-panel { display:block !important; }</style></noscript>
 
-    <div class="section catalogue-panel is-active" data-catalogue-panel="manual">
-      <div class="section__header">
-        <h2 class="section__title">一般奖章（{{ groups.manual.length }}）</h2>
+    <div class="catalogue-panel is-active" data-catalogue-panel="manual">
+
+      <p class="catalogue-help">由管理员按活动结果、长期贡献等规则手动发放。</p>
+      <div class="catalogue-grid">
+        {% for medal in groups.manual %}{{ medalCard(medal, stats[medal._id]) }}{% endfor %}
       </div>
-      <div class="section__body">
-        <p class="catalogue-help">由管理员按活动结果、长期贡献等规则手动发放。</p>
-        <div class="catalogue-grid">
-          {% for medal in groups.manual %}{{ medalCard(medal, stats[medal._id]) }}{% endfor %}
-        </div>
-        {% if not groups.manual.length %}<p class="catalogue-help">还没有一般奖章。</p>{% endif %}
-      </div>
+      {% if not groups.manual.length %}<p class="catalogue-help">还没有一般奖章。</p>{% endif %}
     </div>
 
-    <div class="section catalogue-panel" data-catalogue-panel="saleable">
-      <div class="section__header">
-        <h2 class="section__title">可售卖奖章（{{ groups.saleable.length }}）</h2>
+    <div class="catalogue-panel" data-catalogue-panel="saleable">
+
+      <p class="catalogue-help">
+        可售卖奖章全服唯一：只拍卖一次，成交后只能通过交易合同在玩家之间转让，不会再次上架。
+      </p>
+      {% if rows.length %}
+      <div class="saleable-grid">
+        {% for row in rows %}{{ saleableCard(row) }}{% endfor %}
       </div>
-      <div class="section__body">
-        <p class="catalogue-help">
-          可售卖奖章全服唯一：只拍卖一次，成交后只能通过交易合同在玩家之间转让，不会再次上架。
-        </p>
-        {% if rows.length %}
-        <div class="saleable-grid">
-          {% for row in rows %}{{ saleableCard(row) }}{% endfor %}
-        </div>
-        {% else %}
-        <p class="catalogue-help">还没有可售卖奖章。</p>
-        {% endif %}
-      </div>
+      {% else %}
+      <p class="catalogue-help">还没有可售卖奖章。</p>
+      {% endif %}
     </div>
 
-    <div class="section catalogue-panel" data-catalogue-panel="certification">
-      <div class="section__header">
-        <h2 class="section__title">奖项认证奖章（{{ groups.certification.length }}）</h2>
-      </div>
-      <div class="section__body">
-        <p class="catalogue-help">
-          每类比赛一个系列，系列内的等级由低到高排列。下方的浅色等级表示还没有人达到。
-          点击任意等级可查看当前获得该等级的用户。
-        </p>
-        {% for medal in groups.certification %}
-        {{ seriesCard(medal, stats[medal._id], false, '获得认证', true) }}
-        {% else %}
-        <p class="catalogue-help">还没有奖项认证奖章。</p>
-        {% endfor %}
-      </div>
+    <div class="catalogue-panel" data-catalogue-panel="certification">
+
+      <p class="catalogue-help">
+        每类比赛一个系列，系列内的等级由低到高排列。下方的浅色等级表示还没有人达到。
+        点击任意等级可查看当前获得该等级的用户。
+      </p>
+      {% for medal in groups.certification %}
+      {{ seriesCard(medal, stats[medal._id], false, '获得认证', true) }}
+      {% else %}
+      <p class="catalogue-help">还没有奖项认证奖章。</p>
+      {% endfor %}
     </div>
 
-    <div class="section catalogue-panel" data-catalogue-panel="oj">
-      <div class="section__header">
-        <h2 class="section__title">OJ 成就奖章（{{ groups.oj.length }}）</h2>
-      </div>
-      <div class="section__body">
-        <p class="catalogue-help">
-          通过题目、连续与累计登录、猫粮与猫罐头等指标自动发放，无需申请；
-          每个系列内的等级由低到高排列，达到更高阈值时自动升级，浅色等级表示还没有人达到；
-          点击等级或系列底部的链接可查看当前持有者。
-        </p>
-        {% for medal in groups.oj %}
-        {% if (medal.levels or [])|length %}
-        {{ seriesCard(medal, stats[medal._id], true, '获得', true) }}
-        {% else %}
-        {{ medalCard(medal, stats[medal._id]) }}
-        {% endif %}
-        {% else %}
-        <p class="catalogue-help">还没有 OJ 成就奖章。</p>
-        {% endfor %}
+    <div class="catalogue-panel" data-catalogue-panel="oj">
+
+      <p class="catalogue-help">
+        通过题目、连续与累计登录、猫粮与猫罐头等指标自动发放，无需申请；
+        每个系列内的等级由低到高排列，达到更高阈值时自动升级，浅色等级表示还没有人达到；
+        点击等级或系列底部的链接可查看当前持有者。
+      </p>
+      {% for medal in groups.oj %}
+      {% if (medal.levels or [])|length %}
+      {{ seriesCard(medal, stats[medal._id], true, '获得', true) }}
+      {% else %}
+      {{ medalCard(medal, stats[medal._id]) }}
+      {% endif %}
+      {% else %}
+      <p class="catalogue-help">还没有 OJ 成就奖章。</p>
+      {% endfor %}
+    </div>
       </div>
     </div>
   </div>
@@ -321,7 +305,7 @@
     color:inherit; font-weight:600;
   }
   .theme--dark .catalogue-tab, [data-mantine-color-scheme=dark] .catalogue-tab { color:#aaa; }
-  .catalogue-panel { display:none; }
+  .catalogue-panel { display:none; padding-top:.55rem; }
   .catalogue-panel.is-active { display:block; }
 </style>
 {% endblock %}
