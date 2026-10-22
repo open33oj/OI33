@@ -18,7 +18,7 @@
   {# 依次排列的资料卡片：留出卡片间距。 #}
   .page--user_detail .oi33-user-main > .section { margin-bottom: 1rem; }
   .page--user_detail .oi33-user-main > .section:last-child { margin-bottom: 1rem; }
-  /* 奖章墙：10×4 个同样大小的 32 像素奖章（320×128），脚本按容器宽度整数倍放大（--wall-k）。 */
+  /* 奖章墙：10×4 个同样大小的 32 像素奖章（320×128），脚本按卡片宽度等比铺满（--wall-k）。 */
   .oi33-medal-wall {
     position:relative; margin:0 auto; overflow:hidden;
     width:calc(var(--wall-k,1) * var(--wall-w,320px));
@@ -72,7 +72,7 @@
     {{ profile.bioCard(udoc, isSelfProfile) }}
     {% endif %}
 
-    {# 2. 奖章：只显示 320×128 像素展示墙（10×4 个 32×32 奖章，整数倍放大），全部奖章走独立页面（右上角按钮） #}
+    {# 2. 奖章：只显示 320×128 像素展示墙（10×4 个 32×32 奖章，按卡片宽度等比铺满），全部奖章走独立页面（右上角按钮） #}
     {% if oi33MedalPanel %}
     <div class="section oi33-profile-section" id="oi33-medal">
       <div class="section__header">
@@ -85,8 +85,8 @@
       </div>
       <div class="section__body">
         {% if oi33MedalPanel.showcaseConfigured %}
-        {# 自由像素画布：按用户在展示墙编辑页摆好的位置渲染，脚本按整数倍放大。 #}
-        <div class="oi33-medal-wall" data-oi33-medal-wall data-wall-min-scale="1" data-wall-max-scale="4"
+        {# 自由像素画布：按用户在展示墙编辑页摆好的位置渲染，脚本按卡片宽度等比铺满。 #}
+        <div class="oi33-medal-wall" data-oi33-medal-wall data-wall-fill="1" data-wall-min-scale="0.5" data-wall-max-scale="4"
           style="--wall-k:1;--wall-w:{{ oi33MedalPanel.showcaseWall.width }}px;--wall-h:{{ oi33MedalPanel.showcaseWall.height }}px;--wall-cell:{{ oi33MedalPanel.showcaseWall.cell }}px;--wall-grid:{{ oi33MedalPanel.showcaseWall.grid }}px">
           {% for piece in oi33MedalPanel.showcasePieces %}
           <img class="oi33-medal-wall__sprite" src="{{ piece.award.view.imageData }}"

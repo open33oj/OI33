@@ -139,7 +139,7 @@
               </td>
               <td class="oi33-blindbox-manage__actions">
                 <div class="oi33-blindbox-manage__actions-row">
-                  <a class="rounded button" href="{{ url('oi33_blindbox_manage', query={edit: pool.id}) }}">编辑</a>
+                  <a class="rounded button" href="{{ url('oi33_blindbox_edit', id=pool.id) }}">编辑</a>
                   <form method="post" action="{{ url('oi33_blindbox_toggle', id=pool._id) }}">
                     <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                     <input type="hidden" name="enabled" value="{{ 0 if pool.enabled else 1 }}">
