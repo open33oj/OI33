@@ -2,13 +2,7 @@
 {% import "components/nothing.html" as nothing with context %}
 {% import "components/paginator.html" as paginator with context %}
 {% extends "layout/oi33_wiki.html" %}
-{% block nav_actions %}
-{% if handler.user._id %}
-<li class="nav__list-item">
-  <a href="/oi33/wiki/create" class="nav__item--round">{{ _('New Page') }}</a>
-</li>
-{% endif %}
-{% endblock %}
+{% block nav_actions %}{% endblock %}
 {% block content %}
 <div class="row">
   <div class="medium-9 columns">

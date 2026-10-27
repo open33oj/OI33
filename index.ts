@@ -1,4 +1,4 @@
-import { Context } from 'hydrooj';
+import { Context, SettingModel } from 'hydrooj';
 import { applyPatches } from './handler/patches';
 import { apply as applyUser } from './handler/user';
 import { apply as applyContent } from './handler/content';
@@ -24,6 +24,7 @@ import { apply as applySolution } from './handler/solution';
 import { apply as applyBlindbox } from './handler/blindbox';
 import { apply as applyDiscuss } from './handler/discuss';
 import { apply as applyOps } from './handler/ops';
+import { apply as applyNav } from './handler/nav';
 import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
 import {
@@ -31,6 +32,9 @@ import {
     ensureSchoolCatIndexes, recountSchoolCatTerritories, runCatMapPlansDue,
     settleSchoolCatWeeklyRewards,
 } from './model/cat';
+import {
+    DEFAULT_NAV_GROUPS_YAML, DEFAULT_NAV_LINKS_TEXT, validateNavGroupsYaml,
+} from './model/nav';
 import { ensureMeowIndexes } from './model/meow';
 import { medalEvaluateUser, ensureMedalIndexes } from './model/medal';
 import { ensureAuctionIndexes } from './model/auction';
@@ -131,11 +135,37 @@ async function applyPart(name: string, ctx: Context, fn: (ctx: Context) => any) 
 
 export async function apply(ctx: Context) {
     await applyPart('patches', ctx, applyPatches);
+    ctx.inject(['setting'], (c) => {
+        c.setting.SystemSetting(
+            // Top bar: one `名称|URL` line per link; empty hides all links.
+            SettingModel.Setting(
+                'oi33',
+                'oi33.nav_links',
+                DEFAULT_NAV_LINKS_TEXT,
+                'textarea',
+                '顶部链接（每行 名称|URL）',
+                '每行一条，支持站内路径（如 / 或 /d/test）和 http(s) 外链，例如 OI Wiki|https://oi-wiki.org/；留空则不显示。',
+            ),
+            // Sidebar: the whole rail (groups, order, labels, icons, links,
+            // visibility) is YAML; see docs/architecture.md for the schema.
+            SettingModel.Setting(
+                'oi33',
+                'oi33.nav_groups',
+                DEFAULT_NAV_GROUPS_YAML,
+                'textarea',
+                '侧边栏导航（YAML，整栏可配置）',
+                '每组 { title, items }；条目支持 node（Hydro 导航节点名）、label + href 或 label + route，可选 icon / prefix / exact / login / admin。留空用默认导航，[] 表示不显示侧栏条目。',
+                0,
+                validateNavGroupsYaml,
+            ),
+        );
+    });
     ctx.injectUI('UserDropdown', 'oi33_admin', {
         icon: 'crown',
         displayName: 'oi33_admin',
     }, (handler: any) => (handler.user.realname_flag || 0) >= 2);
     const parts: Array<[string, (ctx: Context) => any]> = [
+        ['nav', applyNav],
         ['user', applyUser],
         ['content', applyContent],
         ['admin', applyAdmin],

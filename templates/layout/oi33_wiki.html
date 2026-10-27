@@ -1,58 +1,21 @@
 {% extends "layout/html5.html" %}
 {% block body %}
-<nav class="nav slideout-menu" id="menu">
-  <div class="row"><div class="columns clearfix">
-    <ol class="nav__list nav__list--main clearfix">
-      <li class="nav__list-item">
-        <a href="/"><img class="nav__logo" src="{{ ctx.setting.get('ui-default.nav_logo_dark') }}"></a>
-      </li>
-      <li class="nav__list-item">
-        <a href="/oi33/wiki" class="nav__item{% if page_name == 'oi33_wiki_main' %} nav--active{% endif %}">{{ _('Wiki Home') }}</a>
-      </li>
-      <li class="nav__list-item">
-        <a href="/oi33/wiki/pages" class="nav__item{% if page_name == 'oi33_wiki_pages' %} nav--active{% endif %}">{{ _('All Pages') }}</a>
-      </li>
-    </ol>
-    <ol class="nav__list nav__list--secondary clearfix">
-      {% if handler.user._id %}
-        {% block nav_actions %}{% endblock %}
-        <li class="nav__list-item" data-dropdown-pos="bottom right" data-dropdown-custom-class="nav__dropdown" data-dropdown-target="#menu-wiki-user" data-dropdown-disabledconstrainToWindow data-dropdown-trigger-desktop-only>
-          <a href="{{ url('user_detail', uid=handler.user._id) }}" class="nav__item">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %} <span class="icon icon-expand_more nojs--hide"></span></a>
-          <ol class="dropdown-target menu" id="menu-wiki-user">
-            <li class="menu__item">
-              <a href="{{ url('user_detail', uid=handler.user._id) }}" class="menu__link">
-                <span class="icon icon-account--circle"></span> {{ _('My Profile') }}
-              </a>
-            </li>
-            {% if (handler.user.realname_flag or 0) >= 2 %}
-            <li class="menu__seperator"></li>
-            <li class="menu__item">
-              <a href="/oi33/admin" class="menu__link">
-                <span class="icon icon-wrench"></span> {{ _('OI33 Admin Dashboard') }}
-              </a>
-            </li>
-            {% endif %}
-            <li class="menu__seperator"></li>
-            <li class="menu__item">
-              <a href="{{ url('user_logout') }}" class="menu__link" name="nav_logout">
-                <span class="icon icon-logout"></span> {{ _('Logout') }}
-              </a>
-            </li>
-          </ol>
-        </li>
-      {% else %}
-        <li class="nav__list-item">
-          <a href="{{ url('user_login', redirect='/oi33/wiki') }}" class="nav__item" name="nav_login">{{ _('Login') }}</a>
-        </li>
-      {% endif %}
-    </ol>
-  </div></div>
-</nav>
-<nav class="nav--shadow"></nav>
+{% if UserContext %}{% include "partials/nav.html" %}{% endif %}
 <div class="slideout-panel" id="panel">
-  <div class="slideout-overlay"></div>
-  {% if UserContext %}{% include "partials/header_mobile.html" %}{% endif %}
   <div class="main">
+    <div class="row"><div class="columns">
+      <div class="oi33-wiki-bar">
+        <nav class="oi33-wiki-bar__nav" aria-label="百科导航">
+          <a class="oi33-wiki-bar__link{% if page_name != 'oi33_wiki_pages' %} is-active{% endif %}" href="/oi33/wiki">{{ _('Wiki Home') }}</a>
+          <span class="oi33-wiki-bar__sep" aria-hidden="true"></span>
+          <a class="oi33-wiki-bar__link{% if page_name == 'oi33_wiki_pages' %} is-active{% endif %}" href="/oi33/wiki/pages">{{ _('All Pages') }}</a>
+        </nav>
+        <ol class="oi33-wiki-actions">
+          {% if (handler.user.realname_flag or 0) >= 2 %}<li class="oi33-wiki-actions__item"><a class="oi33-wiki-chip" href="/oi33/wiki/create">{{ _('New Page') }}</a></li>{% endif %}
+          {% block nav_actions %}{% endblock %}
+        </ol>
+      </div>
+    </div></div>
     {% block content %}{% endblock %}
   </div>
   {% include "partials/oi33_wiki_footer.html" %}
@@ -82,7 +45,7 @@
 
   function getFixedHeaderOffset() {
     var offset = 0;
-    var nav = document.querySelector('.nav--shadow');
+    var nav = document.querySelector('.oi33-topbar');
     if (nav) {
       var style = window.getComputedStyle(nav);
       if (style.display !== 'none' && style.position === 'fixed') {

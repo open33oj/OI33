@@ -2,13 +2,10 @@
 {% extends "layout/oi33_wiki.html" %}
 {% block nav_actions %}
 {% if doc %}
-<li class="nav__list-item">
-  <a href="/oi33/wiki/{{ doc._id }}" class="nav__item">{{ _('View') }}</a>
+<li class="oi33-wiki-actions__item">
+  <a href="/oi33/wiki/{{ doc._id }}" class="oi33-wiki-chip">{{ _('View') }}</a>
 </li>
 {% endif %}
-<li class="nav__list-item">
-  <a href="/oi33/wiki" class="nav__item">{{ _('Back to Wiki') }}</a>
-</li>
 {% endblock %}
 {% block content %}
 <div class="row">

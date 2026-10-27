@@ -316,6 +316,11 @@ const defaultAiConfig: Omit<Oi33AiConfig, '_id'> = {
     student_model: 'deepseek-v4-flash',
     teacher_model: 'deepseek-v4-pro',
     summary_model: 'deepseek-v4-flash',
+    // Links: only links leaving the site go to the human queue. Deployments
+    // that leave server.url unset still need their own host here, otherwise
+    // every problem/topic link looks external.
+    moderation_link_review: 'external',
+    moderation_link_allow: '33dai.cn',
 };
 
 export async function aiGetConfig(): Promise<Oi33AiConfig> {

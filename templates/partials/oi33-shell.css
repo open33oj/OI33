@@ -1,0 +1,817 @@
+/* OI33 shell: a Luogu-style fixed top bar + left navigation rail.
+   Loaded on every page through frontend/oi33-shell.page.ts (AutoloadPage). */
+
+:root {
+  /* 48 / 216 are mirrored in templates/layout/html5.html's critical skeleton. */
+  --oi33-topbar-h: 48px;
+  --oi33-sidebar-w: 216px;
+  --oi33-sidebar-collapsed-w: 64px;
+  --oi33-accent: #3a6fd8;
+  --oi33-accent-strong: #2f5fc0;
+  --oi33-accent-weak: #eaf1fd;
+  --oi33-text: #303845;
+  --oi33-muted: #6b7383;
+  --oi33-border: #e5e8ee;
+  --oi33-topbar-bg: #ffffff;
+  --oi33-sidebar-bg: #ffffff;
+  --oi33-hover: #f3f6fc;
+  --oi33-shadow: 0 12px 32px rgba(24, 39, 75, .14);
+}
+
+.theme--dark,
+[data-mantine-color-scheme="dark"] {
+  --oi33-accent: #7fa5f2;
+  --oi33-accent-strong: #9ab8f7;
+  --oi33-accent-weak: rgba(90, 130, 220, .2);
+  --oi33-text: #d7dce4;
+  --oi33-muted: #98a1b1;
+  --oi33-border: #2b303a;
+  --oi33-topbar-bg: #1b1f27;
+  --oi33-sidebar-bg: #1b1f27;
+  --oi33-hover: rgba(255, 255, 255, .06);
+  --oi33-shadow: 0 12px 32px rgba(0, 0, 0, .48);
+}
+
+html.oi33-shell {
+  scroll-padding-top: calc(var(--oi33-topbar-h) + 16px);
+}
+
+.oi33-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* --- Top bar ------------------------------------------------------------ */
+
+.oi33-topbar {
+  position: fixed;
+  z-index: 900;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: var(--oi33-topbar-h);
+  padding: 0 16px;
+  background: var(--oi33-topbar-bg);
+  border-bottom: 1px solid var(--oi33-border);
+}
+
+.oi33-topbar a {
+  text-decoration: none;
+}
+
+.oi33-topbar__brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 100%;
+  padding: 0 2px;
+}
+
+.oi33-topbar__brand img {
+  display: block;
+  width: auto;
+  height: 26px;
+}
+
+.oi33-topbar__links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+
+.oi33-topbar__links a {
+  color: var(--oi33-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.oi33-topbar__links a:hover {
+  color: var(--oi33-accent);
+}
+
+.oi33-topbar__spacer {
+  flex: 1;
+}
+
+.oi33-topbar__signin {
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--oi33-text);
+  font-size: 13px;
+}
+
+.oi33-topbar__signin:hover {
+  background: var(--oi33-hover);
+  color: var(--oi33-text);
+}
+
+.oi33-topbar__signup {
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: var(--oi33-accent);
+  color: #fff;
+  font-size: 13px;
+}
+
+.oi33-topbar__signup:hover,
+.oi33-topbar__signup:visited {
+  background: var(--oi33-accent-strong);
+  color: #fff;
+}
+
+.oi33-topbar__burger {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-left: -8px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--oi33-text);
+  cursor: pointer;
+}
+
+.oi33-topbar__burger:hover {
+  background: var(--oi33-hover);
+}
+
+.oi33-burger-icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Fixed at the bottom-left of the rail; stays visible (as a menu button) when
+   the rail slides away, so there is always a way to bring it back. */
+.oi33-sidebar-toggle {
+  display: none;
+  position: fixed;
+  z-index: 850;
+  left: 14px;
+  bottom: 16px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--oi33-border);
+  border-radius: 50%;
+  background: var(--oi33-topbar-bg);
+  box-shadow: 0 2px 8px rgba(24, 39, 75, .12);
+  color: var(--oi33-text);
+  cursor: pointer;
+}
+
+.oi33-sidebar-toggle:hover {
+  background: var(--oi33-hover);
+}
+
+.oi33-sidebar-toggle svg {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.oi33-sidebar-toggle .oi33-toggle-icon--menu {
+  display: none;
+}
+
+html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle .oi33-toggle-icon--collapse {
+  display: none;
+}
+
+html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle .oi33-toggle-icon--menu {
+  display: block;
+}
+
+html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
+  color: var(--oi33-accent);
+}
+
+/* --- User menu ---------------------------------------------------------- */
+
+.oi33-user {
+  position: relative;
+  flex: none;
+}
+
+.oi33-user__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 5px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--oi33-text);
+  cursor: pointer;
+}
+
+.oi33-user__trigger:hover {
+  background: var(--oi33-hover);
+}
+
+.oi33-user__avatar {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #d8dee8;
+  object-fit: cover;
+}
+
+.oi33-user__name {
+  overflow: hidden;
+  max-width: 130px;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oi33-chevron {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--oi33-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform .15s ease;
+}
+
+.oi33-user.is-open .oi33-chevron {
+  transform: rotate(180deg);
+}
+
+.oi33-user__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: none;
+  width: 240px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: 6px 0;
+  border: 1px solid var(--oi33-border);
+  border-radius: 10px;
+  background: var(--oi33-topbar-bg);
+  box-shadow: var(--oi33-shadow);
+}
+
+.oi33-user.is-open .oi33-user__menu {
+  display: block;
+}
+
+.oi33-user__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+}
+
+.oi33-user__summary .oi33-user__avatar {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+
+.oi33-user__summary-body {
+  min-width: 0;
+}
+
+.oi33-user__summary-name {
+  overflow: hidden;
+  color: var(--oi33-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oi33-user__summary-meta {
+  margin-top: 2px;
+  color: var(--oi33-muted);
+  font-size: 12px;
+}
+
+.oi33-menu__sep {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--oi33-border);
+}
+
+.oi33-menu__link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 14px;
+  border: 0;
+  background: none;
+  color: var(--oi33-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.oi33-menu__link:hover {
+  background: var(--oi33-hover);
+  color: var(--oi33-text);
+  text-decoration: none;
+}
+
+.oi33-menu__link .icon {
+  width: 16px;
+  color: var(--oi33-muted);
+  font-size: 15px;
+  text-align: center;
+}
+
+.oi33-user__logout:hover {
+  color: #d9534f;
+}
+
+/* --- Sidebar ------------------------------------------------------------ */
+
+.oi33-sidebar {
+  position: fixed;
+  z-index: 800;
+  top: var(--oi33-topbar-h);
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: var(--oi33-sidebar-w);
+  background: var(--oi33-sidebar-bg);
+  border-right: 1px solid var(--oi33-border);
+}
+
+.oi33-sidebar__scroll {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 8px 10px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--oi33-border) transparent;
+}
+
+.oi33-sidebar__scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.oi33-sidebar__scroll::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--oi33-border);
+}
+
+.oi33-nav__group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.oi33-nav__label {
+  margin: 12px 0 3px;
+  padding: 11px 10px 0;
+  border-top: 1px solid var(--oi33-border);
+  color: var(--oi33-muted);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.oi33-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--oi33-text);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.oi33-nav__item:hover {
+  background: var(--oi33-hover);
+  color: var(--oi33-text);
+  text-decoration: none;
+}
+
+.oi33-nav__item.is-active {
+  background: var(--oi33-accent-weak);
+  color: var(--oi33-accent);
+  font-weight: 600;
+}
+
+.oi33-nav__icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  color: var(--oi33-muted);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.oi33-nav__item:hover .oi33-nav__icon {
+  color: var(--oi33-text);
+}
+
+.oi33-nav__item.is-active .oi33-nav__icon {
+  color: var(--oi33-accent);
+}
+
+.oi33-nav__text {
+  overflow: hidden;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mobile-only sidebar blocks (desktop top bar already shows these links). */
+.oi33-only-mobile {
+  display: none;
+}
+
+/* --- Drawer (mobile) ---------------------------------------------------- */
+
+.oi33-shell-overlay {
+  display: none;
+  position: fixed;
+  z-index: 750;
+  top: var(--oi33-topbar-h);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(16, 22, 34, .45);
+}
+
+/* Hydro renders its own mobile header; the shell top bar replaces it. */
+html.oi33-shell .header--mobile {
+  display: none !important;
+}
+
+/* The old fixed nav placeholder is no longer needed: the page padding below
+   the shell (desktop .main / mobile #panel) already clears the top bar. */
+html.oi33-shell .nav--placeholder {
+  display: none !important;
+}
+
+@media (min-width: 1001px) {
+  html.oi33-shell #panel {
+    margin-left: var(--oi33-sidebar-w);
+  }
+
+  html.oi33-shell .oi33-sidebar__scroll {
+    padding-bottom: 68px;
+  }
+
+  /* Keep the floating rail toggle from covering the footer's left links. */
+  html.oi33-shell .footer {
+    padding-bottom: 64px;
+  }
+
+  html.oi33-shell .oi33-sidebar {
+    width: var(--oi33-sidebar-w);
+    transition: width .2s ease;
+  }
+
+  html.oi33-shell #panel {
+    transition: margin-left .2s ease;
+  }
+
+  /* Collapsed = 64px icon rail: icons stay, text and group titles go away. */
+  html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar {
+    width: var(--oi33-sidebar-collapsed-w);
+  }
+
+  html.oi33-shell.oi33-sidebar-collapsed #panel {
+    margin-left: var(--oi33-sidebar-collapsed-w);
+  }
+
+  html.oi33-shell.oi33-sidebar-collapsed .oi33-nav__text {
+    display: none;
+  }
+
+  html.oi33-shell.oi33-sidebar-collapsed .oi33-nav__item {
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  html.oi33-shell.oi33-sidebar-collapsed .oi33-nav__label {
+    height: 0;
+    margin: 10px 8px;
+    padding: 0;
+    border-top: 1px solid var(--oi33-border);
+    font-size: 0;
+    line-height: 0;
+    overflow: hidden;
+  }
+
+  .oi33-topbar__burger {
+    display: none;
+  }
+
+  .oi33-sidebar-toggle {
+    display: inline-flex;
+  }
+
+  .oi33-shell-overlay {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1000px) {
+  html.oi33-shell #panel {
+    padding-top: calc(var(--oi33-topbar-h) + 8px);
+  }
+
+  .oi33-sidebar {
+    width: min(78vw, 280px);
+    transform: translateX(-102%);
+    visibility: hidden;
+    box-shadow: var(--oi33-shadow);
+    transition: transform .22s ease, visibility .22s;
+    will-change: transform;
+  }
+
+  html.oi33-nav-open .oi33-sidebar {
+    transform: none;
+    visibility: visible;
+  }
+
+  html.oi33-nav-open .oi33-shell-overlay {
+    display: block;
+  }
+
+  html.oi33-nav-open body {
+    overflow: hidden;
+  }
+
+  .oi33-topbar {
+    gap: 10px;
+    padding: 0 12px;
+  }
+
+  .oi33-topbar__links {
+    display: none;
+  }
+
+  .oi33-topbar__signin {
+    padding: 6px 8px;
+  }
+
+  .oi33-nav__group.oi33-only-mobile {
+    display: flex;
+  }
+
+  .oi33-nav__label.oi33-only-mobile {
+    display: block;
+  }
+
+  .oi33-only-mobile .oi33-nav__item {
+    color: var(--oi33-muted);
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 560px) {
+  .oi33-user__name {
+    display: none;
+  }
+
+  .oi33-topbar__brand img {
+    height: 23px;
+  }
+
+  .oi33-topbar__signup {
+    padding: 6px 10px;
+  }
+}
+
+/* --- Wiki toolbar (fixed-height bar shared by all wiki pages) ---------- */
+
+.oi33-wiki-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  margin: 0 0 12px;
+  padding: 0 14px;
+  background: var(--oi33-topbar-bg);
+  border: 1px solid var(--oi33-border);
+  box-shadow: 0 1px 3px rgba(24, 39, 75, .06);
+}
+
+.oi33-wiki-bar__nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.oi33-wiki-bar__link {
+  padding: 4px 2px;
+  color: var(--oi33-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.oi33-wiki-bar__link:hover {
+  color: var(--oi33-accent);
+  text-decoration: none;
+}
+
+.oi33-wiki-bar__link.is-active {
+  color: var(--oi33-text);
+  font-weight: 600;
+}
+
+.oi33-wiki-bar__sep {
+  width: 1px;
+  height: 14px;
+  background: var(--oi33-border);
+}
+
+.oi33-wiki-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oi33-wiki-actions__item {
+  float: none;
+}
+
+.oi33-wiki-chip {
+  display: block;
+  padding: 3px 11px;
+  border: 1px solid var(--oi33-border);
+  border-radius: 6px;
+  background: var(--oi33-topbar-bg);
+  color: var(--oi33-text);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.oi33-wiki-chip:hover {
+  border-color: var(--oi33-accent);
+  background: var(--oi33-accent-weak);
+  color: var(--oi33-accent);
+  text-decoration: none;
+}
+
+/* Auth pages use layout/immersive; keep them focused (top bar only). */
+.layout--immersive .oi33-sidebar,
+.layout--immersive .oi33-shell-overlay,
+.layout--immersive .oi33-topbar__burger,
+.layout--immersive .oi33-sidebar-toggle {
+  display: none;
+}
+
+@media (min-width: 1001px) {
+  /* Must out-rank `html.oi33-shell #panel` above, otherwise auth pages keep
+     the 216px rail offset while the sidebar itself is hidden. */
+  html.oi33-shell.layout--immersive #panel {
+    margin-left: 0;
+  }
+}
+
+/* User-facing error pages (403/404/...) mirror immersive auth pages: keep the
+   top bar, drop the rail, the collapse toggle and the mobile drawer button. */
+html.oi33-shell.page--error .oi33-sidebar,
+html.oi33-shell.page--error .oi33-sidebar-toggle,
+html.oi33-shell.page--error .oi33-topbar__burger,
+html.oi33-shell.page--error .oi33-shell-overlay {
+  display: none;
+}
+
+@media (min-width: 1001px) {
+  html.oi33-shell.page--error #panel {
+    margin-left: 0;
+  }
+}
+
+/* --- Compatibility: Hydro measures `.nav` for sticky/anchor offsets ------- */
+
+.oi33-nav-measure {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: var(--oi33-topbar-h) !important;
+  margin: 0;
+  padding: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* --- Drawer header (mobile only) ---------------------------------------- */
+
+.oi33-sidebar__head {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--oi33-border);
+}
+
+.oi33-sidebar__head-title {
+  color: var(--oi33-muted);
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+
+.oi33-sidebar__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--oi33-muted);
+  cursor: pointer;
+}
+
+.oi33-sidebar__close:hover {
+  background: var(--oi33-hover);
+  color: var(--oi33-text);
+}
+
+.oi33-sidebar__close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+@media (max-width: 1000px) {
+  .oi33-sidebar__head {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oi33-sidebar,
+  html.oi33-shell .oi33-sidebar,
+  html.oi33-shell #panel,
+  .oi33-chevron {
+    transition: none;
+  }
+}
+
+@media print {
+  .oi33-topbar,
+  .oi33-sidebar,
+  .oi33-shell-overlay {
+    display: none !important;
+  }
+
+  html.oi33-shell #panel {
+    margin-left: 0 !important;
+    padding-top: 0 !important;
+  }
+}
+
+.oi33-nav__item:focus-visible,
+.oi33-topbar__burger:focus-visible,
+.oi33-sidebar-toggle:focus-visible,
+.oi33-user__trigger:focus-visible,
+.oi33-menu__link:focus-visible,
+.oi33-sidebar__close:focus-visible {
+  outline: 2px solid var(--oi33-accent);
+  outline-offset: -2px;
+}

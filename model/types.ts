@@ -826,6 +826,12 @@ export interface Oi33AiConfig {
     // Newline-separated words that go to the human review queue instead of
     // being hard-blocked (e.g. political leader names).
     moderation_review_words?: string;
+    // Link review policy: 'all' (any link), 'external' (only links leaving the
+    // site, default) or 'off' (AI decides). Empty/missing → 'external'.
+    moderation_link_review?: string;
+    // Newline-separated hosts treated as internal/trusted; subdomains match.
+    // The site host from server.url is always trusted.
+    moderation_link_allow?: string;
     // Daily AI cost cap for moderation in CNY; 0/empty = unlimited.
     moderation_daily_budget?: number;
     // Per-user moderated posts per day; 0/empty = default (50).

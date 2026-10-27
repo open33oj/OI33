@@ -59,6 +59,56 @@ export interface RuleHit {
 // human queue instead of being hard-blocked).
 export const REVIEW_WORD_CATEGORY = '待审';
 
+// --- External-link policy --------------------------------------------------
+// Links used to be a blanket "review" hit. That queued every link to the site
+// itself (problem/topic/solution URLs), which is exactly what a programming
+// community posts all day. The policy is now configurable and, by default,
+// only links leaving the site go to the human queue.
+
+export type LinkReviewPolicy = 'all' | 'external' | 'off';
+export const DEFAULT_LINK_REVIEW_POLICY: LinkReviewPolicy = 'external';
+
+export interface RuleOptions {
+    linkReview?: string;
+    // Hosts treated as internal/trusted. A configured parent domain also
+    // matches its subdomains (33dai.cn covers oj.33dai.cn).
+    linkAllowHosts?: string[];
+}
+
+export function linkReviewPolicy(cfg: any): LinkReviewPolicy {
+    const raw = String(cfg?.moderation_link_review ?? '').trim().toLowerCase();
+    return raw === 'all' || raw === 'external' || raw === 'off' ? raw : DEFAULT_LINK_REVIEW_POLICY;
+}
+
+// Pull the host out of anything an admin may paste: a bare domain, a full URL
+// or a URL with a path. Returns '' when no usable host is present.
+export function linkHost(url: string): string {
+    const text = String(url || '').trim().toLowerCase();
+    const m = /^(?:[a-z][a-z0-9+.-]*:\/\/)?([^/?#]+)/.exec(text);
+    if (!m) return '';
+    let host = m[1];
+    const at = host.lastIndexOf('@');
+    if (at >= 0) host = host.slice(at + 1);
+    return host.replace(/:\d+$/, '').replace(/^\.+|\.+$/g, '');
+}
+
+const LINK_RE = /(?:https?:\/\/|www\.)[^\s<>"'`）)，。；！？、]+/g;
+
+// Every link-looking token in normalized text, mapped to its host.
+export function linkHostsOf(normalized: string): string[] {
+    const found = normalized.match(LINK_RE) || [];
+    return found.map((link) => linkHost(link)).filter(Boolean);
+}
+
+function hostAllowed(host: string, allowHosts: string[]): boolean {
+    return allowHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+}
+
+export function configLinkHosts(cfg: any): string[] {
+    return String(cfg?.moderation_link_allow || '')
+        .split('\n').map((line) => linkHost(line.trim())).filter(Boolean);
+}
+
 export function mathTooDeep(text: string): boolean {
     let depth = 0;
     let inMath = false;
@@ -77,7 +127,9 @@ export function mathTooDeep(text: string): boolean {
     return false;
 }
 
-export function checkRules(normalized: string, words: string[], reviewWords: string[] = []): RuleHit | null {
+export function checkRules(
+    normalized: string, words: string[], reviewWords: string[] = [], opts: RuleOptions = {},
+): RuleHit | null {
     if (mathTooDeep(normalized)) return { verdict: 'block', category: '刷屏', word: '公式嵌套过深' };
     for (const w of words) {
         if (w && normalized.includes(w)) return { verdict: 'block', category: '违禁词', word: w };
@@ -87,15 +139,28 @@ export function checkRules(normalized: string, words: string[], reviewWords: str
     for (const w of reviewWords) {
         if (w && normalized.includes(w)) return { verdict: 'review', category: REVIEW_WORD_CATEGORY, word: w };
     }
-    // Mainland mobile number: almost always a privacy/contact leak on a kids' site.
-    if (/1[3-9]\d{9}/.test(normalized)) return { verdict: 'block', category: '隐私', word: '手机号' };
-    // Contact solicitations: qq/微信 + digits.
-    if (/(qq|微信|wechat|vx|加群|群号)\s*[:：]?\s*\d{5,}/.test(normalized)) {
-        return { verdict: 'block', category: '广告引流', word: '联系方式' };
+    // Phone numbers and QQ/WeChat handles are left to the AI: the old regexes
+    // hit too much legitimate content (sample data, code, long digit runs) and
+    // hard-blocked it without any human review. Admins can still put specific
+    // tokens into the blocked/review word lists above.
+
+    // Links: policy-controlled. 'external' (default) ignores links pointing at
+    // the site itself or an allow-listed host, so internal problem/topic
+    // links don't queue for a human; 'all' restores the strict behaviour and
+    // 'off' leaves links entirely to the AI.
+    const policy = opts.linkReview === undefined
+        ? DEFAULT_LINK_REVIEW_POLICY
+        : linkReviewPolicy({ moderation_link_review: opts.linkReview });
+    if (policy !== 'off') {
+        const allowHosts = (opts.linkAllowHosts || []).map(linkHost).filter(Boolean);
+        const hosts = linkHostsOf(normalized);
+        const flagged = policy === 'all'
+            ? hosts.length > 0
+            : hosts.some((host) => !hostAllowed(host, allowHosts));
+        // A separate category so the admin log doesn't read as an AI "ad"
+        // verdict when the only trigger was a link.
+        if (flagged) return { verdict: 'review', category: '外链', word: '外链' };
     }
-    // External links: not auto-blocked (problem links are legitimate), but they
-    // get a human eye when the AI disagrees.
-    if (/(https?:\/\/|www\.)/.test(normalized)) return { verdict: 'review', category: '广告引流', word: '外链' };
     return null;
 }
 

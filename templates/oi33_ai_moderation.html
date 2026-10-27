@@ -255,6 +255,26 @@
             </div>
           </div>
           <div class="row">
+            <div class="medium-5 columns">
+              <div class="form__item">
+                <label>{{ _('Link Review') }}</label>
+                <select name="moderation_link_review" class="textbox">
+                  <option value="external"{% if (config.moderation_link_review or 'external') == 'external' %} selected{% endif %}>{{ _('Link Review: external only') }}</option>
+                  <option value="all"{% if config.moderation_link_review == 'all' %} selected{% endif %}>{{ _('Link Review: all links') }}</option>
+                  <option value="off"{% if config.moderation_link_review == 'off' %} selected{% endif %}>{{ _('Link Review: off') }}</option>
+                </select>
+                <p class="ai33-desc" style="margin-top:0.3rem;">{{ _('ai_moderation_link_review_help') }}</p>
+              </div>
+            </div>
+            <div class="medium-7 columns">
+              <div class="form__item">
+                <label>{{ _('Trusted Link Hosts (one per line)') }}</label>
+                <textarea name="moderation_link_allow" class="textbox ai33-prompt" rows="4" placeholder="{{ _('ai_moderation_link_allow_placeholder') }}">{{ config.moderation_link_allow or '' }}</textarea>
+                <p class="ai33-desc" style="margin-top:0.3rem;">{{ _('ai_moderation_link_allow_help') }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="row">
             <div class="columns">
               <div class="form__item">
                 <label>{{ _('Moderation Prompt') }}</label>
@@ -279,7 +299,15 @@
 
         <h3 style="margin:1.5rem 0 1rem;">{{ _('Recent Log') }}</h3>
         {% if recent.length %}
-        <table class="data-table">
+        <div class="ai33-table-scroll">
+        <table class="data-table ai33-table">
+          <colgroup>
+            <col class="ai33-col-time">
+            <col class="ai33-col-user">
+            <col class="ai33-col-kind">
+            <col class="ai33-col-verdict">
+            <col>
+          </colgroup>
           <thead>
             <tr>
               <th>{{ _('Time') }}</th>
@@ -295,7 +323,7 @@
               <td style="white-space:nowrap;">{{ datetimeSpan(e.createdAt)|safe }}</td>
               <td>{% if udict[e.uid] %}{{ user.render_inline(udict[e.uid]) }}{% else %}UID {{ e.uid }}{% endif %}</td>
               <td>{{ kindLabels[e.kind] or e.kind }}<span class="ai33-subtitle">{{ e.category }}</span>{% if e.targetUrl %} <a class="ai33-target" href="{{ e.targetUrl }}" target="_blank" rel="noopener">查看目标</a>{% endif %}</td>
-              <td>
+              <td class="ai33-verdict-cell">
                 {% if e.verdict === 'pass' %}<span class="ai33-ok">{{ _('Pass') }}</span>
                 {% elif e.verdict === 'block' %}<span class="ai33-bad">{{ _('Block') }}</span>
                 {% else %}<span class="ai33-warn">{{ _('Review') }}</span>{% endif %}
@@ -317,6 +345,7 @@
             {% endfor %}
           </tbody>
         </table>
+        </div>
         {% else %}
         <p>{{ _('No records yet.') }}</p>
         {% endif %}
@@ -350,8 +379,19 @@
 .theme--dark .ai33-notice, [data-mantine-color-scheme=dark] .ai33-notice { color: #6fcf76; }
 .ai33-content-cell { max-width: 22rem; }
 .ai33-content-cell-wide { max-width: 36rem; }
-.ai33-content-cell summary { cursor: pointer; word-break: break-all; }
-.ai33-full-content { white-space: pre-wrap; word-break: break-all; font-size: 0.85em; background: rgba(127,127,127,0.08); padding: 0.5rem; border-radius: 4px; }
+.ai33-content-cell summary { cursor: pointer; overflow-wrap: anywhere; }
+.ai33-full-content { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85em; background: rgba(127,127,127,0.08); padding: 0.5rem; border-radius: 4px; }
+/* Recent log: fixed column widths so the content column gets the remaining
+   space instead of auto-layout spreading the short columns across the page. */
+.ai33-table-scroll { width: 100%; overflow-x: auto; }
+.ai33-table { table-layout: fixed; width: 100%; min-width: 60rem; }
+.ai33-table th, .ai33-table td { overflow-wrap: anywhere; }
+.ai33-col-time { width: 8rem; }
+.ai33-col-user { width: 15rem; }
+.ai33-col-kind { width: 10rem; }
+.ai33-col-verdict { width: 11rem; }
+.ai33-table .ai33-content-cell-wide { max-width: none; }
+.ai33-verdict-cell { white-space: nowrap; }
 /* Content + reason scroll together inside one container, so nothing is ever
    clipped below the fold without a way to reach it. */
 .ai33-full-scroll { max-height: 20rem; overflow-y: auto; }

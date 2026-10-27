@@ -115,10 +115,74 @@ index.ts            汇总再导出
 - 逻辑可以拆到 `frontend/` 的子目录或普通模块（例如 `frontend/cat-can-arena/`），
   由入口 import；**不要**把被 import 的模块命名成 `*.page.ts`，否则它会被当成第二个入口
   重复打包。
-- 页面脚本用 `AutoloadPage` / `NamedPage` 按 `page_name` 挂载；CSS 用 `import './x.css'`
-  由 esbuild 注入（类型声明在 `frontend/css.d.ts`）。
+- 页面脚本用 `AutoloadPage` / `NamedPage` 按 `page_name` 挂载；页面级 CSS 用
+  `import './x.css'` 由 esbuild 注入（类型声明在 `frontend/css.d.ts`）。例外是全站级 CSS
+  （`templates/partials/oi33-shell.css`、`templates/partials/oi33-content.css`）：它们由
+  `layout/html5.html` 直接内联进 `<head>`，保证首屏就是最终字体/图标/布局，不要再把它们
+  加回 page.ts 的 import（否则会重复注入并在 DOMContentLoaded 时闪一下）。
 - 前后端共用的常量/纯函数放 `shared/`（地图几何在 `shared/cat-map.ts`，展示墙在
   `shared/medal-showcase.ts`），前端不要直接 import `model/*`。
+
+### 全站外壳与导航
+
+- `templates/partials/nav.html` 只负责渲染，不再写死导航内容：
+  - 顶部条：`oi33.nav_links`，每行 `名称|URL`，支持站内 `/...` 路径和 http(s)
+    外链；站内同标签打开，外站新标签，留空则不显示。
+  - 左侧栏：`oi33.nav_groups`，整栏 YAML 可配。`handler/nav.ts` 在每个请求的
+    `handler/after` 阶段把 `buildNavGroups(handler)` 挂到 `handler.oi33NavGroups`，
+    模板只遍历分组和条目。条目支持：
+    - `node: <Hydro Nav 节点名>`：权限仍由节点自己的 `checker` 决定（例如 `problem_main`）；
+    - `label` + `href`（站内路径或 http(s) URL），或 `label` + `route`（Hydro 路由名，
+      用 `handler.url` 解析）；
+    - 可选 `icon`（导航 sprite 名，未知回退 `dot`，`none` 不显示）、`prefix` / `exact`
+      （高亮规则）、`login`（仅登录）、`admin`（仅 OI33 flag≥2）。
+  - 设置项在 `/manage/setting` 的「OI33 设置」分组：空文本 = 内置默认，`[]` = 不显示侧栏
+    条目。系统设置页的保存**不走** `Setting.validation`，所以 `handler/nav.ts` 额外在
+    `handler/before/SystemSetting` 里校验 YAML，非法配置会直接拒绝保存而不是静默回退。
+    解析使用 `yaml.load(..., { json: true })`，重复键按后者覆盖处理（例如误写两遍
+    `login: true` 不会再让整份配置失效）。纯解析/默认值在 `model/nav-rules.ts`（有单测），
+    运行时与权限过滤在 `model/nav.ts`。
+  - 可用 `icon`：`home` `book` `book-open` `cap` `trophy` `clipboard` `activity`
+    `chat` `message` `chart` `file-text` `award` `users` `paw` `crown` `can`
+    `flask` `copy` `hammer` `gift` `pen` `shield` `settings` `layers`；写 `none`
+    不显示图标，未知名称回退 `dot`。
+  - 比赛详情页 Hydro 会提供 `response.body.overrideNav`；此时和旧顶栏一样，用比赛上下文
+    导航替换整栏。
+
+```yaml
+- title: 社区
+  items:
+    - node: discussion_main
+      icon: chat
+    - label: 喵喵广场
+      href: /oi33/meow
+      icon: chat
+      prefix: oi33_meow
+    - label: 管理后台
+      href: /oi33/admin
+      icon: shield
+      admin: true
+```
+- 外壳样式在 `templates/partials/oi33-shell.css`，由 `layout/html5.html` 直接
+  `{% include %}` 进 `<head>`（不经过 entry.js 的 DOMContentLoaded 注入）：顶部条、侧栏、
+  图标描边和字体会在首屏就是最终状态，不会出现「先另一种字体/图标再恢复」的闪烁。
+  交互在 `frontend/oi33-shell.page.ts`，由 `AutoloadPage` 在所有页面加载：桌面端顶部条 +
+  固定侧栏（`#panel` 让出 `--oi33-sidebar-w`），移动端（≤1000px）侧栏变成
+  `html.oi33-nav-open` 抽屉。暗色主题走 `.theme--dark` 变量；`layout/oi33_wiki.html`
+  复用同一个 partial。
+- 桌面端在侧栏左下角固定一个圆形折叠按钮（`data-oi33-sidebar-toggle`，不随侧栏滑动）：
+  展开时显示左箭头，点击后给 `<html>` 加 `oi33-sidebar-collapsed`——侧栏收成 64px 宽的
+  图标栏（保留图标、隐藏 `.oi33-nav__text`，分组标题变成一条细线，链接用 `title` 显示
+  名称），`#panel` 让位从 216px 收到 64px；按钮图标同时切成菜单（汉堡）以便展开。
+  状态写入 `localStorage['oi33.sidebar.collapsed']`，`partials/nav.html` 的内联脚本在首屏
+  解析外壳前恢复，所以刷新不会先展开再收起；`oi33-sidebar__scroll` 桌面端底部留 68px
+  给按钮。移动端仍用汉堡抽屉，按钮隐藏，两者互不干扰。
+- 用户可见错误页（403/404/...，`html.page--error`）和 immersive 认证页一样只保留
+  顶部条：隐藏侧栏、左下角折叠按钮、移动端汉堡和遮罩，`#panel` 不再让出 216px。
+- 百科页（main/pages/show/edit）共用 `layout/oi33_wiki.html` 里的
+  `.oi33-wiki-bar`：固定高度 46px 的工具栏卡片（边框 + 轻微阴影），左侧「百科首页 /
+  全部页面」文本导航，随后依次是固定的「新建页面」（仅 OI33 admin）与当前页操作 chip；
+  保证各页按钮组起点、高度和内容上边界一致。
 
 ## 数据
 

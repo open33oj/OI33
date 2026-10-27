@@ -1,12 +1,12 @@
-import { DiscussionModel, DocumentModel, db, ObjectId } from 'hydrooj';
+import { DiscussionModel, DocumentModel, SystemModel, db, ObjectId } from 'hydrooj';
 import { aiChat, aiGetConfig, aiResolveChatConfig } from './ai';
 import {
     DEFAULT_MODERATION_PROMPT, MAX_AI_INPUT, MAX_MATH_DEPTH, REVIEW_WORD_CATEGORY,
-    bioHashMatches, bioHashOf, bioQueueState, checkRules, configReviewWords, configWords,
-    hashOf, mathTooDeep, moderationEnabled, normalizeText, sameBioText,
-    sanitizeModerationCategory,
+    bioHashMatches, bioHashOf, bioQueueState, checkRules, configLinkHosts, configReviewWords,
+    configWords, hashOf, linkHost, linkReviewPolicy, mathTooDeep, moderationEnabled,
+    normalizeText, sameBioText, sanitizeModerationCategory,
 } from './moderate-rules';
-import type { BioQueueState, RuleHit } from './moderate-rules';
+import type { BioQueueState, RuleHit, RuleOptions } from './moderate-rules';
 import type {
     Oi33AiConfig, Oi33AiModeration, Oi33ModerationKind, Oi33ModerationSource,
     Oi33ModerationStatus, Oi33ModerationTarget, Oi33ModerationVerdict,
@@ -17,11 +17,11 @@ import type {
 // working.
 export {
     DEFAULT_MODERATION_PROMPT, MAX_AI_INPUT, MAX_MATH_DEPTH, REVIEW_WORD_CATEGORY,
-    bioHashMatches, bioHashOf, bioQueueState, checkRules, configReviewWords, configWords,
-    hashOf, mathTooDeep, moderationEnabled, normalizeText, sameBioText,
-    sanitizeModerationCategory,
+    bioHashMatches, bioHashOf, bioQueueState, checkRules, configLinkHosts, configReviewWords,
+    configWords, hashOf, mathTooDeep, moderationEnabled, normalizeText, sameBioText,
+    sanitizeModerationCategory, linkReviewPolicy,
 };
-export type { BioQueueState, RuleHit };
+export type { BioQueueState, RuleHit, RuleOptions };
 
 export const moderationColl = db.collection('oi33_ai_moderation');
 
@@ -149,6 +149,26 @@ export async function modStats() {
 // config word parsing, category whitelist and the default prompt) lives in
 // ./moderate-rules and is re-exported above.
 
+// Link policy reads the site's own host from system settings (a DB concern,
+// hence not in the pure rule layer) so internal problem/topic links never
+// look like external advertising.
+function linkRuleOptions(cfg: any): RuleOptions {
+    const allow = configLinkHosts(cfg);
+    try {
+        const host = linkHost(String(SystemModel.get('server.url') || ''));
+        if (host) allow.push(host);
+    } catch {
+        // server.url is optional; the explicit allow list still applies.
+    }
+    return { linkReview: linkReviewPolicy(cfg), linkAllowHosts: allow };
+}
+
+function ruleReviewNote(ruleHit: RuleHit): string {
+    if (ruleHit.category === REVIEW_WORD_CATEGORY) return `命中待审词「${ruleHit.word}」`;
+    if (ruleHit.word === '外链') return '含站外链接，转人工复核';
+    return ruleHit.word ? `命中「${ruleHit.word}」` : '';
+}
+
 export interface ModerationVerdict {
     verdict: Oi33ModerationVerdict;
     source: Oi33ModerationSource;
@@ -167,7 +187,7 @@ export async function runAiVerdict(
     const cached = await modFindCachedVerdict(hash);
     if (cached) return { verdict: cached.verdict, source: 'cache', category: cached.category };
 
-    const ruleHit = checkRules(normalized, configWords(cfg), configReviewWords(cfg));
+    const ruleHit = checkRules(normalized, configWords(cfg), configReviewWords(cfg), linkRuleOptions(cfg));
     if (ruleHit?.verdict === 'block') {
         return {
             verdict: 'block', source: 'rules', category: ruleHit.category,
@@ -237,8 +257,12 @@ export async function runAiVerdict(
             ? `命中待审词「${ruleHit.word}」${aiReason ? `；AI：${aiReason}` : ''}`
             : aiReason;
     } else if (verdict === 'pass' && ruleHit?.verdict === 'review') {
+        // The AI cleared it but the rule layer still wants a human (e.g. a
+        // link to another site). Say so in the reason, otherwise the queue
+        // shows "广告引流 / 存疑" next to an AI reason that says "no problem".
         verdict = 'review';
         category = ruleHit.category;
+        aiReason = `${ruleReviewNote(ruleHit)}${aiReason ? `；AI：${aiReason}` : ''}`;
     }
     return {
         verdict, source, category, aiReason, model: config.model, cost,

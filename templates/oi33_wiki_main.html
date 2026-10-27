@@ -2,8 +2,8 @@
 {% extends "layout/oi33_wiki.html" %}
 {% block nav_actions %}
 {% if (handler.user.realname_flag or 0) >= 2 %}
-<li class="nav__list-item">
-  <a href="/oi33/wiki/index/edit" class="nav__item">{{ _('Edit') }}</a>
+<li class="oi33-wiki-actions__item">
+  <a href="/oi33/wiki/index/edit" class="oi33-wiki-chip">{{ _('Edit') }}</a>
 </li>
 {% endif %}
 {% endblock %}

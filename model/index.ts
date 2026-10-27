@@ -22,6 +22,7 @@ import * as homeConfigModel from './home-config';
 import * as blindboxModel from './blindbox';
 import * as solutionFeatureModel from './solution-feature';
 import * as judgeMonitorModel from './judge-monitor';
+import * as navModel from './nav';
 
 export * from './types';
 export { userColl, billColl } from './user';
@@ -74,6 +75,7 @@ const oi33Model = {
     ...blindboxModel,
     ...solutionFeatureModel,
     ...judgeMonitorModel,
+    ...navModel,
 };
 
 global.Hydro.model.oi33 = oi33Model;

@@ -9,7 +9,7 @@
     <p class="oi33-home-side__now" data-oi33-now>{{ payload.nowText }}</p>
 
     {# 运势区只在登录后出现：已签到显示运势+打卡，未签到显示抽签按钮，
-       未认证显示去认证的按钮；未登录时这段为空，时间行下面直接是分割线。 #}
+       未认证显示去认证的按钮；未登录时这段为空，时间行下面直接是倒计时/行情。 #}
     {% if loggedIn and checkin %}
     <div class="oi33-home-side__fortune">
       {% if checkin.oi33_checkin_flag is defined and (checkin.oi33_checkin_flag or 0) < 1 %}
@@ -43,7 +43,6 @@
     {% endif %}
 
     {% if hasCountdown %}
-    <div class="oi33-home-side__divider"></div>
     <div class="oi33-home-side__countdown">
       {% for date in countdown.dates %}
       <p class="oi33-home-side__line">{{ _('Days until') }}{{ date.name }}{{ _('days remaining') }}{{ date.diff }}{{ _('days') }}</p>
@@ -52,7 +51,6 @@
     {% endif %}
 
     {% if payload.market %}
-    <div class="oi33-home-side__divider"></div>
     <div class="oi33-home-side__market">
       {% if payload.market.quote %}
       <a class="oi33-home-side__quote" href="{{ url('oi33_cat_can') }}">
@@ -95,17 +93,17 @@
     font-size:.85em; opacity:.55; font-variant-numeric:tabular-nums;
   }
   .oi33-home-side__fortune { text-align:center; }
-  /* content-enhancements.css 给 .typo h1/h2 加了 GitHub 式下划线，这里去掉，
+  /* oi33-content.css 给 .typo h1/h2 加了 GitHub 式下划线，这里去掉，
      让「连续打卡 / 累计打卡」和运势文字连成一组。 */
   .section__body.oi33-home-side__body .oi33-home-side__fortune h1 {
     margin:.35rem 0 .55rem; padding-bottom:0; border-bottom:0;
     font-size:1.45rem; line-height:1.15;
   }
-  /* 抽签 / 去认证按钮：分割线自己带外边距，按钮不要再留 core 的 1rem。 */
+  /* 抽签 / 去认证按钮：各段间距由容器 margin 负责，按钮不要再留 core 的 1rem。 */
   .section__body.oi33-home-side__body .oi33-home-side__fortune .button { margin-bottom:0; }
   .section__body.oi33-home-side__body .oi33-home-side__stat + .oi33-home-side__stat { margin-top:.15rem; }
-  .oi33-home-side__divider { margin:.5rem 0; border-top:1px solid rgba(127,127,127,.2); }
-  .oi33-home-side__countdown { text-align:center; }
+  .oi33-home-side__countdown { margin-top:.55rem; text-align:center; }
+  .oi33-home-side__market { margin-top:.55rem; }
   .section__body.oi33-home-side__body .oi33-home-side__line + .oi33-home-side__line { margin-top:.2rem; }
   .oi33-home-side__quote { display:flex; flex-direction:column; gap:.15rem; padding:.45rem .6rem; border:1px solid rgba(127,127,127,.2); border-radius:8px; }
   .oi33-home-side__quote:hover { border-color:var(--accent-color,#55b6e2); text-decoration:none; }

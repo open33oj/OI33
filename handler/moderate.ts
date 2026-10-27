@@ -6,7 +6,7 @@ import { oi33Model } from '../model';
 import {
     DEFAULT_MODERATION_PROMPT, MAX_MATH_DEPTH, bioHashOf, bioQueueState, checkRules,
     configReviewWords, configWords, deleteModerationTarget, hashOf, hideModerationTarget,
-    mathTooDeep, moderateContentInBackground, moderationEnabled, moderationTargetExists,
+    linkReviewPolicy, mathTooDeep, moderateContentInBackground, moderationEnabled, moderationTargetExists,
     normalizeText, unhideModerationTarget,
 } from '../model/moderate';
 import type {
@@ -571,6 +571,8 @@ class Ai33ModerationHandler extends Handler {
     @param('moderation_prompt_solution', Types.String, true)
     @param('moderation_words', Types.String, true)
     @param('moderation_review_words', Types.String, true)
+    @param('moderation_link_review', Types.String, true)
+    @param('moderation_link_allow', Types.String, true)
     @param('moderation_daily_budget', Types.Float, true)
     @param('moderation_rate_limit', Types.UnsignedInt, true)
     async post(
@@ -584,6 +586,7 @@ class Ai33ModerationHandler extends Handler {
         moderation_enabled?: string, moderation_model?: string, moderation_prompt?: string,
         moderation_prompt_solution?: string,
         moderation_words?: string, moderation_review_words?: string,
+        moderation_link_review?: string, moderation_link_allow?: string,
         moderation_daily_budget = 0, moderation_rate_limit = 0,
     ) {
         await checkOi33Admin(this.user._id);
@@ -624,6 +627,10 @@ class Ai33ModerationHandler extends Handler {
                 moderation_prompt_solution: (moderation_prompt_solution || '').trim(),
                 moderation_words: moderation_words || '',
                 moderation_review_words: moderation_review_words || '',
+                // Invalid/missing → 'external': internal links stay out of the
+                // queue, links to other sites still get a human look.
+                moderation_link_review: linkReviewPolicy({ moderation_link_review }),
+                moderation_link_allow: moderation_link_allow || '',
                 moderation_daily_budget: Math.max(0, moderation_daily_budget || 0),
                 moderation_rate_limit: Math.max(0, moderation_rate_limit || 0),
             });

@@ -1,148 +1,203 @@
-{%- macro nav_item(item) -%}
-<li class="nav__list-item">
-  <a href="{{ url(item.name, item.args, query=item.args.query(handler) if typeof(item.args.query) == 'function' else item.args.query or {}) }}" class="nav__item{% if page_name.startsWith(item.args.prefix) %} nav--active{% endif %}">
-    {{ _(item.displayName or item.name) }}
-  </a>
-</li>
+{#
+  OI33 全站外壳：顶部条（品牌 / 可配置链接 / 登录态）+ 左侧导航栏。
+
+  - 顶部条只放配置的链接（站内路径或外站 URL）和用户登录态；站内导航全部收进左侧侧边栏。
+  - 侧边栏内容不是写死的：`handler.oi33NavGroups` 来自系统设置 `oi33.nav_groups`
+    （YAML，见 model/nav.ts / docs/architecture.md），顶部链接来自 `oi33.nav_links`。
+  - 移动端（<=1000px）侧边栏变成抽屉，由 frontend/oi33-shell.page.ts 控制。
+  - 样式在 templates/partials/oi33-shell.css，由 layout/html5.html 内联进 <head>。
+#}
+{%- macro nav_icon(name) -%}
+{%- if name and name != 'none' -%}
+<svg class="oi33-nav__icon" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-{{ name }}"></use></svg>
+{%- endif -%}
 {%- endmacro -%}
 
-<nav class="nav slideout-menu" id="menu">
-  <div class="row"><div class="columns clearfix">
-    <ol class="nav__list nav__list--main clearfix">
-      <li class="nav__list-item">
-        <a href="/"><img class="nav__logo" src="{{ ctx.setting.get('ui-default.nav_logo_dark') }}"></a>
-      </li>
-      {%- for item in overrideNav|default(ui.getNodes('Nav')) -%}{% if item.checker(handler) %}
-        {% if item.name == 'record_main' and handler.user.hasPriv(PRIV.PRIV_USER_PROFILE) %}
-        <li class="nav__list-item">
-          <a href="{{ url('record_main', query={uidOrName: handler.user._id if handler.user.oi33_profile_hidden else handler.user.uname}) }}" class="nav__item{% if page_name.startsWith('record') %} nav--active{% endif %}">
-            {{ _(item.displayName or item.name) }}
-          </a>
-        </li>
-        {% else %}
-          {{ nav_item(item) }}
-        {% endif %}
-      {% endif %}{%- endfor -%}
-    </ol>
-    <ol class="nav__list nav__list--secondary clearfix">
-    {% if not handler.user.hasPriv(PRIV.PRIV_USER_PROFILE) %}
-      <li class="nav__list-item"><a href="{{ url('user_login') }}" class="nav__item" name="nav_login">{{ _('Login') }}</a></li>
-      {% if handler.user.hasPriv(PRIV.PRIV_REGISTER_USER) and model.system.get('server.login') %}
-      <li class="nav__list-item"><a href="{{ url('user_register') }}" class="nav__item--round">{{ _('Sign Up') }}</a></li>
-      {% endif %}
-      <li class="nav__list-item nojs--hide" data-dropdown-pos="bottom right" data-dropdown-custom-class="nav__dropdown" data-dropdown-target="#menu-nav-user" data-dropdown-disabledconstrainToWindow data-dropdown-trigger-desktop-only>
-        <a href="javascript:;" class="nav__item">
-          <span class="icon icon-global"></span>Language <span class="icon icon-expand_more"></span>
-        </a>
-        <ol class="dropdown-target menu" id="menu-nav-user">
-          {%- for k, v in model.setting.SETTINGS_BY_KEY['viewLang'].range -%}
-            <li class="menu__item"><a class="menu__link" href="{{ url('switch_language', lang=k) }}">{{ v }}</a></li>
-          {%- endfor -%}
-        </ol>
-      </li>
-    {% else %}
-    {% if model.system.get('ui-default.domainNavigation') %}
-      <li class="nav__list-item" data-dropdown-pos="bottom right" data-dropdown-custom-class="nav__dropdown" data-dropdown-target="#menu-nav-domain" data-dropdown-disabledconstrainToWindow data-dropdown-trigger-desktop-only>
-        {# 当前域的头像与域名：变量是 handler.domain（UiContext 里没有 domain，
-           写成 UiContext.domain 会退化成 avatarUrl('') 的空头像）。 #}
-        <span class="nav__item"><span class="icon"><img class="small user-profile-avatar v-center" loading="lazy" src="{{ avatarUrl(handler.domain.avatar|default('')) }}" width="20" height="20"></span> {{ handler.domain.name }} <span class="icon icon-expand_more nojs--hide"></span></span>
-        <ol class="dropdown-target menu" id="menu-nav-domain">
-          {%- if handler.user.domains|length -%}
-          {%- for ddoc in handler.user.domains -%}
-            <li class="menu__item">
-              <a href="{{ url('homepage', domainId=ddoc['_id']) }}" class="menu__link">
-                <span class="icon"><img class="small user-profile-avatar v-center" loading="lazy" src="{{ avatarUrl(ddoc.avatar|default('')) }}" width="20" height="20"></span>
-                {{ ddoc['name'] }}{% if ddoc['name'] != ddoc['_id']%} ({{ ddoc['_id'] }}){% endif %}
-              </a>
-            </li>
-          {%- endfor -%}
-          <li class="menu__seperator"></li>
-          {%- endif -%}
-          <li class="menu__item">
-            <a href="{{ url('home_domain') }}" class="menu__link">
-              <span class="icon icon-wrench"></span> {{ _('Manage') }}
-            </a>
-          </li>
-        </ol>
-      </li>
-    {% endif %}
-      <li class="nav__list-item" data-dropdown-pos="bottom right" data-dropdown-custom-class="nav__dropdown" data-dropdown-target="#menu-nav-user" data-dropdown-disabledconstrainToWindow data-dropdown-trigger-desktop-only>
-        <a href="{{ url('user_detail', uid=handler.user._id) }}" class="nav__item">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %} <span class="icon icon-expand_more nojs--hide"></span></a>
-        <ol class="dropdown-target menu" id="menu-nav-user">
-          <li class="menu__item">
-            <a href="{{ url('user_detail', uid=handler.user._id) }}" class="menu__link">
-              <span class="icon icon-account--circle"></span> {{ _('My Profile') }}
-            </a>
-          </li>
-          <li class="menu__item">
-            <a href="{{ url('home_messages') }}" class="menu__link">
-              <span class="icon icon-comment--multiple"></span> {{ _('home_messages') }}
-            </a>
-          </li>
-          <li class="menu__seperator"></li>
-          <li class="menu__item">
-            <a href="{{ url('home_settings', category='domain') }}" class="menu__link">
-              <span class="icon icon-web"></span> @ {{ handler.domain['name'] }}
-            </a>
-          </li>
-          <li class="menu__seperator"></li>
-          <li class="menu__item">
-            <a href="{{ url('home_settings', category='account') }}" class="menu__link">
-              <span class="icon icon-wrench"></span> {{ _('home_account') }}
-            </a>
-          </li>
-          <li class="menu__item">
-            <a href="{{ url('home_settings', category='preference') }}" class="menu__link">
-              <span class="icon icon-sliders"></span> {{ _('home_preference') }}
-            </a>
-          </li>
-          <li class="menu__item">
-            <a href="{{ url('home_security') }}" class="menu__link">
-              <span class="icon icon-security"></span> {{ _('home_security') }}
-            </a>
-          </li>
-          <li class="menu__seperator"></li>
-          <li class="menu__item">
-            <a href="{{ url('home_domain') }}" class="menu__link">
-              <span class="icon icon-web"></span> {{ _('My Domains') }}
-            </a>
-          </li>
-          {% if handler.user.hasPriv(PRIV.PRIV_CREATE_FILE) %}
-            <li class="menu__item">
-              <a href="{{ url('home_files') }}" class="menu__link">
-                <span class="icon icon-file"></span> {{ _('My Files') }}
-              </a>
-            </li>
-          {% endif %}
-          {% if ui.getNodes('UserDropdown').length %}
-            <li class="menu__seperator"></li>
-            {%- for item in ui.getNodes('UserDropdown') -%} {% if item.checker(handler) %}
-            <li class="menu__item nojs--hide">
-              {% set args = (item.args(handler) if typeof(item.args)=='function' else item.args) or {} %}
-              <a href="{{ url(item.name, args) }}" class="menu__link">
-                <span class="icon icon-{{ args.icon }}"></span> {{ _(args.displayName or item.name) }}
-              </a>
-            </li>
-            {% endif %}
-            {%- endfor -%}
-          {% endif %}
-          <li class="menu__seperator"></li>
-          {% if handler.user.hasPriv(PRIV.PRIV_EDIT_SYSTEM) %}
-            <li class="menu__item nojs--hide">
-              <a class="menu__link" name="nav_switch_account">
-                <span class="icon icon-user"></span> {{ _('Switch account') }}
-              </a>
-            </li>
-          {% endif %}
-          <li class="menu__item">
-            <a href="{{ url('user_logout') }}" class="menu__link" name="nav_logout">
-              <span class="icon icon-logout"></span> {{ _('Logout') }}
-            </a>
-          </li>
-        </ol>
-      </li>
-    {% endif %}
-    </ol>
-  </div></div>
-</nav>
-<nav class="nav--shadow"></nav>
+{%- macro core_nav(item, icon, label_override) -%}
+{%- set args = item.args or {} -%}
+{%- set query = args.query(handler) if typeof(args.query) == 'function' else (args.query or {}) -%}
+{%- set href = url(item.name, args, query=query) -%}
+{%- if item.name == 'record_main' and handler.user.hasPriv(PRIV.PRIV_USER_PROFILE) -%}
+{%- set href = url('record_main', query={ uidOrName: (handler.user._id if handler.user.oi33_profile_hidden else handler.user.uname) }) -%}
+{%- endif -%}
+{%- set active = args.prefix and page_name.startsWith(args.prefix) -%}
+<a class="oi33-nav__item{% if active %} is-active{% endif %}"{% if active %} aria-current="page"{% endif %} href="{{ href }}" title="{{ _(label_override or item.displayName or item.name) }}" aria-label="{{ _(label_override or item.displayName or item.name) }}">
+  {{ nav_icon(icon) }}<span class="oi33-nav__text">{{ _(label_override or item.displayName or item.name) }}</span>
+</a>
+{%- endmacro -%}
+
+{%- macro link_nav(item) -%}
+{%- set active = (page_name == item.prefix) if item.exact else (item.prefix and page_name.startsWith(item.prefix)) -%}
+<a class="oi33-nav__item{% if active %} is-active{% endif %}"{% if active %} aria-current="page"{% endif %} href="{{ item.href }}" title="{{ _(item.label) }}" aria-label="{{ _(item.label) }}"{% if item.external %} target="_blank" rel="noopener noreferrer"{% endif %}>
+  {{ nav_icon(item.icon) }}<span class="oi33-nav__text">{{ _(item.label) }}</span>
+</a>
+{%- endmacro -%}
+
+{%- set nav_links = handler.oi33NavLinks or [] -%}
+{%- set nav_groups = handler.oi33NavGroups or [] -%}
+{# Error pages (404/500) do not go through `handler/after`, so the hook never
+   attaches nav data. Fall back to Hydro's own Nav nodes to keep the rail usable;
+   an explicitly configured empty `[]` stays empty (it is a defined value). #}
+{%- if not nav_groups.length and handler.oi33NavGroups == null -%}
+  {%- set fallback_items = [] -%}
+  {%- for fallback_node in ui.getNodes('Nav') -%}
+    {%- if fallback_node.checker(handler) -%}
+      {%- set _ = fallback_items.push({ nodeObj: fallback_node, label: '', icon: 'dot', prefix: '' }) -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- set nav_groups = [{ title: '', items: fallback_items }] -%}
+{%- endif -%}
+
+{# 同步打标：外壳 CSS 只在渲染了这套导航时生效；顺带恢复侧栏折叠状态，
+   保证首屏就是折叠/展开后的布局（不闪一下再收）。 #}
+<script>
+document.documentElement.classList.add('oi33-shell');
+try {
+  if (window.localStorage.getItem('oi33.sidebar.collapsed') === '1') {
+    document.documentElement.classList.add('oi33-sidebar-collapsed');
+  }
+} catch (e) { /* localStorage unavailable */ }
+</script>
+{%- set is_system_admin = handler.user.hasPriv(PRIV.PRIV_EDIT_SYSTEM) -%}
+
+<svg class="oi33-sprite" aria-hidden="true" focusable="false" width="0" height="0">
+  <symbol id="oi33-i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9"/></symbol>
+  <symbol id="oi33-i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v14H6.5A2.5 2.5 0 0 0 4 19.5Z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/><path d="M8 7h8M8 11h5"/></symbol>
+  <symbol id="oi33-i-cap" viewBox="0 0 24 24"><path d="m2 9 10-4.5L22 9l-10 4.5Z"/><path d="M6 11.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5"/><path d="M22 9v6"/></symbol>
+  <symbol id="oi33-i-trophy" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0Z"/><path d="M7 5H4v1a3 3 0 0 0 3 3"/><path d="M17 5h3v1a3 3 0 0 1-3 3"/></symbol>
+  <symbol id="oi33-i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a3 3 0 0 1 6 0"/><path d="M9 11h6M9 15h4"/></symbol>
+  <symbol id="oi33-i-activity" viewBox="0 0 24 24"><path d="M3 12h3.5l2.5-8 4.5 16 2.5-8H21"/></symbol>
+  <symbol id="oi33-i-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 3v-6.2A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8 10h8M8 14h5"/></symbol>
+  <symbol id="oi33-i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/><path d="M8 8h8M8 12h5"/></symbol>
+  <symbol id="oi33-i-book-open" viewBox="0 0 24 24"><path d="M3 4h5a4 4 0 0 1 4 4v13a4 4 0 0 0-4-4H3Z"/><path d="M21 4h-5a4 4 0 0 0-4 4v13a4 4 0 0 1 4-4h5Z"/></symbol>
+  <symbol id="oi33-i-file-text" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></symbol>
+  <symbol id="oi33-i-award" viewBox="0 0 24 24"><circle cx="12" cy="9" r="5.5"/><path d="m8.5 13.5-2 8 5.5-3 5.5 3-2-8"/></symbol>
+  <symbol id="oi33-i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.5a3.5 3.5 0 0 1 0 6.5"/><path d="M17.5 14.5a6.5 6.5 0 0 1 4 5.5"/></symbol>
+  <symbol id="oi33-i-chart" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M6 20V11M11 20V5M16 20v-6M21 20v-9"/></symbol>
+  <symbol id="oi33-i-paw" viewBox="0 0 24 24"><circle cx="5.5" cy="9.5" r="1.8"/><circle cx="9.5" cy="6.5" r="1.8"/><circle cx="14.5" cy="6.5" r="1.8"/><circle cx="18.5" cy="9.5" r="1.8"/><path d="M12 11.5c3.2 0 6 2.3 6 5.2 0 1.5-1 2.3-2.3 2.3-1.4 0-2.3-.9-3.7-.9s-2.3.9-3.7.9c-1.3 0-2.3-.8-2.3-2.3 0-2.9 2.8-5.2 6-5.2Z"/></symbol>
+  <symbol id="oi33-i-crown" viewBox="0 0 24 24"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 11H5Z"/><path d="M5 21h14"/></symbol>
+  <symbol id="oi33-i-can" viewBox="0 0 24 24"><path d="m12 2 8 4.5v11L12 22l-8-4.5v-11Z"/><path d="m4 6.5 8 4.5 8-4.5M12 22V11"/></symbol>
+  <symbol id="oi33-i-flask" viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v6l-5.2 9.3A2 2 0 0 0 6.6 21h10.8a2 2 0 0 0 1.8-2.7L14 9V3"/><path d="M7.5 15h9"/></symbol>
+  <symbol id="oi33-i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="oi33-i-hammer" viewBox="0 0 24 24"><path d="M14 4l6 6-2.5 2.5-6-6Z"/><path d="m13.5 6.5 4 4"/><path d="m12 10-8 8 2 2 8-8"/></symbol>
+  <symbol id="oi33-i-gift" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9"/><path d="M12 8v13"/><path d="M12 8C12 5 10.5 3 8.5 3a2.5 2.5 0 0 0 0 5"/><path d="M12 8c0-3 1.5-5 3.5-5a2.5 2.5 0 0 1 0 5"/></symbol>
+  <symbol id="oi33-i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="oi33-i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.8 8 9 4.6-1.2 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="oi33-i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+  <symbol id="oi33-i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="oi33-i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="oi33-i-chevron-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+  <symbol id="oi33-i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="oi33-i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+  <symbol id="oi33-i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></symbol>
+</svg>
+
+{# Hydro 的 sticky-kit / StyledTable / smoothscroll 用 `.nav` 的高度算吸顶偏移；
+   顶部条替代了 `.nav`，这里放一个不占位、不可见的等高垫片兼容它们。 #}
+<div class="nav oi33-nav-measure" aria-hidden="true"></div>
+
+<header class="oi33-topbar">
+  <button type="button" class="oi33-topbar__burger" data-oi33-burger aria-label="展开导航" aria-expanded="false" aria-controls="oi33-sidebar">
+    <svg class="oi33-burger-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-menu"></use></svg>
+  </button>
+  <a class="oi33-topbar__brand" href="/" aria-label="{{ model.system.get('server.name') }}">
+    <img src="{{ ctx.setting.get('ui-default.nav_logo_dark') }}" alt="{{ model.system.get('server.name') }}" height="26">
+  </a>
+  <nav class="oi33-topbar__links" aria-label="顶部链接">
+    {%- for link in nav_links %}
+    <a href="{{ link.url }}"{% if link.external %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ link.name }}</a>
+    {%- endfor %}
+  </nav>
+  <div class="oi33-topbar__spacer"></div>
+  {%- if handler.user.hasPriv(PRIV.PRIV_USER_PROFILE) %}
+  <div class="oi33-user" data-oi33-user>
+    <a class="oi33-user__trigger" href="{{ url('user_detail', uid=handler.user._id) }}" data-oi33-user-trigger aria-haspopup="true" aria-expanded="false" aria-controls="oi33-user-menu">
+      <img class="oi33-user__avatar" src="{{ avatarUrl(handler.user.avatar|default('')) }}" alt="" width="26" height="26" loading="lazy">
+      <span class="oi33-user__name">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %}</span>
+      <svg class="oi33-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-chevron"></use></svg>
+    </a>
+    <div class="oi33-user__menu" id="oi33-user-menu" role="menu">
+      <div class="oi33-user__summary">
+        <img class="oi33-user__avatar" src="{{ avatarUrl(handler.user.avatar|default('')) }}" alt="" width="34" height="34" loading="lazy">
+        <div class="oi33-user__summary-body">
+          <div class="oi33-user__summary-name">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %}</div>
+          <div class="oi33-user__summary-meta">UID {{ handler.user._id }}{% if (handler.user.realname_flag or 0) >= 1 %} · {{ _('Verified') }}{% endif %}</div>
+        </div>
+      </div>
+      <div class="oi33-menu__sep"></div>
+      <a class="oi33-menu__link" href="{{ url('user_detail', uid=handler.user._id) }}" role="menuitem"><span class="icon icon-account--circle"></span>{{ _('My Profile') }}</a>
+      <a class="oi33-menu__link" href="{{ url('home_messages') }}" role="menuitem"><span class="icon icon-comment--multiple"></span>{{ _('home_messages') }}</a>
+      <a class="oi33-menu__link" href="{{ url('home_settings', category='account') }}" role="menuitem"><span class="icon icon-wrench"></span>{{ _('home_account') }}</a>
+      <a class="oi33-menu__link" href="{{ url('home_domain') }}" role="menuitem"><span class="icon icon-web"></span>{{ _('My Domains') }}</a>
+      {%- if handler.user.hasPriv(PRIV.PRIV_CREATE_FILE) %}
+      <a class="oi33-menu__link" href="{{ url('home_files') }}" role="menuitem"><span class="icon icon-file"></span>{{ _('My Files') }}</a>
+      {%- endif %}
+      {%- if is_system_admin %}
+      <div class="oi33-menu__sep"></div>
+      <a class="oi33-menu__link" href="javascript:;" name="nav_switch_account" role="menuitem"><span class="icon icon-user--multiple"></span>{{ _('Switch account') }}</a>
+      {%- endif %}
+      <div class="oi33-menu__sep"></div>
+      <form method="post" action="{{ url('user_logout') }}">
+        <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+        <button type="submit" class="oi33-menu__link oi33-user__logout" role="menuitem"><span class="icon icon-logout"></span>{{ _('Logout') }}</button>
+      </form>
+    </div>
+  </div>
+  {%- else %}
+  <a class="oi33-topbar__signin" href="{{ url('user_login') }}">{{ _('Login') }}</a>
+  {%- if handler.user.hasPriv(PRIV.PRIV_REGISTER_USER) and model.system.get('server.login') %}
+  <a class="oi33-topbar__signup" href="{{ url('user_register') }}">{{ _('Sign Up') }}</a>
+  {%- endif %}
+  {%- endif %}
+</header>
+
+<div class="oi33-shell-overlay" data-oi33-overlay></div>
+
+<aside class="oi33-sidebar" id="oi33-sidebar" aria-label="站内导航">
+  <div class="oi33-sidebar__head">
+    <span class="oi33-sidebar__head-title">导航</span>
+    <button type="button" class="oi33-sidebar__close" data-oi33-close aria-label="关闭导航">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="oi33-sidebar__scroll">
+    {%- for group in nav_groups %}
+    {%- if group.title %}
+    <div class="oi33-nav__label">{{ _(group.title) }}</div>
+    {%- endif %}
+    <nav class="oi33-nav__group" aria-label="{{ _(group.title) if group.title else '主要导航' }}">
+      {%- for item in group.items %}
+      {%- if item.nodeObj %}
+      {{ core_nav(item.nodeObj, item.icon, item.label) }}
+      {%- else %}
+      {{ link_nav(item) }}
+      {%- endif %}
+      {%- endfor %}
+    </nav>
+    {%- endfor %}
+
+    {# 移动端抽屉里保留顶部链接入口（桌面端顶部条已有，避免重复）。 #}
+    {%- if nav_links.length %}
+    <div class="oi33-nav__label oi33-only-mobile">链接</div>
+    <nav class="oi33-nav__group oi33-only-mobile" aria-label="快捷链接">
+      {%- for link in nav_links %}
+      <a class="oi33-nav__item" href="{{ link.url }}"{% if link.external %} target="_blank" rel="noopener noreferrer"{% endif %}><span class="oi33-nav__text">{{ link.name }}</span></a>
+      {%- endfor %}
+    </nav>
+    {%- endif %}
+  </div>
+</aside>
+
+<button type="button" class="oi33-sidebar-toggle nojs--hide" data-oi33-sidebar-toggle aria-controls="oi33-sidebar" aria-expanded="true" aria-label="收起侧边栏" title="收起侧边栏">
+  <svg class="oi33-toggle-icon oi33-toggle-icon--collapse" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-chevron-left"></use></svg>
+  <svg class="oi33-toggle-icon oi33-toggle-icon--menu" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-menu"></use></svg>
+</button>
+
+<noscript>
+  <style>
+    .oi33-sidebar { display: none !important; }
+    .oi33-topbar { position: static !important; height: auto !important; flex-wrap: wrap; padding: 8px 12px; }
+    .oi33-topbar__burger, .oi33-sidebar-toggle, .oi33-topbar__links { display: none !important; }
+    #panel { margin-left: 0 !important; padding-top: 0 !important; }
+  </style>
+</noscript>

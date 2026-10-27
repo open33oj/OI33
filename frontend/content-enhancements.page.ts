@@ -1,5 +1,4 @@
 import { addPage, NamedPage } from '@hydrooj/ui-default';
-import './content-enhancements.css';
 
 function emphasizeFileIoTag() {
     document.querySelectorAll<HTMLElement>('.problem__tag-item.icon-book').forEach((tag) => {
