@@ -605,8 +605,31 @@ export interface Oi33SolutionConfig {
     // featured. 'none' disables the reward.
     featureRewardType: 'none' | 'can' | 'food';
     featureRewardAmount: number;
+    // AI 评审设置：留空 = 使用内置默认（模型跟随 teacher_model，提示词内置，
+    // 通过分数 70）。后台 /oi33/solutions/featured 可改。
+    featureModel: string;
+    featurePrompt: string;
+    featurePassScore: number;
     updatedAt: Date;
     updatedBy?: number;
+}
+
+// 用户申请题解加精的审核记录。`_id` 是 `${uid}:${YYYY-MM-DD}`（Asia/Shanghai），
+// 唯一索引天然保证「每人每天一篇」的额度；AI 服务异常时会删除记录退回额度。
+export interface Oi33SolutionFeatureApply {
+    _id: string;
+    uid: number;
+    domainId: string;
+    psid: ObjectId;
+    pid: number;
+    status: 'pending' | 'featured' | 'rejected' | 'error';
+    score?: number;
+    reason?: string;
+    suggestions?: string[];
+    model?: string;
+    cost?: number;
+    createdAt: Date;
+    decidedAt?: Date;
 }
 
 export interface Oi33Auction {
@@ -795,6 +818,9 @@ export interface Oi33AiConfig {
     moderation_model?: string;
     // System-prompt override; empty → built-in default.
     moderation_prompt?: string;
+    // 题解内容审核专用 Prompt（kind = solution / solution_edit）；空 → 复用
+    // moderation_prompt。喵喵、讨论、简介继续用 moderation_prompt。
+    moderation_prompt_solution?: string;
     // Newline-separated blocked words (rule layer, matched after normalization).
     moderation_words?: string;
     // Newline-separated words that go to the human review queue instead of

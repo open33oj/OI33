@@ -16,6 +16,7 @@ wiki、OAuth 等整合为**单个** Hydro addon：入口 `index.ts` 按功能 `a
 | [docs/features/algorithm.md](docs/features/algorithm.md) | 算法掌握（NOI 大纲、月度自评额度） |
 | [docs/features/ai.md](docs/features/ai.md) | AI 客户端、审核引擎、bio、题解/讨论审核 |
 | [docs/features/community.md](docs/features/community.md) | 喵喵、题解、题目讨论、Wiki、OC 赛制 |
+| [docs/features/solution-feature.md](docs/features/solution-feature.md) | 题解三态、每人每题一篇、AI 申请加精 |
 | [docs/features/accounts.md](docs/features/accounts.md) | 身份/主档、OAuth、Token、Paste、评测机监控 |
 | [docs/features/ops.md](docs/features/ops.md) | `/oi33/admin/ops`：健康状态与运维动作 |
 | [docs/patches.md](docs/patches.md) | 17 处 monkey-patch 与 25 个 core 模板覆盖清单 |

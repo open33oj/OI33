@@ -389,22 +389,14 @@ class MeowAdminHandler extends Handler {
     @query('status', Types.String, true)
     async get(domainId: string, page = 1, status = 'all') {
         await checkOi33Admin(this.user._id);
-        const [pending, all, todayStats] = await Promise.all([
-            oi33Model.meowListPending(),
+        const [all, todayStats] = await Promise.all([
             oi33Model.meowListAll(page, FEED_PAGE_SIZE, status),
             oi33Model.meowTodayStats(),
         ]);
         const { posts, udict, likedMap } = await prepareMeowPosts('', all.docs, this.user._id);
-        const pendingUids = pending.map((p) => p.uid).filter((u) => !udict[u]);
-        if (pendingUids.length) {
-            const extra = await loadOi33Users('', pendingUids);
-            for (const u of pendingUids) {
-                if (extra[u]) udict[u] = extra[u];
-            }
-        }
         this.response.template = 'oi33_meow_admin.html';
         this.response.body = {
-            pending, posts, udict, likedMap, todayStats,
+            posts, udict, likedMap, todayStats,
             page, status, count: all.count, upcount: all.upcount,
         };
     }

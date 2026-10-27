@@ -26,51 +26,10 @@
           <span class="meow-admin-stat">{{ _('Rejected') }}: <b>{{ todayStats.rejected }}</b></span>
         </p>
 
-        <h3 style="margin:1.5rem 0 1rem;">{{ _('Pending Queue') }}{% if pending.length %}<span class="meow-admin-subtitle">（{{ pending.length }}）</span>{% endif %}</h3>
-        {% if pending.length %}
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ _('Time') }}</th>
-              <th>{{ _('User') }}</th>
-              <th>{{ _('Category') }}</th>
-              <th>{{ _('Content') }}</th>
-              <th>{{ _('AI Reason') }}</th>
-              <th>{{ _('Actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for p in pending %}
-            <tr>
-              <td style="white-space:nowrap;">{{ datetimeSpan(p.createdAt)|safe }}</td>
-              <td>{% if udict[p.uid] %}{{ user.render_inline(udict[p.uid]) }}{% else %}UID {{ p.uid }}{% endif %}</td>
-              <td>{{ p.category or '待审' }}<span class="meow-admin-subtitle">{{ p.verdictSource }}</span></td>
-              <td class="meow-admin-content"><pre class="meow-admin-content__pre">{{ p.content }}</pre></td>
-              <td class="meow-admin-content">
-                {% if p.aiReason %}<div class="meow-admin-reason">{{ p.aiReason }}</div>{% endif %}
-              </td>
-              <td style="white-space:nowrap;">
-                <form method="post" style="display:inline;">
-                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                  <input type="hidden" name="action" value="approve">
-                  <input type="hidden" name="id" value="{{ p._id }}">
-                  <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
-                </form>
-                <span style="opacity:0.3;">/</span>
-                <form method="post" style="display:inline;">
-                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                  <input type="hidden" name="action" value="reject">
-                  <input type="hidden" name="id" value="{{ p._id }}">
-                  <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
-                </form>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <p>{{ _('Nothing pending.') }}</p>
-        {% endif %}
+        <p class="meow-admin-desc">
+          待审喵喵已并入 <a href="{{ url('oi33_ai_moderation') }}#meow">内容审核中心</a>；
+          本页只做全量查看与删除。
+        </p>
 
         <h3 style="margin:1.5rem 0 1rem;">{{ _('All Meows') }} <span class="meow-admin-subtitle">{{ _('Total') }}: {{ count }}</span></h3>
         <p class="meow-admin-filter">

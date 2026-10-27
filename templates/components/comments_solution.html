@@ -39,6 +39,20 @@
   }
   .oi33-solution__feature-form { display:inline; }
   .oi33-solution__feature-link.active > .icon { color:#e8a33d; }
+  .oi33-solution__state {
+    display:inline-block; margin-left:.35rem; padding:0 .35rem; border-radius:4px;
+    font-size:.72em; font-weight:600; vertical-align:1px;
+  }
+  .oi33-solution__state--hidden { background:#c62828; color:#fff; }
+  .oi33-solution__apply-form { display:inline; }
+  .oi33-solution__apply {
+    display:inline-block; margin-left:.35rem; padding:0 .45rem; border:1px solid #e8a33d;
+    border-radius:4px; color:#b7791f; font-size:.78em; white-space:nowrap;
+  }
+  .oi33-solution__apply:hover { background:#e8a33d; color:#fff; }
+  .oi33-solution__apply--used { opacity:.55; border-color:#aaa; color:#888; cursor:default; }
+  .theme--dark .oi33-solution__apply { color:#f0b75a; }
+  .theme--dark .oi33-solution__apply:hover { color:#1b1b1b; }
 </style>
 <ul class="dczcomments__list view--solution">
 {% if handler.user.hasPerm(comment_post_perm) %}
@@ -110,7 +124,7 @@
     <div class="media__body top">
       <div class="clearfix">
         <div class="supplementary dczcomments__supplementary">
-          {{ user.render_inline(udoc) }} @ {{ datetimeSpan(doc._id)|safe }}{% if doc.featured %}<span class="oi33-solution__featured-badge" data-tooltip="{{ _('Featured Solution') }}">{{ _('Featured') }}</span>{% endif %}
+          {{ user.render_inline(udoc) }} @ {{ datetimeSpan(doc._id)|safe }}{% if doc.hidden %}<span class="oi33-solution__state oi33-solution__state--hidden" data-tooltip="未通过审核前只有你和管理员可见">审核中</span>{% elif doc.featured %}<span class="oi33-solution__featured-badge" data-tooltip="{{ _('Featured Solution') }}">{{ _('Featured') }}</span>{% endif %}
         </div>
         <div class="dczcomments__operations nojs--hide">
         {% if pdoc %}
@@ -133,8 +147,23 @@
             data-form="{{ {operation: comment_delete_op, psid: doc._id}|json }}"
           ><span class="icon icon-delete"></span></a>
         {% endif %}
+        {# 作者自助申请：POST 到 /oi33/solutions/apply-featured，AI 审核结果走私信。 #}
+        {% if handler.user.own(doc) and not doc.hidden and not doc.featured and (handler.user.realname_flag or 0) >= 1 and (handler.user.realname_flag or 0) < 2 %}
+          {% if featureApplyUsed %}
+          <span class="oi33-solution__apply oi33-solution__apply--used" data-tooltip="每人每天只能申请一篇题解加精">今日已申请</span>
+          {% else %}
+          <form method="post" action="{{ url('oi33_solution_apply_featured') }}" class="oi33-solution__apply-form">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <input type="hidden" name="psid" value="{{ doc._id }}">
+            <input type="hidden" name="redirect" value="{{ url('problem_solution', pid=pdoc.pid|default(pdoc.docId)) }}">
+            <a href="javascript:;" class="oi33-solution__apply"
+               data-tooltip="申请后由 AI 审核，结果会私信通知；通过后成为精华"
+               onclick="this.closest('form').submit(); return false;">申请精华</a>
+          </form>
+          {% endif %}
+        {% endif %}
         {% if (handler.user.realname_flag or 0) >= 2 or handler.user.hasPerm(perm.PERM_EDIT_PROBLEM_SOLUTION) %}
-        {# 加精：POST 到 /oi33/solutions/feature，redirect 回本页。 #}
+        {# 管理员强制加精/取消：POST 到 /oi33/solutions/feature，redirect 回本页。 #}
         <form method="post" action="{{ url('oi33_solution_feature') }}" class="oi33-solution__feature-form">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="psid" value="{{ doc._id }}">

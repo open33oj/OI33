@@ -1,6 +1,6 @@
 import {
     Context, DiscussionModel, DocumentModel, ForbiddenError, Handler, MessageModel,
-    NotFoundError, ObjectId, PERM, PRIV, Types, UserModel, ValidationError, param,
+    NotFoundError, ObjectId, PERM, PRIV, Types, UserModel, ValidationError, db, param,
 } from 'hydrooj';
 import { oi33Model } from '../model';
 import {
@@ -12,6 +12,7 @@ import {
 import type {
     Oi33ModerationKind, Oi33ModerationTarget,
 } from '../model/types';
+import { addLog } from '../model/log';
 import { checkOi33Admin, checkUserFlag } from './utils';
 
 const DEFAULT_RATE_LIMIT = 50;
@@ -201,8 +202,45 @@ function applyDiscussionHooks(ctx: Context) {
                 kind = 'tailreply_edit';
             }
             if (target && kind) {
+                // 作者编辑精华题解 = 内容变了：先取消精华，等新一轮审核通过后再发布，
+                // 避免出现「隐藏 + 精华」这种第四种状态。
+                if (op === 'edit_solution' && !target.psrid) {
+                    const psdoc: any = await DocumentModel.get(
+                        domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid,
+                    );
+                    if (psdoc?.featured) {
+                        await DocumentModel.set(
+                            domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid,
+                            { featured: false } as any,
+                        );
+                    }
+                }
                 await hideBeforeReview(target);
-                moderateContentInBackground({ kind, uid: h.user._id, text: content, target });
+                // 题解（不是题解评论）只有三种状态：隐藏 / 发布 / 精华。
+                // block/review 都保持隐藏，绝不自动删除；通过则恢复发布。
+                const rootSolution = !target.psrid;
+                moderateContentInBackground({
+                    kind, uid: h.user._id, text: content, target,
+                    ...(rootSolution ? {
+                        applyVerdict: async (result: any) => {
+                            if (result.verdict === 'pass') {
+                                await unhideModerationTarget(target);
+                                return;
+                            }
+                            await hideModerationTarget(target);
+                            if (result.verdict === 'block') {
+                                // Definitive rejection: tell the author why, so a hidden
+                                // solution is actionable instead of a silent dead end.
+                                await MessageModel.send(
+                                    1, h.user._id,
+                                    `你的题解未通过审核，已隐藏（仅你和管理员可见）。\n`
+                                    + `原因：${result.aiReason || '不符合社区规范'}。\n`
+                                    + '修改后重新提交即可再次审核。',
+                                ).catch(() => {});
+                            }
+                        },
+                    } : {}),
+                });
             }
         } catch (e) {
             console.error('[oi33] moderation after-hook failed:', e);
@@ -333,8 +371,45 @@ function applySolutionHooks(ctx: Context) {
                 kind = 'solution_reply_edit';
             }
             if (target && kind) {
+                // 作者编辑精华题解 = 内容变了：先取消精华，等新一轮审核通过后再发布，
+                // 避免出现「隐藏 + 精华」这种第四种状态。
+                if (op === 'edit_solution' && !target.psrid) {
+                    const psdoc: any = await DocumentModel.get(
+                        domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid,
+                    );
+                    if (psdoc?.featured) {
+                        await DocumentModel.set(
+                            domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid,
+                            { featured: false } as any,
+                        );
+                    }
+                }
                 await hideBeforeReview(target);
-                moderateContentInBackground({ kind, uid: h.user._id, text: content, target });
+                // 题解（不是题解评论）只有三种状态：隐藏 / 发布 / 精华。
+                // block/review 都保持隐藏，绝不自动删除；通过则恢复发布。
+                const rootSolution = !target.psrid;
+                moderateContentInBackground({
+                    kind, uid: h.user._id, text: content, target,
+                    ...(rootSolution ? {
+                        applyVerdict: async (result: any) => {
+                            if (result.verdict === 'pass') {
+                                await unhideModerationTarget(target);
+                                return;
+                            }
+                            await hideModerationTarget(target);
+                            if (result.verdict === 'block') {
+                                // Definitive rejection: tell the author why, so a hidden
+                                // solution is actionable instead of a silent dead end.
+                                await MessageModel.send(
+                                    1, h.user._id,
+                                    `你的题解未通过审核，已隐藏（仅你和管理员可见）。\n`
+                                    + `原因：${result.aiReason || '不符合社区规范'}。\n`
+                                    + '修改后重新提交即可再次审核。',
+                                ).catch(() => {});
+                            }
+                        },
+                    } : {}),
+                });
             }
         } catch (e) {
             console.error('[oi33] solution moderation after-hook failed:', e);
@@ -344,24 +419,109 @@ function applySolutionHooks(ctx: Context) {
 
 // --- Admin queue & settings ---
 
+const KIND_GROUPS: Record<string, Oi33ModerationKind[]> = {
+    discussion: ['topic', 'reply', 'tailreply', 'topic_edit', 'reply_edit', 'tailreply_edit'],
+    solution: ['solution', 'solution_edit', 'solution_reply', 'solution_reply_edit'],
+    bio: ['bio'],
+};
+
 class Ai33ModerationHandler extends Handler {
     async get() {
         await checkOi33Admin(this.user._id);
         // Close legacy pending entries that can't be operated on (missing
         // target), so they don't error out or clog the queue.
         await oi33Model.modCloseMissingTarget(this.user._id);
-        const [pending, recent, stats, cfg, todayCost] = await Promise.all([
+        const [pendingAll, recentAll, stats, cfg, todayCost, meowPending, hiddenSolutions] = await Promise.all([
             oi33Model.modListPending(),
             oi33Model.modListRecent(50),
             oi33Model.modStats(),
             oi33Model.aiGetConfig(),
             oi33Model.modTodayCost(),
+            oi33Model.meowListPending(),
+            oi33Model.listHiddenSolutions(30),
         ]);
-        const uids = [...new Set([...pending, ...recent].map((e) => e.uid))];
+        // 给每条待审记录算出目标位置：题解需要 parentId(docId) 拼 URL，讨论直接
+        // 用 did，简介落到用户资料页；这些链接只用于管理员查看，不参与裁决。
+        const solutionPsids = [...new Set([...pendingAll, ...recentAll]
+            .map((entry) => (entry.target?.psid ? String(entry.target.psid) : ''))
+            .filter(Boolean))];
+        const solutionParents = solutionPsids.length
+            ? await db.collection<any>('document').find({
+                _id: { $in: solutionPsids.map((id) => new ObjectId(id)) },
+                docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
+            }).project({ _id: 1, parentId: 1 }).toArray()
+            : [];
+        const parentByPsid = new Map<string, number>(
+            solutionParents.map((doc: any) => [String(doc._id), Number(doc.parentId)]),
+        );
+        // Replies are stored as their own documents with parentId = the topic
+        // id; batch-resolve so a reply target links to the topic, not /discuss/<reply>.
+        const replyIds = [...new Set([...pendingAll, ...recentAll]
+            .map((entry) => (entry.target?.drid ? String(entry.target.drid) : ''))
+            .filter(Boolean))];
+        const replyParents = replyIds.length
+            ? await db.collection<any>('document').find({
+                _id: { $in: replyIds.map((id) => new ObjectId(id)) },
+                docType: DocumentModel.TYPE_DISCUSSION_REPLY,
+            }).project({ _id: 1, parentId: 1 }).toArray()
+            : [];
+        const didByDrid = new Map<string, any>(
+            replyParents.map((doc: any) => [String(doc._id), doc.parentId]),
+        );
+        const targetUrlOf = (entry: any): string => {
+            if (entry.kind === 'bio') return this.url('user_detail', { uid: entry.uid });
+            const target = entry.target;
+            if (!target) return '';
+            if (target.psid) {
+                const pid = parentByPsid.get(String(target.psid));
+                return Number.isSafeInteger(pid) && pid > 0
+                    ? this.url('problem_solution_detail', { pid, sid: target.psid }) : '';
+            }
+            if (target.did) return this.url('discussion_detail', { did: target.did });
+            if (target.drid) {
+                const did = didByDrid.get(String(target.drid));
+                return did ? this.url('discussion_detail', { did }) : '';
+            }
+            return '';
+        };
+        for (const entry of pendingAll) (entry as any).targetUrl = targetUrlOf(entry);
+        for (const entry of recentAll) (entry as any).targetUrl = targetUrlOf(entry);
+        for (const post of meowPending) {
+            (post as any).targetUrl = this.url('oi33_meow_user', { uid: post.uid });
+        }
+        for (const doc of hiddenSolutions) {
+            (doc as any).targetUrl = Number(doc.parentId) > 0
+                ? this.url('problem_solution_detail', { pid: doc.parentId, sid: doc._id }) : '';
+        }
+        const args = (this as any).args || {};
+        const kind = Object.prototype.hasOwnProperty.call(KIND_GROUPS, String(args.kind))
+            ? String(args.kind) : 'all';
+        const memberKinds = KIND_GROUPS[kind];
+        const pending = memberKinds ? pendingAll.filter((e) => memberKinds.includes(e.kind)) : pendingAll;
+        const recent = memberKinds ? recentAll.filter((e) => memberKinds.includes(e.kind)) : recentAll;
+        const countOf = (group: string) => pendingAll.filter((e) => KIND_GROUPS[group].includes(e.kind)).length;
+        const kindTabs = [
+            { id: 'all', label: '全部', count: pendingAll.length },
+            { id: 'discussion', label: '讨论', count: countOf('discussion') },
+            { id: 'solution', label: '题解', count: countOf('solution') },
+            { id: 'bio', label: '简介', count: countOf('bio') },
+        ];
+        // Pending solution entries are handled by the queue above; the extra
+        // list is for solutions hidden by rules/AI without a queue entry.
+        const pendingSolutionIds = new Set(pendingAll
+            .map((e) => (e.target?.psid ? String(e.target.psid) : ''))
+            .filter(Boolean));
+        const extraHidden = hiddenSolutions.filter((doc: any) => !pendingSolutionIds.has(String(doc._id)));
+        const uids = [...new Set([
+            ...pendingAll.map((e) => e.uid),
+            ...recentAll.map((e) => e.uid),
+            ...meowPending.map((post) => post.uid),
+            ...extraHidden.map((doc: any) => Number(doc.owner)),
+        ].filter((uid) => Number.isSafeInteger(uid) && uid > 0))];
         const udict = uids.length ? await UserModel.getList('', uids) : {};
         // Flag queued bio versions that are no longer the live bio: they can
         // only be closed, and the bulk button clears them all at once.
-        const bioEntries = pending.filter((e) => e.kind === 'bio');
+        const bioEntries = pendingAll.filter((e) => e.kind === 'bio');
         const liveBios = bioEntries.length
             ? await oi33Model.getLiveBios([...new Set(bioEntries.map((e) => e.uid))])
             : {};
@@ -371,13 +531,18 @@ class Ai33ModerationHandler extends Handler {
             (entry as any).bioState = state;
             if (state === 'stale') staleBioCount++;
         }
-        const args = (this as any).args || {};
         let notice = '';
         if (args.expired) {
             notice = '该审核记录对应的简介已被本人修改（或账号不存在），记录已标记为失效；'
                 + '用户的简介状态未被改动。';
         } else if (args.closed !== undefined) {
             notice = `已清理 ${Number(args.closed) || 0} 条失效的个人简介审核记录。`;
+        } else if (args.meow === 'approved') {
+            notice = '喵喵已通过审核并展示。';
+        } else if (args.meow === 'rejected') {
+            notice = '喵喵已驳回（不会展示）。';
+        } else if (args.solution === 'published') {
+            notice = '题解已恢复发布。';
         }
         this.response.template = 'oi33_ai_moderation.html';
         this.response.body = {
@@ -388,9 +553,13 @@ class Ai33ModerationHandler extends Handler {
             todayCost: todayCost.toFixed(4),
             udict,
             kindLabels: KIND_LABELS,
+            kind,
+            kindTabs,
             defaultPrompt: DEFAULT_MODERATION_PROMPT,
             staleBioCount,
             notice,
+            meowPending,
+            hiddenSolutions: extraHidden,
         };
     }
 
@@ -399,6 +568,7 @@ class Ai33ModerationHandler extends Handler {
     @param('moderation_enabled', Types.String, true)
     @param('moderation_model', Types.String, true)
     @param('moderation_prompt', Types.String, true)
+    @param('moderation_prompt_solution', Types.String, true)
     @param('moderation_words', Types.String, true)
     @param('moderation_review_words', Types.String, true)
     @param('moderation_daily_budget', Types.Float, true)
@@ -412,16 +582,46 @@ class Ai33ModerationHandler extends Handler {
         // value itself is only needed for this injection contract.
         domainId: string, action: string, id?: ObjectId,
         moderation_enabled?: string, moderation_model?: string, moderation_prompt?: string,
+        moderation_prompt_solution?: string,
         moderation_words?: string, moderation_review_words?: string,
         moderation_daily_budget = 0, moderation_rate_limit = 0,
     ) {
         await checkOi33Admin(this.user._id);
+        if (action === 'meow_approve' || action === 'meow_reject') {
+            if (!id) throw new ValidationError('缺少喵喵 ID。');
+            const post = await oi33Model.meowGetPost(id);
+            if (!post) throw new NotFoundError(id);
+            const next = action === 'meow_approve' ? 'approved' : 'rejected';
+            const ok = await oi33Model.meowSetStatus(id, next, this.user._id);
+            if (!ok) throw new ValidationError('该喵喵信息已被处理。');
+            await addLog({
+                type: 'meow', userId: post.uid, action: next, postId: id.toHexString(), status: next,
+            });
+            this.response.redirect = this.url('oi33_ai_moderation', {
+                query: { meow: next },
+            });
+            return;
+        }
+        if (action === 'solution_publish' && id) {
+            const doc = await oi33Model.publishHiddenSolution(id);
+            if (!doc) throw new NotFoundError(id);
+            await addLog({
+                type: 'solution', userId: Number((doc as any).owner) || 0,
+                action: 'publish', psid: String(id), reason: '审核中心恢复发布',
+            } as any);
+            this.response.redirect = this.url('oi33_ai_moderation', {
+                query: { solution: 'published' },
+            });
+            return;
+        }
         if (action === 'save_settings') {
             await oi33Model.aiSaveConfig({
                 moderation_enabled: moderation_enabled === '1' ? '1' : '',
                 moderation_model: (moderation_model || '').trim() || 'deepseek-v4-flash',
                 // Empty prompt = fall back to the built-in default.
                 moderation_prompt: (moderation_prompt || '').trim(),
+                // Empty = reuse the general moderation prompt (meow/discussion/bio).
+                moderation_prompt_solution: (moderation_prompt_solution || '').trim(),
                 moderation_words: moderation_words || '',
                 moderation_review_words: moderation_review_words || '',
                 moderation_daily_budget: Math.max(0, moderation_daily_budget || 0),
@@ -513,6 +713,10 @@ class Ai33ModerationHandler extends Handler {
                 // no站内信, so no "received a message" popup.
                 await unhideModerationTarget(entry.target);
                 await oi33Model.modSetStatus(id, 'approved', this.user._id);
+            } else if (entry.target.psid && !entry.target.psrid) {
+                // 题解只有三态：人工驳回也保持隐藏（可编辑后重新提交），不删除。
+                await hideModerationTarget(entry.target);
+                await oi33Model.modSetStatus(id, 'rejected', this.user._id);
             } else {
                 // Reject is deliberately silent: content is removed with no
                 // notification (the standard richtext message didn't render).

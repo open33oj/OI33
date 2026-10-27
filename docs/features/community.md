@@ -9,7 +9,8 @@
 - 集合：`oi33_meow_post`、`oi33_meow_follow`、`oi33_meow_like`。
 - 发帖走审核引擎（`evaluateContent` + `moderateContentInBackground`）：未实名不能发；
   `pending` 仅本人/管理员可见。
-- 页面：`/oi33/meow`（广场）、`/oi33/meow/user/:uid`、关注/粉丝列表、`/oi33/meow/admin`。
+- 页面：`/oi33/meow`（广场）、`/oi33/meow/user/:uid`、关注/粉丝列表。
+- `/oi33/meow/admin` 只做全量查看与删除；**待审队列已并入 `/oi33/ai/moderation#meow`**。
 - 奖章发放**不再自动发喵喵**（自动规则、管理员发放、拍卖、合同、盲盒都不发）；
   旧数据里的奖章公告保留，撤销奖章时顺手删除对应旧公告。
 
@@ -17,10 +18,9 @@
 
 - **全部题解时间线**：`GET /oi33/solutions`（`PERM_VIEW_PROBLEM_SOLUTION`），按 `_id`
   倒序分页列出所有非 hidden 题解；入口在讨论区侧栏组件，不占顶部导航。
-- **题解加精**：`setSolutionFeatured` 把 `featured/featuredAt/featuredBy/featuredRewarded`
-  写在 core 题解文档上；`oi33_solution_config` 存奖励类型（none/can/food）与数量。
-  加精时若作者 `realname_flag === 1` 发一次奖励并私信，`featuredRewarded` 保证只发一次。
-  页面：`/oi33/solutions/featured`（flag≥2）、题目页星标、题解列表精华徽标。
+- **题解加精**：用户每天可申请 1 篇，AI 自动审核并私信修改建议；管理员仍可强制加精/取消。
+  题解只有隐藏 / 发布 / 精华三态，每人对每题只能有一篇。详见
+  [solution-feature.md](solution-feature.md)。
 - **题解审核**：与讨论共用规则+AI+人工队列，详见 [ai.md](ai.md)。
 
 ## 题目讨论

@@ -66,6 +66,8 @@ export function applyDisplayPatches(ctx: Context) {
         if (!body || !Array.isArray(body.psdocs)) return result;
         const uid = Number(this.user?._id) || 0;
         const privileged = solutionPrivileged(this);
+        // 模板据此决定是否显示「申请精华」；null/匿名用户不查。
+        body.featureApplyUsed = uid ? await oi33Model.solutionFeatureApplyUsedToday(uid) : false;
         body.psdocs = body.psdocs.map((psdoc: any) => {
             const doc = maskHiddenSolution(psdoc, uid, privileged);
             if (!doc) return null;

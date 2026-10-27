@@ -51,7 +51,7 @@ export { contractColl } from './contract';
 export { algorithmItemColl, userAlgorithmColl, algorithmConfigColl } from './algorithm';
 export { homeConfigColl } from './home-config';
 export { blindboxColl, blindboxLogColl } from './blindbox';
-export { solutionConfigColl } from './solution-feature';
+export { solutionConfigColl, solutionFeatureApplyColl } from './solution-feature';
 export { judgeMonitorColl } from './judge-monitor';
 
 const oi33Model = {
@@ -129,6 +129,7 @@ declare module 'hydrooj' {
         oi33_medal_blindbox: import('./types').Oi33MedalBlindbox;
         oi33_medal_blindbox_log: import('./types').Oi33BlindboxLog;
         oi33_solution_config: import('./types').Oi33SolutionConfig;
+        oi33_solution_feature_apply: import('./types').Oi33SolutionFeatureApply;
         oi33_judge_monitor: import('./types').Oi33JudgeMonitorDoc;
     }
 }

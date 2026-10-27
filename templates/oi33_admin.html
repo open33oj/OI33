@@ -88,7 +88,7 @@
           <div class="oi33-admin-todo__title">待处理</div>
           <div class="oi33-admin-todo__items">
             {% if pendingCount %}<a class="oi33-admin-todo__item" href="{{ url('oi33_requests') }}">审批申请 <b>{{ pendingCount }}</b></a>{% endif %}
-            {% if meowPendingCount %}<a class="oi33-admin-todo__item" href="{{ url('oi33_meow_admin') }}">喵喵待审 <b>{{ meowPendingCount }}</b></a>{% endif %}
+            {% if meowPendingCount %}<a class="oi33-admin-todo__item" href="{{ url('oi33_ai_moderation') }}#meow">喵喵待审 <b>{{ meowPendingCount }}</b></a>{% endif %}
             {% if modPendingCount %}<a class="oi33-admin-todo__item" href="{{ url('oi33_ai_moderation') }}">AI 审核 <b>{{ modPendingCount }}</b></a>{% endif %}
           </div>
         </div>
@@ -147,8 +147,8 @@
             <h3 class="oi33-admin-card__title">内容与审核</h3>
             <ul class="oi33-admin-card__list">
               {{ adminLink(url('oi33_meow_main'), '喵喵广场', '全站喵喵') }}
-              {{ adminLink(url('oi33_meow_admin'), '喵喵审核', ('待处理 ' ~ meowPendingCount) if meowPendingCount else '人工复核') }}
-              {{ adminLink(url('oi33_ai_moderation'), 'AI 审核', ('待处理 ' ~ modPendingCount) if modPendingCount else '规则 / AI 配置与记录') }}
+              {{ adminLink(url('oi33_meow_admin'), '喵喵管理', '全部喵喵与删除') }}
+              {{ adminLink(url('oi33_ai_moderation'), '内容审核', ('待处理 ' ~ modPendingCount) if modPendingCount else '讨论 / 题解 / 喵喵 / 简介' ) }}
               {{ adminLink(url('oi33_ai_bio_review'), '简介批量审查', '重跑个人简介审核') }}
               {{ adminLink(url('oi33_solutions'), '全部题解', '全站题解时间线') }}
               {{ adminLink(url('oi33_solutions_featured'), '题解加精', '精华题解与加精奖励') }}

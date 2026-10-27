@@ -31,10 +31,89 @@
             </select>
             <input type="number" class="textbox" name="featureRewardAmount" min="0" max="1000000" step="1"
                    value="{{ config.featureRewardAmount }}">
-            <button type="submit" class="rounded primary button">保存奖励设置</button>
             <span class="oi33-featured__hint">当前：{{ rewardText }}</span>
           </div>
+
+          <strong style="display:block;margin-top:1.1rem;">AI 评审</strong>
+          <span class="oi33-featured__hint">留空 = 使用内置默认；提示词必须要求模型只输出 JSON 对象。</span>
+          <div class="oi33-featured__config-row">
+            <input type="text" class="textbox" name="featureModel" maxlength="120"
+                   placeholder="模型名（留空跟随 teacher_model）" value="{{ config.featureModel }}">
+            <input type="number" class="textbox" name="featurePassScore" min="0" max="100" step="1"
+                   value="{{ config.featurePassScore }}">
+            <span class="oi33-featured__hint">通过分数（0-100，默认 70）</span>
+          </div>
+          <div class="oi33-featured__config-row">
+            <textarea class="textbox oi33-featured__prompt" name="featurePrompt" maxlength="8000"
+                      placeholder="自定义评审提示词（留空使用内置默认）">{{ config.featurePrompt }}</textarea>
+          </div>
+          <details style="margin:.4rem 0 .7rem;">
+            <summary class="oi33-featured__hint" style="cursor:pointer;">查看内置默认提示词</summary>
+            <pre class="oi33-featured__default">{{ defaultFeaturePrompt }}</pre>
+          </details>
+          <button type="submit" class="rounded primary button">保存加精设置</button>
         </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">最近加精申请</h1>
+      </div>
+      <div class="section__body">
+        {% if applications.length %}
+        <table class="data-table oi33-featured">
+          <colgroup>
+            <col style="width:9rem;">
+            <col style="width:10rem;">
+            <col style="width:12rem;">
+            <col style="width:8rem;">
+            <col>
+          </colgroup>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>作者</th>
+              <th>题目</th>
+              <th>状态</th>
+              <th>AI 结论</th>
+            </tr>
+          </thead>
+          <tbody>
+            {%- for item in applications -%}
+            {% set apdoc = applyPdocs[item.pid] %}
+            {% set audoc = applyUdict[item.uid] %}
+            <tr>
+              <td style="white-space:nowrap;">{{ datetimeSpan(item.createdAt)|safe }}</td>
+              <td>{% if audoc %}{{ user.render_inline(audoc, badge=false) }}{% else %}UID {{ item.uid }}{% endif %}</td>
+              <td>
+                {% if apdoc %}
+                <a href="{{ url('problem_detail', pid=apdoc.pid|default(item.pid)) }}">{{ apdoc.title }}</a>
+                {% else %}
+                <span class="oi33-featured__missing">题目 #{{ item.pid }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="oi33-apply__status oi33-apply__status--{{ item.status }}">
+                  {%- if item.status == 'pending' %}审核中
+                  {%- elif item.status == 'featured' %}已通过
+                  {%- elif item.status == 'rejected' %}未通过
+                  {%- else %}异常（已退额度）{% endif -%}
+                </span>
+              </td>
+              <td>
+                {% if item.score is defined %}评分 {{ item.score }}：{% endif %}{{ item.reason or '' }}
+                {% if item.suggestions and item.suggestions.length %}
+                <div class="oi33-featured__hint">建议：{{ item.suggestions|join('；') }}</div>
+                {% endif %}
+              </td>
+            </tr>
+            {%- endfor -%}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="oi33-featured__hint">还没有用户申请记录。</p>
+        {% endif %}
       </div>
     </div>
 
@@ -113,6 +192,9 @@
   .oi33-featured__config-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin-top:.5rem; }
   .oi33-featured__config-row .select, .oi33-featured__config-row .textbox { margin-bottom:0; }
   .oi33-featured__config-row .textbox { width:8rem; }
+  .oi33-featured__config-row .textbox[name="featureModel"] { width:20rem; max-width:100%; }
+  .oi33-featured__prompt { width:100%; min-height:8rem; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.82em; }
+  .oi33-featured__default { white-space:pre-wrap; margin:.4rem 0 0; padding:.6rem .7rem; border-radius:8px; background:rgba(127,127,127,.1); font-size:.8em; line-height:1.5; }
   .oi33-featured__badge {
     display:inline-block; margin-right:.35rem; padding:0 .35rem; border-radius:4px;
     background:#e8a33d; color:#fff; font-size:.75em; font-weight:600;
@@ -126,5 +208,10 @@
   .oi33-featured__content a { color:inherit; }
   .oi33-featured__content a:hover { color:var(--accent-color,#55b6e2); }
   .oi33-featured__missing { color:#999; }
+  .oi33-apply__status { display:inline-block; padding:0 .4rem; border-radius:4px; font-size:.78em; font-weight:600; }
+  .oi33-apply__status--pending { background:#f29b3d; color:#fff; }
+  .oi33-apply__status--featured { background:#2e7d32; color:#fff; }
+  .oi33-apply__status--rejected { background:#c62828; color:#fff; }
+  .oi33-apply__status--error { background:#777; color:#fff; }
 </style>
 {% endblock %}

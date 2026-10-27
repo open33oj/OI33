@@ -14,7 +14,6 @@
         {% if (handler.user.realname_flag or 0) >= 2 %}
           <p>
             <a href="/oi33/admin">&laquo; {{ _('Back to Admin') }}</a>
-            <a class="rounded primary button" style="margin-left:1rem;padding:0.4rem 1.2rem;font-size:1rem;" href="{{ url('oi33_ai_bio_review') }}">个人简介批量审查</a>
           </p>
         {% endif %}
         <p class="ai33-desc">{{ _('ai_moderation_help') }}</p>
@@ -29,7 +28,16 @@
           <span class="ai33-stat">{{ _('AI Cost') }}: <b>¥{{ todayCost }}</b></span>
         </p>
 
-        <h3 style="margin:1.5rem 0 1rem;">{{ _('Pending Queue') }}{% if pending.length %}<span class="ai33-subtitle">（{{ pending.length }}）</span>{% endif %}</h3>
+        <div class="ai33-tabs">
+          {% for tab in kindTabs %}
+          {% if tab.id == 'all' %}
+          <a class="ai33-tab{{ ' ai33-tab--on' if kind == 'all' }}" href="{{ url('oi33_ai_moderation') }}">{{ tab.label }} <b>{{ tab.count }}</b></a>
+          {% else %}
+          <a class="ai33-tab{{ ' ai33-tab--on' if kind == tab.id }}" href="{{ url('oi33_ai_moderation', query={kind: tab.id}) }}">{{ tab.label }} <b>{{ tab.count }}</b></a>
+          {% endif %}
+          {% endfor %}
+        </div>
+        <h3 style="margin:1rem 0 1rem;">{{ _('Pending Queue') }}{% if pending.length %}<span class="ai33-subtitle">（{{ pending.length }}）</span>{% endif %}</h3>
         {% if pending.length %}
         <table class="data-table">
           <thead>
@@ -48,7 +56,7 @@
             <tr>
               <td style="white-space:nowrap;">{{ datetimeSpan(e.createdAt)|safe }}</td>
               <td>{% if udict[e.uid] %}{{ user.render_inline(udict[e.uid]) }}{% else %}UID {{ e.uid }}{% endif %}</td>
-              <td>{{ kindLabels[e.kind] or e.kind }}{% if e.bioState === 'stale' %}<span class="ai33-status-stale">简介已变更，仅可标记失效</span>{% elif e.bioState === 'text' %}<span class="ai33-status-warn">哈希异常，按当前简介处理</span>{% endif %}</td>
+              <td>{{ kindLabels[e.kind] or e.kind }}{% if e.targetUrl %} <a class="ai33-target" href="{{ e.targetUrl }}" target="_blank" rel="noopener">查看目标</a>{% endif %}{% if e.bioState === 'stale' %}<span class="ai33-status-stale">简介已变更，仅可标记失效</span>{% elif e.bioState === 'text' %}<span class="ai33-status-warn">哈希异常，按当前简介处理</span>{% endif %}</td>
               <td>{{ e.category }}<span class="ai33-subtitle">{{ e.source }}</span></td>
               <td class="ai33-content-cell">
                 <details>
@@ -97,6 +105,102 @@
         {% else %}
         <p>{{ _('Nothing pending.') }}</p>
         {% endif %}
+
+        <h3 id="meow" style="margin:1.8rem 0 1rem;">喵喵待审{% if meowPending.length %}<span class="ai33-subtitle">（{{ meowPending.length }}）</span>{% endif %}</h3>
+        {% if meowPending.length %}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ _('Time') }}</th>
+              <th>{{ _('User') }}</th>
+              <th>{{ _('Content') }}</th>
+              <th>{{ _('AI Reason') }}</th>
+              <th>{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for post in meowPending %}
+            <tr>
+              <td style="white-space:nowrap;">{{ datetimeSpan(post.createdAt)|safe }}</td>
+              <td>{% if udict[post.uid] %}{{ user.render_inline(udict[post.uid]) }}{% else %}UID {{ post.uid }}{% endif %}</td>
+              <td class="ai33-content-cell">
+                <details>
+                  <summary>{{ post.content|truncate(120) }}</summary>
+                  <div class="ai33-full-scroll"><pre class="ai33-full-content">{{ post.content }}</pre></div>
+                </details>
+              </td>
+              <td class="ai33-content-cell">
+                {% if post.category %}<div class="ai33-subtitle">{{ post.category }} / {{ post.verdictSource or '' }}</div>{% endif %}
+                {% if post.aiReason %}<div class="ai33-reason">{{ post.aiReason }}</div>{% endif %}
+              </td>
+              <td style="white-space:nowrap;">
+                {% if post.targetUrl %}<a class="ai33-target" href="{{ post.targetUrl }}" target="_blank" rel="noopener">查看</a>{% endif %}
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="action" value="meow_approve">
+                  <input type="hidden" name="id" value="{{ post._id }}">
+                  <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
+                </form>
+                <span style="opacity:0.3;">/</span>
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="action" value="meow_reject">
+                  <input type="hidden" name="id" value="{{ post._id }}">
+                  <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="ai33-desc">暂无待审喵喵。</p>
+        {% endif %}
+
+        <h3 id="solution" style="margin:1.8rem 0 1rem;">隐藏题解{% if hiddenSolutions.length %}<span class="ai33-subtitle">（{{ hiddenSolutions.length }}）</span>{% endif %}</h3>
+        <p class="ai33-desc">被规则/AI 拦截、但没有进入人工队列的题解。通过后恢复发布；作者修改后会重新送审。</p>
+        {% if hiddenSolutions.length %}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ _('Time') }}</th>
+              <th>{{ _('User') }}</th>
+              <th>题目</th>
+              <th>{{ _('Content') }}</th>
+              <th>{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for doc in hiddenSolutions %}
+            <tr>
+              <td style="white-space:nowrap;">{{ datetimeSpan(doc._id)|safe }}</td>
+              <td>{% if udict[doc.owner] %}{{ user.render_inline(udict[doc.owner]) }}{% else %}UID {{ doc.owner }}{% endif %}</td>
+              <td>{% if doc.targetUrl %}<a href="{{ doc.targetUrl }}" target="_blank" rel="noopener">#{{ doc.parentId }}</a>{% else %}#{{ doc.parentId }}{% endif %}</td>
+              <td class="ai33-content-cell">
+                <details>
+                  <summary>{{ doc.content|truncate(120) }}</summary>
+                  <div class="ai33-full-scroll"><pre class="ai33-full-content">{{ doc.content }}</pre></div>
+                </details>
+              </td>
+              <td style="white-space:nowrap;">
+                <form method="post" style="display:inline;" onsubmit="return confirm('确认恢复发布这篇题解？');">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="action" value="solution_publish">
+                  <input type="hidden" name="id" value="{{ doc._id }}">
+                  <button type="submit" class="rounded button">通过并发布</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="ai33-desc">没有被拦截且未入队的隐藏题解。</p>
+        {% endif %}
+
+        <h3 id="bio" style="margin:1.8rem 0 1rem;">个人简介</h3>
+        <p class="ai33-desc">简介的待审记录在「简介」标签页的队列里（通过 / 驳回 / 标记失效都在那里）。需要重跑历史简介时使用批量审查。</p>
+        <p><a class="rounded button" href="{{ url('oi33_ai_bio_review') }}">个人简介批量审查</a></p>
 
         <h3 style="margin:1.5rem 0 1rem;">{{ _('Moderation Settings') }}</h3>
         <form method="post" style="margin-bottom:2rem;">
@@ -159,6 +263,15 @@
               </div>
             </div>
           </div>
+          <div class="row">
+            <div class="columns">
+              <div class="form__item">
+                <label>{{ _('Solution Moderation Prompt') }}</label>
+                <textarea name="moderation_prompt_solution" class="textbox ai33-prompt" rows="10" placeholder="留空复用上面的通用 Prompt">{{ config.moderation_prompt_solution or '' }}</textarea>
+                <p class="ai33-desc" style="margin-top:0.3rem;">{{ _('solution_moderation_prompt_help') }}</p>
+              </div>
+            </div>
+          </div>
           <div class="row"><div class="columns">
             <button type="submit" class="rounded primary button">{{ _('Save Config') }}</button>
           </div></div>
@@ -181,7 +294,7 @@
             <tr>
               <td style="white-space:nowrap;">{{ datetimeSpan(e.createdAt)|safe }}</td>
               <td>{% if udict[e.uid] %}{{ user.render_inline(udict[e.uid]) }}{% else %}UID {{ e.uid }}{% endif %}</td>
-              <td>{{ kindLabels[e.kind] or e.kind }}<span class="ai33-subtitle">{{ e.category }}</span></td>
+              <td>{{ kindLabels[e.kind] or e.kind }}<span class="ai33-subtitle">{{ e.category }}</span>{% if e.targetUrl %} <a class="ai33-target" href="{{ e.targetUrl }}" target="_blank" rel="noopener">查看目标</a>{% endif %}</td>
               <td>
                 {% if e.verdict === 'pass' %}<span class="ai33-ok">{{ _('Pass') }}</span>
                 {% elif e.verdict === 'block' %}<span class="ai33-bad">{{ _('Block') }}</span>
@@ -242,5 +355,10 @@
 /* Content + reason scroll together inside one container, so nothing is ever
    clipped below the fold without a way to reach it. */
 .ai33-full-scroll { max-height: 20rem; overflow-y: auto; }
+.ai33-tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin:1rem 0 .2rem; }
+.ai33-tab { display:inline-block; padding:.2rem .8rem; border-radius:999px; background:rgba(127,127,127,.12); color:inherit; font-size:.85em; text-decoration:none; }
+.ai33-tab b { margin-left:.3rem; }
+.ai33-tab--on { background:rgba(85,182,226,.18); color:var(--accent-color,#55b6e2); font-weight:600; }
+.ai33-target { margin-left:.45rem; font-size:.8em; white-space:nowrap; }
 </style>
 {% endblock %}

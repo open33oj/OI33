@@ -160,7 +160,9 @@ export interface ModerationVerdict {
 
 // The shared verdict engine: cache → rules → budget fuse → AI (fail-closed),
 // then the rule layer has the final say over review-words. Never throws.
-export async function runAiVerdict(uid: number, normalized: string, hash: string, cfg: any): Promise<ModerationVerdict> {
+export async function runAiVerdict(
+    uid: number, normalized: string, hash: string, cfg: any, kind?: Oi33ModerationKind,
+): Promise<ModerationVerdict> {
     // Cache: identical normalized content reuses a recent final verdict.
     const cached = await modFindCachedVerdict(hash);
     if (cached) return { verdict: cached.verdict, source: 'cache', category: cached.category };
@@ -187,7 +189,12 @@ export async function runAiVerdict(uid: number, normalized: string, hash: string
             aiReason: 'no api key configured',
         };
     }
-    const systemPrompt = (cfg.moderation_prompt || '').trim() || DEFAULT_MODERATION_PROMPT;
+    const basePrompt = (cfg.moderation_prompt || '').trim() || DEFAULT_MODERATION_PROMPT;
+    // 题解正文/编辑可以单独配 Prompt；喵喵、讨论、简介继续用通用 Prompt。
+    const solutionPrompt = (kind === 'solution' || kind === 'solution_edit')
+        ? String(cfg.moderation_prompt_solution || '').trim()
+        : '';
+    const systemPrompt = solutionPrompt || basePrompt;
     const userPrompt = `<post>\n${normalized.slice(0, MAX_AI_INPUT)}\n</post>`;
     const response = await aiChat({
         config,
@@ -242,12 +249,12 @@ export async function runAiVerdict(uid: number, normalized: string, hash: string
 // run the shared verdict engine. Prefer this over calling runAiVerdict directly
 // so every caller hashes the exact same canonical text.
 export async function evaluateContent(
-    uid: number, text: string, cfg?: Oi33AiConfig,
+    uid: number, text: string, cfg?: Oi33AiConfig, kind?: Oi33ModerationKind,
 ): Promise<{ normalized: string; hash: string; verdict: ModerationVerdict }> {
     const normalized = normalizeText(text);
     const hash = hashOf(normalized);
     const config = cfg || await aiGetConfig();
-    const verdict = await runAiVerdict(uid, normalized, hash, config);
+    const verdict = await runAiVerdict(uid, normalized, hash, config, kind);
     return { normalized, hash, verdict };
 }
 
@@ -390,7 +397,7 @@ export async function moderateContent(opts: ModerateContentOptions): Promise<Mod
     let result: ModerationVerdict;
     try {
         const cfg = opts.cfg || await aiGetConfig();
-        result = await runAiVerdict(uid, normalized, hash, cfg);
+        result = await runAiVerdict(uid, normalized, hash, cfg, kind);
     } catch (e: any) {
         result = {
             verdict: 'review', source: 'error', category: '其他',
@@ -440,4 +447,30 @@ export async function moderateContent(opts: ModerateContentOptions): Promise<Mod
 // Fire-and-forget variant for request-scoped hooks.
 export function moderateContentInBackground(opts: ModerateContentOptions): void {
     moderateContent(opts).catch((e) => console.error('[oi33] moderateContent failed:', e));
+}
+
+// --- 题解隐藏队列（内容审核页用） ------------------------------------------
+// 被规则/AI 拦截而隐藏、但没有进入人工队列的题解：让管理员能在审核中心直接
+// 复核并恢复发布。已经在 oi33_ai_moderation 里 pending 的题解由队列处理，
+// 调用方负责过滤掉，避免同一篇出现两次。
+export async function listHiddenSolutions(limit = 20) {
+    return await db.collection<any>('document').find({
+        docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
+        hidden: true,
+    }).sort({ _id: -1 }).limit(Math.max(1, Math.min(100, limit)))
+        .project({ _id: 1, owner: 1, parentId: 1, domainId: 1, content: 1 })
+        .toArray();
+}
+
+export async function publishHiddenSolution(psid: ObjectId) {
+    const doc: any = await db.collection<any>('document').findOne({
+        _id: psid, docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
+    });
+    if (!doc) return null;
+    // Core solutions carry both `_id` and `docId` (equal); DocumentModel.set
+    // updates by docId, so never assume `_id` alone.
+    await DocumentModel.set(
+        doc.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, doc.docId || psid, { hidden: false } as any,
+    );
+    return doc;
 }
