@@ -19,6 +19,7 @@ View: '查看'
 # --- Page titles (used by handler.renderTitle for browser tab) ---
 oi33_admin: 'OI33 管理后台'
 oi33_admin_home: '首页侧栏卡片配置'
+oi33_admin_ops: '运维与健康'
 oi33_judge_monitor: '评测机监控'
 oi33_migrate: '数据迁移'
 oi33_coin_inc: '发放硬币'

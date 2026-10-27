@@ -4,7 +4,7 @@ import {
 import type { Oi33Auction } from './types';
 import { addLog } from './log';
 import { medalColl, medalGrant, userMedalColl } from './medal';
-import { catCanPoolColl, ensureCurrentCatCanPrice } from './cat-can';
+import { catCanPoolColl, ensureCurrentCatCanPrice } from './cat/can';
 import { userColl } from './user';
 
 export const auctionColl = db.collection('oi33_auction');

@@ -14,8 +14,8 @@ import {
 } from 'hydrooj';
 import type { Oi33SolutionConfig } from './types';
 import { addLog } from './log';
-import { adjustCatCans } from './cat-can';
-import { grantCatFood } from './cat-account';
+import { adjustCatCans } from './cat/can';
+import { grantCatFood } from './cat/account';
 import { userColl } from './user';
 import {
     SOLUTION_CONFIG_ID, normalizeSolutionFeatureConfig, solutionRewardReason, solutionRewardText,

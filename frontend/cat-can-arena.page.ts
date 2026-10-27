@@ -3,14 +3,14 @@ import {
 } from '@hydrooj/ui-default';
 import './cat-can-arena.css';
 import { CAT_FRAMES, CAT_PIXEL_COLORS } from './cat-sprites';
-import { mountBigCatLayer } from './cat-big-arena.page';
-import { MAP_HEIGHT, MAP_WIDTH, MapPlan, MapPlayer, MapState } from './cat-map-shared';
+import { mountBigCatLayer } from './cat-big-arena';
+import {
+    CORE_ZONE_MAX, CORE_ZONE_MIN, MAP_HEIGHT, MAP_WIDTH, MapPlan, MapPlayer, MapState,
+    isCatMapCoreZone as isCoreZone,
+} from './cat-map-shared';
 import { mountPalettes, paletteColor, paletteTextColor, PALETTE_VALUES } from './cat-map-palette';
 import { mountAdminPaintForm } from './cat-map-admin-paint';
 
-// 帝国区为距边框 250 格的环形区域，中央 500×500 为 00区（与服务端 model/cat-map.ts 同步）。
-const CORE_ZONE_MIN = 250;
-const CORE_ZONE_MAX = MAP_WIDTH - CORE_ZONE_MIN - 1;
 const LEGACY_MAP_WIDTH = 640;
 const LEGACY_MAP_HEIGHT = 480;
 const DEFAULT_GRID_SCALE = 52;
@@ -779,9 +779,6 @@ function mountMap() {
             && cellCatIds[fromIndex] === ownCatId
             && cellCatIds[toIndex] === ownCatId;
     };
-
-    const isCoreZone = (x: number, y: number) => x >= CORE_ZONE_MIN && x <= CORE_ZONE_MAX
-        && y >= CORE_ZONE_MIN && y <= CORE_ZONE_MAX;
 
     // 与服务端 fortressCatIdAt 一致的前端预判：00区内上下左右均归属同一大猫的核心格。
     const fortressCatIdAt = (x: number, y: number) => {

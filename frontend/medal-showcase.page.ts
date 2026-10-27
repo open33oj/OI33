@@ -2,7 +2,7 @@ import { AutoloadPage, NamedPage, addPage } from '@hydrooj/ui-default';
 import {
     MEDAL_SHOWCASE_CELL, MEDAL_SHOWCASE_HEIGHT, MEDAL_SHOWCASE_MAX_PIECES,
     MEDAL_SHOWCASE_MAX_SCALE, MEDAL_SHOWCASE_SNAP, MEDAL_SHOWCASE_WIDTH, medalShowcaseScale,
-} from '../model/medal-rules';
+} from '../shared/medal-showcase';
 import './medal-showcase.css';
 
 // 奖章展示墙：一块 320×128 的像素画布（10×4 个 32×32 奖章），奖章按 { id, x, y } 摆放。

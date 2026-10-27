@@ -8,6 +8,11 @@
 
 整合了 8 个独立 Hydro 插件：硬币、生日、徽章、实名、签到、倒计时、剪贴板、前端覆盖。
 
+代码结构、分层约定与新增功能步骤见 [docs/architecture.md](docs/architecture.md) 与
+[docs/adding-a-feature.md](docs/adding-a-feature.md)：`model/` 按功能分目录（`medal/`、`cat/` …），
+`handler/` 每个功能一个路由入口 `index.ts`，`shared/` 放前后端共用的纯模块，`data/` 放随插件分发的
+只读数据。
+
 ## 功能
 
 | 功能 | 说明 | 路由 |
@@ -542,7 +547,7 @@ hydrooj addon remove frontend-33oj
 
 ## 大猫世界
 
-猫猫广场的“大猫视角”以领地底图取代了旧的大猫精灵摆放：每只大猫代表 OIerDB 的一所学校，公开标签为 `<拼音缩写>#<OIerDB编号>`（如 `CSSYLZX#0`），详情中可跳转到 `oier.baoshuo.dev` 对应学校页面。学校数据来自 OIerDB（`scripts/school.txt`），用 `python scripts/build-school-cat-data.py`（需 `pypinyin`）重新生成 `model/school-cat-data.json`；运行时只在内存中索引该文件，不再复制到 `oi33_school`。执行 `/oi33/migrate` 会幂等删除该冗余旧集合。
+猫猫广场的“大猫视角”以领地底图取代了旧的大猫精灵摆放：每只大猫代表 OIerDB 的一所学校，公开标签为 `<拼音缩写>#<OIerDB编号>`（如 `CSSYLZX#0`），详情中可跳转到 `oier.baoshuo.dev` 对应学校页面。学校数据来自 OIerDB（`scripts/school.txt`），用 `python scripts/build-school-cat-data.py`（需 `pypinyin`）重新生成 `data/school-cat-data.json`；运行时只在内存中索引该文件，不再复制到 `oi33_school`。执行 `/oi33/migrate` 会幂等删除该冗余旧集合。
 
 ### 绑定与投喂
 
@@ -612,6 +617,11 @@ hydrooj addon remove frontend-33oj
   - 倒计时按服务器当天过滤：早于今天的日期不显示。市场 / 拍卖查询失败只会隐藏这两块。
 
 ## 管理后台
+
+管理仪表盘 `/oi33/admin` 汇总全部管理页；`/oi33/admin/ops` 是运维与健康页：启动失败的部件、
+定时任务状态、各集合数据量，以及重算领地 / 校准市场 / 重建索引 / 重跑奖章评估等安全修复动作。
+
+
 
 `/oi33/admin`（OI33 flag ≥ 2）是唯一的管理入口：顶部「待处理」集中显示待审批申请、喵喵待审、AI 审核的待处理数量，下面按「用户与账号 / 经济与猫罐头 / 奖章与拍卖 / 内容与审核 / 教学与算法 / 猫猫世界 / AI 能力 / 外观与系统」八组列出全部管理页，每条带一句说明；再往下是最近操作时间线（可按类型筛选、分页）。
 
@@ -864,13 +874,23 @@ OI33 内置 Wiki 百科，支持 Markdown 页面 CRUD、多级分类目录和 JS
 ## 开发校验
 
 ```bash
-npm run typecheck           # 后端 tsc：只对项目代码判成败（node_modules 里的既有诊断被过滤）
-npm run typecheck:frontend  # 前端 page 脚本
+npm run typecheck           # 后端 tsc：只对项目代码判成败（第三方依赖的既有诊断被过滤）
+npm run typecheck:frontend  # 前端 page 脚本与 shared/
 npm run lint                # eslint（非类型感知；类型问题交给 typecheck）
 npm run check:locales       # locales/zh.yaml 解析校验 + oi33 页面标题覆盖率（已并入 npm test）
+npm run check:structure     # 路由唯一性/前缀/挂载、模板引用、model 桶、规则测试
 npm test                    # 纯函数单测 + locale 校验
+npm run check               # 以上全部，提交/发版前跑这个
 ```
 
-纯函数（不 import hydrooj/DB）都放在 `model/*-rules.ts` 里便于单测：审核规则与简介判定（`moderate-rules.ts`）、NOI 大纲编号（`algorithm-rules.ts`）、猫咪地图计划校验（`cat-map-plan-rules.ts`）、奖章分类与等级（`medal-rules.ts`）。`typescript` 固定在 devDependencies 的 `~5.9.3`——不固定时安装 eslint 之类的 peer 依赖会把它升到 TS 6，`tsconfig.json` 的 `baseUrl` 会直接变成硬报错。
+纯函数（不 import hydrooj/DB）都在 `model/*-rules.ts` 或 `model/<feature>/rules.ts` 里，旁边必须有同名
+`.test.ts`：审核规则与简介判定（`moderate-rules.ts`）、NOI 大纲编号（`algorithm-rules.ts`）、猫咪地图
+计划校验（`cat/map-plan-rules.ts`）、奖章分类与等级（`medal/rules.ts`）等。规则模块若要 import 其它
+运行时模块，specifier 必须带 `.ts` 扩展名（Node 的 type-stripping 不做无扩展名解析），详见
+[docs/architecture.md](docs/architecture.md)。
+
+`tsconfig.json` 不再使用 `baseUrl`（TS 6 会把它当作硬错误；`paths` 自 TS 4.1 起相对 tsconfig 解析），
+`scripts/typecheck.mjs` 以 tsc 的退出码为准，配置级错误也会判失败。CI/本地都用 `npm ci` 安装依赖，
+不要软链到其它 checkout 的 `node_modules`（会把 TypeScript 版本带偏）。
 
 **页面标题**：任何带 `{% set page_name = "oi33_xxx" %}` 的模板，都必须在 `locales/zh.yaml` 登记 `oi33_xxx: '中文标题'`（`npm run check:locales` 会强制检查；YAML 里同一个键出现两次会让 js-yaml 拒绝加载**整份** locale，启动时报 `duplicated mapping key`，所以别在文件后半段重复登记）。`handler.renderTitle(page_name)` 用它渲染浏览器标签页标题，漏登记时标签会显示原始的 `page_name`。新增页面时请一并补上。

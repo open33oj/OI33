@@ -5,12 +5,17 @@
   "main": "index.ts",
   "author": "33DAI",
   "license": "AGPL-3.0",
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "typecheck": "node scripts/typecheck.mjs",
     "typecheck:frontend": "node scripts/typecheck.mjs tsconfig.frontend.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "check:locales": "node scripts/check-locales.mjs",
+    "check:structure": "node scripts/check-structure.mjs",
+    "check": "npm run typecheck && npm run typecheck:frontend && npm run lint && npm test && npm run check:structure",
     "test": "node --test \"model/**/*.test.ts\" \"handler/**/*.test.ts\" && node scripts/check-locales.mjs"
   },
   "dependencies": {

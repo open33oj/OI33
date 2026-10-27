@@ -14,11 +14,10 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "baseUrl": ".",
     "paths": {
       "cordis": ["./node_modules/hydrooj/node_modules/cordis"]
     }
   },
-  "include": ["index.ts", "model.ts", "migrate.ts", "handler/**/*.ts", "model/**/*.ts", "scripts/**/*.ts"],
+  "include": ["index.ts", "model.ts", "migrate.ts", "handler/**/*.ts", "model/**/*.ts", "shared/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist", "public", "frontend"]
 }

@@ -2,7 +2,7 @@ import { db, ObjectId } from 'hydrooj';
 import { Oi33Request, Oi33RequestKind, Oi33RequestPayload, Oi33RequestStatus } from './types';
 import { addLog, logColl } from './log';
 import { userColl } from './user';
-import { removeCatMapPlayer } from './cat-map';
+import { removeCatMapPlayer } from './cat/map-player';
 
 export const requestColl = db.collection('oi33_request');
 

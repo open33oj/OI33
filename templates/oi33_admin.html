@@ -195,6 +195,7 @@
             <ul class="oi33-admin-card__list">
               {{ adminLink(url('oi33_admin_home'), '首页侧栏卡片', '运势、倒计时与行情显示') }}
               {{ adminLink(url('oi33_judge_monitor'), '评测机监控', '心跳与企业微信告警') }}
+              {{ adminLink(url('oi33_admin_ops'), '运维与健康', '启动状态、定时任务与修复动作') }}
               {{ adminLink(url('oi33_migrate'), '数据迁移', '从旧插件导入（幂等）') }}
               {{ adminLink(url('oi33_oauth_clients'), 'OAuth 应用', '第三方登录接入') }}
               {% if canPrivAll %}{{ adminLink(url('oi33_tokens'), 'API Token', '只读 Bearer Token') }}{% endif %}

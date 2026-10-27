@@ -10,11 +10,7 @@ import * as oauthModel from './oauth';
 // the barrel's named `oauthTokenColl` export disambiguates them.
 import * as tokenModel from './token';
 import * as logModel from './log';
-import * as catCanModel from './cat-can';
-import * as catAccountModel from './cat-account';
-import * as catMapModel from './cat-map';
-import * as catMapPlanModel from './cat-map-plan';
-import * as schoolCatModel from './school-cat';
+import * as catModel from './cat';
 import * as aiModel from './ai';
 import * as moderateModel from './moderate';
 import * as meowModel from './meow';
@@ -38,10 +34,11 @@ export {
     tokenColl as oauthTokenColl, refreshColl as oauthRefreshColl,
 } from './oauth';
 export { logColl } from './log';
-export { catCanBillColl, catCanPoolColl, catCanPriceColl } from './cat-can';
-export { catFoodBatchPreviewColl } from './cat-account';
-export { catMapPlayerColl, catMapCellColl, catMapPlanColl, catMapConfigColl } from './cat-map';
-export { schoolCatColl, schoolFeedHistoryColl, schoolCatRewardColl } from './school-cat';
+export {
+    catCanBillColl, catCanPoolColl, catCanPriceColl, catFoodBatchPreviewColl,
+    catMapPlayerColl, catMapCellColl, catMapPlanColl, catMapConfigColl,
+    schoolCatColl, schoolFeedHistoryColl, schoolCatRewardColl,
+} from './cat';
 export {
     aiAnalysisColl, aiConfigColl, aiProblemSummaryColl,
     aiProviderColl, aiAccessColl, aiUsageColl,
@@ -65,11 +62,7 @@ const oi33Model = {
     ...oauthModel,
     ...tokenModel,
     ...logModel,
-    ...catCanModel,
-    ...catAccountModel,
-    ...catMapModel,
-    ...catMapPlanModel,
-    ...schoolCatModel,
+    ...catModel,
     ...aiModel,
     ...moderateModel,
     ...meowModel,

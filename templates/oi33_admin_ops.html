@@ -1,0 +1,161 @@
+{% set page_name = "oi33_admin_ops" %}
+{% extends "layout/basic.html" %}
+
+{% block content %}
+<style>
+  .oi33-ops-runtime { display:flex; flex-wrap:wrap; gap:.5rem 1.4rem; margin-bottom:1.4rem; font-size:.9em; }
+  .oi33-ops-runtime span b { font-weight:600; }
+  .oi33-ops-section { margin-bottom:1.8rem; }
+  .oi33-ops-section__title { font-size:1rem; margin:0 0 .7rem; padding-bottom:.4rem; border-bottom:1px solid rgba(127,127,127,.18); }
+  .oi33-ops-alert { margin:0 0 1.2rem; padding:.8rem 1rem; border:1px solid rgba(198,40,40,.4); border-radius:10px; background:rgba(198,40,40,.06); }
+  .oi33-ops-alert__title { font-weight:700; color:#c62828; margin-bottom:.4rem; }
+  .theme--dark .oi33-ops-alert__title { color:#ef6c6c; }
+  .oi33-ops-alert ul { margin:0; padding-left:1.1rem; }
+  .oi33-ops-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.6rem; }
+  .oi33-ops-cell { border:1px solid rgba(127,127,127,.22); border-radius:8px; padding:.55rem .7rem; }
+  .oi33-ops-cell__label { opacity:.6; font-size:.78em; }
+  .oi33-ops-cell__value { font-size:1.15em; font-weight:700; margin-top:.15rem; }
+  .oi33-ops-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:.8rem; }
+  .oi33-ops-action { border:1px solid rgba(127,127,127,.22); border-radius:10px; padding:.8rem .9rem; }
+  .oi33-ops-action__title { font-weight:700; margin-bottom:.25rem; }
+  .oi33-ops-action__desc { opacity:.65; font-size:.85em; line-height:1.5; margin-bottom:.6rem; }
+  .oi33-ops-action form { margin:0; }
+  .oi33-ops-action button { min-width:8rem; }
+  .oi33-ops-table { width:100%; border-collapse:collapse; font-size:.88em; }
+  .oi33-ops-table th, .oi33-ops-table td { text-align:left; padding:.35rem .55rem; border-bottom:1px solid rgba(127,127,127,.14); vertical-align:top; }
+  .oi33-ops-table th { opacity:.6; font-weight:600; white-space:nowrap; }
+  .oi33-ops-err { color:#c62828; }
+  .theme--dark .oi33-ops-err { color:#ef6c6c; }
+  .oi33-ops-ok { color:#2e7d32; }
+  .theme--dark .oi33-ops-ok { color:#6fcf76; }
+  .oi33-ops-pending a { display:inline-flex; align-items:center; gap:.4rem; margin:0 .7rem .5rem 0; padding:.2rem .7rem; border-radius:999px; background:rgba(127,127,127,.14); }
+</style>
+
+<div class="row">
+  <div class="medium-12 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">{{ _('OI33 Ops & Health') }}</h1>
+      </div>
+      <div class="section__body">
+
+        <div class="oi33-ops-runtime">
+          <span>进程启动：<b>{{ runtime.startedAt }}</b></span>
+          <span>运行时长：<b>{{ runtime.uptime }}s</b></span>
+          <span>内存：<b>{{ runtime.memoryMb }} MiB</b></span>
+          <span>实例：<b>{{ runtime.instance }}</b></span>
+          <span>Node：<b>{{ runtime.node }}</b></span>
+        </div>
+
+        <div class="oi33-ops-section">
+          <h3 class="oi33-ops-section__title">启动状态</h3>
+          {% if applyFailures.length %}
+          <div class="oi33-ops-alert">
+            <div class="oi33-ops-alert__title">有 {{ applyFailures.length }} 个部件未加载</div>
+            <ul>
+              {% for item in applyFailures %}
+              <li><b>{{ item.name }}</b>（{{ item.at }}）：<span class="oi33-ops-err">{{ item.message }}</span></li>
+              {% endfor %}
+            </ul>
+            <p style="margin:.6rem 0 0;opacity:.65;">这些功能在本进程内不可用，其它部件不受影响。修好后重启进程即可。</p>
+          </div>
+          {% else %}
+          <p class="oi33-ops-ok">全部部件已加载。</p>
+          {% endif %}
+        </div>
+
+        <div class="oi33-ops-section">
+          <h3 class="oi33-ops-section__title">定时任务</h3>
+          {% if tasks.length %}
+          <table class="oi33-ops-table">
+            <thead><tr><th>任务</th><th>最近运行</th><th>最近成功</th><th>次数</th><th>结果</th></tr></thead>
+            <tbody>
+              {% for task in tasks %}
+              <tr>
+                <td>{{ task.name }}</td>
+                <td>{{ task.lastRunAt }}</td>
+                <td>{{ task.lastSuccessAt }}</td>
+                <td>{{ task.runs }}（失败 {{ task.failures }}）</td>
+                <td>
+                  {% if task.lastError %}<span class="oi33-ops-err">{{ task.lastError }}</span>
+                  {% elif task.lastMessage %}{{ task.lastMessage }}
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p style="opacity:.65;">本进程还没有跑过定时任务。</p>
+          {% endif %}
+        </div>
+
+        <div class="oi33-ops-section">
+          <h3 class="oi33-ops-section__title">待处理</h3>
+          <div class="oi33-ops-pending">
+            <a href="{{ url('oi33_requests') }}">审批申请 <b>{{ pending.requests }}</b></a>
+            <a href="{{ url('oi33_meow_admin') }}">喵喵待审 <b>{{ pending.meow }}</b></a>
+            <a href="{{ url('oi33_ai_moderation') }}">AI 审核 <b>{{ pending.moderation }}</b></a>
+          </div>
+        </div>
+
+        <div class="oi33-ops-section">
+          <h3 class="oi33-ops-section__title">数据量</h3>
+          <div class="oi33-ops-grid">
+            {% for item in counts %}
+            <div class="oi33-ops-cell">
+              <div class="oi33-ops-cell__label">{{ item.label }}</div>
+              <div class="oi33-ops-cell__value">{{ item.count }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="oi33-ops-section">
+          <h3 class="oi33-ops-section__title">运维动作</h3>
+          <div class="oi33-ops-actions">
+            {% for action in actionOptions %}
+            <div class="oi33-ops-action">
+              <div class="oi33-ops-action__title">{{ action.label }}</div>
+              <div class="oi33-ops-action__desc">{{ action.description }}</div>
+              {% if flag >= action.minFlag %}
+              <form method="post" action="{{ url('oi33_admin_ops') }}">
+                <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                <input type="hidden" name="action" value="{{ action.id }}">
+                <button type="submit" class="rounded button">{{ action.label }}</button>
+              </form>
+              {% else %}
+              <p style="opacity:.55;margin:0;">需要行政管理员（flag ≥ {{ action.minFlag }}）。</p>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="oi33-ops-section">
+          <h3 class="oi33-ops-section__title">本次进程最近操作</h3>
+          {% if actions.length %}
+          <table class="oi33-ops-table">
+            <thead><tr><th>时间</th><th>动作</th><th>操作者</th><th>结果</th></tr></thead>
+            <tbody>
+              {% for item in actions %}
+              <tr>
+                <td>{{ item.at }}</td>
+                <td>{{ item.action }}</td>
+                <td>UID {{ item.operator }}</td>
+                <td>{% if item.ok %}<span class="oi33-ops-ok">{{ item.message }}</span>{% else %}<span class="oi33-ops-err">{{ item.message }}</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p style="opacity:.65;">还没有执行过运维动作。</p>
+          {% endif %}
+        </div>
+
+        <p style="margin-top:1.4rem;"><a href="{{ url('oi33_admin') }}" class="rounded button">返回管理仪表盘</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

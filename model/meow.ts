@@ -5,7 +5,7 @@ import type {
 } from './types';
 import { addLog, logColl } from './log';
 import { userColl } from './user';
-import { catCanPoolColl } from './cat-can';
+import { catCanPoolColl } from './cat/can';
 
 export const meowPostColl = db.collection('oi33_meow_post');
 export const meowFollowColl = db.collection('oi33_meow_follow');

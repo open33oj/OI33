@@ -1,4 +1,4 @@
-# Generates model/school-cat-data.json from scripts/school.txt (OIerDB school list).
+# Generates data/school-cat-data.json from scripts/school.txt (OIerDB school list).
 # Each school gets a display code: <province code>#<pinyin initials of official name>#<index>,
 # where index = (1-based line number) - 4, i.e. 0-based over non-comment lines.
 # Usage: python scripts/build-school-cat-data.py [school.txt] [output.json]
@@ -32,7 +32,7 @@ def abbreviation(name: str) -> str:
 
 def main() -> None:
     source = sys.argv[1] if len(sys.argv) > 1 else 'scripts/school.txt'
-    target = sys.argv[2] if len(sys.argv) > 2 else 'model/school-cat-data.json'
+    target = sys.argv[2] if len(sys.argv) > 2 else 'data/school-cat-data.json'
     schools = []
     skipped = 0
     with open(source, encoding='utf-8') as handle:

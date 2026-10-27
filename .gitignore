@@ -9,3 +9,6 @@ Thumbs.db
 # Python
 __pycache__/
 *.py[cod]
+
+# symlinked local dependency tree (dev shortcut)
+node_modules

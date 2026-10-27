@@ -1,87 +1,105 @@
 # OI33 — 33OJ Unified Hydro Plugin
 
-把多个 legacy 插件（coin、birthday、badge、realname、checkin、pastebin、猫罐头经济、奖章/拍卖、AI 题意/审核、wiki、OAuth 等）整合为单个 Hydro addon。入口 `index.ts` 依次调用各 `handler/*.ts` 的 `apply(ctx)`；model 统一经 `model/index.ts` 的 `oi33Model` 桶导出，业务数据全部存在 `oi33_*` 集合（字段见 `model/types.ts`）。
+把 coin、birthday、badge、realname、checkin、pastebin、猫罐头经济、奖章/拍卖、AI 题意/审核、
+wiki、OAuth 等整合为**单个** Hydro addon：入口 `index.ts` 按功能 `apply`，数据全部在
+`oi33_*` 集合，model 统一经 `model/index.ts` 的 `oi33Model` 桶导出。
+
+## 文档索引
+
+| 文档 | 内容 |
+| --- | --- |
+| [docs/architecture.md](docs/architecture.md) | 分层、目录、路由/模板/前端/数据/测试约定 |
+| [docs/adding-a-feature.md](docs/adding-a-feature.md) | 新增功能的逐步清单 |
+| [docs/features/medal.md](docs/features/medal.md) | 奖章：四系列、等级、展示墙、导入导出 |
+| [docs/features/cat.md](docs/features/cat.md) | 猫咪地图、路径规划、大猫与周奖励 |
+| [docs/features/economy.md](docs/features/economy.md) | 猫粮/罐头、市场、拍卖、合同、盲盒 |
+| [docs/features/algorithm.md](docs/features/algorithm.md) | 算法掌握（NOI 大纲、月度自评额度） |
+| [docs/features/ai.md](docs/features/ai.md) | AI 客户端、审核引擎、bio、题解/讨论审核 |
+| [docs/features/community.md](docs/features/community.md) | 喵喵、题解、题目讨论、Wiki、OC 赛制 |
+| [docs/features/accounts.md](docs/features/accounts.md) | 身份/主档、OAuth、Token、Paste、评测机监控 |
+| [docs/features/ops.md](docs/features/ops.md) | `/oi33/admin/ops`：健康状态与运维动作 |
+| [docs/patches.md](docs/patches.md) | 17 处 monkey-patch 与 25 个 core 模板覆盖清单 |
+| [API.md](API.md) | Bearer Token 只读 API（MCP/Agent） |
 
 ## 目录
 
-- `model/` 数据层：`user.ts`（oi33_user 主档：签到/猫粮/实名/徽章）、`cat-*.ts`（`cat-map.ts` 地图/归属判定、`cat-map-plan.ts` 路径规划、`cat-map-plan-rules.ts` 纯校验）、`school-cat.ts`（+ `school-cat-reward.ts` 周奖励结算）、`medal.ts`（+ `medal-rules.ts` 纯分类/等级/展示规则、`medal-definitions.ts` 定义导入导出）（奖章定义 + `medalCategoryOf` 派生四系列 + 可升级等级阶梯（奖项认证奖章与 OJ 成就奖章共用 `levels`，自动系列每级带自己的 `threshold`）+ 发放/等级 API，集合 `oi33_medal` / `oi33_user_medal`，`oi33_user_medal.level` 记录所持等级；原 `achievement*` 符号全部改名：`medalList`/`medalCatalogue`/`medalGet`/`medalSave`/`medalDelete`/`medalGetUserAwards`/`medalListRecentAwards`/`medalListAwardsPaginated`（管理页“最近授予”分页，返回 `{awards,total,tpcount}`）/`medalAwardStats`/`medalListLevelHolders`（某等级当前持有者，供目录点入）/`medalListHolders`（某奖章全部持有者，不分系列，供目录「查看持有者」页）/`medalGrant`（一般奖章重复获得时累加 `count` 并升星，其它系列仍只记一枚）/`medalSetLevel`/`medalRevoke`/`medalEvaluateUser`/`medalEvaluateAll`/`medalImportInitialDefinitions`/`medalExportDefinitions`/`medalImportDefinitions`（奖章定义 JSON 导入 / 导出，仅定义不含持有记录）/`medalCategoryOf`/`medalCategoryName`/`medalGroupByCategory`/`medalLevelOf`（严格查询，写路径用）/`medalDisplayRung`（宽松查询，仅渲染用：等级被管理员从阶梯中删除后回退到最接近的存活等级）/`medalSortedLevels`/`medalAwardView`/`medalIsLevelSeries`/`medalThresholdLevel`/`medalAutomaticRuleText`/`medalStarLevel`（一般奖章重复获得的星级 = ⌊log₂数量⌋，不存库）/`medalLevelLabel`（等级显示名：去掉历史 `Lv.N` 前缀，无名回退「第 N 级」）/`medalShowcasePieces`/`medalShowcaseCopyLimit`/`medalShowcaseTrim`/`medalShowcaseScale`/`MEDAL_SHOWCASE_CELL`/`MEDAL_SHOWCASE_COLUMNS`/`MEDAL_SHOWCASE_ROWS`/`MEDAL_SHOWCASE_WIDTH`/`MEDAL_SHOWCASE_HEIGHT`/`MEDAL_SHOWCASE_SNAP`/`MEDAL_SHOWCASE_MAX_PIECES`（展示墙 10×4 均一尺寸、半格吸附与整数倍缩放规则；`special_medals` 为新增的 OJ 指标：已获得的特殊奖章数，只计一般/可售卖/奖项认证）/`medalMigrateAutomaticLevels`/`AUTOMATIC_RULE_TYPES`/`MEDAL_AUTOMATIC_SERIES`/`medalGetAcceptedDomains`/`medalSetAcceptedDomains`/`medalAcceptedDomainIncluded`/`ensureMedalIndexes`）、`auction/contract.ts`（`oi33_auction` / `oi33_medal_contract`，均以 `medalId` 引用奖章；拍卖助手改名 `auctionSaleableShowcase`、`remainText` 移入本模块；`contractDelete` 仅允许发起人删除已取消的合同）、`ai.ts`（AI 配置/用量/批量状态 `oi33_ai_batch`）、`moderate.ts`（审核队列 + `modExpireEntries`；纯规则层在 `moderate-rules.ts`：`normalizeText`/`hashOf`/`bioHashOf`/`sameBioText`/`bioQueueState`/`moderationEnabled`/`checkRules`）、`algorithm.ts`（+ `algorithm-outline.ts` 大纲导入/迁移、`algorithm-item.ts` 项目持久化、`algorithm-rules.ts` 纯 id 规范化）（算法掌握：`oi33_algorithm_item` 大纲/自定义项目 + `oi33_user_algorithm` 一人一项的 4 档评定（没学/不会/不熟/熟练，无记录按没学显示，前端用洛谷难度色号着色）+ `oi33_algorithm_config` 单文档配置；默认大纲随插件内置在 `noi-outline-2025.json`（NOI 2025 大纲，3 级/12 板块/260 项，含难度 1-10；`ALGORITHM_DROPPED_SECTION` = 官方「基础知识与编程环境」板块，已从大纲剔除）；`algorithmProfileView`/`algorithmGroupItems`/`algorithmComputeStats` 产出面板视图与统计，`algorithmSetLevels` 写评定，`algorithmMonthKey`/`algorithmNextUpdateDate`/`algorithmGetSelfQuota`/`algorithmClaimSelfQuota`/`algorithmReleaseSelfQuota`/`algorithmResetSelfQuota` 管学生每月一次的提交额度，`algorithmImportOutline`/`algorithmEnsureOutlineImported` 幂等导入（`normalizeOutlineId` 把官方 `2.1.1-12` 规范成 `1.1.12`，`algorithmMigrateOutlineIds` 迁移库内旧 id），`algorithmSaveItem`/`algorithmDeleteItem`/`algorithmSetItemEnabled`/`algorithmBulkSetEnabled` 管理项目，`algorithmNormalizeLevel`/`ALGORITHM_LEVELS` 为等级常量）、`log.ts`（审计日志，每次写操作都记）、`blindbox.ts`（+ `blindbox-rules.ts` 纯规则：`normalizeBlindboxName/Price/OpenAt/Items`、`validateBlindboxItems`（1–10 项、每项 1–100、总和 100）、`pickBlindboxMedal` 加权抽取、`blindboxDayKey`（Asia/Shanghai 自然日）、`blindboxOpenAtInputValue`；`oi33_medal_blindbox` 盲盒组 + `oi33_medal_blindbox_log` 开盒记录，`blindboxMedalIssue` 只允许一般奖章（盲盒是一般奖章的售卖形式），`blindboxPurchase` 顺序为「原子占每日额度（`oi33_user.blindbox_day/blindbox_count`，每天 3 次跨组共用）→ `adjustCatCans` 扣款 → 在整组里按权重抽（允许重复：`medalGrant` 对一般奖章累加 `oi33_user_medal.count`，星级由 `medalStarLevel` = ⌊log₂数量⌋ 派生）→ `medalGrant(source:'blindbox')`」，任何一步失败都回滚额度与罐头，`blindboxOverview` 出用户页视图，`blindboxLogs`/`blindboxLogPage`/`blindboxAttachMedals` 出开盒记录（后者给每条记录挂上奖章定义））、`solution-feature.ts`（+ `solution-feature-rules.ts`：题解加精。`featured`/`featuredAt`/`featuredBy`/`featuredRewarded` 直接写在 core 题解文档上；`oi33_solution_config` 单文档存 `featureRewardType`(none/can/food) 与 `featureRewardAmount`；`setSolutionFeatured` 加精时若作者 `realname_flag` 为 1（<2 且已认证）就通过 `adjustCatCans`/`grantCatFood` 发一次奖励并私信，`featuredRewarded` 保证同一篇只发一次）、`judge-monitor.ts`（+ `judge-monitor-rules.ts` 纯规则：`normalizeJudgeMonitorConfig`/`normalizeOnlineMids`/`judgeMonitorNotifyState`/`judgeMonitorOnlineDiff`/`normalizeJudgeMonitorNotifyKind`；评测机监控的配置与状态存在单文档 `oi33_judge_monitor`（`_id:'main'`），API `judgeMonitorGet`/`judgeMonitorPatch`（一次检查 = 1 次 findOne + 1 次 updateOne）/`judgeMonitorSaveConfig`/`judgeMonitorMigrateFromSettings`（幂等 `$setOnInsert`，由 `/oi33/migrate` Step 18 把旧版写在 core `system` 里的 9 个 `oi33.judge_monitor.*` key 搬过来））。
-- `handler/` 路由与逻辑（`ctx.Route` 注册，路由表看代码）：`ai/` 是目录（`prompts.ts` 提示词与纯工具、`summary.ts` 题意/难度、`analyze.ts` 代码分析流与并发槽、`admin.ts` 后台与权限、`index.ts` 汇总 `apply`）；`user/content/admin/profile/wiki/oauth/cat-*/school-cat/moderate/meow/medal/auction/contract/bio/solution/discuss.ts`（`solution.ts` = 全部题解时间线 `/oi33/solutions` + 题解加精（`POST /oi33/solutions/feature` 加精/取消、`/oi33/solutions/featured` 后台页（奖励配置 + 可筛选列表）与 `POST /oi33/solutions/feature/config`）；`blindbox.ts` = 盲盒奖章（`/oi33/blindbox` 用户页（左侧奖章卡片墙：像素图 + 几率 + 已获得的 ×数量/★星级；右侧最近 10 次开盒）、`/oi33/blindbox/logs` 分页开盒记录（`blindboxLogPage`）、`/oi33/blindbox/buy` 购买、`/oi33/blindbox/manage` 后台 + save/toggle/delete，编辑链接走 `/oi33/blindbox/manage/:id`（路径参数，`?edit=` 兼容旧链接）并回填该组全部设置，保存后仍停在该组的编辑态；编辑旧盲盒时池内已不允许的奖章也会出现在下拉框并保持选中；已有盲盒列表的操作列放开 core `.data-table` 的 nowrap/ellipsis 并换行显示，编辑/上下架/删除按钮不会被裁成「…」）；`discuss.ts` = 题目讨论板块 `/oi33/discuss/problem` + 把题目讨论从 `/discuss` 剔除；`moderate.ts` 注册 `/oi33/medals*` 全部奖章路由——管理、编辑 `/oi33/medals/:id/edit`（路径参数，`?edit=` 兼容）、保存、配置、定义导出 `/oi33/medals/export` 与导入 `/oi33/medals/import`、授予、`/oi33/medals/level` 等级升降、撤销、扫描、公开目录四类标签页（一般 → 可售卖 → 奖项认证 → OJ，默认一般；认证系列与 OJ 成就系列的每个等级可点入 `/oi33/medals/catalogue/:id/level/:level` 查看该等级持有者，任意奖章都可在 `/oi33/medals/catalogue/:id/holders` 看全部持有者）、展示墙（`/oi33/medals/showcase`）、只读的用户奖章展示页 `/oi33/medals/user/:uid`、单用户奖章管理页 `/oi33/medals/user/:uid/manage`（flag≥2，发放/撤销/升降级）；四系列由 `medalCategoryOf` 派生，另注册 `/oi33/achievements`、`/oi33/achievements/rare`、`/oi33/achievements/showcase`、`/oi33/achievements/user/:uid` 四条旧路由的 GET 重定向）；`contest.ts` 注册 OC（One Chance）赛制（`ContestModel.RULES.oc`，基于 core `ioi` 规则 `buildContestRule`，按每题个人时限内第一次提交计排名分、括号显示全部比赛内提交的最高分，编辑页选项靠 `templates/contest_edit.html` 里的 `contest-rule--oc` class 与 IOI 对齐，`templates/contest_detail.html` 追加赛制规则卡片，文案在 `locales/zh.yaml`「Contest Rules」节；比赛列表标签颜色在 `frontend/contest-oc.css`，core 只为内置赛制配色故 `contest-type--oc` 需自带背景；`templates/contest_main.html` 与 `templates/partials/homepage/contest.html` 同名覆盖 core，把 /contest 顶部大卡片、全部比赛列表（含历史）与首页比赛组件统一为紧凑表格（面板卡片内每赛两行三列：状态图标 rowspan+大字号名称链接/赛制·起止时间·时长+右侧跨两行居中的参加人数，无参加按钮，宏在共享的 `templates/partials/oi33_contest_table.html`，样式在 `frontend/contest-main.css`））。**OC 补题**：个人时限（startAt+duration，封顶比赛 endAt 与提前结束 tsdoc.endAt，见 `ocDeadline`）之后——无论比赛是否结束——都可继续在比赛内提交，记录仍挂 contest 进 journal 但被标记 `late`，不计排名分只计括号最高分。实现：包装 `ProblemSubmitHandler.prototype.prepare`（OC 已参赛用户放行 `ContestNotLiveError`）与 `ProblemDetailHandler.prototype._prepare`（赛后保持 `mode='contest'` 使提交 URL 带 tid）；core 的 `updateStatus`/`revPushStatus` 不懂个人 deadline 且会重建无标记 entry，故 `handler/after/ProblemSubmit#post` 与 `record/judge` 两个事件触发 `recalcOcStatus` 重打 `late` 标记并重算 score/detail/display（持久化标记保证 core 的 recalcStatus/unlockScoreboard 重算结果也正确））；`patches/` 目录（`index.ts` 汇总，`user.ts`/`home.ts`/`display.ts`/`token.ts`/`template-guard.ts`/`shared.ts` 分文件）承载所有 monkey-patch；`utils.ts` 的 `checkUserFlag`/`checkOi33Admin`；`algorithm.ts` 注册 `/oi33/algorithm`（跳转本人展示页，`?uid=` 供老师打开他人）、`/oi33/algorithm/user/:uid`（展示页：只读、知识点标签云、级别/板块/子板块逐层折叠）与 `/oi33/algorithm/user/:uid/edit`（评定页：每行单选框 + 按评价/关键词筛选）、`/oi33/algorithm/set`（单表单整份面板一次批量提交；学生每次提交消耗当月唯一额度、老师随时可存）、`/oi33/algorithm/reset-month`（flag≥2 重置某学生本月额度），以及 `/oi33/algorithm/manage*`（flag≥2 的项目增删改、启停、批量、导入、全局设置）；`handler/algorithm.ts` 不再往 UserDetail 注入 `oi33AlgorithmPanel`，资料页不内嵌算法掌握卡片，只在侧边栏「快捷跳转」里给入口。
-- `templates/` Nunjucks，同名覆盖 core（`user_detail.html`、`components/user.html`、`layout/html5.html` 等）；`user_detail.html` 主列不再有头像/头图，依次展示个人简介（默认完整显示不截断，只有超出 8.5rem 才截断并加 `--clipped` 渐隐 + 「展开全文」，渐隐是正文自己的 `mask-image`，不会盖住短简介或按钮；正文另有 1KB 上限 `bioTruncateForDisplay`（`handler/after/UserDetail` 写 `udoc.bio_display`/`bio_truncated`），超长简介展开后末尾补一行「（内容超过 1KB，自动截断）」）/奖章（只展示 320×128 像素展示墙：10×4 个同样大小的 32×32 奖章，按用户摆好的坐标渲染、按卡片宽度等比铺满，没有可展开的内嵌全部奖章列表，全部奖章只走卡片右上角「全部奖章」按钮的独立页 `/oi33/medals/user/:uid`）/学习记录（通过题目 + 最近活动 + 最近题解合成一个 section，空的部分不渲染，**三块都默认折叠**（`oi33-records__fold`））/注册信息（管理员，邮箱 / 注册时间 / 最近登录 / 最近 IP，不再列全部 IP），侧边栏用 `partials/oi33_profile.html` 的 `userCard`（头像、昵称、身份徽标、第二行的 AtCoder / Codeforces 主页链接、提交/通过/RP，**快捷跳转直接接在卡内**：个人页面/站内消息/我的喵喵·他的喵喵（指向当前页面这位用户的喵喵页 `/oi33/meow/user/:uid`，谁的页面点进去就是谁的；本人显示「我的喵喵」、看他人显示「他的喵喵」）/喵喵广场（全站喵喵主页 `/oi33/meow`）/算法掌握/全部奖章/硬币账单 + 分割线 + 编辑个人信息/编辑 OI33 资料，`quickNav` 已并入 `userCard` 不再单独成卡，喵喵页的关注按钮仍通过 `{% call %}` 追加在卡底部），喵喵与算法掌握只在快捷跳转的独立页、不内嵌资料页；资料页**不渲染**内核的 `home.render_sidebar()` 侧边菜单（我的资料/消息/账号设置…，这些入口已在右上角头像下拉框里，`/home/*` 页面保持原样），主列与侧栏一律 9/3 栏；喵喵/奖章/算法展示页与算法评定页共用同一组组件，均为「左内容 + 右头像卡片」；`components/comments_solution.html` 覆写 core，给题解加「精华」徽标与管理员可见的加精星标（POST 到 `/oi33/solutions/feature`，带 `redirect` 回本页）；`frontend/` 客户端 page 脚本；`locales/zh.yaml` i18n。
-- `handler/draw.ts` 像素画编辑器 `/oi33/draw`（纯前端工具，无服务端数据）：模板 `templates/oi33_draw.html`，逻辑 `frontend/draw.page.ts`（全部状态在浏览器，历史/浮动面板位置存 localStorage），样式 `frontend/draw.css`；浮动工具面板可拖动/缩放/位置记忆，全局快捷键的清理靠 `NamedPage` 第三个回调（pjax 跳转前移除 document/window 监听）。
-- `frontend/home-side-clock.page.ts` 首页侧栏卡片的时钟：`AutoloadPage` 启动一次 1 秒 `setInterval`，每秒查询 `[data-oi33-now]` 并用浏览器本地时间改写（秒级刷新、pjax 安全；服务端在 payload 里给了 `nowText` 作为无 JS 兜底）。
-- `frontend/switch-account.page.ts` 修复超管「切换账号」：旧版 ui-default 的对话框字段 onChange 以 `if (e === selected[name]) return;` 开头（上游 Hydro PR #1184 才改成只在多选时短路），输入完整用户名后点击补全项会被吞掉，OK 时用户对象为空。该脚本用 `AutoloadPage` 在 core `navigationPage` 之后 `off` 掉 `[name="nav_switch_account"]` 的原处理器，改为自己 `prompt`（`required:false`），并在 OK 的捕获阶段从 `.dialog .autocomplete-container input` 读出实际选中的文本，经 `api('users', {search, exact:true})` 解析成 UID 后 `request.get('/account/:uid')`；对话框自身的值仅作回退，因此新旧 ui-default 都能用。
-- `handler/admin.ts` 的 `/oi33/admin`（仪表盘）与 `/oi33/admin/home`（首页侧栏卡片配置，模板 `templates/oi33_home_config.html`，读写 `oi33_home_config`；页面带「从系统设置导入」`action=import_legacy`，只覆盖运势/倒计时部分，`legacyHomepageConfig` 依次从 `ctx.setting`、`SystemModel.get('hydrooj.homepage')` 读取并兼容字符串/已解析数组）：仪表盘顶部「待处理」集中显示审批 / 喵喵 / AI 审核的待办数量，下面按「用户与账号 / 经济与猫罐头 / 奖章与拍卖 / 内容与审核 / 教学与算法 / 猫猫世界 / AI 能力 / 外观与系统」八组用卡片列出**全部**管理页并各附一句说明，再往下是操作时间线；导航型管理按钮已从其他页面收敛到这里（拍卖页「奖章管理」、猫猫广场「绘图后台」、猫账户页的发放按钮已移除），只保留针对当前对象的操作（带 uid 的奖章管理、猫账户行内撤销、大猫领地榜的行政管理员面板）。「奖章与拍卖」组新增「盲盒奖章」（`/oi33/blindbox/manage`），「内容与审核」组新增「题解加精」（`/oi33/solutions/featured`）。
+```
+index.ts              入口：patches + 各功能 apply + 定时任务
+migrate.ts            /oi33/migrate 的 18 步迁移（幂等、可预览）
+model/
+  index.ts            oi33Model 桶 + Collections 类型（唯一挂 global.Hydro.model）
+  types.ts            所有集合的字段类型（纯类型）
+  medal/              definition · award · initial · migrate · definitions · rules(+test)
+  cat/                eligibility · map · map-player · map-admin · map-plan(-rules)
+                      can · account · school-shared · school · school-player
+                      school-transfer · school-reward
+  <feature>.ts        单文件功能：user · ai · moderate · algorithm · meow · blindbox
+                      auction · contract · oauth · token · paste · wiki · log 等
+handler/
+  medal/              index(路由表) · manage · award · pages · showcase · shared · redirects
+  cat/                index(子入口) · can · plan · account · school
+  ai/                 index · prompts · summary · analyze · admin
+  patches/            所有 monkey-patch
+  <feature>.ts        单文件功能路由（含 admin.ts 仪表盘与 ops.ts 运维页）
+templates/            oi33_* 自有模板 + 与 core 同名同路径的覆盖模板
+frontend/             浏览器入口：只有顶层 *.page.ts 会被打包
+shared/               前后端共享的纯模块（不 import hydrooj / DB / DOM）
+data/                 随插件分发的只读数据（OIerDB 学校表）
+docs/                 架构、功能细节、新增功能指南
+locales/zh.yaml       中文文案与页面标题
+```
 
-## 关键规则（容易踩坑）
+## 硬规则（容易踩坑）
 
-- **domainId 注入**：handler 方法有 `@param/@query` 装饰器 → `domainId` 是第一个参数；没有装饰器 → 不注入。
-- **权限**：公开 < 登录（PRIV_USER_PROFILE）< OI33 flag≥2（管理）< flag=3（行政）< PRIV_ALL。`realname_flag` 0 未认证/1 已认证/2 管理员/3 行政管理员。
-- **未认证（flag<1）**：全站匿名化为 `UID <id>`（`mergeOi33Fields`+`anonymizeOi33Identity`）；禁止签到、地图、喂猫、买卖罐头、拍卖、合同、发喵喵、新建/编辑 paste、收猫粮、自动发放奖章。**例外**：Hydro 的虚拟用户（`vuser` 集合、负数 uid，`isVirtualUserId`）是比赛展示专用账号，没有 oi33 主档与实名状态，不算「未认证」，`mergeOi33Fields` 不匿名化它们并置 `oi33_virtual`，`components/user.html` 与 `components/oi33_user.html` 直接用其 `uname` 渲染而非 `UID -N`。
-- **用户列表渲染**：必须 `UserModel.getList`（带 `hasPriv()`，`components/user.html` 依赖）+ `getUserDataByUids` + `mergeOi33Fields`；禁用 `getListForRender` 渲染 user.html。
-- **奖章新建 / 编辑**：奖章保存表单带 `editing` 隐藏字段；新建时若同 ID 已存在必须报错，不能静默覆盖（`MedalSaveHandler` 在 `medalSave` 前检查）。
-- **奖章等级与星级**：奖项认证 / OJ 成就的等级阶梯只显示等级自己的名称（`medalLevelLabel` 去掉历史自动生成的 `Lv.N` 前缀，无名回退「第 N 级」），导入时的默认名也不再是 `Lv.N`；一般奖章可以重复获得，`oi33_user_medal.count` 记录数量，星级 `⌊log₂ 数量⌋` 只是派生值（旧记录视为 1 枚），在「全部奖章」页、展示墙、盲盒页与开盒记录里显示；奖章目录里**每个**奖章都能点进持有者页（`/oi33/medals/catalogue/:id/holders`，系列按等级分组；认证与 OJ 成就的每个等级另有 `/oi33/medals/catalogue/:id/level/:level`）。目录卡片同时显示总持有人数与总持有数量（`medalAwardStats().copies`，只有一般奖章累加 `count`）；持有者页/等级持有者页每一行显示该持有人的 `×数量`（一般奖章另带 ★星级），页头与等级分组给合计枚数。
-- **奖章展示墙**：`/oi33/medals/showcase` 是一块 **320×128 的像素画布（10×4 个同样大小的 32×32 奖章）**（`templates/oi33_medal_showcase.html` + `frontend/medal-showcase.page.ts` / `.css`）：右侧托盘列出全部已获得奖章，拖到画布上任意位置（默认吸附半格 16 像素，可对齐半行/半列；按住 Alt 1 像素自由微调；落到已有奖章的格子上会替换/互换），拖动已放的奖章可移动、拖回托盘或按 Delete 取下，也可以点托盘奖章再点画布放置；画布由 `frontend/medal-showcase.page.ts` 里的 `AutoloadPage` 缩放：**编辑页按整数倍**（`medalShowcaseScale`，上限 6 倍）便于精确拖动，**个人页按卡片宽度等比铺满**（上限 4 倍，`data-wall-fill`），两页都用 `--wall-k` 缩放（宽高/格子尺寸来自 `--wall-w`/`--wall-h`/`--wall-cell`，背景网格来自 `--wall-grid`），所有奖章统一按 32 像素格显示、最近邻放大。`oi33_user.medal_showcase` 存 `{ id, x, y }` 摆放数组（画布像素坐标，最多 40 个 = 10×4），旧的 4×4 / 6×3 槽位数组（id/null）在读取时由 `medalShowcasePieces` 按 10 列铺回网格，无需迁移；一般奖章按星级可摆多份（`medalShowcaseCopyLimit`：0/★1 → 1 份、★2 → 2 份、★3 → 3 份…），其它系列固定 1 份，`medalShowcaseTrim` 读取时丢掉超出上限或已不持有的奖章。POST 只收 `slots`（JSON 摆放数组），超出份数上限会被拒绝；无脚本时页面只显示已保存的摆放。个人页由 `handler/after/UserDetail` 注入的 `oi33MedalPanel.showcasePieces` / `showcaseWall` 渲染。
-- **硬币账单**：`/oi33/coin/bill/:uid`（uid=0 为全部流水）由 handler 把发送者 / 接收者解析成用户文档后渲染，管理员看到「[实名]昵称 + 认证标签」，其他查看者只看到昵称（未认证仍匿名成 `UID n`）；后台「经济与猫罐头」组第一项「硬币、生日、认证信息」指向 `/oi33/users`（余额 / 已获得 / 生日 / 认证状态同一张表）。
-- **模板**：POST 表单必带 `csrfToken` 隐藏域；难度渲染一律走 `partials/oi33_difficulty.html`（0-8 洛古难度，默认遮罩、前端点击显示）。
-- **页面标题**：模板里 `{% set page_name = "oi33_xxx" %}` 的页面，必须在 `locales/zh.yaml` 的「Page titles」节补上 `oi33_xxx: '中文标题'`——`handler.renderTitle(page_name)` 用它渲染浏览器标签，漏登记标签就会显示原始 `page_name`。
-- **审核引擎复用**：`model/moderate.ts` 的 `runAiVerdict(uid, normalized, hash, cfg)`（规则+AI+缓存+预算熔断，fail-closed）与编排入口 `moderateContent`，喵喵/讨论区/题解/简介共用；开关 `moderation_enabled`（默认开）。调用姿势见下文「AI 与审核能力（可复用 API）」。
-- **算法掌握**：独立页 `/oi33/algorithm/user/:uid` 仅本人与 flag≥2 可见（handler 里判权限；资料页不内嵌该面板，只有侧边栏快捷入口）；`source:'teacher'` 只是展示信息、**不锁定**，学生提交自评即可覆盖；学生每个自然月只能提交一次整份自评（`oi33_user.algorithm_self_month`，原子占位、失败/无改动回滚），老师随时可改且不受限，可在学生面板上重置其本月额度；算法项目难度是 NOI 1-10 系数，别混用洛谷 0-8 的 `partials/oi33_difficulty.html`。详见下文「算法掌握程度（algorithm）」。
-- **不要用 `SystemModel.set` 存高频写的插件状态（会重建整个前端）**：`SystemModel.set` 默认 `broadcast=true`，发出的 `system/setting` 会让 `@hydrooj/ui-default` 的 builder **全量重建前端 bundle**——`backendlib/builder.ts` 里是 `ctx.on('system/setting', () => triggerHotUpdate())`，回调不带 path，所以它那句「是不是前端文件」的过滤被跳过，连插件私有 key 都会触发一次完整 esbuild（约 100 ms、325 KiB，日志里每个资源一行 `+ lang-xx.js-<hash>: <size>`）。同一次广播还会让每个带 config 的插件重新解析配置（`hydrooj/src/loader.ts`）并给所有评测机重推语言配置（`handler/judge.ts` 的 `@subscribe('system/setting')`）。所以：**高频写的插件状态一律存 `oi33_*` 集合**（例：评测机监控的配置与状态在 `oi33_judge_monitor`，见 `model/judge-monitor.ts`；`lastOnlineMids` 用 `null`/`[]` 区分「从未检查」与「全员离线」）；`SystemModel` 只留给「低频写 + 读在热路径」的配置（如 `model/medal.ts` 的 `oi33.medal.accepted_problem_domains`，record/judge 每场都在读，靠 core 的内存 cache 才快）。`handler/patches/system-setting.ts` 再兜一层：**同值写入不广播**（core 自己的 `service/monitor.ts` 每 30 分钟无脑 `system.set('server.center', ...)`，否则就是每 30 分钟一次无谓重建）。**验收标准：不升级代码时日志里不应再出现 `UI addons built in`**；合法触发只剩进程启动（vfs 在内存里，必须重建）、`--watch` 下改 `frontend/`/`public/` 文件、管理员保存系统设置（`handler/manage.ts` 自己显式广播 `args`）、插件 config 变更导致的 reload。CDN 不受这些影响：`/resource/<entryHash>/entry.js` 与 `/lazy/<hash>/<name>.lazy.js` 都是内容寻址 + `Cache-Control: public, max-age=86400`，同内容必然同哈希，只有真正的代码升级才换 URL（`server.cdn` / `server.cdn_dynamic` 配 CDN 前缀）。
-- **大猫（school-cat）**：地图格子 `catId` 编码为非负学校 id+1、特殊大猫负数原样，0=无大猫；**特殊大猫**用负数 `_id`（自定义 `name`，★ 不占数字名次，周奖励走管理员规则），是**唯一**的管理员大猫形式（旧 isAdminCat 手动设定已废弃，迁移会清除旧标记），仅 flag≥2 可搜索/绑定，flag≥3 可创建/改名；`transferSchoolCat`（flag≥3）把一只大猫的绑定用户/投喂历史/体重/领地格子整体转移到另一只并重算 territoryCount。周奖池 = 领地基础奖励（≥64 格起 1，翻倍 +1，封顶 12）× max(0, ⌊log2(体重)⌋−10)，按 ⌊log2(贡献)⌋ 权重最大余数法分配；结算完成后全体用户当前贡献与大猫体重各扣 5%（回滚不恢复）。奖章发放不再自动发布喵喵（自动规则、管理员发放、拍卖、合同、盲盒都不发，`meowMedalPostAdd` 已删除）；旧数据里已有的奖章公告保留，撤销奖章时会顺手删掉对应旧公告。**地图分区**：帝国区=距边框 250 格环形（前/后 250 行、左/右 250 列），中央 500×500（坐标 250~749）为 00区（`CAT_MAP_CORE_MIN/MAX`，前端 `cat-can-arena.page.ts` 有同步副本）；分界线画成 00区外框的加粗「口」字，由地图「帝国边界」图层开关控制（默认开）。**大猫视角**（`frontend/cat-can-arena.page.ts` 的 `bigcats` 图层）只把已涂色格画成不透明像素，未占领格透明并露出屏幕空间的 45° 斜纹底（避免与白色领地色混淆）；所有大猫领地按归属（catId）在邻格不同处描 1～4px 黑色边界，边界格集合在重建/增量改格时维护，只遍历边界集合而非整图。00区内某格与上下左右四邻全归属同一大猫即为「领地核心」（`fortressCatIdAt`），禁止绑定其他大猫的小猫移动/加入进入；染色形成核心时滞留其上的小猫被驱逐（`displaceFortressIntruders`）——绑定了大猫的传送到自己领地随机格，未绑定的传送到帝国区随机位置，驱逐走 `oi33/cat-map-change` player 广播。**路径规划**：`oi33_cat_map_plan`（`_id=uid`，一人一计划）存连续步骤（每步 = 相邻格 + 颜色码）、`cursor` 执行光标、`status`、`failReason` 与 `lockOwner/lockUntil` 执行租约；`oi33_cat_map_config`（`_id:'main'`）存可配置的 `planMaxSteps`（默认 10、夹取 1~50，绘图后台 flag≥3 修改）。`saveCatMapPlan`（replace/append）、`stopCatMapPlan`、`advanceCatMapPlan`（租约抢占 + 「小猫已在目标格」幂等恢复 + 位置校验 + 并发冲突重试 3 次）与 `runCatMapPlansDue` 都在 `model/cat-map-plan.ts`（格子移动/染色/归属判定仍在 `model/cat-map.ts`，plan 模块单向依赖它，避免循环）；纯校验 `validateCatMapPlanShape`/`normalizeCatMapPlanMaxSteps`（在 `model/cat-map-plan-rules.ts`，可单测）；`index.ts` 只在 instance 0 上每 5 秒跑 `runCatMapPlansDue` 并广播事件（`{type:'plan', targetUid}` 由 `CatMapConnectionHandler.onMapChange` 按连接用户过滤，计划是私有数据）。前端（`frontend/cat-can-arena.page.ts`）画布只画 `cursor` 之后的未执行步骤、编号从 1 重新开始，全部执行完或计划已停止时不画圆圈，面板同样只列剩余步骤（`/oi33/arena/plan/state` 提供轻量计划视图，供「已到点但未收到推送」时兜底同步；两处响应都按 `updatedAt` 拒绝更旧的视图）。手动 move/color 与管理员强制迁移成功后都会立刻停止计划；自动停止用 `MessageModel.send` 私信本人。每步复用 `moveCatMapPlayer` + `setCatMapCellColor`，所以费用、冷却、贡献、驱逐与日志与手动操作完全一致。
+1. **domainId 注入**：handler 方法有 `@param/@query` 装饰器 → `domainId` 是第一个参数；
+   没有装饰器 → 不注入。
+2. **权限**：公开 < 登录（PRIV_USER_PROFILE）< OI33 flag≥2（管理）< flag=3（行政）< PRIV_ALL。
+   路由级只挂 Hydro `PRIV`；`realname_flag` 判定在 Handler 内用 `checkOi33Admin` / `checkUserFlag`。
+3. **未认证（flag<1）**：全站匿名成 `UID n`；禁止签到、地图、喂猫、交易、发喵喵、新建/编辑
+   paste、收猫粮、自动奖章。Hydro 虚拟用户（`vuser`，负数 uid）例外，不匿名化，置 `oi33_virtual`。
+4. **用户列表渲染**：`UserModel.getList` + `getUserDataByUids` + `mergeOi33Fields`；
+   禁止用 `getListForRender` 渲染 `user.html`。
+5. **功能目录契约**：`model/<feature>/index.ts` 与 `handler/<feature>/index.ts` 是公开入口；
+   新模块必须挂进 `model/index.ts` 的桶；路由只在功能入口的 `apply(ctx)` 里注册。
+   `npm run check:structure` 会校验路由可达性、模板引用、桶覆盖与目录 index。
+6. **纯规则与测试**：可单测的判定放 `rules.ts`（或 `*-rules.ts`），旁边必须有同名 `.test.ts`；
+   规则模块不得 import hydrooj/DB/DOM。若 import 其它运行时模块，specifier 必须带 `.ts`
+   （`node --test` 的原生 type-stripping 不做无扩展名解析）。
+7. **模板**：覆盖 core 必须**同名同路径**（Hydro 以相对路径作模板 key），不能挪进子目录；
+   有 `{% set page_name = "oi33_xxx" %}` 必须在 `locales/zh.yaml` 登记标题；POST 表单带
+   `csrfToken`；难度渲染走 `partials/oi33_difficulty.html`。
+8. **不要用 `SystemModel.set` 存高频写的状态**：它默认广播 `system/setting`，会让
+   `@hydrooj/ui-default` 全量重建前端 bundle。高频状态一律存 `oi33_*` 集合；
+   `SystemModel` 只留给「低频写 + 读在热路径」的配置（如奖章接受题目域）。
+9. **写路径**：每次写操作 `addLog`；金额增减只走 `adjustCatCans` / `grantCatFood`；
+   额度/占位要原子、失败要回滚；对外操作要幂等（可重放、可重试）。
+10. **前端**：只有 `frontend/` 顶层 `*.page.ts` 会被打包；被 import 的模块不要命名成
+    `*.page.ts`。前后端共用的常量/纯函数放 `shared/`，不要从 `frontend` import `model/`。
+11. **奖章**：新建时同 ID 已存在必须报错；保存表单带 `editing`；一般奖章重复获得靠
+    `count` 累加，星级是派生值。**猫咪**：格子 `catId` 非负学校 id 编码为 `schoolId+1`，
+    特殊大猫用负数；计划模块单向依赖 `map-player/map`。
+12. **运维**：启动失败的部件、定时任务状态、修复动作集中在 `/oi33/admin/ops`；
+    新增后台修复能力请挂到那里，而不是散落在临时脚本里。
 
-## 个人简介（bio）AI 审核
+## 开发校验
 
-bio 是 Hydro 核心字段，编辑走 core `/home/settings/account`，本插件用 `handler/before|after/HomeSettings#post` 钩子介入（`handler/bio.ts`）：改动有 **2 小时冷却**（`bio_edited_at`）；变更后写 `bio_status:'pending'`+`bio_hash` 并后台 AI 审核：pass→approved；block/review/出错→rejected 隐藏并私信通知本人（含分类与理由；人工驳回只发「人工审核未通过」）。所有判定记入 `oi33_ai_moderation`（`kind:'bio'`，见 `/oi33/ai/moderation` 结果列表），review/出错进人工队列，管理员 approve/reject 直接翻转 bio 状态（哈希守卫，不会覆盖更新的编辑）。**显示规则**（`mergeOi33Fields` 算 `udoc.bio_visible`）：flag≥1 且 `bio_status==='approved'` 且 `bio_hash===bioHashOf(当前 bio)`——哈希不符（如 OAuth 回写）自动隐藏。展示点：资料页「个人简介」卡片（未过审时本人见提示，`after/UserDetail` 钩子同时清空 JSON 里的 bio）、首页 ranking partial。初始批量审查：管理页 `/oi33/ai/bio-review`（flag≥2，幂等可重跑，进度存 `oi33_ai_batch` 的 `_id:'bio_review'`）。
+```bash
+npm run typecheck           # 后端 tsc（第三方诊断被过滤，项目代码必须 0 错）
+npm run typecheck:frontend  # 前端 page 脚本与 shared/
+npm run lint                # eslint（非类型感知）
+npm run check:structure     # 路由/模板/桶/规则测试结构检查
+npm test                    # 纯函数单测 + locale 校验
+npm run check               # 以上全部（提交/发版前跑）
+```
 
-**队列记录与「已被修改」错误**：审核记录绑定的是它当时判定的那一版简介（`content`/`contentHash`），只有该版本仍是**当前** bio 时才可 approve/reject。判定统一走 `model/moderate.ts` 的 `bioQueueState(entry, live)` → `'ok'`（可审）/ `'text'`（文本相同但 `bio_hash` 漂移，例如被旧批量审查覆盖；决定仍可作用于该文本并改写哈希，否则「通过」后简介仍然不显示）/ `'stale'`（用户已改过简介或账号不存在，永远无法应用）。`live` 由 `getLiveBio`/`getLiveBios`（`model/user.ts`，直读 core `user` 集合，不走 User 缓存）取得。**旧的死循环**：`'stale'` 记录以前直接抛 `该个人简介已被修改，不能处理旧审核记录`，两个按钮都失败且记录永远 pending（`modListPending` 只取最旧 200 条），队列被堵死；现在改为关闭为 `'stale'` 状态（`modExpireEntries`，只动队列不动用户简介状态），审核页给这类记录打「简介已变更，仅可标记失效」标记并把按钮换成「标记失效」，另有一键「清理失效的简介记录（N）」（`expireStaleBioEntries`）。预防：`bioMarkEdited` 会顺带把该用户此前的 pending bio 记录关闭为 stale（新的编辑自带一条新记录），批量审查每个用户在 AI 调用前后各重读一次 live bio，改动中的用户跳过，避免用旧文本覆盖 `bio_hash`。
-
-## 算法掌握程度（algorithm）
-
-算法掌握面板（独立页 `/oi33/algorithm/user/:uid`）展示该学生每个算法知识点的掌握程度；仅**本人**与 **OI33 flag≥2 老师**可见（`AlgorithmUserHandler` 判权限，其余访客 403）。资料页不内嵌这张卡片，只保留侧边栏「快捷跳转」入口。展示页与评定页分开：`/oi33/algorithm/user/:uid` 展示页只读、把知识点渲染成按掌握度着色的标签云并按「级别 → 板块 → 子板块」逐层折叠；`/oi33/algorithm/user/:uid/edit` 评定页每行一组四档单选框、可按评价与关键词筛选。评定档位只有 4 档：0 没学（灰）/ 1 不会（红）/ 2 不熟（黄）/ 3 熟练（蓝），色号取自洛谷难度评级；**没有记录的知识点按「没学」显示**（不再有独立的「未评定」档位，前端也不再有 `-1` 选项；后端 `algorithmSetLevels` 仍接受负值来删除记录，供程序化调用）。**学生每个自然月（Asia/Shanghai）只能提交一次自评**，提交后整月只读；**老师（flag≥2）随时可改任意学生，不受月度限制**。
-
-- **数据**：`oi33_algorithm_item`（`_id` = 规范化后的 NOI 大纲编号，如 `1.1.12`（原 `2.1.1-12`）；规则见 `normalizeOutlineId`：去掉文档章节号 `2.`、条目序号 `-N` 改成 `.N`，级别/板块/子板块 id 也一并去掉 `2.`；自定义项目为 `custom-*`；字段 `levelId/levelName/sectionId/sectionName/subsectionId/subsectionName/difficulty(0-10)/order/enabled/source('noi2025'|'custom')/idVersion`（`idVersion:2` = 已规范化；迁移只处理 `idVersion ≠ 2` 的行，因为规范化后的提高级 id 也以 `2.` 开头，再跑一次会被误剥））、`oi33_user_algorithm`（`(uid,itemId)` 唯一，`level` 0-3，`source` `'self'|'teacher'` 仅表示当前值由谁录入、不是权限，`updatedBy/updatedAt`）、`oi33_algorithm_config`（`_id:'main'`，`selfEdit`）、`oi33_user.algorithm_self_month`（'YYYY-MM'，学生本月已用掉的提交额度）+ `algorithm_self_at`。
-- **默认内容**：`model/noi-outline-2025.json` 随插件内置（NOI 2025 大纲，3 级/12 板块/260 项，难度 1-10；官方「基础知识与编程环境」板块已剔除，常量 `ALGORITHM_DROPPED_SECTION`）。`/oi33/migrate` 的 Step 15 在集合为空时导入（`algorithmEnsureOutlineImported`，幂等），Step 17 用 `algorithmDropBasicsSection` 删除历史导入过的该板块（连同其评定，幂等）；后台「算法项目管理」`/oi33/algorithm/manage`（flag≥2）可再次导入/覆盖、增删改、启用停用、按级别批量启停、调整排序，并提供「允许学生自评」总开关。导入默认只补缺失项，勾选「覆盖」才改写已有项目的名称/分组/难度/排序（`enabled` 始终保留）。
-- **覆盖规则**：`source` 只是展示信息（🔒「教师录入」徽标），**不是权限**——学生提交自评即可覆盖教师录入的值，覆盖后该行 `source` 变回 `'self'`。老师设置他人写 `'teacher'`，老师编辑自己的面板写 `'self'`。
-- **月度额度**：`algorithmMonthKey()`（Asia/Shanghai 的 'YYYY-MM'）+ `algorithmNextUpdateDate()`（下月 1 日）。学生提交时 `algorithmClaimSelfQuota(uid, month)` 先原子占位（条件更新 `{_id: uid, algorithm_self_month: {$ne: month}}`，占不到即本月已用过并报「下次可更新」）；写库失败或「没有任何改动」时 `algorithmReleaseSelfQuota(uid, month)` 回滚，绝不白扣额度。老师可在学生面板上点「重置该学生本月额度」（`/oi33/algorithm/reset-month` → `algorithmResetSelfQuota`）让学生本月再交一次；老师自己的写入从不消耗额度。
-- **写路径**：`algorithmSetLevels(uid, entries, operator, {onlyChanges})`：提交 `0`-`3` 为评定档位，非数字或 `>3` 夹取到 0-3，负值 = 删除该条记录（后端保留该能力供程序化调用，前端已无此选项）；`onlyChanges` 用客户端提交的**渲染时原值** `orig_<idx>`（缺失时退回库内当前值）作为基线，等于基线就跳过——没有记录的行渲染为「没学」(0)，原样提交即跳过，因此既不会凭空写入记录、也不会用久开页面的旧值覆盖老师期间的新修改。整份面板是**单表单批量提交**（页面上唯一的 `#alg-form`，每行 4 档单选框和 hidden 都用 `form="alg-form"` 关联，字段 `lv_<idx>` + `id_<idx>` + `orig_<idx>`，`idx` 由 `algorithmProfileView` 全局分配），有脚本时提交前确认、脏标记与实时统计，无脚本时直接整表提交；返回 `{updated, cleared, skipped, unchanged}`。
-- **统计与前端**：`algorithmComputeStats` 给出 4 档计数与掌握度 `round(100*Σlevel/(3*total))`（没有记录的按没学计；`stats.rated` 仍在但界面不再展示「已评定/未评定」），`algorithmProfileView` 另按级别 / 难度系数出进度，并给每个板块、子板块附统计；`frontend/algorithm-mastery.page.ts` 用 document 级委托做按评价 + 关键词筛选、展开收起、统计实时重算、脏标记/提交按钮与 `beforeunload` 提醒（表单真正提交时先清掉脏标记，否则浏览器会在保存跳转时弹出「你所做的更改可能未保存」；pjax 安全，无 `NamedPage`；只对 `data-alg-can-edit=1` 的评定页生效）；`templates/partials/oi33_algorithm.html` 的 `display()`（展示页：标签云 + 逐层折叠）、`editor()`（评定页：四档单选框 + 筛选）与 `style()` 被展示页与评定页共用。
-- **难度**：这里显示的是 NOI 大纲难度系数 1-10，**不要**复用洛谷 0-8 的 `partials/oi33_difficulty.html`。
-
-## AI 与审核能力（可复用 API）
-
-新增功能不要再自己拼 `resolveChatConfig → fetch → aiAddUsage → calcCost`，也不要在 handler 里重写规则/AI/队列流程；这两块能力已经下沉到 model 层，经 `oi33Model` 与 `../model/ai`、`../model/moderate` 直接调用。
-
-- **AI 客户端**（`model/ai.ts`）：`aiChat({ model|config, system, user, maxTokens?, json?, effort?, timeoutMs?, signal?, usage? })` 一步完成「解析 provider/模型 → 调用 → 写 `oi33_ai_usage` → 算成本」，返回 `{ content, usage, finishReason, error, model, provider, price, cost }`；流式用 `aiChatStream({ ..., onChunk, onRChunk })`（同样支持 `usage` 记账）。`usage = { uid, type: 'analysis'|'summary'|'moderation', rid?, domainId?, pid?, deducted? }`，不传 `usage` 则只算成本不记账（AI 分析流自扣余额那种场景用）。底层 `aiResolveChatConfig`/`aiCalcCost`/`aiChatCompletion`/`aiChatCompletionStream` 也导出，供需要自己处理原始响应的调用方使用。`handler/ai/` 的题意/难度/分析都改走这些接口，不再各自持有 HTTP/用量样板。
-- **审核引擎**（`model/moderate-rules.ts` + `model/moderate.ts`）：纯规则层（`normalizeText`/`hashOf`/`mathTooDeep`/`checkRules`/`configWords`/`configReviewWords`/`sanitizeModerationCategory`/`DEFAULT_MODERATION_PROMPT`）在 `moderate-rules.ts`，刻意不依赖 hydrooj/DB，可被单测（`model/moderate-rules.test.ts`）；`moderate.ts` 重新导出它们并实现判定层 `runAiVerdict(uid, normalized, hash, cfg)`（缓存 + 规则 + 预算熔断 + AI，fail-closed）、`moderationEnabled(cfg)`（唯一的开关判断）、便捷入口 `evaluateContent(uid, text, cfg?)`（自动 normalize+hash 并返回 `{ normalized, hash, verdict }`，适合自带状态/队列的功能，如喵喵、简介），以及目标动作 `moderationTargetExists`/`hideModerationTarget`/`unhideModerationTarget`/`deleteModerationTarget`/`applyModerationTarget`（已覆盖讨论主题/回复与其评论、题解与其评论）。
-- **编排入口**：`moderateContent({ kind, uid, text, target?, applyVerdict?, record?, queueForReview?, cfg? })` 是「已隐藏内容的完整后处理」：判定 → 通过则 `applyVerdict`（缺省用 `target` 的 unhide/delete）→ 写 `oi33_ai_moderation`，永不抛错；`moderateContentInBackground(opts)` 是它的 fire-and-forget 版本，请求内钩子用它。`applyVerdict` 覆盖内置目标动作，适合状态不是 `hidden` 的功能；`record:false` 给自带审核队列的功能；`queueForReview` 可为函数，在 `applyVerdict` 之后惰性判断该 review 是否真的转人工。
-- **HTTP 层**（`handler/moderate.ts`）：只保留 `runModerationPrecheck(uid, kind, text)`（同步预检，未实名/限流/规则硬拦会抛 HTTP 错误）、讨论/题解生命周期钩子、以及 `/oi33/ai/moderation` 管理页（人工通过/驳回/标记失效）。新的同步拦截请在 `handler/before-operation/*` 里调用 `runModerationPrecheck`，再把隐藏 + `moderateContentInBackground` 放到 `handler/after/*`。
-
-## patches/ 清单
-
-`getList`/`getListForRender`/`getById`/`User.private` 注入 oi33 字段并匿名化；`api.execute` 在 `users`（站内全局搜索与所有 uidOrName 选择器共用的用户搜索）上为 flag≥2 的查看者追加 `oi33_user.realname_name` 前缀匹配（命中项 `displayName` 显示实名，非管理员走不到该分支）；`HomeHandler.getCheckin/getCountdown` 首页数据（读取 `oi33_home_config`，纯规则在 `model/home-config-rules.ts`、存储在 `model/home-config.ts`，桶里导出 `homeConfigColl`；`ensureHomeConfig` 对 `updatedBy` 仍为 0 的纯种子文档用 `fillMissingFromSeed` 自动补上旧 YAML 里缺的日期/VIP/运势，`saveHomeConfig` 保存后即停止自动补齐）；`HomeHandler.get` 把 homepage 配置里的 `checkin`/`countdown` 两节（若存在）合并成单个 `oi33_side` 节，不存在但 `oi33_home_config.enabled` 为真时按 `column` 自动注入，位置取原节位置或所选列首（`templates/partials/homepage/oi33_side.html`：卡片标题位固定是 `[data-oi33-now]` 当前本地日期+时间行（payload.nowText 兜底 + 前端每秒刷新）；登录且拿到 checkin 数据时才渲染运势区（未认证=「认证后可签到」按钮跳个人 OI33 资料页、当天未签到=「抽取今日运势」按钮、已签到=运势文字 + `__stat` 两行打卡），随后 `─── 倒计时 ─── 行情方块 ── 拍卖链接 ── 盲盒链接`（`payload.market.blindboxCount` = 已上架且已到开放时间的盲盒数量，链接到 `/oi33/blindbox`）（每段之间有分割线，没有倒计时就只画方块前那条）；卡片内 `.typo h1` 的 GitHub 式下划线被去掉以便打卡信息与运势连成一组，上下内边距沿用 core 对称的 `.9375rem`；市场/拍卖查询失败只隐藏该块，并补齐模板里 `{% include %}` 的载荷）；`HomeHandler.getDiscussion` 与 `handler/discuss.ts` 的 `withHandlerClass('DiscussionMain')` 把题目讨论（`TYPE_PROBLEM`）从首页讨论组件与 `/discuss` 全部讨论中剔除（改由 `/oi33/discuss/problem` 板块页聚合）；`SolutionModel.getMulti` 换 sort 为 `{featured: -1, vote: -1}` 使**精华题解排在一般题解前面、组内按投票数倒序**（core 只有 `ProblemSolutionHandler.get` 一处调用它）；`ProblemSolutionHandler.get`/`ProblemSolutionRawHandler.get` 过滤/遮蔽审核中的题解（`hidden`，仅本人与 flag≥2 或 `PERM_EDIT_PROBLEM_SOLUTION` 可见），`handler/after/UserDetail` 同步过滤资料页「最近题解」；`handler/after/*` 兜底匿名化；Bearer `33tok_` 只读 token 鉴权（跳过 `/oi33/oauth/*`）；nunjucks `getTemplate` 启动竞态守卫；`system-setting.ts` 把 `SystemModel.set` 包一层：**同值写入只落库、不广播** `system/setting`（core 的 `service/monitor.ts` 每 30 分钟无脑重写 `server.center`，否则每次都会触发 ui-default 全量重建前端 bundle；真正的改动照旧广播，系统设置页自己那次显式广播也不受影响）。
-
-## 题解审核与题目讨论板块
-
-- **题解审核**：题解（core `document.TYPE_PROBLEM_SOLUTION`，`handler/solution.ts` 负责列表页与题解加精；生命周期钩子在 `handler/moderate.ts` 的 `applySolutionHooks`）与讨论共用同一套规则 + AI + 人工队列：`handler/before-operation/ProblemSolution` 做同步预检（`submit`/`edit_solution`/`reply`/`edit_reply`，kind 为 `solution`/`solution_edit`/`solution_reply`/`solution_reply_edit`），`handler/after/ProblemSolution#post` 把新内容 `hidden` 后 `moderateContentInBackground`。`Oi33ModerationTarget` 用 `psid`（题解）与 `psrid`（评论）定位，`moderationTargetExists`/`hideModerationTarget`/`unhideModerationTarget`/`deleteModerationTarget` 已覆盖题解；通过=取消 hidden，驳回=删除题解/评论，编辑命中 block 会降级为 review（不销毁旧内容）。未认证（flag<1）发题解会被预检拒绝；flag≥2 免审。
-- **全部题解时间线**：`GET /oi33/solutions`（`oi33_solutions`，`PERM_VIEW_PROBLEM_SOLUTION`）按 `_id` 倒序分页列出所有非 hidden 题解。入口与「所有题目讨论」保持一致：放在讨论区侧栏组件 `templates/partials/discussion_nodes_widget.html` 的「题解 → 全部题解」（`/discuss`、讨论节点页、首页讨论组件、`/oi33/discuss/problem` 都包含该组件），**不占顶部导航栏**；管理页 `templates/oi33_admin.html` 另有一条。模板 `templates/oi33_solutions.html`。
-- **题目讨论板块**：题目页内的讨论（`parentType = TYPE_PROBLEM`）不再出现在 `/discuss` 的「全部讨论」与首页「讨论」组件里，集中到 `GET /oi33/discuss/problem`（`oi33_problem_discussions`，`PERM_VIEW_DISCUSSION`，模板 `templates/oi33_problem_discussions.html`，复用 core `partials/discussion_list.html`）；`templates/partials/discussion_nodes_widget.html` 覆写 core，在讨论侧栏补上「题目讨论 → 所有题目讨论」入口，题目页 `/discuss/problem/:pid` 本身不变。
-
+- CI/本地统一 `npm ci`；不要把 `node_modules` 软链到其它 checkout（会把 TypeScript 版本带偏）。
+- `scripts/typecheck.mjs` 以 tsc 退出码为准：没有 `file:line:col` 前缀的配置级错误也会判失败。
+- `tsconfig.json` 不使用 `baseUrl`（TS 6 会把它当硬错误；`paths` 自 TS 4.1 起相对 tsconfig 解析）。
+- 新增页面记得补 `locales/zh.yaml` 标题（`check:locales` 强制）。
 
 ## 安装
 
 ```bash
 hydrooj addon add /path/to/oi33 && pm2 restart hydrooj
-# 访问 /oi33/migrate 跑迁移（幂等）
+# 访问 /oi33/migrate 跑迁移（幂等），再到 /oi33/admin/ops 看健康状态
 ```
-
-## 开发校验
-
-```bash
-npm run typecheck           # tsc 后端（忽略 node_modules 里第三方 .ts 的既有报错，项目代码必须为 0）
-npm run typecheck:frontend  # 前端 page 脚本
-npm run lint                # eslint（非类型感知；类型问题交给 typecheck）
-npm run check:locales       # locales/zh.yaml 必须能被 js-yaml 解析（重复键会让整份翻译在启动时报错）且每个 oi33 page_name 都有中文标题
-npm test                    # 纯函数单测 + 上面的 check:locales
-```
-
-`tsconfig.json` 用 `paths` 把 `cordis` 指到 hydrooj 内嵌的那份，否则 `@hydrooj/framework` 与 `hydrooj` 各解析到一份 cordis，`Context.Route`/`Connection` 等类型增补会失效（历史上会冒出 450+ 条假报错）。`scripts/typecheck.mjs` 过滤掉 node_modules 里的诊断，只对项目代码判成败。`typescript` 固定在 devDependencies（`~5.9.3`）：不固定时，安装 eslint 之类的 peer 依赖会把它升到 TS 6，`baseUrl` 会变成硬报错。纯函数单测见 `model/*-rules.test.ts`（审核规则/bio 判定、NOI 大纲 id、地图计划校验、奖章分类与等级、首页卡片配置、盲盒几率与每日额度、题解加精奖励配置）。

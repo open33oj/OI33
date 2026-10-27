@@ -1,7 +1,12 @@
-// 地图尺寸与地图状态类型（与服务端 model/cat-map.ts 同步），供 cat-can-arena.page.ts
-// 及其子模块共享。
-export const MAP_WIDTH = 1000;
-export const MAP_HEIGHT = 1000;
+// 地图尺寸/分区与地图状态类型。尺寸来自 shared/cat-map.ts（服务端与浏览器
+// 同一份），不要再在这里写死数字。
+export {
+    CAT_MAP_CORE_MAX as CORE_ZONE_MAX,
+    CAT_MAP_CORE_MIN as CORE_ZONE_MIN,
+    CAT_MAP_HEIGHT as MAP_HEIGHT,
+    CAT_MAP_WIDTH as MAP_WIDTH,
+    isCatMapCoreZone,
+} from '../shared/cat-map';
 
 export interface MapPlayer {
     uid: number;

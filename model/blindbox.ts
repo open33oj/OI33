@@ -12,7 +12,7 @@ import {
 } from 'hydrooj';
 import type { Oi33BlindboxItem, Oi33MedalBlindbox } from './types';
 import { addLog } from './log';
-import { adjustCatCans } from './cat-can';
+import { adjustCatCans } from './cat/can';
 import {
     medalCategoryOf, medalColl, medalGrant, medalIsLevelSeries, medalStarLevel, userMedalColl,
 } from './medal';
