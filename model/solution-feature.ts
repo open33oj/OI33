@@ -14,7 +14,7 @@ import {
 } from 'hydrooj';
 import type { Oi33SolutionConfig, Oi33SolutionFeatureApply } from './types';
 import { addLog } from './log';
-import { aiChat, aiGetConfig, aiResolveChatConfig } from './ai';
+import { AI_MAX_TOKENS, aiChat, aiGetConfig, aiResolveChatConfig } from './ai';
 import { adjustCatCans } from './cat/can';
 import { grantCatFood } from './cat/account';
 import { userColl } from './user';
@@ -276,12 +276,24 @@ export async function runSolutionFeatureReview(applicationId: string): Promise<v
         user: solutionFeatureReviewUserPrompt({
             pid, title: pdoc?.title, content: String(doc.content || ''),
         }),
-        maxTokens: 900,
+        maxTokens: AI_MAX_TOKENS,
         json: true,
         usage: { uid: application.uid, type: 'moderation' },
     });
     if (response.error || !response.content) {
-        await refund('AI 审核服务暂时不可用，本次不消耗额度，请稍后重试。', response.error || 'empty');
+        // 思考型模型把预算花光时上游仍是 200，只有 finish_reason 能说明原因；
+        // 打到 stderr，pm2 日志里也能直接看到，不用再翻 oi33_log。
+        const detail = response.error
+            || `empty content (finish_reason=${response.finishReason || 'unknown'},`
+                + ` completion_tokens=${response.usage?.completion_tokens ?? 'unknown'})`;
+        console.error(`[oi33] solution feature review failed (pid=${pid}):`, detail);
+        const budgetExhausted = !response.error && response.finishReason === 'length';
+        await refund(
+            budgetExhausted
+                ? 'AI 评审没有给出结论（模型输出被截断），本次不消耗额度，请稍后重试。'
+                : 'AI 审核服务暂时不可用，本次不消耗额度，请稍后重试。',
+            budgetExhausted ? `output budget exhausted: ${detail}` : detail,
+        );
         return;
     }
     const verdict = parseSolutionFeatureVerdict(response.content, passScore);

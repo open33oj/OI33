@@ -42,6 +42,10 @@ unique index。
   （超长导致模型上下文超限时按 AI 异常退款）。
 - 通过条件：模型 `pass === true` 且 `score >= featurePassScore`（默认 70）；解析失败/
   接口异常一律退款，不消耗额度。
+- **输出预算 10000 tokens**（全局 `AI_MAX_TOKENS`）：思考型模型会把推理 token 也算进 `max_tokens`，预算不足时
+  上游仍返回 200，但 `content` 为空、`finish_reason=length`；这种情况按「模型输出预算不足」
+  退款并写 `oi33_log`（`reason` 含 `finish_reason` 与 `completion_tokens`），不再误报成
+  「服务不可用」。若仍频繁出现，换非思考模型或降低评审任务难度。
 - 模型：`featureModel` → `teacher_model` → `moderation_model` → `deepseek-v4-flash`，
   单次调用按 AI 用量记账。
 - 被规则/AI 拦截且没有进入人工队列的隐藏题解，会出现在 `/oi33/ai/moderation#solution`，

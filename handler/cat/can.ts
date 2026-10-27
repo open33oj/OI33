@@ -88,6 +88,8 @@ async function buildCatMapState(viewerUid = 0) {
             food: balance.food,
             availableAt: player.availableAt ? new Date(player.availableAt).getTime() : 0,
             freeColorAvailable: !!player.freeColorAvailable,
+            wildcat: !!player.wildcat,
+            wildcatNextAt: player.wildcatNextAt ? new Date(player.wildcatNextAt).getTime() : 0,
         };
     }).filter(Boolean);
     const me = viewerUid ? players.find((player: any) => player.uid === viewerUid) || null : null;

@@ -199,6 +199,42 @@
 
       </div>
     </div>
+
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">退役大猫主动贡献（一次性）</h1>
+      </div>
+      <div class="section__body">
+        <blockquote class="note warning">
+          按 <code>school_feed</code> 日志把每位用户手动投喂的猫粮全额退回，然后清空所有大猫的体重与投喂历史、
+          清空用户贡献，并按格子重算领地。已退款的日志会打标记，重复执行不会二次退款；该操作不可撤销，请先核对预览。
+        </blockquote>
+        {% if preview.retirePreview %}
+        <table style="width:100%;max-width:640px;">
+          <tr><td>待退款用户：</td><td><strong>{{ preview.retirePreview.users }}</strong> 人</td></tr>
+          <tr><td>待退款投喂：</td><td><strong>{{ preview.retirePreview.feeds }}</strong> 次</td></tr>
+          <tr><td>待退款猫粮：</td><td><strong>{{ catFood.amount(preview.retirePreview.grams) }}</strong></td></tr>
+          <tr><td>仍有体重的大猫：</td><td><strong>{{ preview.retirePreview.catsWithWeight }}</strong> 只</td></tr>
+          <tr><td>投喂历史记录：</td><td><strong>{{ preview.retirePreview.historyRows }}</strong> 条</td></tr>
+          <tr><td>仍有贡献的用户：</td><td><strong>{{ preview.retirePreview.usersWithContribution }}</strong> 人</td></tr>
+        </table>
+        {% endif %}
+        {% if retireDone %}
+        <blockquote class="note">
+          已退回 <strong>{{ retireResult.refundedUsers }}</strong> 位用户
+          <strong>{{ catFood.amount(retireResult.refundedGrams) }}</strong> 猫粮；
+          清空 <strong>{{ retireResult.catsWithWeightCleared }}</strong> 只大猫的体重，
+          重算 <strong>{{ retireResult.territoryCells }}</strong> 格领地。
+        </blockquote>
+        {% endif %}
+        <form method="post"
+          onsubmit="return confirm('确认退役大猫主动贡献？将按 school_feed 日志退款、清空体重与投喂历史，并按格子重算领地。该操作不可撤销。');">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <input type="hidden" name="action" value="retire_cat_contribution">
+          <button type="submit" class="rounded button">执行退役迁移</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

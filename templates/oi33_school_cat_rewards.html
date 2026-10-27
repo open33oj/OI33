@@ -26,6 +26,47 @@
         </div>
       </div>
       <div class="section__body">
+        <h2>占格月奖励（现行）</h2>
+        <blockquote class="note">
+          每月按每个人当前占领的格子数发一次罐头：100 格 = 1 罐，200 格 = 2 罐，400 格 = 3 罐，800 格 = 4 罐……
+          不足 100 格不发。无主领地、任何大猫的领地都算个人占格；被其他人覆盖的格子自动扣减。
+          结算的是已经结束的上一个自然月，每月只发一次。
+        </blockquote>
+        <div class="oi33-reward-summary">
+          <div><span>周期</span><strong>{{ cellReward._id }}</strong></div>
+          <div><span>状态</span><strong>{% if cellReward.status == 'waiting' %}等待首个结算月（{{ cellReward.startMonth }} 起）{% else %}{{ cellReward.status }}{% endif %}</strong></div>
+          <div><span>用户</span><strong>{{ cellReward.users or 0 }}</strong></div>
+          <div><span>格子</span><strong>{{ cellReward.cells or 0 }}</strong></div>
+          <div><span>罐头</span><strong>{{ cellReward.cans or 0 }}</strong></div>
+        </div>
+        <form method="post" action="{{ url('oi33_cat_cell_reward_settle') }}" style="margin:.8rem 0;"
+              onsubmit="return confirm('确定结算上个月（{{ cellReward._id }}）的占格月奖励吗？重复结算不会二次发奖。');">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+          <button type="submit" class="primary rounded button">结算上个月占格月奖励</button>
+        </form>
+        {% if cellHistory.length %}
+        <table class="data-table">
+          <thead><tr><th>周期</th><th>状态</th><th>用户</th><th>格子</th><th>罐头</th></tr></thead>
+          <tbody>
+            {% for row in cellHistory %}
+            <tr>
+              <td>{{ row._id }}</td>
+              <td>{{ row.status }}</td>
+              <td>{{ row.users or 0 }}</td>
+              <td>{{ row.cells or 0 }}</td>
+              <td>{{ row.cans or 0 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        {% if not weeklyRewardEnabled %}
+        <blockquote class="note warning">
+          旧每周大猫罐头奖励已停用：不会再生成新快照、不会发放罐头，也不会执行每周 5% 的猫粮/体重衰减。
+          本页下方是历史批次（含已退役的体重/投喂字段），仅用于查看与回滚，不再影响现行占格月奖励。
+        </blockquote>
+        {% endif %}
         <blockquote class="note">
           每次结算保存领地、投喂人数和用户贡献快照，并使用“周期 + 版本”防止重复发放。
           奖励发放完成后大猫会吃掉全体用户当前投喂贡献的 5%，大猫体重同步减少 5%。
@@ -106,17 +147,25 @@
             </button>
           </form>
           {% elif detail.status == 'rolled_back' %}
+          {% if weeklyRewardEnabled %}
           <form method="post" action="{{ url('oi33_school_cat_reward_settle', period=detail._id) }}"
                 onsubmit="return confirm('确定按当前领地、当前投喂用户与当前贡献重新生成快照，并结算为第 {{ (detail.revision or 1) + 1 }} 版吗？');">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <button type="submit" class="primary rounded button">重新计算并结算 v{{ (detail.revision or 1) + 1 }}</button>
           </form>
+          {% else %}
+          <p>每周大猫罐头奖励已停用，不再重新结算。</p>
+          {% endif %}
           {% elif detail.status == 'pending' or detail.status == 'planned' or detail.status == 'failed' %}
+          {% if weeklyRewardEnabled %}
           <form method="post" action="{{ url('oi33_school_cat_reward_settle', period=detail._id) }}"
                 onsubmit="return confirm('确定结算 {{ detail._id }} 第 {{ detail.revision or 1 }} 版吗？');">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <button type="submit" class="primary rounded button">{% if detail.status == 'failed' %}重试结算{% else %}立即结算{% endif %}</button>
           </form>
+          {% else %}
+          <p>每周大猫罐头奖励已停用，不再结算。</p>
+          {% endif %}
           {% else %}
           <p>该批次正在处理，请稍后刷新。</p>
           {% endif %}

@@ -1,5 +1,5 @@
 import { DiscussionModel, DocumentModel, SystemModel, db, ObjectId } from 'hydrooj';
-import { aiChat, aiGetConfig, aiResolveChatConfig } from './ai';
+import { AI_MAX_TOKENS, aiChat, aiGetConfig, aiResolveChatConfig } from './ai';
 import {
     DEFAULT_MODERATION_PROMPT, MAX_AI_INPUT, MAX_MATH_DEPTH, REVIEW_WORD_CATEGORY,
     bioHashMatches, bioHashOf, bioQueueState, checkRules, configLinkHosts, configReviewWords,
@@ -220,7 +220,7 @@ export async function runAiVerdict(
         config,
         system: systemPrompt,
         user: userPrompt,
-        maxTokens: 1024,
+        maxTokens: AI_MAX_TOKENS,
         json: true,
         usage: { uid, type: 'moderation', deducted: false },
     });

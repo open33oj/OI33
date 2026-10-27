@@ -16,3 +16,6 @@ export * from './can';
 export * from './account';
 export * from './school';
 export * from './school-reward';
+export * from './retire';
+export * from './cell-reward';
+export * from './wildcat';

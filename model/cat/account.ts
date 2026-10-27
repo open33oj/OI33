@@ -3,7 +3,7 @@ import { addLog, logColl } from '../log';
 import { userColl } from '../user';
 import { catCanBillColl, catCanPoolColl } from './can';
 import { catMapPlayerColl } from './map';
-import { schoolCatColl, schoolFeedHistoryColl } from './school-shared';
+import { schoolFeedHistoryColl } from './school-shared';
 
 export const catFoodBatchPreviewColl = db.collection('oi33_cat_food_batch_preview');
 
@@ -303,7 +303,7 @@ export async function confirmCatFoodBatchPreview(id: string, operator: number, n
 // 日志），罐头回流储备池（circulatingCans 减少，储备粮不变，等于无偿归还），
 // 并把小猫移出猫猫广场、清空其对绑定大猫的当前贡献（大猫减重，不转入历史）
 // 以及全部历史投喂记录（删除 oi33_school_feed_history 并按学校扣减
-// historyWeight，恢复认证后也没有可恢复的贡献）。
+// 恢复认证后也没有可恢复的贡献）。
 // 未认证用户本就无法获得/交易猫资产，这里清理的是历史遗留与降级账户，
 // 使其余额不再计入 userFoodTotal / circulatingCans 定价计数。
 export async function purgeUnverifiedCatAssets(operator: number, now = new Date()) {
@@ -344,15 +344,7 @@ export async function purgeUnverifiedCatAssets(operator: number, now = new Date(
         users++;
         food += targetFood;
         cans += targetCans;
-        const schoolId = Number.isSafeInteger(target.school_cat) ? target.school_cat : null;
-        if (contribution && schoolId !== null) {
-            await schoolCatColl.updateOne(
-                { _id: schoolId } as any,
-                { $inc: { currentWeight: -contribution }, $set: { updatedAt: now } } as any,
-            );
-            affectedCatIds.add(schoolId);
-            schoolContribution += contribution;
-        }
+        if (contribution) schoolContribution += contribution;
         await addLog({
             type: 'cat_account', userId: target._id, sender: operator,
             action: 'deduct', amount: -targetFood, canAmount: -targetCans,
@@ -366,9 +358,8 @@ export async function purgeUnverifiedCatAssets(operator: number, now = new Date(
         : [];
     const removedMapUids = unverifiedPlayers.map((row) => row._id);
     if (removedMapUids.length) await catMapPlayerColl.deleteMany({ _id: { $in: removedMapUids } });
-    // 投喂历史（改绑时归档的贡献）同样清空：删除历史记录并按学校扣减
-    // historyWeight，未认证用户不再出现在历史投喂榜，恢复认证后也没有
-    // 可恢复的历史贡献。
+    // 投喂历史（改绑时归档的贡献）同样清空：删除历史记录；大猫已不再有
+    // 体重/历史重量字段，所以这里没有任何大猫侧扣减。
     const historyUids = await schoolFeedHistoryColl.distinct('uid');
     const unverifiedHistoryUsers: any[] = historyUids.length
         ? await userColl.find({ _id: { $in: historyUids }, ...unverifiedFilter } as any, { projection: { _id: 1 } }).toArray()
@@ -383,14 +374,7 @@ export async function purgeUnverifiedCatAssets(operator: number, now = new Date(
             if (!amount || !Number.isSafeInteger(row.schoolId)) continue;
             perCat.set(row.schoolId, (perCat.get(row.schoolId) || 0) + amount);
         }
-        for (const [schoolId, amount] of perCat) {
-            await schoolCatColl.updateOne(
-                { _id: schoolId } as any,
-                { $inc: { historyWeight: -amount }, $set: { updatedAt: now } } as any,
-            );
-            affectedCatIds.add(schoolId);
-            historyContribution += amount;
-        }
+        for (const amount of perCat.values()) historyContribution += amount;
         await schoolFeedHistoryColl.deleteMany({ uid: { $in: historyUidSet } } as any);
     }
     if (food || cans) {

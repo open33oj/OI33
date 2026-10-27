@@ -4,7 +4,7 @@ import { userColl } from '../user';
 import { catCanPoolColl } from './can';
 import { getEligibleUser } from './eligibility';
 import { CAT_MAP_TELEPORT_CAN_COST, cellId, cooldownMinutes, boundCatIdOf, catMapCellColl, catMapPlayerColl, CAT_MAP_MOVE_FOOD_COST, displaceFortressIntruders, fortressCatIdAt, moveTerritoryCount, normalizedCatId, recountSchoolCatTerritories, validColor, validCoordinate } from './map';
-import { ensureSchoolCatRecord, schoolCatColl, schoolCatKey } from './school-shared';
+import { ensureSchoolCatRecord, schoolCatKey } from './school-shared';
 
 // 小猫在地图上的动作：加入、移动、染色、切换领地传送与冷却计算。
 // 地图数据与领土统计在 map.ts，管理员强制操作在 map-admin.ts。
@@ -117,23 +117,16 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
     let foodDeducted = false;
     let canDeducted = false;
     let poolUpdated = false;
-    let catContributionUpdated = false;
     let movementLogged = false;
     const movementLogId = new ObjectId();
     try {
         if (foodCost) {
-            const foodFilter: any = { _id: uid, realname_flag: { $gte: 1 }, cat_food: { $gte: foodCost } };
-            const foodIncrements: any = { cat_food: -foodCost };
-            if (contributionSchoolId !== null) {
-                // Keep the binding stable across the balance/contribution write.
-                foodFilter.school_cat = contributionSchoolId;
-                foodIncrements.school_cat_food = foodCost;
-            }
+            // 移动只销毁猫粮，不再产生大猫贡献/体重（主动贡献已退役）。
             const result = await userColl.updateOne(
-                foodFilter,
-                { $inc: foodIncrements },
+                { _id: uid, realname_flag: { $gte: 1 }, cat_food: { $gte: foodCost } },
+                { $inc: { cat_food: -foodCost } },
             );
-            if (!result.modifiedCount) throw new Error(`猫粮不足或大猫绑定刚刚发生变化，本次移动需要 ${foodCost}g 猫粮。`);
+            if (!result.modifiedCount) throw new Error(`猫粮不足，本次移动需要 ${foodCost}g 猫粮。`);
             foodDeducted = true;
         }
         if (canCost) {
@@ -152,14 +145,6 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
             { $inc: increments, $set: { updatedAt: now } } as any,
         );
         poolUpdated = !!poolResult.modifiedCount;
-        if (contributionSchoolId !== null) {
-            const catResult = await schoolCatColl.updateOne(
-                { _id: contributionSchoolId } as any,
-                { $inc: { currentWeight: foodCost }, $set: { updatedAt: now } } as any,
-            );
-            if (!catResult.modifiedCount) throw new Error('移动猫粮计入大猫贡献失败，请重试。');
-            catContributionUpdated = true;
-        }
         await logColl.insertOne({
             _id: movementLogId,
             createdAt: now,
@@ -170,7 +155,6 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
             amount: -foodCost,
             canAmount: -canCost,
             catId: contributionSchoolId === null ? 0 : schoolCatKey(contributionSchoolId),
-            schoolCatContributionCounted: true,
             reason: `从 (${player.y}, ${player.x}) 到 (${targetY}, ${targetX})（行,列）`,
         } as any);
         movementLogged = true;
@@ -192,16 +176,8 @@ export async function moveCatMapPlayer(uid: number, targetX: number, targetY: nu
         if (!moved.modifiedCount) throw new Error('移动锁已失效，请重试。');
     } catch (e) {
         if (movementLogged) await logColl.deleteOne({ _id: movementLogId });
-        if (catContributionUpdated && contributionSchoolId !== null) {
-            await schoolCatColl.updateOne(
-                { _id: contributionSchoolId } as any,
-                { $inc: { currentWeight: -foodCost } } as any,
-            );
-        }
         if (foodDeducted) {
-            const foodRollback: any = { cat_food: foodCost };
-            if (contributionSchoolId !== null) foodRollback.school_cat_food = -foodCost;
-            await userColl.updateOne({ _id: uid }, { $inc: foodRollback });
+            await userColl.updateOne({ _id: uid }, { $inc: { cat_food: foodCost } });
         }
         if (canDeducted) await userColl.updateOne({ _id: uid }, { $inc: { cat_can: canCost } });
         if (poolUpdated) {

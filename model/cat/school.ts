@@ -1,8 +1,10 @@
 import { addLog } from '../log';
 import type { Oi33School } from '../types';
 import { userColl } from '../user';
-import { SCHOOL_CAT_FEED_COOLDOWN_MS, SCHOOL_CAT_PAGE_SIZE, SCHOOL_CAT_SIDEBAR_RANKING_SIZE, activeSchoolCatFilter, ensureSchoolCatRecord, getSchoolView, getTopFeeder, isAdminSchoolCatRecord, publicCat, schoolById, schoolCatColl, schoolCatColorCss, schoolCatKey, schoolDisplay, schoolFeedHistoryColl, schoolUrl, schoolViewFor, schools, shanghaiMonthKey, validTerritoryColor, withDisplay } from './school-shared';
+import { SCHOOL_CAT_PAGE_SIZE, SCHOOL_CAT_SIDEBAR_RANKING_SIZE, activeSchoolCatFilter, ensureSchoolCatRecord, getSchoolView, isAdminSchoolCatRecord, publicCat, schoolById, schoolCatColl, schoolCatColorCss, schoolCatKey, schoolDisplay, schoolUrl, schoolViewFor, schools, shanghaiMonthKey, validTerritoryColor, withDisplay } from './school-shared';
 import { getEligibleUser } from './eligibility';
+import { countUserCatCells, listCatCellRanking } from './map';
+import { catCellRewardCans } from './cell-reward-rules';
 
 // 大猫页面视图与管理员操作：学校/大猫搜索与列表、侧栏排行、大猫世界状态、
 // 特殊大猫的创建/改名、领地颜色与详情页。
@@ -84,7 +86,7 @@ export async function getSchoolCatRanking() {
     const cats: any[] = await schoolCatColl.find(activeSchoolCatFilter as any).toArray();
     const rows = cats.map((cat: any) => ({ cat, view: publicCat(cat, schoolViewFor(cat)) }));
     rows.sort((a: any, b: any) => b.view.territoryCount - a.view.territoryCount
-        || b.view.weight - a.view.weight || a.view.id - b.view.id);
+        || a.view.id - b.view.id);
     let numericRank = 0;
     return rows.map(({ cat, view }: any) => ({
         ...view,
@@ -110,6 +112,11 @@ export async function getBigCatWorldState(viewerUid = 0) {
             : ranking.find((cat: any) => cat.id === boundId)
                 || await schoolCatColl.findOne({ _id: boundId } as any);
         const boundColor = boundCat?.color ?? boundCat?.territoryColor;
+        const cells = await countUserCatCells(viewerUid);
+        const rebindAt = viewer.school_cat_rebind_at;
+        const canUndoRebind = !!rebindAt
+            && Date.now() - new Date(rebindAt).getTime() <= 7 * 24 * 60 * 60 * 1000
+            && Object.prototype.hasOwnProperty.call(viewer, 'school_cat_rebind_prev');
         me = {
             food: Math.max(0, Number(viewer.cat_food) || 0),
             boundId,
@@ -117,11 +124,13 @@ export async function getBigCatWorldState(viewerUid = 0) {
             boundDisplay: boundSchool ? schoolDisplay(boundSchool) : null,
             boundUrl: boundId === null ? null : schoolUrl(boundId),
             boundColor: validTerritoryColor(boundColor) ? boundColor : null,
-            contribution: Math.max(0, Math.floor(Number(viewer.school_cat_food) || 0)),
+            cells,
+            contribution: cells,
+            estimatedCans: catCellRewardCans(cells),
             canChange: (viewer.school_cat_month || '') !== shanghaiMonthKey(),
-            nextFeedAt: viewer.school_cat_feed_at
-                ? new Date(viewer.school_cat_feed_at).getTime() + SCHOOL_CAT_FEED_COOLDOWN_MS
-                : 0,
+            canUndoRebind,
+            rebindAt: rebindAt || null,
+            nextFeedAt: 0,
         };
     }
     return {
@@ -132,7 +141,6 @@ export async function getBigCatWorldState(viewerUid = 0) {
             display: cat.display,
             url: cat.url,
             color: cat.color,
-            weight: cat.weight,
             territoryCount: cat.territoryCount,
             isAdminCat: cat.isAdminCat,
             rank: cat.rank,
@@ -167,8 +175,6 @@ export async function createSpecialSchoolCat(operator: number, name: string, now
             await schoolCatColl.insertOne({
                 _id: schoolId,
                 name: trimmed,
-                currentWeight: 0,
-                historyWeight: 0,
                 territoryCount: 0,
                 spawnedAt: now,
                 updatedAt: now,
@@ -257,8 +263,8 @@ export async function setSchoolCatTerritoryColor(
     const school: any = await getSchoolView(schoolId);
     if (!school) throw new Error('该学校不存在。');
     const cat: any = await ensureSchoolCatRecord(schoolId, now);
-    const top = await getTopFeeder(schoolId);
-    if (!top || top._id !== uid) throw new Error('只有当前贡献最多的用户可以修改这只大猫的领地颜色。');
+    const [top] = await listCatCellRanking(1, schoolCatKey(schoolId));
+    if (!top || top.uid !== uid) throw new Error('只有当前占领格子最多的用户可以修改这只大猫的领地颜色。');
     if (cat.territoryColor === territoryColor) return {
         schoolId, catId: schoolCatKey(schoolId), color: territoryColor,
     };
@@ -294,44 +300,26 @@ export async function getSchoolCatDetail(schoolId: number, viewerUid = 0) {
     const school: any = await getSchoolView(schoolId);
     if (!school) throw new Error('该学校不存在。');
     const cat: any = await schoolCatColl.findOne({ _id: schoolId } as any);
-    const weight = Math.max(0, Math.floor(Number(cat?.currentWeight) || 0));
-    const historyWeight = Math.max(0, Math.floor(Number(cat?.historyWeight) || 0));
-    const currentRows = await userColl.find(
-        { school_cat: schoolId, school_cat_food: { $gt: 0 } },
-    ).sort({ school_cat_food: -1, _id: 1 }).limit(50)
-        .project({ _id: 1, school_cat_food: 1 }).toArray();
-    const historyRows = await schoolFeedHistoryColl.aggregate([
-        { $match: { schoolId } },
-        { $group: { _id: '$uid', amount: { $sum: '$amount' } } },
-        { $sort: { amount: -1, _id: 1 } },
-        { $limit: 50 },
-    ]).toArray();
+    const catId = schoolCatKey(schoolId);
+    const cells = await listCatCellRanking(50, catId);
     let mine: any = null;
     if (viewerUid) {
         const viewer: any = await userColl.findOne({ _id: viewerUid });
-        const historyMine = await schoolFeedHistoryColl.aggregate([
-            { $match: { schoolId, uid: viewerUid } },
-            { $group: { _id: null, amount: { $sum: '$amount' } } },
-        ]).toArray();
         mine = {
             bound: Number.isSafeInteger(viewer?.school_cat) && viewer.school_cat === schoolId,
-            current: viewer?.school_cat === schoolId ? Math.max(0, Math.floor(Number(viewer.school_cat_food) || 0)) : 0,
-            history: Math.max(0, Math.floor(Number(historyMine[0]?.amount) || 0)),
+            cells: await countUserCatCells(viewerUid),
         };
     }
     return {
         school: withDisplay(school),
-        weight,
-        historyWeight,
-        catId: schoolCatKey(schoolId),
+        catId,
         color: validTerritoryColor(cat?.territoryColor) ? cat.territoryColor : null,
         territoryCount: Math.max(0, Math.floor(Number(cat?.territoryCount) || 0)),
         isAdminCat: isAdminSchoolCatRecord(cat),
-        canSetColor: !!viewerUid
-            && currentRows.length > 0
-            && currentRows[0]._id === viewerUid,
-        current: currentRows.map((row: any) => ({ uid: row._id, amount: Math.max(0, Math.floor(Number(row.school_cat_food) || 0)) })),
-        history: historyRows.map((row: any) => ({ uid: row._id, amount: Math.max(0, Math.floor(Number(row.amount) || 0)) })),
+        canSetColor: !!viewerUid && cells.length > 0 && cells[0].uid === viewerUid,
+        cells,
+        current: cells,
+        history: [] as any[],
         mine,
     };
 }

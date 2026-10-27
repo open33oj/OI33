@@ -7,8 +7,6 @@ interface BigCat {
     // 特殊大猫（负数 id）没有 OIerDB 页面，url 为 null。
     url: string | null;
     color: number;
-    weight: number;
-    historyWeight: number;
     territoryCount: number;
     isAdminCat: boolean;
 }
@@ -20,9 +18,11 @@ interface BigCatMe {
     boundDisplay: string | null;
     boundUrl: string | null;
     boundColor: number | null;
-    contribution: number;
+    cells: number;
+    estimatedCans: number;
     canChange: boolean;
-    nextFeedAt: number;
+    canUndoRebind: boolean;
+    rebindAt: string | null;
 }
 
 interface BigCatState {
@@ -33,7 +33,6 @@ interface BigCatState {
         display: string;
         url: string | null;
         color: number;
-        weight: number;
         territoryCount: number;
         isAdminCat: boolean;
         rank: number | null;
@@ -60,13 +59,6 @@ export interface BigCatLayer {
     isDialogOpen: () => boolean;
 }
 
-function formatWeight(value: number) {
-    const amount = Math.max(0, Math.floor(Number(value) || 0));
-    if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(2)} t`;
-    if (amount >= 1_000) return `${(amount / 1_000).toFixed(2)} kg`;
-    return `${amount} g`;
-}
-
 function colorHex(value: number) {
     const color = Math.max(0, Math.min(0xFFFFFF, Math.floor(Number(value) || 0)));
     return `#${color.toString(16).padStart(6, '0')}`;
@@ -82,7 +74,6 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     const schoolsUrl = viewport.dataset.schoolsUrl || '/oi33/arena/big/schools';
     const bindUrl = viewport.dataset.bindUrl || '/oi33/arena/big/bind';
     const unbindUrl = viewport.dataset.unbindUrl || '/oi33/arena/big/unbind';
-    const feedUrl = viewport.dataset.feedUrl || '/oi33/arena/big/feed';
     const detailBaseUrl = viewport.dataset.detailBaseUrl || '/oi33/arena/big/cat';
     const catCount = document.querySelector<HTMLElement>('[data-bigcat-count]');
     const rankingList = document.querySelector<HTMLElement>('[data-bigcat-ranking]');
@@ -91,6 +82,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     const pickerDialog = document.querySelector<HTMLDialogElement>('[data-bigcat-picker-dialog]');
     const bindMenuButton = document.querySelector<HTMLButtonElement>('[data-bigcat-bind]');
     const unbindButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-bigcat-unbind]'));
+    const undoRebindButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-bigcat-undo-rebind]'));
 
     detailDialog?.querySelectorAll<HTMLButtonElement>('[data-bigcat-board-tab]').forEach((tab) => {
         tab.addEventListener('click', () => {
@@ -110,9 +102,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     let me: BigCatMe | null = null;
     const cats = new Map<number, BigCat>();
     const catsByKey = new Map<number, BigCat>();
-    let clockOffset = 0;
     let refreshTimer: number | null = null;
-    const now = () => Date.now() + clockOffset;
 
     const upsertCat = (incoming: Partial<BigCat> & { id: number }) => {
         const id = Number(incoming.id);
@@ -127,8 +117,6 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             display: incoming.display ?? previous?.display ?? `#${id}`,
             url: incoming.url ?? previous?.url ?? fallbackUrl,
             color: Math.max(0, Number(incoming.color ?? previous?.color ?? 0)),
-            weight: Math.max(0, Number(incoming.weight ?? previous?.weight ?? 0)),
-            historyWeight: Math.max(0, Number(incoming.historyWeight ?? previous?.historyWeight ?? 0)),
             territoryCount: Math.max(0, Number(incoming.territoryCount ?? previous?.territoryCount ?? 0)),
             isAdminCat: incoming.isAdminCat ?? previous?.isAdminCat ?? false,
         };
@@ -151,7 +139,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         if (!ranking.length) {
             const empty = document.createElement('li');
             empty.className = 'oi33-bigcat-ranking-empty';
-            empty.textContent = '还没有获得体重或领地的大猫。';
+            empty.textContent = '还没有占领格子的大猫。';
             rankingList.append(empty);
             return;
         }
@@ -173,9 +161,9 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             button.textContent = entry.display;
             button.addEventListener('click', () => { void openDetail(entry.id); });
             const stats = document.createElement('span');
-            stats.className = 'oi33-bigcat-ranking-weight';
-            stats.textContent = `${entry.territoryCount} 格 · ${formatWeight(entry.weight)}`;
-            stats.title = `${entry.weight} g；占领 ${entry.territoryCount} 格`;
+            stats.className = 'oi33-bigcat-ranking-cells';
+            stats.textContent = `${entry.territoryCount} 格`;
+            stats.title = `占领 ${entry.territoryCount} 个有色格子`;
             item.append(rank, swatch, button, stats);
             rankingList.append(item);
         });
@@ -214,8 +202,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             link.textContent = row.uname;
             const amount = document.createElement('span');
             amount.className = 'oi33-bigcat-board-amount';
-            amount.textContent = formatWeight(row.amount);
-            amount.title = `${row.amount} g`;
+            amount.textContent = `${row.amount} 格`;
+            amount.title = `占领 ${row.amount} 个格子`;
             item.append(rank, img, link, amount);
             element.append(item);
         });
@@ -235,44 +223,9 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         }
     };
 
-    const feedBoundCat = async (amount: number, button: HTMLButtonElement) => {
-        if (!me || me.boundId === null) {
-            Notification.error('请先绑定一只大猫再投喂。');
-            return null;
-        }
-        if (!Number.isSafeInteger(amount) || amount <= 0) {
-            Notification.error('投喂量必须是正整数。');
-            return null;
-        }
-        if ((me.nextFeedAt || 0) > now()) {
-            Notification.error(`投喂冷却中，请在 ${new Date(me.nextFeedAt).toLocaleString('zh-CN')} 后再投喂（冷却固定 2 小时）。`);
-            return null;
-        }
-        button.disabled = true;
-        try {
-            const schoolId = me.boundId;
-            const result = await request.post(feedUrl, { amount });
-            upsertCat({
-                id: schoolId,
-                catId: schoolId >= 0 ? schoolId + 1 : schoolId,
-                weight: result.weight,
-                historyWeight: result.historyWeight,
-                territoryCount: result.territoryCount,
-                color: result.color,
-                isAdminCat: result.isAdminCat,
-            });
-            me.food = Math.max(0, Number(result.balance) || 0);
-            me.contribution = Math.max(0, Number(result.contribution) || 0);
-            me.nextFeedAt = Number(result.nextFeedAt) || 0;
-            Notification.success(`投喂成功，${result.display} 当前体重 ${formatWeight(result.weight)}；2 小时后可再次投喂。`);
-            scheduleRefresh();
-            return result;
-        } catch (e: any) {
-            Notification.error(e.message || String(e));
-            return null;
-        } finally {
-            button.disabled = false;
-        }
+    const syncRebindButtons = () => {
+        const show = !!me?.canUndoRebind;
+        undoRebindButtons.forEach((button) => { button.hidden = !show; });
     };
 
     async function openDetail(schoolId: number) {
@@ -280,15 +233,11 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         const name = detailDialog.querySelector<HTMLElement>('[data-bigcat-detail-name]');
         const link = detailDialog.querySelector<HTMLAnchorElement>('[data-bigcat-detail-link]');
         const summary = detailDialog.querySelector<HTMLElement>('[data-bigcat-detail-summary]');
-        const feedBox = detailDialog.querySelector<HTMLElement>('[data-bigcat-detail-feed]');
-        const feedAmount = detailDialog.querySelector<HTMLInputElement>('[data-bigcat-feed-amount]');
-        const feedConfirm = detailDialog.querySelector<HTMLButtonElement>('[data-bigcat-feed-confirm]');
         const colorBox = detailDialog.querySelector<HTMLElement>('[data-bigcat-detail-color]');
         const colorInput = detailDialog.querySelector<HTMLInputElement>('[data-bigcat-color-input]');
         const colorConfirm = detailDialog.querySelector<HTMLButtonElement>('[data-bigcat-color-confirm]');
         const detailUnbind = detailDialog.querySelector<HTMLButtonElement>('[data-bigcat-unbind]');
         const boardCurrent = detailDialog.querySelector<HTMLElement>('[data-bigcat-board-current]');
-        const boardHistory = detailDialog.querySelector<HTMLElement>('[data-bigcat-board-history]');
         const cat = cats.get(schoolId);
         const setDetailLink = (url: string | null | undefined) => {
             if (!link) return;
@@ -304,19 +253,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         setDetailLink(cat?.url ?? (schoolId >= 0 ? `https://oier.baoshuo.dev/school/${schoolId}` : null));
         if (summary) summary.textContent = '正在读取榜单…';
         renderBoard(boardCurrent, []);
-        renderBoard(boardHistory, []);
-        if (feedBox) feedBox.hidden = !(loggedIn && me && me.boundId === schoolId);
         if (detailUnbind) detailUnbind.hidden = !(loggedIn && me && me.boundId === schoolId);
         if (colorBox) colorBox.hidden = true;
-        if (feedConfirm) {
-            feedConfirm.onclick = async () => {
-                const result = await feedBoundCat(Math.floor(Number(feedAmount?.value)), feedConfirm);
-                if (result) {
-                    detailDialog.close();
-                    void openDetail(schoolId);
-                }
-            };
-        }
         detailDialog.showModal();
         try {
             const detail = await request.get(`${detailBaseUrl}/${schoolId}`);
@@ -331,16 +269,11 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             };
             const territoryColor = colorHex(detail.color);
             const parts: Array<Node | string> = [
-                exact('当前体重', formatWeight(detail.weight), `${detail.weight} g`),
-                exact('历史投喂', formatWeight(detail.historyWeight), `${detail.historyWeight} g`),
                 exact('领地', `${detail.territoryCount} 格`, `占领 ${detail.territoryCount} 个有色格子`),
                 exact('领地色', territoryColor, territoryColor),
             ];
             if (detail.mine) {
-                if (detail.mine.bound) parts.push(exact('我的当前投喂', formatWeight(detail.mine.current), `${detail.mine.current} g`));
-                else if (detail.mine.history > 0) {
-                    parts.push(exact('我的历史投喂', formatWeight(detail.mine.history), `${detail.mine.history} g`), '重新绑定后可恢复');
-                }
+                parts.push(exact('我的占格', `${detail.mine.cells} 格`, '你画过的所有格子（含无主领地）'));
             }
             if (summary) {
                 summary.replaceChildren();
@@ -374,13 +307,10 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                 display: detail.school.display,
                 url: detail.school.url,
                 color: detail.color,
-                weight: detail.weight,
-                historyWeight: detail.historyWeight,
                 territoryCount: detail.territoryCount,
                 isAdminCat: detail.isAdminCat,
             });
             renderBoard(boardCurrent, detail.current || []);
-            renderBoard(boardHistory, detail.history || []);
         } catch (e: any) {
             if (summary) summary.textContent = `读取失败：${e.message || e}`;
         }
@@ -434,7 +364,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                 bind.disabled = true;
                 try {
                     const result = await request.post(bindUrl, { schoolId: school.id });
-                    const restored = Math.max(0, Number(result.restoredFromHistory) || 0);
+                    const carried = Math.max(0, Number(result.carriedCells) || 0);
                     me = {
                         food: me?.food || 0,
                         boundId: result.boundId,
@@ -442,9 +372,11 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                         boundDisplay: result.boundDisplay,
                         boundUrl: result.boundUrl,
                         boundColor: result.boundColor,
-                        contribution: restored,
+                        cells: me?.cells || 0,
+                        estimatedCans: me?.estimatedCans || 0,
                         canChange: result.canChange !== false,
-                        nextFeedAt: me?.nextFeedAt || 0,
+                        canUndoRebind: true,
+                        rebindAt: new Date().toISOString(),
                     };
                     upsertCat({
                         id: result.boundId,
@@ -453,10 +385,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                         url: result.boundUrl,
                         color: result.boundColor,
                     });
-                    const restoredNote = restored ? `，历史投喂 ${formatWeight(restored)} 已恢复为当前投喂` : '';
-                    Notification.success(result.movedToHistory
-                        ? `已改绑 ${result.boundDisplay}，旧画作归属保持不变；原大猫的 ${formatWeight(result.movedToHistory)} 投喂已转入历史${restoredNote}。`
-                        : `已绑定 ${result.boundDisplay}${restoredNote}，今后的绘图会归属这只大猫。`);
+                    syncRebindButtons();
+                    Notification.success(`已绑定/改绑 ${result.boundDisplay}，${carried} 格旧领地一起归顺；7 天内可撤销。`);
                     pickerDialog?.close();
                     scheduleRefresh();
                 } catch (e: any) {
@@ -494,7 +424,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
         if (!pickerDialog) return;
         const hint = pickerDialog.querySelector<HTMLElement>('[data-bigcat-picker-hint]');
         if (hint) hint.textContent = me?.boundId !== null && me?.boundId !== undefined
-            ? `已绑定 ${me.boundDisplay}（当前投喂 ${formatWeight(me.contribution)}） · ${me.canChange ? '本月可改绑' : '本月已改绑'}`
+            ? `已绑定 ${me.boundDisplay}（占格 ${me.cells} 格） · ${me.canChange ? '本月可改绑' : '本月已改绑'}`
+                + `${me.canUndoRebind ? ' · 7 天内可撤销上次换绑' : ''}`
             : '尚未绑定大猫';
         const pickerUnbind = pickerDialog.querySelector<HTMLButtonElement>('[data-bigcat-unbind]');
         if (pickerUnbind) pickerUnbind.hidden = me?.boundId === null || me?.boundId === undefined;
@@ -504,12 +435,12 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     unbindButtons.forEach((unbindButton) => {
         unbindButton.addEventListener('click', async () => {
             if (!me || me.boundId === null) return;
-            if (!window.confirm(`确定取消绑定 ${me.boundDisplay || `#${me.boundId}`} 吗？当前贡献会转入历史，既有绘图归属不会改变；本月不能再次修改绑定。`)) return;
+            if (!window.confirm(`确定取消绑定 ${me.boundDisplay || `#${me.boundId}`} 吗？你画过的格子会转为无主领地，个人占格数不变；本月不能再次修改绑定。`)) return;
             unbindButtons.forEach((button) => { button.disabled = true; });
             try {
                 const result = await request.post(unbindUrl, {});
                 if (result.cat) upsertCat(result.cat);
-                const moved = Math.max(0, Number(result.movedToHistory) || 0);
+                const released = Math.max(0, Number(result.releasedCells) || 0);
                 me = {
                     ...me,
                     boundId: null,
@@ -517,12 +448,14 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                     boundDisplay: null,
                     boundUrl: null,
                     boundColor: null,
-                    contribution: 0,
                     canChange: false,
+                    canUndoRebind: false,
+                    rebindAt: null,
                 };
                 if (bindMenuButton) bindMenuButton.textContent = '绑定大猫';
                 unbindButtons.forEach((button) => { button.hidden = true; });
-                Notification.success(`已取消绑定 ${result.previousDisplay}${moved ? `，${formatWeight(moved)} 已转入历史投喂` : ''}；既有绘图归属保持不变。`);
+                syncRebindButtons();
+                Notification.success(`已取消绑定 ${result.previousDisplay}，${released} 格转为无主领地；个人占格数不变。`);
                 pickerDialog?.close();
                 detailDialog?.close();
                 scheduleRefresh();
@@ -530,6 +463,24 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
                 Notification.error(e.message || String(e));
             } finally {
                 unbindButtons.forEach((button) => { button.disabled = false; });
+            }
+        });
+    });
+    undoRebindButtons.forEach((undoButton) => {
+        undoButton.addEventListener('click', async () => {
+            if (!me?.canUndoRebind) return;
+            if (!window.confirm('撤销上次换绑？换绑时带过去的领地将回到原来的大猫；换绑后新画的格子留在新大猫。')) return;
+            undoButton.disabled = true;
+            try {
+                const result = await request.post('/oi33/arena/big/rebind/undo', {});
+                Notification.success(`已撤销换绑，恢复到 ${result.display}；${result.cells} 格领地回到原归属。`);
+                pickerDialog?.close();
+                detailDialog?.close();
+                await refresh();
+            } catch (e: any) {
+                Notification.error(e.message || String(e));
+            } finally {
+                undoButton.disabled = false;
             }
         });
     });
@@ -555,18 +506,8 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             void loadPicker();
         }
     });
-    document.querySelector<HTMLButtonElement>('[data-bigcat-find]')?.addEventListener('click', () => {
-        if (me?.boundId === null || me?.boundId === undefined) {
-            pickerDialog?.showModal();
-            void loadPicker();
-            return;
-        }
-        void openDetail(me.boundId);
-    });
-
     const refresh = async () => {
         const incoming: BigCatState = await request.get(stateUrl);
-        clockOffset = incoming.serverTime - Date.now();
         const seen = new Set<number>();
         (incoming.cats || []).forEach((cat) => {
             seen.add(cat.id);
@@ -580,6 +521,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
             removedTerritoryColor = true;
         });
         me = incoming.me;
+        syncRebindButtons();
         if (bindMenuButton) bindMenuButton.textContent = me?.boundId === null || me?.boundId === undefined
             ? '绑定大猫' : '更换 / 取消大猫';
         renderRanking(incoming.ranking || []);

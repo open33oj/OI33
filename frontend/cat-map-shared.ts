@@ -17,6 +17,8 @@ export interface MapPlayer {
     food: number;
     availableAt: number;
     freeColorAvailable: boolean;
+    wildcat?: boolean;
+    wildcatNextAt?: number;
 }
 
 export interface MapPlanStep {

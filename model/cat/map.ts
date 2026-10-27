@@ -79,6 +79,7 @@ export async function ensureCatMapIndexes() {
         catMapCellColl.createIndex({ updatedAt: -1 }),
         catMapCellColl.createIndex({ catId: 1 }),
         catMapCellColl.createIndex({ updatedBy: 1 }),
+        catMapCellColl.createIndex({ catId: 1, updatedBy: 1 }),
         // Due plans are scanned by the 5s scheduler with this index.
         catMapPlanColl.createIndex({ status: 1, nextAt: 1 }),
         catMapPlanColl.createIndex({ updatedAt: -1 }),
@@ -87,7 +88,17 @@ export async function ensureCatMapIndexes() {
     // $setOnInsert keeps an existing configuration untouched.
     await catMapConfigColl.updateOne(
         { _id: 'main' } as any,
-        { $setOnInsert: { planMaxSteps: CAT_MAP_PLAN_MAX_STEPS_DEFAULT, updatedAt: new Date() } } as any,
+        {
+            $setOnInsert: {
+                planMaxSteps: CAT_MAP_PLAN_MAX_STEPS_DEFAULT,
+                wildcatEnabled: false,
+                wildcatX: null,
+                wildcatY: null,
+                wildcatNextAt: null,
+                wildcatVisited: [],
+                updatedAt: new Date(),
+            },
+        } as any,
         { upsert: true },
     );
 }
@@ -329,6 +340,48 @@ export async function refreshCatMapTerritories(operator: number, now = new Date(
         reason: `按每格最后绘图者的当前绑定刷新 ${cellCount} 个格子，${counts.catCount} 只大猫占领 ${counts.cellCount} 格`,
     } as any);
     return { cellCount, catCount: counts.catCount, claimedCellCount: counts.cellCount };
+}
+
+
+// --- 用户占格（个人贡献） ---
+// 格子记录 updatedBy = 最后画这格的人；被其他人覆盖时 updatedBy 自然改变，
+// 所以“被别人占回去要扣减”是天然成立的，不需要额外的计数器。
+
+export interface CatCellCount {
+    uid: number;
+    count: number;
+}
+
+export async function countUserCatCells(uid: number): Promise<number> {
+    if (!Number.isSafeInteger(uid) || uid <= 0) return 0;
+    return await catMapCellColl.countDocuments({
+        updatedBy: uid,
+        color: { $exists: true },
+    } as any);
+}
+
+export async function computeCatCellCounts(catId?: number, limit = 0): Promise<CatCellCount[]> {
+    const match: any = {
+        color: { $exists: true },
+        updatedBy: { $type: 'number' },
+    };
+    if (Number.isSafeInteger(catId) && catId !== 0) match.catId = catId;
+    const pipeline: any[] = [
+        { $match: match },
+        { $group: { _id: '$updatedBy', count: { $sum: 1 } } },
+        { $match: { _id: { $gt: 0 } } },
+        { $sort: { count: -1, _id: 1 } },
+    ];
+    if (limit > 0) pipeline.push({ $limit: Math.floor(limit) });
+    const rows: any[] = await catMapCellColl.aggregate(pipeline, { allowDiskUse: true } as any).toArray();
+    return rows.map((row) => ({
+        uid: Number(row._id),
+        count: Math.max(0, Math.floor(Number(row.count) || 0)),
+    }));
+}
+
+export async function listCatCellRanking(limit = 50, catId?: number) {
+    return await computeCatCellCounts(catId, limit);
 }
 
 export const getCatMapCooldownMinutes = cooldownMinutes;

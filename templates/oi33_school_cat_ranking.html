@@ -13,30 +13,20 @@
       </div>
       <div class="section__body">
         <blockquote class="note">
-          仅显示当前体重大于 0 或占领格子数大于 0 的大猫，按占领格子数降序排列，格子数相同时依次比较当前体重和学校编号。
+          仅显示占领格子数大于 0 的大猫，按占领格子数降序排列，格子数相同时按学校编号。
           管理员大猫以 ★ 显示且不占用数字名次。
-          普通大猫每周奖池为“领地基础奖励 × ⌊当前有效投喂人数 ÷ 3⌋”，再按 ⌊log₂(当前投喂猫粮)⌋ 权重分配；
-          管理员大猫不看领地，每位当前有效投喂者固定获得 5 个猫罐头。
+          大猫只保留领地排行，不再有体重或投喂贡献。占格奖励已改为每月按个人占领的格子数发放罐头（见下方用户占格榜）。
         </blockquote>
 
         {% if canManage %}
-        <div class="oi33-bigcat-ranking-admin">
-          <div>
-            <strong>历史移动贡献回算</strong>
-            <p>把尚未计算的旧移动猫粮，按用户现在绑定的大猫计入贡献。未认证或尚未绑定的用户会保留待以后重跑。</p>
-          </div>
-          <form method="post" action="{{ url('oi33_school_cat_move_backfill') }}"
-                onsubmit="return confirm('确定按用户当前绑定的大猫回算全部尚未处理的历史猫粮移动吗？此操作可安全重跑。');">
-            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-            <button type="submit" class="primary rounded button">回算历史移动贡献</button>
-          </form>
-        </div>
         <div class="oi33-bigcat-ranking-admin">
           <div>
             <strong>每周大猫奖励 · {{ rewardStatus._id }}</strong>
             <p>
               {% if rewardStatus.status == 'completed' %}
               已结算：{{ rewardStatus.issuedUsers or 0 }} 位用户，共 {{ rewardStatus.issuedCans or 0 }} 个罐头。
+              {% elif rewardStatus.status == 'disabled' %}
+              每周大猫罐头奖励已停用，不再发放。历史批次仍可在管理页查看和回滚。
               {% elif rewardStatus.status == 'processing' %}
               正在结算，请稍后刷新。
               {% elif rewardStatus.status == 'failed' %}
@@ -50,7 +40,7 @@
               {% endif %}
             </p>
           </div>
-          <a href="{{ url('oi33_school_cat_rewards', query={ period: rewardStatus._id }) }}" class="primary rounded button">管理结算 / 回滚</a>
+          <a href="{{ url('oi33_school_cat_rewards', query={ period: rewardStatus._id }) }}" class="primary rounded button">历史结算 / 回滚</a>
         </div>
         <div class="oi33-bigcat-ranking-admin">
           <div>
@@ -86,7 +76,7 @@
         <div class="oi33-bigcat-ranking-admin">
           <div>
             <strong>大猫记录转移</strong>
-            <p>把来源大猫的绑定用户、投喂历史、体重和领地全部转移到目标大猫，来源大猫体重清零。编号填学校编号或特殊大猫负数编号。</p>
+            <p>把来源大猫的绑定用户、投喂历史和领地格子全部转移到目标大猫。编号填学校编号或特殊大猫负数编号。</p>
           </div>
           <form method="post" action="{{ url('oi33_school_cat_transfer') }}"
                 onsubmit="return confirm('确定把来源大猫的全部记录转移到目标大猫吗？此操作不可撤销。');">
@@ -106,8 +96,6 @@
               <col class="oi33-bc-col-cat">
               <col class="oi33-bc-col-color">
               <col class="oi33-bc-col-num">
-              <col class="oi33-bc-col-num">
-              <col class="oi33-bc-col-num">
             </colgroup>
             <thead>
               <tr>
@@ -115,8 +103,6 @@
                 <th>大猫</th>
                 <th>领地色</th>
                 <th>占领格子</th>
-                <th>当前体重</th>
-                <th>历史体重</th>
               </tr>
             </thead>
             <tbody>
@@ -128,14 +114,35 @@
                 <td>{% if cat.url %}<a href="{{ cat.url }}" target="_blank" rel="noopener">{{ cat.display }}</a>{% else %}{{ cat.display }}{% endif %}</td>
                 <td><span class="oi33-bigcat-color" style="background:{{ cat.colorCss }}"></span><code>{{ cat.colorCss }}</code></td>
                 <td><strong>{{ cat.territoryCount }}</strong> 格</td>
-                <td>{{ cat.weight }} g</td>
-                <td>{{ cat.historyWeight }} g</td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         {% else %}
-        <p>还没有获得当前体重或领地的大猫。</p>
+        <p>还没有占领格子的大猫。</p>
+        {% endif %}
+
+        <h2>用户占格榜</h2>
+        <p class="oi33-bigcat-ranking-count">
+          按每个人当前占领的格子数排序。100 格 = 1 罐，200 格 = 2 罐，400 格 = 3 罐，依此类推；
+          被其他人覆盖的格子会自动扣减。
+        </p>
+        {% if cellRanking.length %}
+        <table class="data-table">
+          <thead><tr><th>名次</th><th>用户</th><th>占领格子</th><th>本月奖励（预估）</th></tr></thead>
+          <tbody>
+            {% for row in cellRanking %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td><a href="/user/{{ row.uid }}" target="_blank" rel="noopener">{{ row.uname }}</a></td>
+              <td><strong>{{ row.count }}</strong> 格</td>
+              <td>{% if row.cans %}{{ row.cans }} 个{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p>还没有用户占领格子。</p>
         {% endif %}
       </div>
     </div>

@@ -171,6 +171,10 @@ export interface Oi33CatMapPlayer {
     freeColorAvailable?: boolean;
     movementLock?: ObjectId;
     movementLockAt?: Date;
+    // 野猫模式：用户自己的小猫每 2 小时自动走一格并抢占地盘。
+    wildcat?: boolean;
+    wildcatNextAt?: Date;
+    wildcatVisited?: string[];
 }
 
 export interface Oi33CatMapCell {
@@ -235,8 +239,10 @@ export interface Oi33SchoolCat {
     // Negative ids are special big cats: custom-named admin cats that live
     // only in this collection and never collide with OIerDB schools.
     _id: number;
-    currentWeight: number;
-    historyWeight: number;
+    // 主动贡献已退役：新记录不再写体重；旧记录可能残留这两个字段，
+    // 只用于历史快照/清理，业务代码不要读写。
+    currentWeight?: number;
+    historyWeight?: number;
     territoryColor: number;
     territoryCount: number;
     // Only special big cats (negative _id) carry a custom display name.
@@ -1033,4 +1039,29 @@ export interface Oi33AiUsage {
     cost: number;
     deducted: boolean; // whether cost was charged to a user balance
     createdAt: Date;
+}
+
+
+// 占格周奖励：按用户当前占领的格子数发罐头（见 model/cat/cell-reward.ts）。
+export interface Oi33CatCellRewardAllocation {
+    uid: number;
+    cells: number;
+    cans: number;
+}
+
+export interface Oi33CatCellReward {
+    _id: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    users?: number;
+    cans?: number;
+    cells?: number;
+    allocations?: Oi33CatCellRewardAllocation[];
+    operator?: number;
+    startedAt?: Date;
+    completedAt?: Date;
+    failedAt?: Date;
+    lastError?: string;
+    lockOwner?: string;
+    lockUntil?: Date;
+    createdAt?: Date;
 }

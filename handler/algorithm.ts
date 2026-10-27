@@ -315,6 +315,11 @@ class AlgorithmImportHandler extends Handler {
 }
 
 class AlgorithmConfigHandler extends Handler {
+    // 这个路由只接收配置表单的 POST；直接访问时回管理页，避免 404/空白。
+    async get() {
+        this.response.redirect = this.url('oi33_algorithm_manage');
+    }
+
     async post() {
         await checkOi33Admin(this.user._id);
         await oi33Model.algorithmSaveConfig(

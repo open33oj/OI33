@@ -108,6 +108,7 @@ declare module 'hydrooj' {
         oi33_school_cat: import('./types').Oi33SchoolCat;
         oi33_school_feed_history: import('./types').Oi33SchoolFeedHistory;
         oi33_school_cat_reward: import('./types').Oi33SchoolCatReward;
+        oi33_cat_cell_reward: import('./types').Oi33CatCellReward;
         oi33_ai_analysis: import('./types').Oi33AiAnalysis;
         oi33_ai_batch: import('./types').Oi33AiBatchStatus;
         oi33_ai_config: import('./types').Oi33AiConfig;

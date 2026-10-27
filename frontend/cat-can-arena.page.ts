@@ -19,6 +19,9 @@ const MAX_VIEW_SCALE = 110;
 const MIN_GRID_SPACING = 4;
 const MIN_CAT_SIZE = 8;
 const MIN_CAT_RENDER_SCALE = 6;
+// 名字比小猫更密：即使「名字」开关打开，也要放大到这个倍率才画，
+// 否则缩略图上会糊成一片名字。
+const MIN_NAME_RENDER_SCALE = 10;
 const PLAYER_BUCKET_SIZE = 16;
 const CAT_IDLE_FRAME_MS = 3200;
 const LABEL_BUCKET_WIDTH = 80;
@@ -65,6 +68,7 @@ function mountMap() {
     const colorDialog = document.querySelector<HTMLDialogElement>('[data-map-color-dialog]');
     const planPanel = document.querySelector<HTMLElement>('[data-map-plan]');
     const planToggle = document.querySelector<HTMLButtonElement>('[data-plan-toggle]');
+    const wildcatButton = document.querySelector<HTMLButtonElement>('[data-wildcat-toggle]');
     const planCloseButton = document.querySelector<HTMLButtonElement>('[data-plan-close]');
     const planStatus = document.querySelector<HTMLElement>('[data-plan-status]');
     const planCount = document.querySelector<HTMLElement>('[data-plan-count]');
@@ -84,7 +88,7 @@ function mountMap() {
     const players = new Map<number, MapPlayer>();
     const playerBuckets = new Map<string, Set<number>>();
     const playersByCell = new Map<string, Set<number>>();
-    const labelMetrics = new Map<number, { text: string; width: number }>();
+    const labelMetrics = new Map<number, { text: string; width: number; fontSize: number }>();
     const cellColors = new Int16Array(MAP_WIDTH * MAP_HEIGHT);
     cellColors.fill(-1);
     const cellCatIds = new Int32Array(MAP_WIDTH * MAP_HEIGHT);
@@ -386,6 +390,7 @@ function mountMap() {
     };
     bigCats = mountBigCatLayer({ invalidate, onTerritoryColorsChanged: scheduleTerritoryRebuild });
     const updateMeStatus = () => {
+        syncWildcatButton();
         if (!meStatus || !userId) return;
         if (!state.me) {
             meStatus.textContent = state.canJoin ? '点击任意格免费加入' : '完成认证后可参与';
@@ -439,16 +444,27 @@ function mountMap() {
 
     const catLabelRect = (player: MapPlayer, px: number, py: number) => {
         const label = `${player.uname}🥫${player.cans}`;
+        // 字号随缩放变大；名字永远按完整文本宽度显示，不再为了塞进一格而横向压扁。
+        const fontSize = Math.max(11, Math.min(18, Math.round(viewScale * 0.3)));
         let metrics = labelMetrics.get(player.uid);
-        if (!metrics || metrics.text !== label) {
-            context.font = 'bold 11px sans-serif';
-            metrics = { text: label, width: Math.min(150, context.measureText(label).width + 9) };
+        if (!metrics || metrics.text !== label || metrics.fontSize !== fontSize) {
+            context.font = `bold ${fontSize}px sans-serif`;
+            metrics = {
+                text: label,
+                fontSize,
+                width: Math.min(260, context.measureText(label).width + 10),
+            };
             labelMetrics.set(player.uid, metrics);
         }
-        const showEveryName = viewScale >= MAX_VIEW_SCALE - .01;
-        const labelWidth = showEveryName ? Math.min(metrics.width, Math.max(24, viewScale - 4)) : metrics.width;
         // 名字写在小猫脚下，不遮住小猫。
-        return { label, x: px + viewScale / 2 - labelWidth / 2, y: py + viewScale + 2, width: labelWidth, height: 16 };
+        return {
+            label,
+            fontSize,
+            x: px + viewScale / 2 - metrics.width / 2,
+            y: py + viewScale + 2,
+            width: metrics.width,
+            height: fontSize + 5,
+        };
     };
 
     const drawCatLabel = (player: MapPlayer, px: number, py: number) => {
@@ -457,9 +473,9 @@ function mountMap() {
         context.fillStyle = player.uid === userId ? 'rgba(111,75,9,.9)' : 'rgba(13,27,18,.82)';
         context.fillRect(rect.x, rect.y, rect.width, rect.height);
         context.fillStyle = '#fff';
-        context.font = 'bold 11px sans-serif';
+        context.font = `bold ${rect.fontSize}px sans-serif`;
         context.textAlign = 'center';
-        context.fillText(rect.label, rect.x + rect.width / 2, rect.y + 12, rect.width - 5);
+        context.fillText(rect.label, rect.x + rect.width / 2, rect.y + rect.fontSize + 1, rect.width - 6);
         context.restore();
     };
 
@@ -566,7 +582,8 @@ function mountMap() {
         drawPlanOverlay(origin);
         // 底图可在原始 8-bit 颜色与大猫领地颜色之间切换，小猫层保持独立。
         const renderCats = showCats && viewScale >= MIN_CAT_RENDER_SCALE;
-        if (!renderCats && !showNames) return;
+        const renderNames = showNames && viewScale >= MIN_NAME_RENDER_SCALE;
+        if (!renderCats && !renderNames) return;
         const firstX = Math.max(0, Math.floor(-origin.x / viewScale));
         const firstY = Math.max(0, Math.floor(-origin.y / viewScale));
         const lastX = Math.min(MAP_WIDTH - 1, Math.ceil((width - origin.x) / viewScale));
@@ -609,12 +626,8 @@ function mountMap() {
             const px = origin.x + drawX * viewScale;
             const py = origin.y + drawY * viewScale;
             if (renderCats) drawCat(player, px, py, walking);
-            if (showNames) labelCandidates.push({ player, px, py });
+            if (renderNames) labelCandidates.push({ player, px, py });
         });
-        if (viewScale >= MAX_VIEW_SCALE - .01) {
-            labelCandidates.forEach((candidate) => drawCatLabel(candidate.player, candidate.px, candidate.py));
-            return;
-        }
         const labelBuckets = new Map<string, Array<{ x: number; y: number; width: number; height: number }>>();
         labelCandidates.sort((a, b) => b.player.cans - a.player.cans || a.player.uid - b.player.uid).forEach((candidate) => {
             const rect = catLabelRect(candidate.player, candidate.px, candidate.py);
@@ -1379,6 +1392,28 @@ function mountMap() {
         planToggle?.setAttribute('aria-expanded', open ? 'true' : 'false');
         renderPlanPanel();
     };
+    wildcatButton?.addEventListener('click', async () => {
+        if (!state.me) {
+            Notification.error('请先加入猫猫广场。');
+            return;
+        }
+        const enabled = !state.me.wildcat;
+        wildcatBusy = true;
+        syncWildcatButton();
+        try {
+            const result = await request.post('/oi33/arena/big/wildcat', { enabled });
+            state.me.wildcat = !!result.enabled;
+            state.me.wildcatNextAt = result.nextAt ? new Date(result.nextAt).getTime() : 0;
+            Notification.success(enabled
+                ? '野猫模式已开启：每 2 小时自动走一格，并帮你的大猫占地盘。'
+                : '野猫模式已关闭。');
+        } catch (e: any) {
+            Notification.error(e.message || String(e));
+        } finally {
+            wildcatBusy = false;
+            updateMeStatus();
+        }
+    });
     planToggle?.addEventListener('click', () => openPlanPanel(!!planPanel?.hidden));
     planCloseButton?.addEventListener('click', () => openPlanPanel(false));
     planAddButton?.addEventListener('click', () => {
@@ -1463,15 +1498,12 @@ function mountMap() {
             const result = await request.post(joining ? joinUrl : moveUrl, selectedTarget);
             applyPlayerUpdate({ ...result, uid: userId });
             if (joining) state.canJoin = false;
-            const contributionText = result.contributedCatId
-                ? '这 3g 已同时计入当前大猫贡献，'
-                : '当前未绑定大猫，本次未计入大猫贡献，';
             Notification.success(result.action === 'join'
                 ? '加入成功，首次选择位置免费且没有触发冷却。'
                 : result.action === 'move'
-                    ? `移动成功，已销毁 3g 猫粮；${contributionText}并获得 1 次免冷却染色。`
+                    ? '移动成功，已销毁 3g 猫粮，并获得 1 次免冷却染色。'
                     : result.action === 'territory_teleport'
-                        ? `领地内传送成功，已销毁 3g 猫粮；${contributionText}并获得 1 次免冷却染色。`
+                        ? '领地内传送成功，已销毁 3g 猫粮，并获得 1 次免冷却染色。'
                         : '传送成功，3 个猫罐头已回到虚拟储备池，并获得 1 次免冷却染色。');
             actionDialog.close();
         } catch (e: any) {
@@ -1501,6 +1533,18 @@ function mountMap() {
             button.disabled = false;
         }
     });
+
+    let wildcatBusy = false;
+    const syncWildcatButton = () => {
+        if (!wildcatButton) return;
+        const enabled = !!state.me?.wildcat;
+        wildcatButton.classList.toggle('is-active', enabled);
+        wildcatButton.textContent = enabled ? '野猫模式：开' : '野猫模式';
+        wildcatButton.title = enabled
+            ? '每 2 小时自动走一格并为大猫占地；点击关闭'
+            : '每 2 小时自动走一格并为大猫占地；需要先绑定大猫';
+        wildcatButton.disabled = wildcatBusy || !state.me;
+    };
 
     let firstMapLoad = true;
     const loadMapState = async () => {

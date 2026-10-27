@@ -30,7 +30,7 @@ import { ensureModerationIndexes } from './model/moderate';
 import {
     ensureCatAccountIndexes, ensureCatCanIndexes, ensureCatMapIndexes, ensureCurrentCatCanPrice,
     ensureSchoolCatIndexes, recountSchoolCatTerritories, runCatMapPlansDue,
-    settleSchoolCatWeeklyRewards,
+    runWildCats, settleCatCellMonthlyRewards, settleSchoolCatWeeklyRewards,
 } from './model/cat';
 import {
     DEFAULT_NAV_GROUPS_YAML, DEFAULT_NAV_LINKS_TEXT, validateNavGroupsYaml,
@@ -93,12 +93,80 @@ async function maintainCatCanMarket() {
     }
 }
 
+async function maintainWildCat(ctx: Context) {
+    markTaskStart('wildCat');
+    try {
+        const result = await runWildCats();
+        let claimed = 0;
+        for (const event of result.events) {
+            (ctx as any).broadcast('oi33/cat-map-change', {
+                type: 'player',
+                player: {
+                    uid: event.uid,
+                    uname: event.uname,
+                    x: event.x,
+                    y: event.y,
+                    cans: event.cans,
+                    food: event.food,
+                    availableAt: event.availableAt,
+                    wildcat: true,
+                    wildcatNextAt: event.wildcatNextAt,
+                },
+            });
+            if (event.claimed) {
+                claimed++;
+                (ctx as any).broadcast('oi33/cat-map-change', {
+                    type: 'cell',
+                    cell: [event.x, event.y, event.color ?? 0, event.catId],
+                });
+                (ctx as any).broadcast('oi33/cat-map-change', {
+                    type: 'bigcat', cat: { id: event.schoolId },
+                });
+            }
+        }
+        markTaskSuccess('wildCat', result.due
+            ? `${result.due} 只到期，${result.events.length} 只移动，${claimed} 格易主`
+            : '没有到期的野猫');
+    } catch (e) {
+        markTaskError('wildCat', e);
+        console.error('[oi33] wildcat move failed:', e);
+    }
+}
+
+async function maintainCatCellRewards() {
+    markTaskStart('catCellRewards');
+    try {
+        const result = await settleCatCellMonthlyRewards(0);
+        if (result.running) {
+            markTaskSuccess('catCellRewards', '另一进程正在结算');
+            return;
+        }
+        if ('skipped' in result && result.skipped) {
+            markTaskSuccess('catCellRewards', `未到首个结算月（从 ${result.startMonth} 起）`);
+            return;
+        }
+        if (!result.newlyCompleted) {
+            markTaskSuccess('catCellRewards', `${result.period} 已结算`);
+            return;
+        }
+        console.info(`[oi33] cat cell monthly reward ${result.period}: ${result.users} users, ${result.cans} cans`);
+        markTaskSuccess('catCellRewards', `${result.period} 月：${result.users} 人 / ${result.cans} 个罐头`);
+    } catch (e) {
+        markTaskError('catCellRewards', e);
+        console.error('[oi33] cat cell monthly reward failed:', e);
+    }
+}
+
 async function maintainSchoolCatRewards() {
     if (schoolCatRewardRunning) return;
     schoolCatRewardRunning = true;
     markTaskStart('schoolCatRewards');
     try {
         const result = await settleSchoolCatWeeklyRewards(0);
+        if ('disabled' in result && result.disabled) {
+            markTaskSuccess('schoolCatRewards', '已停用（不再发放每周大猫罐头）');
+            return;
+        }
         if (!result.newlyCompleted) {
             markTaskSuccess('schoolCatRewards', '本周未到结算点');
             return;
@@ -224,11 +292,15 @@ export async function apply(ctx: Context) {
                 await ensureLogIndexes();
                 await maintainCatCanMarket();
                 await maintainSchoolCatRewards().catch((e) => console.error('[oi33] weekly big-cat reward failed:', e));
+                await maintainCatCellRewards();
+                await maintainWildCat(ctx);
                 await maintainCatMapPlans(ctx).catch((e) => console.error('[oi33] cat map plans failed:', e));
                 if (catCanTimer) clearInterval(catCanTimer);
                 catCanTimer = setInterval(() => {
                     maintainCatCanMarket().catch((e) => console.error('[oi33] cat can maintenance failed:', e));
                     maintainSchoolCatRewards().catch((e) => console.error('[oi33] weekly big-cat reward failed:', e));
+                    maintainCatCellRewards();
+                    maintainWildCat(ctx);
                 }, 10 * 60 * 1000);
                 catCanTimer.unref();
                 if (catMapPlanTimer) clearInterval(catMapPlanTimer);

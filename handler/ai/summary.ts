@@ -2,7 +2,7 @@ import {
     ConnectionHandler, DocumentModel, Handler, NotFoundError, Types, ValidationError, param, query,
 } from 'hydrooj';
 import { oi33Model } from '../../model';
-import { aiChat, aiChatStream, aiResolveChatConfig } from '../../model/ai';
+import { AI_MAX_TOKENS, aiChat, aiChatStream, aiResolveChatConfig } from '../../model/ai';
 import { checkOi33Admin, checkUserFlag } from '../utils';
 import {
     DIFFICULTY_MARKER, DIFFICULTY_SYSTEM_PROMPT, SUMMARY_DIFFICULTY_TAIL, SUMMARY_SYSTEM_PROMPT, optimizeProblemContent,
@@ -23,11 +23,11 @@ export async function generateProblemSummary(
     // thinking, and LaTeX-heavy summaries are token-dense.
     const { content, finishReason } = onChunk
         ? await aiChatStream({
-            config, system: systemPrompt, user: fullText, maxTokens: 8192,
+            config, system: systemPrompt, user: fullText, maxTokens: AI_MAX_TOKENS,
             effort: cfg.summary_effort, usage: { uid: 0, type: 'summary', domainId, pid }, onChunk, onRChunk,
         })
         : await aiChat({
-            config, system: systemPrompt, user: fullText, maxTokens: 8192,
+            config, system: systemPrompt, user: fullText, maxTokens: AI_MAX_TOKENS,
             effort: cfg.summary_effort, usage: { uid: 0, type: 'summary', domainId, pid },
         });
     if (!content) return '';
@@ -53,7 +53,7 @@ async function generateProblemDifficulty(
     // a 400, and reasoning can exhaust a tiny max_tokens before any JSON
     // lands. The prompt already demands a bare JSON object; extract it.
     const { content, error } = await aiChat({
-        config, system: systemPrompt, user: briefText, maxTokens: 8192,
+        config, system: systemPrompt, user: briefText, maxTokens: AI_MAX_TOKENS,
         effort: cfg.summary_effort, timeoutMs: 300000,
         usage: { uid: 0, type: 'summary', domainId, pid },
     });
@@ -84,12 +84,12 @@ async function generateProblemSummaryWithDifficulty(
     const systemPrompt = `${cfg.summary_prompt || SUMMARY_SYSTEM_PROMPT}\n\n${SUMMARY_DIFFICULTY_TAIL}`;
     const { content, finishReason } = onChunk
         ? await aiChatStream({
-            config, system: systemPrompt, user: fullText, maxTokens: limits.maxTokens || 8192,
+            config, system: systemPrompt, user: fullText, maxTokens: limits.maxTokens || AI_MAX_TOKENS,
             effort: cfg.summary_effort, timeoutMs: limits.timeoutMs,
             usage: { uid: 0, type: 'summary', domainId, pid }, onChunk, onRChunk,
         })
         : await aiChat({
-            config, system: systemPrompt, user: fullText, maxTokens: limits.maxTokens || 8192,
+            config, system: systemPrompt, user: fullText, maxTokens: limits.maxTokens || AI_MAX_TOKENS,
             effort: cfg.summary_effort, timeoutMs: limits.timeoutMs,
             usage: { uid: 0, type: 'summary', domainId, pid },
         });
@@ -154,7 +154,7 @@ export class Ai33SummaryHandler extends Handler {
             // One call produces both the summary and the difficulty.
             const { summary, difficulty } = await generateProblemSummaryWithDifficulty(
                 domainId, pdoc.docId, fullText, cfg.summary_model,
-                undefined, undefined, { maxTokens: 16384, timeoutMs: 300000 },
+                undefined, undefined, { maxTokens: AI_MAX_TOKENS, timeoutMs: 300000 },
             );
             if (!summary) throw new Error('生成失败：请检查模型配置与 API Key，或稍后再试。');
             await applyAiDifficultyIfUnset(domainId, pdoc, difficulty);
@@ -366,7 +366,7 @@ export class Ai33SummaryStreamHandler extends ConnectionHandler {
                 const { summary, difficulty } = await generateProblemSummaryWithDifficulty(
                     domainId, pdoc.docId, fullText, cfg.summary_model,
                     (c) => this.send({ chunk: c }), (r) => this.send({ rchunk: r }),
-                    { maxTokens: 16384, timeoutMs: 300000 },
+                    { maxTokens: AI_MAX_TOKENS, timeoutMs: 300000 },
                 );
                 if (!summary) {
                     this.send({ error: '生成失败：请检查模型配置与 API Key，或稍后再试。' });

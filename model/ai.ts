@@ -356,6 +356,11 @@ const DEFAULT_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 // Exported so the admin provider form can offer the same fallback base URL.
 export const AI_DEFAULT_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
 
+// 所有 AI 阶段共用的输出上限（tokens）。思考型模型会把推理 token 也算进
+// max_tokens，预算太小会出现「HTTP 200 但 content 为空、finish_reason=length」。
+// 需要更小预算的调用方显式传 maxTokens；常量只在一处调整。
+export const AI_MAX_TOKENS = 10000;
+
 export interface ChatResult {
     content: string;
     usage: any;
@@ -437,7 +442,7 @@ function forwardSignal(opts: ChatCallOptions, controller: AbortController): () =
 }
 
 export async function aiChatCompletion(
-    config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 1024, json = false,
+    config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = AI_MAX_TOKENS, json = false,
     opts: ChatCallOptions = {},
 ): Promise<ChatResult> {
     const controller = new AbortController();
@@ -481,7 +486,7 @@ export async function aiChatCompletion(
 // Streaming variant of aiChatCompletion: forwards content / reasoning chunks to
 // callbacks while accumulating the same final result shape.
 export async function aiChatCompletionStream(
-    config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = 8192,
+    config: ChatConfig, systemPrompt: string, userPrompt: string, maxTokens = AI_MAX_TOKENS,
     onChunk?: (text: string) => void, onRChunk?: (text: string) => void,
     opts: ChatCallOptions = {},
 ): Promise<ChatResult> {
@@ -582,7 +587,7 @@ async function recordUsage(req: ChatRequest, config: ChatConfig, result: ChatRes
 export async function aiChat(req: ChatRequest): Promise<ChatResponse> {
     const config = await resolveRequestConfig(req);
     const result = await aiChatCompletion(
-        config, req.system, req.user, req.maxTokens ?? 1024, !!req.json, req,
+        config, req.system, req.user, req.maxTokens ?? AI_MAX_TOKENS, !!req.json, req,
     );
     const cost = await recordUsage(req, config, result);
     return {
@@ -599,7 +604,7 @@ export interface ChatStreamRequest extends ChatRequest {
 export async function aiChatStream(req: ChatStreamRequest): Promise<ChatResponse> {
     const config = await resolveRequestConfig(req);
     const result = await aiChatCompletionStream(
-        config, req.system, req.user, req.maxTokens ?? 8192, req.onChunk, req.onRChunk, req,
+        config, req.system, req.user, req.maxTokens ?? AI_MAX_TOKENS, req.onChunk, req.onRChunk, req,
     );
     const cost = await recordUsage(req, config, result);
     return {

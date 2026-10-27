@@ -3,8 +3,8 @@ import { catCanPoolColl, ensureCatCanPool } from './can';
 import { addLog, logColl } from '../log';
 import {
     SCHOOL_CAT_ADMIN_CANS_PER_FEEDER, SCHOOL_CAT_REWARD_ALLOCATION_PAGE_SIZE,
-    SCHOOL_CAT_REWARD_PAGE_SIZE, isAdminSchoolCatRecord, schoolCatColl,
-    schoolCatKey, schoolCatRewardColl, schoolCatRewardPeriod,
+    SCHOOL_CAT_REWARD_PAGE_SIZE, SCHOOL_CAT_WEEKLY_REWARD_ENABLED, isAdminSchoolCatRecord,
+    schoolCatColl, schoolCatKey, schoolCatRewardColl, schoolCatRewardPeriod,
     schoolCatTerritoryBaseReward, schoolIdFromCatKey,
 } from './school-shared';
 import type {
@@ -165,6 +165,12 @@ async function getOrCreateSchoolCatRewardPlan(period: string, operator: number, 
 
 export async function getSchoolCatWeeklyRewardStatus(now = new Date()) {
     const period = schoolCatRewardPeriod(now);
+    if (!SCHOOL_CAT_WEEKLY_REWARD_ENABLED) {
+        return {
+            _id: period, status: 'disabled', disabled: true,
+            plannedUsers: 0, plannedCans: 0,
+        };
+    }
     const row: any = await schoolCatRewardColl.findOne(
         { _id: period } as any,
         { projection: { allocations: 0, 'history.cats': 0 } },
@@ -324,6 +330,15 @@ export async function settleSchoolCatWeeklyRewards(
     requestedPeriod = schoolCatRewardPeriod(now),
 ) {
     const period = normalizeSchoolCatRewardPeriod(requestedPeriod);
+    // 全局停用开关：不生成快照、不发罐头、也不执行 5% 衰减。
+    // 历史批次仍可通过 rollbackSchoolCatWeeklyRewards 回滚。
+    if (!SCHOOL_CAT_WEEKLY_REWARD_ENABLED) {
+        return {
+            period, revision: 0, disabled: true, completed: false,
+            newlyCompleted: false, running: false,
+            users: 0, cans: 0, awardedUids: [] as number[],
+        };
+    }
     let plan: any = await getOrCreateSchoolCatRewardPlan(period, operator, now);
     if (plan.status === 'rolled_back') {
         // A manual rollback pauses the automatic ten-minute scheduler until an

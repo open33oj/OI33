@@ -13,6 +13,7 @@ import {
     algorithmDropBasicsSection,
 } from './model/algorithm';
 import { judgeMonitorMigrateFromSettings } from './model/judge-monitor';
+import { previewRetireActiveContribution } from './model/cat';
 
 // hydrooj's `db` export is a Proxy over MongoService, which only exposes
 // `collection()` etc. — the raw mongodb Db (with listCollections / admin) is
@@ -86,6 +87,7 @@ export async function previewMigration() {
         catFoodPreview,
         algorithmItems,
         algorithmLegacyIds,
+        retirePreview,
     ] = await Promise.all([
         db.collection('coin' as any).countDocuments(),
         db.collection('paste' as any).countDocuments(),
@@ -118,6 +120,7 @@ export async function previewMigration() {
         db.collection('oi33_algorithm_item').countDocuments(),
         // Algorithm items not yet marked with the normalized id format.
         db.collection('oi33_algorithm_item').countDocuments({ idVersion: { $ne: 2 } } as any),
+        previewRetireActiveContribution(),
     ]);
     return {
         billCount, pasteCount, birthdayCount, userCount, oauthLogCount, legacyCatCanBatchCount,
@@ -129,6 +132,7 @@ export async function previewMigration() {
         algorithmItems: Number(algorithmItems) || 0,
         algorithmOutlineItems: algorithmOutlineMeta().itemCount,
         algorithmLegacyIds: Number(algorithmLegacyIds) || 0,
+        retirePreview,
     };
 }
 

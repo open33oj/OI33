@@ -7,16 +7,22 @@ import { userColl } from '../user';
 
 // 大猫世界的共享底座：集合、OIerDB 静态学校表、学校 id ↔ 格子 catId 的编解码、
 // 展示字段、随机颜色、周奖励的周期与领地基础奖励，以及所有模块共用的
-// `getEligibleUser` / `publicCat` / `withDisplay` / `getSchoolView` / `getTopFeeder`。
+// `getEligibleUser` / `publicCat` / `withDisplay` / `getSchoolView`。
 // 本模块不依赖 school.ts 的页面视图，避免循环。
 
 export const SCHOOL_CAT_FEED_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+// 主动贡献（手动投喂）已永久关闭；领地只能通过地图染色获得。
+export const SCHOOL_CAT_FEED_ENABLED = false;
 export const SCHOOL_CAT_PAGE_SIZE = 50;
 export const SCHOOL_CAT_COLOR_MAX = 0xFFFFFF;
 export const SCHOOL_CAT_SIDEBAR_RANKING_SIZE = 32;
 export const SCHOOL_CAT_WEEKLY_MIN_TERRITORY = 64;
 export const SCHOOL_CAT_WEEKLY_MAX_BASE_CANS = 12;
 export const SCHOOL_CAT_ADMIN_CANS_PER_FEEDER = 5;
+// 每周大猫罐头奖励已停用：不再生成结算快照、不再发罐头，也不再执行
+// 每周 5% 的猫粮/体重衰减。历史批次仍可在 /oi33/admin/school-cat-rewards
+// 查看和回滚；将来要恢复时把这里改成 true 即可。
+export const SCHOOL_CAT_WEEKLY_REWARD_ENABLED = false;
 export const SCHOOL_CAT_REWARD_PAGE_SIZE = 20;
 export const SCHOOL_CAT_REWARD_ALLOCATION_PAGE_SIZE = 100;
 
@@ -117,8 +123,6 @@ export async function ensureSchoolCatRecord(schoolId: number, now = new Date()) 
             { _id: schoolId } as any,
             {
                 $setOnInsert: {
-                    currentWeight: 0,
-                    historyWeight: 0,
                     territoryCount: 0,
                     spawnedAt: now,
                     updatedAt: now,
@@ -189,7 +193,6 @@ export async function ensureSchoolCatIndexes() {
     }
     if (colorOps.length) await schoolCatColl.bulkWrite(colorOps, { ordered: false });
     await Promise.all([
-        schoolCatColl.createIndex({ currentWeight: -1 }),
         schoolCatColl.createIndex({ territoryCount: -1 }),
         schoolCatColl.createIndex({ territoryColor: 1 }, { unique: true, sparse: true }),
         schoolCatColl.createIndex({ name: 1 }, { unique: true, sparse: true }),
@@ -248,7 +251,6 @@ export function schoolViewFor(cat: any) {
 }
 
 export function publicCat(cat: any, school: any) {
-    const weight = Math.max(0, Math.floor(Number(cat.currentWeight) || 0));
     const color = Math.max(0, Math.floor(Number(cat.territoryColor) || 0));
     return {
         id: cat._id,
@@ -257,25 +259,9 @@ export function publicCat(cat: any, school: any) {
         url: schoolUrl(cat._id),
         color,
         colorCss: schoolCatColorCss(color),
-        weight,
-        historyWeight: Math.max(0, Math.floor(Number(cat.historyWeight) || 0)),
         territoryCount: Math.max(0, Math.floor(Number(cat.territoryCount) || 0)),
         isAdminCat: isAdminSchoolCatRecord(cat),
     };
 }
 
-export const activeSchoolCatFilter = {
-    $or: [
-        { currentWeight: { $gt: 0 } },
-        { territoryCount: { $gt: 0 } },
-    ],
-};
-
-export async function getTopFeeder(schoolId: number) {
-    const rows = await userColl.find(
-        { school_cat: schoolId, school_cat_food: { $gt: 0 } },
-    ).sort({ school_cat_food: -1, _id: 1 }).limit(1)
-        .project({ _id: 1, school_cat_food: 1 }).toArray();
-    return rows[0] || null;
-}
-
+export const activeSchoolCatFilter = { territoryCount: { $gt: 0 } };

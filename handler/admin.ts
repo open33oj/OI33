@@ -395,6 +395,15 @@ class MigrateHandler extends Handler {
             this.response.body = { medalImport, medalDone: true, preview };
             return;
         }
+        if (action === 'retire_cat_contribution') {
+            const [retireResult, preview] = await Promise.all([
+                oi33Model.retireActiveContribution(this.user._id),
+                previewMigration(),
+            ]);
+            this.response.template = 'oi33_migrate.html';
+            this.response.body = { retireResult, retireDone: true, preview };
+            return;
+        }
         const result = await migrate();
         this.response.template = 'oi33_migrate.html';
         this.response.body = { result, done: true };

@@ -149,7 +149,7 @@
 .oi33-bigcat-ranking li.is-admin-cat .oi33-bigcat-ranking-rank { color: #b8860b; font-size: 15px; font-weight: 700; }
 .oi33-bigcat-ranking button { flex: 1; min-width: 0; overflow: hidden; padding: 3px 6px; border: 0; border-radius: 6px; color: #2c5b3c; cursor: pointer; font-size: 12px; text-align: left; text-overflow: ellipsis; white-space: nowrap; background: transparent; }
 .oi33-bigcat-ranking button:hover { background: rgba(57,119,77,.12); }
-.oi33-bigcat-ranking-weight { flex: 0 0 auto; color: #53665a; font-size: 11px; font-variant-numeric: tabular-nums; cursor: default; }
+.oi33-bigcat-ranking-cells { flex: 0 0 auto; color: #53665a; font-size: 11px; font-variant-numeric: tabular-nums; cursor: default; }
 .oi33-bigcat-ranking-empty { color: #737b74; font-size: 12px; }
 .oi33-bigcat-exact { border-bottom: 1px dotted rgba(90,110,95,.65); cursor: help; }
 .oi33-bigcat-dialog { width: min(94vw, 640px); }
@@ -196,7 +196,7 @@
 .theme--dark .oi33-bigcat-board-tabs button { color: #8fd09b; }
 .theme--dark .oi33-bigcat-board-tabs button.is-active { color: #fff; }
 .theme--dark .oi33-bigcat-board-amount { color: #a5b2a7; }
-.theme--dark .oi33-bigcat-ranking-weight { color: #a5b2a7; }
+.theme--dark .oi33-bigcat-ranking-cells { color: #a5b2a7; }
 .theme--dark .oi33-bigcat-ranking li.is-bound { background: rgba(118,189,135,.14); }
 @media (max-width: 760px) {
   .oi33-bigcat-main { flex-direction: column; }

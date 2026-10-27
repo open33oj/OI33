@@ -2,7 +2,7 @@ import {
     ConnectionHandler, ForbiddenError, Handler, NotFoundError, Types, param, query,
 } from 'hydrooj';
 import { oi33Model } from '../../model';
-import { aiChatStream, aiResolveChatConfig } from '../../model/ai';
+import { AI_MAX_TOKENS, aiChatStream, aiResolveChatConfig } from '../../model/ai';
 import {
     STATUS_NAMES, buildPrompts, contestBlockReason, formatMoney, getAccessState, isTeacherUser, optimizeProblemContent,
 } from './prompts';
@@ -286,7 +286,7 @@ export class Ai33AnalyzeStreamHandler extends ConnectionHandler {
                 // Reasoning-style models burn completion tokens on thinking;
                 // keep the cap well above the ~500-char answer so long
                 // reasoning on hard problems isn't truncated.
-                maxTokens: 16384,
+                maxTokens: AI_MAX_TOKENS,
                 effort,
                 // Reasoning models stream reasoning_content long before
                 // content; forward it so the user sees progress immediately.

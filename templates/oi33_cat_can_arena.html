@@ -30,14 +30,14 @@
             <button type="button" class="rounded button" data-map-find-me {% if not loggedIn %}disabled{% endif %}>定位我的小猫</button>
             {% if loggedIn %}
             <button type="button" class="rounded button" data-bigcat-bind>绑定大猫</button>
-            <button type="button" class="rounded button" data-bigcat-find>投喂我的大猫</button>
+                        <button type="button" class="rounded button" data-wildcat-toggle>野猫模式</button>
             <button type="button" class="rounded button" data-plan-toggle aria-expanded="false">路径规划</button>
             {% endif %}
             <button type="button" class="oi33-map-fullscreen rounded button" data-map-fullscreen aria-pressed="false">全屏</button>
           </div>
           <div class="oi33-map-toggles" role="group" aria-label="地图显示选项">
             <button type="button" data-map-layer="grid" aria-pressed="false">格线</button>
-            <button type="button" data-map-layer="empireBorder" class="is-active" aria-pressed="true">帝国边界</button>
+            <button type="button" data-map-layer="empireBorder" class="is-active" aria-pressed="true">边界</button>
             <button type="button" data-map-layer="bigcats" aria-pressed="false">大猫视角</button>
             <button type="button" data-map-layer="cats" class="is-active" aria-pressed="true">小猫</button>
             <button type="button" data-map-layer="names" class="is-active" aria-pressed="true">名字</button>
@@ -85,10 +85,10 @@
                data-logged-in="{% if loggedIn %}1{% else %}0{% endif %}">
             <canvas class="oi33-map-canvas" aria-label="猫咪像素地图"></canvas>
             <div class="oi33-map-loading">正在生成猫咪世界…</div>
-            <div class="oi33-map-hint">加粗格线内为 00区、外环为帝国区 · 00区内上下左右同属一只大猫的核心格禁止其他小猫进入 · 大猫视角按领地归属重新着色（未占领区为斜纹底、领地边界描黑） · 猫粮移动同时计入当前大猫贡献 · 同一大猫领地内可花 3g 任意传送 · 全屏后可用方向键浏览</div>
+            <div class="oi33-map-hint">加粗格线内为 00区、外环为帝国区 · 00区内上下左右同属一只大猫的核心格禁止其他小猫进入 · 大猫视角按领地归属重新着色（未占领区为斜纹底、领地边界描黑） · 移动只销毁猫粮，不再产生大猫贡献 · 同一大猫领地内可花 3g 任意传送 · 全屏后可用方向键浏览</div>
           </div>
           <aside class="oi33-bigcat-side">
-            <h2>大猫领地榜（格子 / 体重）</h2>
+            <h2>大猫领地榜（格子）</h2>
             <ol class="oi33-bigcat-ranking" data-bigcat-ranking></ol>
             <a class="oi33-bigcat-ranking-link" href="{{ url('oi33_school_cat_ranking') }}" data-bigcat-ranking-link>查看完整榜单与规则 →</a>
           </aside>
@@ -241,26 +241,20 @@
   <form method="dialog">
     <h2><span data-bigcat-detail-name>大猫</span> <a href="#" target="_blank" rel="noopener" data-bigcat-detail-link>OIerDB</a></h2>
     <p data-bigcat-detail-summary></p>
-    <div class="oi33-bigcat-detail-feed" data-bigcat-detail-feed hidden>
-      <label>投喂量（g） <input type="number" min="1" step="1" value="100" data-bigcat-feed-amount></label>
-      <button type="button" class="primary rounded button" data-bigcat-feed-confirm>投喂</button>
-      <span class="oi33-bigcat-tip">投喂消耗猫粮，冷却固定 2 小时。</span>
-    </div>
     <div class="oi33-bigcat-detail-color" data-bigcat-detail-color hidden>
       <label>领地颜色 <input type="color" value="#39774d" data-bigcat-color-input></label>
       <button type="button" class="rounded button" data-bigcat-color-confirm>修改颜色</button>
       <span class="oi33-bigcat-tip">仅当前贡献最多的人可以修改；颜色不能与其他大猫重复。</span>
     </div>
     <div class="oi33-bigcat-boards">
-      <div class="oi33-bigcat-board-tabs" role="tablist" aria-label="投喂榜切换">
-        <button type="button" class="is-active" role="tab" aria-selected="true" data-bigcat-board-tab="current">当前投喂榜</button>
-        <button type="button" role="tab" aria-selected="false" data-bigcat-board-tab="history">历史投喂榜</button>
+      <div class="oi33-bigcat-board-tabs" role="tablist" aria-label="用户占格榜">
+        <button type="button" class="is-active" role="tab" aria-selected="true" data-bigcat-board-tab="current">用户占格榜</button>
       </div>
       <ol class="oi33-bigcat-board" data-bigcat-board-current></ol>
-      <ol class="oi33-bigcat-board" data-bigcat-board-history hidden></ol>
     </div>
     <div class="oi33-map-dialog-actions">
       <button type="button" class="rounded button oi33-bigcat-unbind" data-bigcat-unbind hidden>取消当前绑定</button>
+      <button type="button" class="rounded button" data-bigcat-undo-rebind hidden>撤销上次换绑</button>
       <button value="cancel" class="rounded button">关闭</button>
     </div>
   </form>
@@ -283,6 +277,7 @@
     </div>
     <div class="oi33-map-dialog-actions">
       <button type="button" class="rounded button oi33-bigcat-unbind" data-bigcat-unbind hidden>取消当前绑定</button>
+      <button type="button" class="rounded button" data-bigcat-undo-rebind hidden>撤销上次换绑</button>
       <button value="cancel" class="rounded button">关闭</button>
     </div>
   </form>
