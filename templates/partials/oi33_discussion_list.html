@@ -1,0 +1,42 @@
+{% import "components/nothing.html" as nothing with context %}
+{% import "components/user.html" as user with context %}
+{% import "components/paginator.html" as paginator with context %}
+{# 与 /contest 的紧凑两行卡片同高：状态图标（rowspan 2）| 标题 / 元信息 | 回复数。
+   状态颜色由 handler/discuss.ts 计算的 listStatus 决定：
+   3 天内有回复 = green，7 天内 = yellow，更久/无回复 = gray。 #}
+{% if not ddocs.length %}
+  {{ nothing.render('No discussion yet...') }}
+{% else %}
+<div class="section__body no-padding oi33-contest-table__wrap">
+  <table class="oi33-contest-table oi33-discussion-table">
+  {%- for ddoc in ddocs -%}
+    <tbody class="oi33-contest-table__group">
+      <tr>
+        <td class="oi33-contest-table__status" rowspan="2">
+          <svg class="oi33-list-status-icon text-{{ ddoc.listStatus or 'gray' }}" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-chat"></use></svg>
+        </td>
+        <td class="oi33-contest-table__title">
+          <a href="{{ url('discussion_detail', did=ddoc._id, anchor=ddoc.updateAt.getTime()) }}" data-emoji-enabled>{{ ddoc.title }}</a>
+          {% if ddoc.hidden %}<span class="text-orange">（{{ _('Hidden') }}）</span>{% endif %}
+        </td>
+        <td class="oi33-contest-table__attend" rowspan="2">
+          <span class="icon icon-comment--multiple"></span> {{ ddoc.nReply }}
+        </td>
+      </tr>
+      <tr>
+        <td class="oi33-contest-table__meta">
+          {% if udict[ddoc.owner] %}{{ user.render_inline(udict[ddoc.owner], false, false) }}{% else %}UID {{ ddoc.owner }}{% endif %}
+          &middot; 最后回复
+          {% if ddoc.lastReply %}
+            {% if udict[ddoc.lastReply.owner] %}{{ user.render_inline(udict[ddoc.lastReply.owner], false, false) }}{% else %}UID {{ ddoc.lastReply.owner }}{% endif %}
+          {% else %}—{% endif %}
+          &middot;
+          {% if ddoc.nReply %}{{ datetimeSpan(ddoc.updateAt)|safe }}{% else %}暂无回复{% endif %}
+        </td>
+      </tr>
+    </tbody>
+  {%- endfor -%}
+  </table>
+</div>
+{{ paginator.render(page, dpcount) }}
+{% endif %}

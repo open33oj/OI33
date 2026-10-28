@@ -46,6 +46,42 @@
     {% endif %}
 
   </style>
+  <script>
+  // 本地开发禁用 Hydro 的 service worker：旧 SW 可能缓存旧的 hashed bundle，
+  // 在 2333 上表现为页面反复加载/长时间转圈。必须在主题 JS 注册 SW 之前执行。
+  try {
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      var oi33ServiceWorker = navigator.serviceWorker;
+      if (oi33ServiceWorker) {
+        oi33ServiceWorker.register = function () {
+          return Promise.resolve({
+            scope: location.origin + '/',
+            active: { state: 'activated' },
+            waiting: null,
+            installing: null,
+          });
+        };
+        oi33ServiceWorker.getRegistrations && oi33ServiceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (reg) { reg.unregister(); });
+        }).catch(function () {});
+      }
+    }
+  } catch (e) { /* ignore */ }
+  </script>
+  {% if process.env.DEV %}
+  <script>
+  // 兜底：本地某个 AutoloadPage 慢或网络请求卡住时，不要让页面一直停在
+  // 核心的 .page-loader 转圈上；正文早已由服务端渲染好，12 秒后直接放行。
+  window.setTimeout(function () {
+    var loader = document.querySelector('.page-loader');
+    if (loader) loader.style.display = 'none';
+    // 核心的 .hasjs .section 默认 opacity:0，等 initPageLoader 才加 .visible。
+    // 这里一并放行，否则只隐藏 loader 仍然是一片空白。
+    var sections = document.querySelectorAll('.section');
+    for (var i = 0; i < sections.length; i++) sections[i].classList.add('visible');
+  }, 12000);
+  </script>
+  {% endif %}
   {% if process.env.DEV %}
     <script src="/default.theme.js?version={{ global.Hydro.version['ui-default'] }}"></script>
     <link rel="stylesheet" media="all" href="/theme-{{ global.Hydro.version['ui-default'] }}.css">

@@ -3,7 +3,7 @@
 {% import "components/user.html" as user with context %}
 {% import "components/paginator.html" as paginator with context %}
 {% macro medalDefinitions(list) %}
-<div class="section__body medal-definition-grid">
+<div class="medal-definition-grid">
   {% for medal in list %}
   <article class="medal-definition">
     <img class="medal-pixel" src="{{ medal.imageData }}" width="48" height="48"
@@ -351,51 +351,60 @@
     </div>
 
     <div class="section">
-      <div class="section__header"><h2 class="section__title">可售卖奖章（{{ saleableMedals.length }}）</h2></div>
-      {{ medalDefinitions(saleableMedals) }}
-    </div>
-
-    <div class="section">
-      <div class="section__header"><h2 class="section__title">奖项认证奖章（{{ certificationMedals.length }}）</h2></div>
+      <div class="section__header"><h2 class="section__title">奖章一览</h2></div>
       <div class="section__body">
-        {% for medal in certificationMedals %}
-        {{ medalSeries(medal, false) }}
-        {% else %}
-        <p>还没有奖项认证奖章。新建时把「奖章类型」选为「奖项认证奖章」即可配置等级阶梯。</p>
-        {% endfor %}
-      </div>
-    </div>
+        <div class="catalogue-tabs" role="tablist" aria-label="奖章分类">
+          <button type="button" class="catalogue-tab is-active" role="tab" aria-selected="true"
+            data-catalogue-tab="manual">一般奖章（{{ manualMedals.length }}）</button>
+          <button type="button" class="catalogue-tab" role="tab" aria-selected="false"
+            data-catalogue-tab="saleable">可售卖奖章（{{ saleableMedals.length }}）</button>
+          <button type="button" class="catalogue-tab" role="tab" aria-selected="false"
+            data-catalogue-tab="certification">奖项认证奖章（{{ certificationMedals.length }}）</button>
+          <button type="button" class="catalogue-tab" role="tab" aria-selected="false"
+            data-catalogue-tab="oj">OJ 成就奖章（{{ ojMedals.length + legacyOjMedals.length }}）</button>
+        </div>
+        <noscript><style>.catalogue-panel { display:block !important; }</style></noscript>
 
-    <div class="section">
-      <div class="section__header"><h2 class="section__title">一般奖章（{{ manualMedals.length }}）</h2></div>
-      {{ medalDefinitions(manualMedals) }}
-    </div>
+        <div class="catalogue-panel is-active" data-catalogue-panel="manual">
+          {{ medalDefinitions(manualMedals) }}
+        </div>
 
-    <div class="section">
-      <div class="section__header"><h2 class="section__title">OJ 成就奖章（{{ ojMedals.length + legacyOjMedals.length }}）</h2></div>
-      <div class="section__body">
-        <p class="medal-help">
-          每类指标一个可升级系列：用户同一系列只有一条记录，达到更高阈值时由系统自动升级。
-          管理员也可以手动补录或纠正等级。
-        </p>
-        <p class="medal-help">
-          扫描按用户依次执行，不并发查询；扫描补发只授予奖章。
-          猫粮指标在扫描时使用统一账户明细倒推历史最高余额，实时达成仍在余额变化后立即检查。
-        </p>
-        {% if ojMedals.length %}
-        {% for medal in ojMedals %}
-        {{ medalSeries(medal, true) }}
-        {% endfor %}
-        {% elif not legacyOjMedals.length %}
-        <p>还没有 OJ 成就奖章。新建时把「奖章类型」选为「OJ 成就奖章」即可配置阈值阶梯。</p>
-        {% endif %}
+        <div class="catalogue-panel" data-catalogue-panel="saleable">
+          {{ medalDefinitions(saleableMedals) }}
+        </div>
+
+        <div class="catalogue-panel" data-catalogue-panel="certification">
+          {% for medal in certificationMedals %}
+          {{ medalSeries(medal, false) }}
+          {% else %}
+          <p>还没有奖项认证奖章。新建时把「奖章类型」选为「奖项认证奖章」即可配置等级阶梯。</p>
+          {% endfor %}
+        </div>
+
+        <div class="catalogue-panel" data-catalogue-panel="oj">
+          <p class="medal-help">
+            每类指标一个可升级系列：用户同一系列只有一条记录，达到更高阈值时由系统自动升级。
+            管理员也可以手动补录或纠正等级。
+          </p>
+          <p class="medal-help">
+            扫描按用户依次执行，不并发查询；扫描补发只授予奖章。
+            猫粮指标在扫描时使用统一账户明细倒推历史最高余额，实时达成仍在余额变化后立即检查。
+          </p>
+          {% if ojMedals.length %}
+          {% for medal in ojMedals %}
+          {{ medalSeries(medal, true) }}
+          {% endfor %}
+          {% elif not legacyOjMedals.length %}
+          <p>还没有 OJ 成就奖章。新建时把「奖章类型」选为「OJ 成就奖章」即可配置阈值阶梯。</p>
+          {% endif %}
+          {% if legacyOjMedals.length %}
+          <p class="medal-help">
+            以下 OJ 定义还是旧的「一个阈值一个奖章」格式，运行一次迁移或重新编辑保存后即可升级为等级系列。
+          </p>
+          {{ medalDefinitions(legacyOjMedals) }}
+          {% endif %}
+        </div>
       </div>
-      {% if legacyOjMedals.length %}
-      <p class="medal-help" style="padding:0 1rem;">
-        以下 OJ 定义还是旧的「一个阈值一个奖章」格式，运行一次迁移或重新编辑保存后即可升级为等级系列。
-      </p>
-      {{ medalDefinitions(legacyOjMedals) }}
-      {% endif %}
     </div>
 
     <div class="section">
@@ -444,6 +453,23 @@
 </div>
 <style>
   .medal-help { color:#777; }
+  .catalogue-tabs {
+    display:flex; flex-wrap:wrap; gap:.35rem; margin:.2rem 0 .8rem;
+    border-bottom:1px solid rgba(127,127,127,.25);
+  }
+  .catalogue-tab {
+    margin:0 0 -1px; padding:.4rem .85rem; background:transparent; color:#666;
+    border:1px solid transparent; border-bottom:0; border-radius:6px 6px 0 0;
+    font:inherit; cursor:pointer;
+  }
+  .catalogue-tab:hover { background:rgba(127,127,127,.07); color:inherit; }
+  .catalogue-tab.is-active {
+    border-color:rgba(127,127,127,.25); background:rgba(127,127,127,.09);
+    color:inherit; font-weight:600;
+  }
+  .theme--dark .catalogue-tab, [data-mantine-color-scheme=dark] .catalogue-tab { color:#aaa; }
+  .catalogue-panel { display:none; padding-top:.55rem; }
+  .catalogue-panel.is-active { display:block; }
   .medal-import-result { margin-top:.75rem; padding:.75rem .9rem; border:1px solid rgba(127,127,127,.25); border-radius:6px; }
   .medal-import-result details { margin-top:.5rem; }
   .medal-import-result ul { margin:.35rem 0 0; padding-left:1.2rem; }

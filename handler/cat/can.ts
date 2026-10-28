@@ -1,5 +1,5 @@
 import {
-    ConnectionHandler, Context, ForbiddenError, Handler, PRIV, Types, UserModel, param, subscribe,
+    ConnectionHandler, Context, ForbiddenError, Handler, PRIV, Types, UserModel, param, query, subscribe,
 } from 'hydrooj';
 import { medalColl, oi33Model } from '../../model';
 import { CAT_MAP_HEIGHT, CAT_MAP_WIDTH } from '../../model/cat/map';
@@ -118,6 +118,14 @@ class CatMapStateHandler extends Handler {
     }
 }
 
+
+class CatMapUserCellsHandler extends Handler {
+    @query('uid', Types.PositiveInt)
+    async get(domainId: string, uid: number) {
+        this.response.type = 'application/json';
+        this.response.body = { cells: await oi33Model.listUserCatCells(uid) };
+    }
+}
 
 class CatMapMoveHandler extends Handler {
     @param('x', Types.Int)
@@ -404,6 +412,7 @@ export async function apply(ctx: Context) {
     ctx.Route('oi33_cat_can_calibrate', '/oi33/cat-can/calibrate', CatCanCalibrateHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_can_arena', '/oi33/arena', CatCanArenaHandler);
     ctx.Route('oi33_cat_map_state', '/oi33/arena/state', CatMapStateHandler);
+    ctx.Route('oi33_cat_map_user_cells', '/oi33/arena/user-cells', CatMapUserCellsHandler);
     ctx.Route('oi33_cat_map_join', '/oi33/arena/join', CatMapJoinHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_move', '/oi33/arena/move', CatMapMoveHandler, PRIV.PRIV_USER_PROFILE);
     ctx.Route('oi33_cat_map_color', '/oi33/arena/color', CatMapColorHandler, PRIV.PRIV_USER_PROFILE);

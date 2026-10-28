@@ -380,6 +380,15 @@ export async function computeCatCellCounts(catId?: number, limit = 0): Promise<C
     }));
 }
 
+export async function listUserCatCells(uid: number, limit = 20000) {
+    if (!Number.isSafeInteger(uid) || uid <= 0) return [];
+    const rows: any[] = await catMapCellColl.find(
+        { updatedBy: uid, color: { $exists: true } } as any,
+        { projection: { x: 1, y: 1, color: 1, catId: 1 } } as any,
+    ).limit(Math.max(1, Math.min(50000, limit))).toArray();
+    return rows.map((row) => [Number(row.x), Number(row.y), Number(row.color), Number(row.catId) || 0]);
+}
+
 export async function listCatCellRanking(limit = 50, catId?: number) {
     return await computeCatCellCounts(catId, limit);
 }

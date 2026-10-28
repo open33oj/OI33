@@ -58,3 +58,52 @@
 .oi33-contest-table__wrap .oi33-contest-table__group > tr > td:last-child {
   padding-right: 1rem;
 }
+
+/* Discussion / solution lists share the contest table's two-row geometry so
+   all three list pages have the same card height. The leading sprite icon is
+   the only status indicator (color = freshness / featured). */
+.oi33-list-status-icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.oi33-list-author {
+  color: #888;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.oi33-list-featured {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  background: #f0ad4e;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+.oi33-list-like {
+  color: #999;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.oi33-discussion-table .oi33-contest-table__title a,
+.oi33-solution-table .oi33-contest-table__title a {
+  color: inherit;
+}
+
+.oi33-discussion-table .oi33-contest-table__title a:hover,
+.oi33-solution-table .oi33-contest-table__title a:hover {
+  color: var(--accent-color, #55b6e2);
+}

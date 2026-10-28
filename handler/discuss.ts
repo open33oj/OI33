@@ -12,6 +12,37 @@ const MAIN_LIST_TYPES = [
     DocumentModel.TYPE_TRAINING,
 ];
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 列表卡片需要「最后回复人」和「回复新鲜度」，而 core 的 discussion 文档只存
+// 了 updateAt / nReply。这里按列表批量补一次最后一条回复，供同一个 partial 使用。
+async function decorateDiscussionRows(domainId: string, ddocs: any[]) {
+    const now = Date.now();
+    await Promise.all(ddocs.map(async (ddoc) => {
+        let lastReply: { owner: number; at: Date } | null = null;
+        if (Number(ddoc.nReply) > 0) {
+            const [reply]: any[] = await DiscussionModel.getMultiReply(domainId, ddoc.docId)
+                .limit(1).toArray();
+            if (reply) lastReply = { owner: Number(reply.owner), at: ddoc.updateAt };
+        }
+        const age = ddoc.updateAt ? now - new Date(ddoc.updateAt).getTime() : Number.POSITIVE_INFINITY;
+        ddoc.lastReply = lastReply;
+        ddoc.listStatus = !lastReply
+            ? 'gray'
+            : age <= 3 * DAY_MS ? 'green' : age <= 7 * DAY_MS ? 'yellow' : 'gray';
+    }));
+    return ddocs;
+}
+
+function discussionListUids(ddocs: any[]) {
+    const uids = new Set<number>();
+    for (const ddoc of ddocs) {
+        if (Number.isSafeInteger(Number(ddoc.owner))) uids.add(Number(ddoc.owner));
+        if (Number.isSafeInteger(Number(ddoc.lastReply?.owner))) uids.add(Number(ddoc.lastReply.owner));
+    }
+    return [...uids];
+}
+
 class Oi33ProblemDiscussionsHandler extends Handler {
     @query('page', Types.PositiveInt, true)
     async get(domainId: string, page = 1) {
@@ -21,8 +52,8 @@ class Oi33ProblemDiscussionsHandler extends Handler {
             page,
             'discussion',
         );
-        const uids = [...new Set(ddocs.map((ddoc: any) => Number(ddoc.owner))
-            .filter((uid) => Number.isSafeInteger(uid)))];
+        await decorateDiscussionRows(domainId, ddocs as any[]);
+        const uids = discussionListUids(ddocs as any[]);
         const [udict, vndict, vnodes] = await Promise.all([
             uids.length ? UserModel.getList(domainId, uids) : {},
             DiscussionModel.getListVnodes(
@@ -60,7 +91,9 @@ export function applyDiscussionPatches(ctx: Context) {
                 page,
                 'discussion',
             );
-            const udict = await UserModel.getList(domainId, ddocs.map((ddoc: any) => ddoc.owner));
+            await decorateDiscussionRows(domainId, ddocs as any[]);
+            const uids = discussionListUids(ddocs as any[]);
+            const udict = uids.length ? await UserModel.getList(domainId, uids) : {};
             const [vndict, vnodes] = await Promise.all([
                 DiscussionModel.getListVnodes(
                     domainId, ddocs, this.user.hasPerm(PERM.PERM_VIEW_PROBLEM_HIDDEN), this.user.group,
@@ -78,6 +111,28 @@ export function applyDiscussionPatches(ctx: Context) {
                 vnode: {},
                 vnodes,
             };
+        };
+    });
+
+    // 讨论节点页（/discuss/contest/... 等）同样使用新列表；core 的类没有导出，
+    // 包装 get 后补最后回复信息。
+    (ctx as any).withHandlerClass('DiscussionNode', (H: any) => {
+        const original = H.prototype.get;
+        H.prototype.get = async function patchedDiscussionNode(this: any, ...args: any[]) {
+            const result = await original.apply(this, args);
+            const body = this.response?.body;
+            const ddocs = body?.ddocs;
+            if (Array.isArray(ddocs) && ddocs.length) {
+                const domainId = this.args?.domainId || this.domain?._id || 'system';
+                await decorateDiscussionRows(domainId, ddocs);
+                const uids = discussionListUids(ddocs);
+                const missing = uids.filter((uid) => !body.udict?.[uid]);
+                if (missing.length) {
+                    const extra = await UserModel.getList(domainId, missing);
+                    body.udict = { ...(body.udict || {}), ...extra };
+                }
+            }
+            return result;
         };
     });
 }

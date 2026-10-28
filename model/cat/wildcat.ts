@@ -2,13 +2,14 @@
 // 每 2 小时自动走一格、顺手抢占地盘。
 //
 // 规则：
-//   - 四邻中优先走「没走过的」；都走过则四邻随机；
+//   - 四邻中优先扩张到还没归自己大猫的格子，其次没走过的，避开刚离开的格子；
 //   - 只走相邻格，跳过其他大猫 00区核心；
 //   - 到达有色格子时保持该格颜色，只把 catId 改成自己的大猫、updatedBy 改成自己
-//     （个人占格数随之转移）；没涂色的格子只移动、不抢归属；
+//     （个人占格数随之转移）；没涂色的格子用大猫领地色补色后占领；
 //   - 每 2 小时一步，按 uid 升序结算；用户有正在执行的路径计划时跳过，避免打架。
 
 import { randomInt } from 'crypto';
+import { nearestCatMapPaletteCode } from '../../shared/cat-map';
 import { db } from 'hydrooj';
 import { addLog } from '../log';
 import { userColl } from '../user';
@@ -16,12 +17,17 @@ import {
     catMapCellColl, catMapPlayerColl, cellId, fortressCatIdAt, isCatMapCoreZone,
     moveTerritoryCount, normalizedCatId, validCoordinate,
 } from './map';
-import { schoolCatKey } from './school-shared';
+import { schoolCatColl, schoolCatKey } from './school-shared';
 
 export const WILD_CAT_INTERVAL_MS = 2 * 60 * 60 * 1000;
 const MAX_VISITED = 4096;
 const MAX_PER_RUN = 200;
 const DIRECTIONS = [[0, -1], [1, 0], [0, 1], [-1, 0]] as const;
+
+function decodeCellId(id: string) {
+    const [x, y] = String(id).split(':').map(Number);
+    return { x, y };
+}
 
 export interface WildCatState {
     enabled: boolean;
@@ -139,29 +145,82 @@ async function runOne(player: any, now: Date): Promise<WildCatMoveEvent | null> 
         } as any);
         return null;
     }
-    const unvisited = candidates.filter((pos) => !visitedSet.has(cellId(pos.x, pos.y)));
-    const pool = unvisited.length ? unvisited : candidates;
-    const target = pool[randomInt(pool.length)];
+    // 不只「没走过」：优先扩张到还没归自己大猫的格子，并避开刚离开的格子，
+    // 否则在自家领地内随机走会来回绕圈。同分时再用一点随机量。
+    const candidateIds = candidates.map((pos) => cellId(pos.x, pos.y));
+    const candidateRows: any[] = await catMapCellColl.find(
+        { _id: { $in: candidateIds } } as any,
+        { projection: { catId: 1, color: 1, updatedAt: 1, updatedBy: 1 } } as any,
+    ).toArray();
+    const cellById = new Map(candidateRows.map((row) => [String(row._id), row]));
+    const previousId = visited.length >= 2 ? visited[visited.length - 2] : null;
+    let lastDx = 0;
+    let lastDy = 0;
+    if (visited.length >= 2) {
+        const previous = decodeCellId(visited[visited.length - 2]);
+        lastDx = currentX - previous.x;
+        lastDy = currentY - previous.y;
+    }
+    const scored = candidates.map((pos) => {
+        const candidateId = cellId(pos.x, pos.y);
+        const candidateCell: any = cellById.get(candidateId);
+        const candidateCatId = normalizedCatId(candidateCell?.catId);
+        const expanding = candidateCatId !== ownCatId ? 100 : 0;
+        const unvisitedScore = visitedSet.has(candidateId) ? 0 : 30;
+        const forward = (pos.x - currentX === lastDx && pos.y - currentY === lastDy) ? 12 : 0;
+        const backtrack = candidateId === previousId ? -200 : 0;
+        return {
+            pos,
+            score: expanding + unvisitedScore + forward + backtrack + Math.random() * .1,
+        };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const target = scored[0].pos;
 
     const id = cellId(target.x, target.y);
-    const cell: any = await catMapCellColl.findOne({ _id: id } as any);
+    const cell: any = cellById.get(id);
+    const previousCatId = normalizedCatId(cell?.catId);
     let color: number | null = null;
-    let previousCatId = 0;
     let claimed = false;
     if (cell && Number.isSafeInteger(cell.color)) {
         color = cell.color;
-        previousCatId = normalizedCatId(cell.catId);
-        if (previousCatId !== ownCatId || Number(cell.updatedBy) !== uid) {
-            await catMapCellColl.updateOne(
-                { _id: id, color: cell.color } as any,
+    } else {
+        // 从没人染过的格子：用该大猫领地颜色的最近调色板色补一个，保证
+        // 原始视图可见，也让「个人占格」和「大猫领地」都能统计到。
+        const cat: any = await schoolCatColl.findOne(
+            { _id: user.school_cat } as any,
+            { projection: { territoryColor: 1 } },
+        );
+        color = Number.isSafeInteger(cat?.territoryColor)
+            ? nearestCatMapPaletteCode(Number(cat.territoryColor))
+            : 34;
+    }
+    if (!cell || !Number.isSafeInteger(cell.color)
+        || previousCatId !== ownCatId || Number(cell.updatedBy) !== uid) {
+        const filter: any = { _id: id };
+        // 读到之后如果有人刚好重画了这一格，就不要覆盖别人的新画。
+        if (cell?.updatedAt) filter.updatedAt = cell.updatedAt;
+        let updated = false;
+        try {
+            const result = await catMapCellColl.updateOne(
+                filter,
                 {
                     $set: {
+                        x: target.x,
+                        y: target.y,
+                        color,
                         catId: ownCatId,
                         updatedBy: uid,
                         updatedAt: now,
                     },
                 } as any,
+                { upsert: !cell },
             );
+            updated = !!result.modifiedCount || !!result.upsertedCount;
+        } catch (e: any) {
+            if (e?.code !== 11000) throw e;
+        }
+        if (updated) {
             if (previousCatId !== ownCatId) await moveTerritoryCount(previousCatId, ownCatId, now);
             claimed = true;
         }

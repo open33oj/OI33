@@ -208,24 +208,48 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
 
 .oi33-user {
   position: relative;
+  display: flex;
   flex: none;
+  align-items: center;
 }
 
-.oi33-user__trigger {
+.oi33-user__profile,
+.oi33-user__profile:visited {
   display: flex;
   align-items: center;
   gap: 8px;
   height: 34px;
-  padding: 0 8px 0 5px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
+  padding: 0 7px 0 5px;
+  border-radius: 8px 0 0 8px;
   color: var(--oi33-text);
+  text-decoration: none;
+}
+
+.oi33-user__profile:hover,
+.oi33-user__profile:visited:hover {
+  background: var(--oi33-hover);
+  color: var(--oi33-text);
+}
+
+.oi33-user__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--oi33-border);
+  border-radius: 0 8px 8px 0;
+  background: none;
+  color: var(--oi33-muted);
   cursor: pointer;
 }
 
-.oi33-user__trigger:hover {
+.oi33-user__toggle:hover,
+.oi33-user.is-open .oi33-user__toggle {
   background: var(--oi33-hover);
+  color: var(--oi33-text);
 }
 
 .oi33-user__avatar {
@@ -254,6 +278,8 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
   stroke-linecap: round;
   stroke-linejoin: round;
   transition: transform .15s ease;
+  /* 常规下拉：收起朝下，展开朝上。 */
+  transform: rotate(0deg);
 }
 
 .oi33-user.is-open .oi33-chevron {
@@ -807,9 +833,10 @@ html.oi33-shell.page--error .oi33-shell-overlay {
 }
 
 .oi33-nav__item:focus-visible,
+.oi33-user__profile:focus-visible,
+.oi33-user__toggle:focus-visible,
 .oi33-topbar__burger:focus-visible,
 .oi33-sidebar-toggle:focus-visible,
-.oi33-user__trigger:focus-visible,
 .oi33-menu__link:focus-visible,
 .oi33-sidebar__close:focus-visible {
   outline: 2px solid var(--oi33-accent);

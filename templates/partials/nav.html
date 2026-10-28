@@ -111,11 +111,13 @@ try {
   <div class="oi33-topbar__spacer"></div>
   {%- if handler.user.hasPriv(PRIV.PRIV_USER_PROFILE) %}
   <div class="oi33-user" data-oi33-user>
-    <a class="oi33-user__trigger" href="{{ url('user_detail', uid=handler.user._id) }}" data-oi33-user-trigger aria-haspopup="true" aria-expanded="false" aria-controls="oi33-user-menu">
+    <a class="oi33-user__profile" href="{{ url('user_detail', uid=handler.user._id) }}">
       <img class="oi33-user__avatar" src="{{ avatarUrl(handler.user.avatar|default('')) }}" alt="" width="26" height="26" loading="lazy">
       <span class="oi33-user__name">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %}</span>
-      <svg class="oi33-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-chevron"></use></svg>
     </a>
+    <button type="button" class="oi33-user__toggle" data-oi33-user-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="oi33-user-menu" aria-label="展开用户菜单">
+      <svg class="oi33-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-chevron"></use></svg>
+    </button>
     <div class="oi33-user__menu" id="oi33-user-menu" role="menu">
       <div class="oi33-user__summary">
         <img class="oi33-user__avatar" src="{{ avatarUrl(handler.user.avatar|default('')) }}" alt="" width="34" height="34" loading="lazy">

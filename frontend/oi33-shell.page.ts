@@ -48,11 +48,9 @@ function setupUserMenu() {
         open = next;
         wrap.classList.toggle('is-open', next);
         trigger.setAttribute('aria-expanded', String(next));
+        trigger.setAttribute('aria-label', next ? '收起用户菜单' : '展开用户菜单');
     };
     trigger.addEventListener('click', (event) => {
-        // Keep ctrl/cmd/middle click working: those should open the profile in a
-        // new tab instead of toggling the menu.
-        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
         apply(!open);
     });

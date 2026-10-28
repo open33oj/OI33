@@ -15,50 +15,39 @@
           {% endif %}
         </div>
       </div>
-      <div class="section__body">
+      <div class="section__body no-padding oi33-contest-table__wrap">
         {% if psdocs.length %}
-        <table class="data-table oi33-solutions">
-          <colgroup>
-            <col style="width:9rem;">
-            <col style="width:16rem;">
-            <col>
-            <col style="width:7rem;">
-          </colgroup>
-          <thead>
+        <table class="oi33-contest-table oi33-solution-table">
+          {%- for psdoc in psdocs -%}
+          {% set pdoc = pdocs[psdoc.parentId] %}
+          {% set author = udict[psdoc.owner] %}
+          <tbody class="oi33-contest-table__group">
             <tr>
-              <th>时间</th>
-              <th>题目</th>
-              <th>题解</th>
-              <th>作者</th>
-            </tr>
-          </thead>
-          <tbody>
-            {%- for psdoc in psdocs -%}
-            {% set pdoc = pdocs[psdoc.parentId] %}
-            <tr>
-              <td style="white-space:nowrap;">{{ datetimeSpan(psdoc._id)|safe }}</td>
-              <td>
-                {% if pdoc %}
-                <a href="{{ url('problem_detail', pid=pdoc.pid|default(psdoc.parentId)) }}">{{ pdoc.title }}</a>
-                {% else %}
-                <span class="oi33-solutions__missing">题目 #{{ psdoc.parentId }} 已不可见</span>
-                {% endif %}
+              <td class="oi33-contest-table__status" rowspan="2">
+                <svg class="oi33-list-status-icon text-{{ 'yellow' if psdoc.featured else 'gray' }}" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-file-text"></use></svg>
               </td>
-              <td class="oi33-solutions__content">
-                {% if psdoc.featured %}<span class="oi33-solutions__featured" title="精华题解">精华</span>{% endif %}
-                <a href="{{ url('problem_solution_detail', pid=psdoc.parentId, sid=psdoc._id) }}">{{ psdoc.content|truncate(160) }}</a>
+              <td class="oi33-contest-table__title">
+                <a href="{{ url('problem_solution_detail', pid=psdoc.parentId, sid=psdoc._id) }}">
+                  {% if pdoc %}{{ pdoc.pid|default(psdoc.parentId) }}：{{ pdoc.title }}{% else %}题目 #{{ psdoc.parentId }}{% endif %}
+                </a>
+                {% if author %}<span class="oi33-list-author">（{{ user.render_inline(author, false, false) }}）</span>{% else %}<span class="oi33-list-author">（UID {{ psdoc.owner }}）</span>{% endif %}
+                {% if psdoc.featured %}<span class="oi33-list-featured">精华</span>{% endif %}
               </td>
-              <td style="white-space:nowrap;">
-                {% if udict[psdoc.owner] %}{{ user.render_inline(udict[psdoc.owner], false, false) }}{% else %}UID {{ psdoc.owner }}{% endif %}
-                {% if psdoc.vote %}<span class="oi33-solutions__vote" title="得票">▲ {{ psdoc.vote }}</span>{% endif %}
+              <td class="oi33-contest-table__attend" rowspan="2">
+                <span class="oi33-list-like" title="点赞数">▲ {{ psdoc.vote or 0 }}</span>
               </td>
             </tr>
-            {%- endfor -%}
+            <tr>
+              <td class="oi33-contest-table__meta">
+                最后修改 {{ datetimeSpan(psdoc.editedAt or psdoc._id)|safe }}
+              </td>
+            </tr>
           </tbody>
+          {%- endfor -%}
         </table>
         {{ paginator.render(page, upcount) }}
         {% else %}
-        <p class="oi33-solutions__empty">还没有任何题解。</p>
+        <p class="oi33-solutions__empty" style="padding:1rem;">还没有任何题解。</p>
         {% endif %}
       </div>
     </div>

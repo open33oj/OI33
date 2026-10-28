@@ -68,6 +68,7 @@ function mountMap() {
     const colorDialog = document.querySelector<HTMLDialogElement>('[data-map-color-dialog]');
     const planPanel = document.querySelector<HTMLElement>('[data-map-plan]');
     const planToggle = document.querySelector<HTMLButtonElement>('[data-plan-toggle]');
+    const kittenButton = document.querySelector<HTMLButtonElement>('[data-kitten-view]');
     const wildcatButton = document.querySelector<HTMLButtonElement>('[data-wildcat-toggle]');
     const planCloseButton = document.querySelector<HTMLButtonElement>('[data-plan-close]');
     const planStatus = document.querySelector<HTMLElement>('[data-plan-status]');
@@ -160,6 +161,10 @@ function mountMap() {
     let showBigCats = false;
     let showNames = true;
     let showEmpireBorder = true;
+    let kittenView = false;
+    let kittenCells = new Set<number>();
+    let kittenLoading = false;
+    let kittenReloadTimer: number | null = null;
     let viewScale = DEFAULT_GRID_SCALE;
     let viewCenterX = MAP_WIDTH / 2;
     let viewCenterY = MAP_HEIGHT / 2;
@@ -409,6 +414,66 @@ function mountMap() {
         if (meStatus.textContent !== text) meStatus.textContent = text;
     };
 
+    const syncKittenButton = () => {
+        if (!kittenButton) return;
+        kittenButton.hidden = !focusUserId;
+        kittenButton.textContent = kittenCells.size ? `小猫视角（${kittenCells.size} 格）` : '小猫视角';
+        kittenButton.classList.toggle('is-active', kittenView);
+        kittenButton.setAttribute('aria-pressed', String(kittenView));
+        kittenButton.title = focusUserId
+            ? `高亮 UID ${focusUserId} 的小猫画过的格子`
+            : '高亮这只小猫画过的格子';
+    };
+
+    const loadKittenCells = async () => {
+        if (!focusUserId || kittenLoading) return;
+        kittenLoading = true;
+        try {
+            const result = await request.get('/oi33/arena/user-cells', { uid: focusUserId });
+            kittenCells = new Set((result.cells || []).map(
+                (cell: [number, number, number, number]) => Number(cell[1]) * MAP_WIDTH + Number(cell[0]),
+            ));
+            syncKittenButton();
+            invalidate();
+        } catch (e: any) {
+            Notification.error(`读取小猫占格失败：${e.message || e}`);
+        } finally {
+            kittenLoading = false;
+        }
+    };
+
+    const scheduleKittenReload = () => {
+        if (!kittenView || !focusUserId) return;
+        if (kittenReloadTimer !== null) window.clearTimeout(kittenReloadTimer);
+        kittenReloadTimer = window.setTimeout(() => {
+            kittenReloadTimer = null;
+            void loadKittenCells();
+        }, 800);
+    };
+
+    const drawKittenView = (origin: { x: number; y: number }, width: number, height: number) => {
+        if (!kittenView || !kittenCells.size) return;
+        const left = Math.floor(-origin.x / viewScale) - 1;
+        const top = Math.floor(-origin.y / viewScale) - 1;
+        const right = Math.ceil((width - origin.x) / viewScale) + 1;
+        const bottom = Math.ceil((height - origin.y) / viewScale) + 1;
+        const cellSize = Math.max(1, viewScale);
+        context.save();
+        context.fillStyle = 'rgba(255, 152, 0, .36)';
+        context.strokeStyle = 'rgba(214, 100, 0, .95)';
+        context.lineWidth = Math.max(1, Math.min(2, viewScale * .08));
+        for (const index of kittenCells) {
+            const x = index % MAP_WIDTH;
+            const y = Math.floor(index / MAP_WIDTH);
+            if (x < left || x > right || y < top || y > bottom) continue;
+            const px = origin.x + x * viewScale;
+            const py = origin.y + y * viewScale;
+            context.fillRect(px, py, cellSize, cellSize);
+            context.strokeRect(px + .5, py + .5, Math.max(1, cellSize - 1), Math.max(1, cellSize - 1));
+        }
+        context.restore();
+    };
+
     const drawCat = (player: MapPlayer, px: number, py: number, walking: boolean) => {
         const phase = Math.floor(now() / CAT_IDLE_FRAME_MS + player.uid) % 3;
         let frameX = phase === 1 ? 1 : 0;
@@ -530,6 +595,7 @@ function mountMap() {
         } else {
             context.drawImage(overviewLayer, origin.x, origin.y, mapWidth, mapHeight);
         }
+        drawKittenView(origin, width, height);
         if (showGrid) {
             context.strokeStyle = 'rgba(0,0,0,.72)';
             context.lineWidth = 1;
@@ -764,6 +830,21 @@ function mountMap() {
         updateMeStatus();
     };
 
+    const LAST_COLOR_KEY = `oi33.catMap.lastColor.${userId || 0}`;
+    const readLastColor = () => {
+        try {
+            const value = Number(window.localStorage.getItem(LAST_COLOR_KEY));
+            return Number.isInteger(value) && value >= 0 && value <= 255 ? value : 34;
+        } catch {
+            return 34;
+        }
+    };
+    const rememberColor = (color: number) => {
+        try {
+            window.localStorage.setItem(LAST_COLOR_KEY, String(color));
+        } catch { /* localStorage unavailable */ }
+    };
+
     const openColorDialog = (x: number, y: number) => {
         if (!colorDialog) return;
         if (state.me && state.me.availableAt > now() && !state.me.freeColorAvailable) {
@@ -774,7 +855,8 @@ function mountMap() {
         const input = colorDialog.querySelector<HTMLInputElement>('[data-color-input]');
         if (input) {
             const currentColor = cellColors[y * MAP_WIDTH + x];
-            input.value = String(currentColor >= 0 ? currentColor : 34);
+            // 空格默认沿用上一次手动使用的颜色，而不是固定 34。
+            input.value = String(currentColor >= 0 ? currentColor : readLastColor());
             input.dispatchEvent(new Event('input'));
         }
         colorDialog.showModal();
@@ -963,7 +1045,8 @@ function mountMap() {
         const input = planStepDialog.querySelector<HTMLInputElement>('[data-color-input]');
         if (input) {
             const currentColor = cellColors[y * MAP_WIDTH + x];
-            input.value = String(currentColor >= 0 ? currentColor : 34);
+            // 空格默认沿用上一次手动使用的颜色，而不是固定 34。
+            input.value = String(currentColor >= 0 ? currentColor : readLastColor());
             input.dispatchEvent(new Event('input'));
         }
         planStepDialog.showModal();
@@ -1414,6 +1497,12 @@ function mountMap() {
             updateMeStatus();
         }
     });
+    kittenButton?.addEventListener('click', () => {
+        kittenView = !kittenView;
+        syncKittenButton();
+        if (kittenView) void loadKittenCells();
+        invalidate();
+    });
     planToggle?.addEventListener('click', () => openPlanPanel(!!planPanel?.hidden));
     planCloseButton?.addEventListener('click', () => openPlanPanel(false));
     planAddButton?.addEventListener('click', () => {
@@ -1520,6 +1609,7 @@ function mountMap() {
         try {
             const color = Number(input.value);
             const result = await request.post(colorUrl, { ...selectedColorCell, color });
+            rememberColor(color);
             setCell(result.x, result.y, result.color, result.catId);
             if (state.me) {
                 state.me.availableAt = result.availableAt ? new Date(result.availableAt).getTime() : 0;
@@ -1572,6 +1662,8 @@ function mountMap() {
         rebuildOverviewLayer();
         rebuildTerritoryLayer();
         state.me = userId ? players.get(userId) || null : null;
+        syncKittenButton();
+        if (kittenView) void loadKittenCells();
         if (typeof incoming.planMaxSteps === 'number') state.planMaxSteps = incoming.planMaxSteps;
         // 运行中的计划可以接着追加，所以刷新状态时必须保留尚未提交的草稿。
         state.plan = incoming.plan || null;
@@ -1657,6 +1749,7 @@ function mountMap() {
         }
         if (payload.type === 'cell' && Array.isArray(payload.cell)) {
             setCell(payload.cell[0], payload.cell[1], payload.cell[2], payload.cell[3]);
+            scheduleKittenReload();
         }
         if (payload.type === 'bigcat') bigCats?.handleSocketMessage(payload);
         if (payload.type === 'rect' && Array.isArray(payload.rect)) {

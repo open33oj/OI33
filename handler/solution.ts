@@ -27,6 +27,24 @@ function solutionRedirectTarget(handler: Handler, fallback: string): string {
 }
 
 function applySolutionRules(ctx: Context) {
+    // 记录最后编辑时间（document 本身没有 updateAt）；列表页展示「最后修改」。
+    ctx.on('handler/after/ProblemSolution#post', async (h: any) => {
+        if (h.request?.body?.operation !== 'edit_solution') return;
+        const psidRaw = h.args?.psid;
+        if (!psidRaw) return;
+        const domainId = String(h.domain?._id || h.args?.domainId || 'system');
+        try {
+            await DocumentModel.set(
+                domainId,
+                DocumentModel.TYPE_PROBLEM_SOLUTION,
+                new ObjectId(String(psidRaw)),
+                { editedAt: new Date() } as any,
+            );
+        } catch (e) {
+            console.error('[oi33] failed to stamp solution editedAt:', e);
+        }
+    });
+
     // 每道题每人只能有一篇题解：创建前检查（编辑不受限）。并发下极窄的竞态
     // 窗口暂不做唯一索引——core 的 document 集合里可能已有历史重复数据。
     ctx.on('handler/before-operation/ProblemSolution', async (h: any) => {
@@ -44,7 +62,7 @@ function applySolutionRules(ctx: Context) {
     });
 }
 // 列表页只需要摘要字段；题解评论（reply）可能很多，显式裁掉。
-const LIST_PROJECTION = ['content', 'owner', 'parentId', 'vote', 'hidden', 'featured'];
+const LIST_PROJECTION = ['content', 'owner', 'parentId', 'vote', 'hidden', 'featured', 'editedAt'];
 
 // 全站题解时间线：按发布时间倒序（_id 即 ObjectId）列出所有已发布的题解。
 // 审核中的题解（hidden）不在此列表出现，它们只存在于审核队列。
