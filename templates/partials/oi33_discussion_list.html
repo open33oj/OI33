@@ -16,7 +16,15 @@
           <svg class="oi33-list-status-icon text-{{ ddoc.listStatus or 'gray' }}" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-chat"></use></svg>
         </td>
         <td class="oi33-contest-table__title">
-          <a href="{{ url('discussion_detail', did=ddoc._id, anchor=ddoc.updateAt.getTime()) }}" data-emoji-enabled>{{ ddoc.title }}</a>
+          {% if ddoc.pin %}<span class="oi33-list-badge oi33-list-badge--pin" title="置顶"><svg class="oi33-list-badge-icon" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-pin"></use></svg>置顶</span>{% endif %}
+          {% if ddoc.highlight %}<span class="oi33-list-badge oi33-list-badge--highlight" title="精华"><svg class="oi33-list-badge-icon" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-star"></use></svg>精华</span>{% endif %}
+          <a href="{{ url('discussion_detail', did=ddoc._id, anchor=ddoc.updateAt.getTime()) }}" data-emoji-enabled>
+            {%- set vnode = vndict[ddoc.parentType][ddoc.parentId] if vndict and vndict[ddoc.parentType] else null -%}
+            {%- if ddoc.parentType == model.document.TYPE_PROBLEM -%}
+              {%- if vnode -%}{{ vnode.pid|default(ddoc.parentId) }}：{{ vnode.title }} &middot; {% else -%}题目 #{{ ddoc.parentId }} &middot; {% endif -%}
+            {%- endif -%}
+            {{ ddoc.title }}
+          </a>
           {% if ddoc.hidden %}<span class="text-orange">（{{ _('Hidden') }}）</span>{% endif %}
         </td>
         <td class="oi33-contest-table__attend" rowspan="2">
@@ -38,5 +46,7 @@
   {%- endfor -%}
   </table>
 </div>
+{% if page != undefined and dpcount != undefined %}
 {{ paginator.render(page, dpcount) }}
+{% endif %}
 {% endif %}

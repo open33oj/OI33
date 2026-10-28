@@ -114,6 +114,23 @@ export function applyDiscussionPatches(ctx: Context) {
         };
     });
 
+    // 首页「讨论」也复用新列表；core 的 HomeHandler 只收集了发帖人，
+    // 这里补最后回复信息并把最后回复人加入 udict。
+    (ctx as any).withHandlerClass('Home', (H: any) => {
+        const original = H.prototype.getDiscussion;
+        H.prototype.getDiscussion = async function patchedHomeDiscussion(this: any, ...args: any[]) {
+            const result = await original.apply(this, args);
+            const ddocs = result?.[0];
+            if (Array.isArray(ddocs) && ddocs.length) {
+                await decorateDiscussionRows(args[0], ddocs);
+                for (const ddoc of ddocs) {
+                    if (ddoc.lastReply?.owner) this.collectUser([ddoc.lastReply.owner]);
+                }
+            }
+            return result;
+        };
+    });
+
     // 讨论节点页（/discuss/contest/... 等）同样使用新列表；core 的类没有导出，
     // 包装 get 后补最后回复信息。
     (ctx as any).withHandlerClass('DiscussionNode', (H: any) => {

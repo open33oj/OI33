@@ -30,7 +30,7 @@
                 <a href="{{ url('problem_solution_detail', pid=psdoc.parentId, sid=psdoc._id) }}">
                   {% if pdoc %}{{ pdoc.pid|default(psdoc.parentId) }}：{{ pdoc.title }}{% else %}题目 #{{ psdoc.parentId }}{% endif %}
                 </a>
-                {% if author %}<span class="oi33-list-author">（{{ user.render_inline(author, false, false) }}）</span>{% else %}<span class="oi33-list-author">（UID {{ psdoc.owner }}）</span>{% endif %}
+                {% if author %}<span class="oi33-list-author">&middot; {{ user.render_inline(author, false, false) }}</span>{% else %}<span class="oi33-list-author">&middot; UID {{ psdoc.owner }}</span>{% endif %}
                 {% if psdoc.featured %}<span class="oi33-list-featured">精华</span>{% endif %}
               </td>
               <td class="oi33-contest-table__attend" rowspan="2">
