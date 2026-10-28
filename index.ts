@@ -109,23 +109,36 @@ async function maintainWildCat(ctx: Context) {
                     cans: event.cans,
                     food: event.food,
                     availableAt: event.availableAt,
+                    freeColorAvailable: event.freeColorAvailable,
                     wildcat: true,
                     wildcatNextAt: event.wildcatNextAt,
                 },
             });
-            if (event.claimed) {
-                claimed++;
+            for (const displaced of event.displaced) {
+                (ctx as any).broadcast('oi33/cat-map-change', {
+                    type: 'player', player: displaced,
+                });
+            }
+            if (event.painted) {
                 (ctx as any).broadcast('oi33/cat-map-change', {
                     type: 'cell',
                     cell: [event.x, event.y, event.color ?? 0, event.catId],
                 });
+            }
+            if (event.claimed) {
+                claimed++;
+                if (event.previousCatId !== 0 && event.previousCatId !== event.catId) {
+                    (ctx as any).broadcast('oi33/cat-map-change', {
+                        type: 'bigcat', cat: { catId: event.previousCatId },
+                    });
+                }
                 (ctx as any).broadcast('oi33/cat-map-change', {
                     type: 'bigcat', cat: { id: event.schoolId },
                 });
             }
         }
         markTaskSuccess('wildCat', result.due
-            ? `${result.due} 只到期，${result.events.length} 只移动，${claimed} 格易主`
+            ? `${result.due} 只到期（检查 ${result.checked}），${result.events.length} 只移动，${claimed} 格易主`
             : '没有到期的野猫');
     } catch (e) {
         markTaskError('wildCat', e);

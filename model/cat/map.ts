@@ -80,6 +80,8 @@ export async function ensureCatMapIndexes() {
         catMapCellColl.createIndex({ catId: 1 }),
         catMapCellColl.createIndex({ updatedBy: 1 }),
         catMapCellColl.createIndex({ catId: 1, updatedBy: 1 }),
+        // Kitten view: latest repainted cells for one user.
+        catMapCellColl.createIndex({ updatedBy: 1, updatedAt: -1 }),
         // Due plans are scanned by the 5s scheduler with this index.
         catMapPlanColl.createIndex({ status: 1, nextAt: 1 }),
         catMapPlanColl.createIndex({ updatedAt: -1 }),
@@ -380,12 +382,19 @@ export async function computeCatCellCounts(catId?: number, limit = 0): Promise<C
     }));
 }
 
-export async function listUserCatCells(uid: number, limit = 20000) {
+// 小猫视角只展示最近染色的若干个格子：个人占格可能上千，全部高亮既卡又
+// 看不出最近活动。默认取最近 100 格，具体总数由调用方另行统计。
+export const CAT_USER_CELLS_RECENT_LIMIT = 100;
+
+export async function listUserCatCells(uid: number, limit = CAT_USER_CELLS_RECENT_LIMIT) {
     if (!Number.isSafeInteger(uid) || uid <= 0) return [];
     const rows: any[] = await catMapCellColl.find(
         { updatedBy: uid, color: { $exists: true } } as any,
         { projection: { x: 1, y: 1, color: 1, catId: 1 } } as any,
-    ).limit(Math.max(1, Math.min(50000, limit))).toArray();
+    )
+        .sort({ updatedAt: -1 })
+        .limit(Math.max(1, Math.min(50000, limit)))
+        .toArray();
     return rows.map((row) => [Number(row.x), Number(row.y), Number(row.color), Number(row.catId) || 0]);
 }
 

@@ -122,8 +122,16 @@ class CatMapStateHandler extends Handler {
 class CatMapUserCellsHandler extends Handler {
     @query('uid', Types.PositiveInt)
     async get(domainId: string, uid: number) {
+        const [cells, total] = await Promise.all([
+            oi33Model.listUserCatCells(uid),
+            oi33Model.countUserCatCells(uid),
+        ]);
         this.response.type = 'application/json';
-        this.response.body = { cells: await oi33Model.listUserCatCells(uid) };
+        this.response.body = {
+            cells,
+            total,
+            limit: oi33Model.CAT_USER_CELLS_RECENT_LIMIT,
+        };
     }
 }
 

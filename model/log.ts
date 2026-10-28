@@ -25,6 +25,10 @@ export async function ensureLogIndexes() {
     } as any, { $set: { schoolCatRewardRevision: 1 } } as any);
     await Promise.all([
         logColl.createIndex({ createdAt: 1 }),
+        // Admin timeline filters by type and always sorts newest first.
+        logColl.createIndex({ type: 1, createdAt: -1 }),
+        // Per-user food/account ledgers filter by userId and sort by time.
+        logColl.createIndex({ userId: 1, createdAt: -1 }),
         // Supports the one-time/idempotent legacy movement contribution scan.
         logColl.createIndex({
             type: 1, action: 1, schoolCatContributionCounted: 1, userId: 1,

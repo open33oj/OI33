@@ -10,7 +10,8 @@
 // 幂等：退回过的日志打 feedRefunded，重复执行不会二次退款；其余步骤都是
 // 覆盖/删除，可安全重跑。迁移页会先展示预览（人数、猫粮总量、体重记录数）。
 
-import { db } from 'hydrooj';
+import { createHash } from 'crypto';
+import { ObjectId, db } from 'hydrooj';
 import { addLog, logColl } from '../log';
 import { userColl } from '../user';
 import { catCanPoolColl, ensureCatCanPool } from './can';
@@ -18,6 +19,126 @@ import { recountSchoolCatTerritories } from './map';
 import { schoolCatColl, schoolFeedHistoryColl } from './school-shared';
 
 const FEED_ACTION = 'school_feed';
+const FEED_REFUND_ACTION = 'school_feed_refund';
+
+// 退款流水的 _id 由「用户 + 退款批次时间」确定：补账可以重复执行，重复插入
+// 会撞唯一 _id 而不是生成第二笔退款记录。退款本身早已发生，这里只补展示流水。
+function feedRefundLogId(uid: number, refundedAt: Date) {
+    const hex = createHash('sha1')
+        .update(`oi33:feed-refund:${uid}:${refundedAt.getTime()}`)
+        .digest('hex')
+        .slice(0, 24);
+    return new ObjectId(hex);
+}
+
+async function ensureFeedRefundLog(
+    uid: number, feeds: number, grams: number, refundedAt: Date, backfill: boolean,
+): Promise<'inserted' | 'existing'> {
+    if (!Number.isSafeInteger(uid) || uid <= 0 || grams <= 0) return 'existing';
+    try {
+        await logColl.insertOne({
+            _id: feedRefundLogId(uid, refundedAt),
+            createdAt: refundedAt,
+            type: 'cat_account',
+            userId: uid,
+            sender: 0,
+            action: FEED_REFUND_ACTION,
+            amount: grams,
+            reason: `大猫主动贡献退役退款：${feeds} 笔历史投喂，共 ${grams}g`,
+            feedRefundBatchAt: refundedAt,
+            feedRefundFeeds: feeds,
+            ...(backfill ? { feedRefundBackfill: true } : {}),
+        } as any);
+        return 'inserted';
+    } catch (e: any) {
+        if (e?.code === 11000) return 'existing';
+        throw e;
+    }
+}
+
+export interface FeedRefundBackfillResult {
+    batches: number;
+    users: number;
+    grams: number;
+    inserted: number;
+    insertedGrams: number;
+    existing: number;
+    skipped: number;
+}
+
+// 为已经执行过退款、但只有 admin 汇总日志而没有个人流水的历史投喂补写
+// cat_account 退款记录。只插入日志，绝不改动余额，也不会重新退款。
+export async function backfillFeedRefundLogs(): Promise<FeedRefundBackfillResult> {
+    const rows: any[] = await logColl.aggregate([
+        {
+            $match: {
+                type: 'cat_account',
+                action: FEED_ACTION,
+                userId: { $gt: 0 },
+                amount: { $lt: 0 },
+                feedRefunded: true,
+            },
+        },
+        {
+            $group: {
+                _id: { userId: '$userId', refundedAt: '$feedRefundedAt' },
+                feeds: { $sum: 1 },
+                grams: { $sum: { $multiply: ['$amount', -1] } },
+            },
+        },
+    ]).toArray();
+    const batches = new Map<string, { uid: number; feeds: number; grams: number; refundedAt: Date }>();
+    let skipped = 0;
+    for (const row of rows) {
+        const uid = Number(row._id?.userId);
+        const rawAt = row._id?.refundedAt;
+        const refundedAt = rawAt instanceof Date ? rawAt : rawAt ? new Date(rawAt) : null;
+        const feeds = Math.max(0, Math.floor(Number(row.feeds) || 0));
+        const grams = Math.max(0, Math.floor(Number(row.grams) || 0));
+        if (!Number.isSafeInteger(uid) || uid <= 0 || !refundedAt
+            || Number.isNaN(refundedAt.getTime()) || grams <= 0) {
+            skipped++;
+            continue;
+        }
+        // 同类时间戳可能以 Date/字符串两种形式存在；按 epoch 合并，避免同一批次
+        // 被拆成多条退款流水。
+        const key = `${uid}:${refundedAt.getTime()}`;
+        const existing = batches.get(key);
+        if (existing) {
+            existing.feeds += feeds;
+            existing.grams += grams;
+        } else {
+            batches.set(key, { uid, feeds, grams, refundedAt });
+        }
+    }
+    const uids = new Set<number>();
+    let inserted = 0;
+    let existing = 0;
+    let totalGrams = 0;
+    let insertedGrams = 0;
+    for (const batch of batches.values()) {
+        uids.add(batch.uid);
+        totalGrams += batch.grams;
+        const status = await ensureFeedRefundLog(
+            batch.uid, batch.feeds, batch.grams, batch.refundedAt, true,
+        );
+        if (status === 'inserted') {
+            inserted++;
+            insertedGrams += batch.grams;
+        } else {
+            existing++;
+        }
+    }
+    return {
+        batches: batches.size,
+        users: uids.size,
+        grams: totalGrams,
+        inserted,
+        insertedGrams,
+        existing,
+        skipped,
+    };
+}
 
 export interface RetireContributionPreview {
     users: number;
@@ -102,6 +223,13 @@ export async function retireActiveContribution(operator = 0, now = new Date()) {
         } as any, {
             $set: { feedRefunded: true, feedRefundedAt: now },
         } as any);
+        // 同时补一条个人退款流水，让账户明细与已退回的余额对得上。
+        // 流水失败不应回滚已经完成的退款；事后可用运维动作幂等补记。
+        try {
+            await ensureFeedRefundLog(row.uid, row.feeds, row.grams, now, false);
+        } catch (e) {
+            console.error(`[oi33] failed to log feed refund for uid ${row.uid}:`, e);
+        }
     }
 
     await ensureCatCanPool(now);

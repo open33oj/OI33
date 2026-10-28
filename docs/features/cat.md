@@ -2,7 +2,7 @@
 
 > 代码：`model/cat/{map,map-player,map-admin,map-plan,map-plan-rules,eligibility,
 > school-shared,school,school-player,school-transfer,school-reward,retire,
-> cell-reward,cell-reward-rules,wildcat}.ts`、
+> cell-reward,cell-reward-rules,wildcat,wildcat-rules}.ts`、
 > `handler/cat/{can,plan,account,school}.ts`、`frontend/cat-can-arena.page.ts`、
 > `frontend/cat-big-arena.ts`、`data/school-cat-data.json`。
 
@@ -25,8 +25,11 @@
 - 准入：`getEligibleUser`（`model/cat/eligibility.ts`），要求 `realname_flag ≥ 1`。
 - 加入 / 移动 / 染色 / 领地传送：`joinCatMapPlayer` / `moveCatMapPlayer` /
   `setCatMapCellColor`；移动与传送消耗猫粮/罐头，冷却按持有量在 50~120 分钟之间。
-- 变色会更新归属、贡献与边界；贡献记入 `school_cat_food` 与大猫体重。
+- 变色会更新归属与边界；主动贡献已退役，不再写 `school_cat_food` 或大猫体重。
 - 管理员：`adminPaintCatMap`（矩形绘图）、`adminRelocateCatMapPlayer`（强制迁移）。
+- **小猫视角**：`/oi33/arena/user-cells?uid=` 只返回该用户最近染色的 100 个格子
+  （按 `updatedAt` 倒序，`listUserCatCells`）并附带总数；广场按钮显示「最近 N 格」，
+  hover 可看到总占格数。
 
 ## 领地核心与驱逐
 
@@ -54,7 +57,7 @@
 - 学校表：`data/school-cat-data.json`（OIerDB，`scripts/build-school-cat-data.py` 生成，
   运行期只在内存索引）。
 - 集合：`oi33_school_cat`（领地/颜色）、`oi33_cat_map_cell`（每格 `updatedBy` 画者 +
-  `catId` 归属）、`oi33_cat_cell_reward`（占格月奖励）、`oi33_cat_map_config`（野猫配置）。
+  `catId` 归属）、`oi33_cat_cell_reward`（占格月奖励）、`oi33_cat_map_config`（路径规划等地图配置）。
   `oi33_school_feed_history` 已退役，迁移后清空。
 - **主动贡献已永久关闭**（`SCHOOL_CAT_FEED_ENABLED = false`）：不再有手动投喂、体重、
   投喂榜或贡献字段；`feedSchoolCat` 直接拒绝，地图移动也不再增加 `school_cat_food` /
@@ -75,17 +78,24 @@
   无主领地也算个人占格。首次部署的月份写入 `oi33_cat_cell_reward` 的 `config.startMonth`，
   不会追溯发放上线前的月份。结算幂等（用户 `cell_reward_keys` + 周期文档），
   自动任务每 10 分钟检查一次，也可在管理页手动结算。
-- **野猫模式（用户级）**（`model/cat/wildcat.ts`）：加入猫猫广场并绑定了大猫的用户
-  可以在广场控制条切「野猫模式」，自己的小猫每 2 小时自动走一格并帮大猫占地盘：
-  四邻中优先走没走过的；跳过其他大猫 00区核心；到达有色格时保持颜色，把 `catId`
-  改成自己的大猫、`updatedBy` 改成自己（个人占格数随之转移）；未涂色格用大猫领地颜色的
-  最近调色板色补色并占领。
+- **野猫模式（用户级）**（`model/cat/wildcat.ts`，时间规则在
+  `model/cat/wildcat-rules.ts`）：加入猫猫广场并绑定了大猫的用户可以在广场控制条
+  切「野猫模式」，自己的小猫在 Asia/Shanghai 的固定偶数整点（00:00、02:00 …）
+  检查一次，能移动就走一格并帮大猫占地盘：
+  四邻中优先走没走过的；跳过其他大猫 00区核心；到达有色格时读取原颜色并原样再染
+  一次，把 `catId` 改成自己的大猫、`updatedBy` 改成自己（个人占格数随之转移）；
+  未涂色格染成 15 号白色并占领。占地通过标准 `setCatMapCellColor` 一次染色事件完成。
+  每次移动与普通移动一样扣 3g 猫粮、按罐头数量计算 50～120 分钟冷却；
+  整点检查时冷却未结束或猫粮不足就跳过本轮。
   按 uid 升序结算，有正在执行的路径计划时让路。状态存在 `oi33_cat_map_player`
   的 `wildcat` / `wildcatNextAt` / `wildcatVisited`。
 - **一次性迁移**：`/oi33/migrate` 的「退役大猫主动贡献」按钮（也可
   `hydrooj cli oi33 retireActiveContribution 0`）按 `school_feed` 日志退回手动投喂的
   猫粮、清空所有体重/投喂历史/用户贡献，并按格子重算领地。已退款日志打
-  `feedRefunded`，重复执行不会二次退款。
+  `feedRefunded`，重复执行不会二次退款；同时为每个用户写一条
+  `school_feed_refund` 个人账户流水。若旧批次只有 admin 汇总日志，可在
+  `/oi33/admin/ops` 执行「补记大猫贡献退款流水」：它按 `feedRefundedAt` 聚合补写，
+  只补日志、不改余额，`_id` 由用户+批次时间确定，重复执行不会重复记账。
 - **旧每周大猫罐头奖励已停用**（`SCHOOL_CAT_WEEKLY_REWARD_ENABLED = false`）：历史批次
   仍可在 `/oi33/admin/school-cat-rewards` 查看和回滚，但不再生成新快照、不发罐头，
   也不再执行每周 5% 衰减。
@@ -95,8 +105,9 @@
 ## 坑
 
 - `catId` 的 +1 编码只用于格子；特殊大猫负数直接使用，不能混。
-- 个人占格数只认 `updatedBy`，大猫领地数只认 `catId`；换绑/解绑/野猫都只改 `catId`，
-  不要顺手改 `updatedBy` 或 `updatedAt`（7 天撤销依赖原始绘制时间）。
+- 个人占格数只认 `updatedBy`，大猫领地数只认 `catId`；换绑/解绑只改 `catId`，
+  不要顺手改 `updatedBy` 或 `updatedAt`（7 天撤销依赖原始绘制时间）；野猫占地会按规则
+  更新 `catId` / `updatedBy` / `updatedAt`，但绝不改写已有的颜色。
 - 计划模块单向依赖 `map-player/map`；不要再反向 import，避免循环。
 - 前端画布与后端共享 `shared/cat-map.ts` 的尺寸/分区常量，不要再复制一份。
 - 00区核心判定只看上下左右四邻，且只在该格被染色时检查。

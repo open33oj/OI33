@@ -1,25 +1,33 @@
 // 野猫模式（用户级）：加入猫猫广场并绑定了大猫的用户，可以让自己的小猫
-// 每 2 小时自动走一格、顺手抢占地盘。
+// 在固定的偶数整点自动走一格、顺手抢占地盘。
 //
 // 规则：
+//   - 只在 Asia/Shanghai 的偶数整点（00:00、02:00 … 22:00）检查一次；
 //   - 四邻中优先扩张到还没归自己大猫的格子，其次没走过的，避开刚离开的格子；
 //   - 只走相邻格，跳过其他大猫 00区核心；
+//   - 仍然走普通移动的消耗与冷却：扣 3g 猫粮，冷却按罐头数量在 50~120 分钟；
+//     整点检查时冷却未结束或猫粮不足就跳过这一轮；
 //   - 到达有色格子时保持该格颜色，只把 catId 改成自己的大猫、updatedBy 改成自己
-//     （个人占格数随之转移）；没涂色的格子用大猫领地色补色后占领；
-//   - 每 2 小时一步，按 uid 升序结算；用户有正在执行的路径计划时跳过，避免打架。
+//     （个人占格数随之转移）；没涂色的格子染成 15 号白色后占领；
+//   - 按 uid 升序结算；用户有正在执行的路径计划时跳过，避免打架。
 
-import { randomInt } from 'crypto';
-import { nearestCatMapPaletteCode } from '../../shared/cat-map';
 import { db } from 'hydrooj';
 import { addLog } from '../log';
 import { userColl } from '../user';
 import {
-    catMapCellColl, catMapPlayerColl, cellId, fortressCatIdAt, isCatMapCoreZone,
-    moveTerritoryCount, normalizedCatId, validCoordinate,
+    CAT_MAP_MOVE_FOOD_COST, catMapCellColl, catMapPlayerColl, cellId,
+    fortressCatIdAt, isCatMapCoreZone, normalizedCatId, validCoordinate,
 } from './map';
-import { schoolCatColl, schoolCatKey } from './school-shared';
+import { moveCatMapPlayer, setCatMapCellColor } from './map-player';
+import { schoolCatKey } from './school-shared';
+import {
+    WILD_CAT_NEW_CELL_COLOR, WILD_CAT_SLOT_MS, nextWildCatSlot, wildCatSlotStart,
+} from './wildcat-rules';
 
-export const WILD_CAT_INTERVAL_MS = 2 * 60 * 60 * 1000;
+export { WILD_CAT_NEW_CELL_COLOR, WILD_CAT_SLOT_MS } from './wildcat-rules';
+// 兼容旧名字：仍然表示两次野猫检查之间的间隔。
+export const WILD_CAT_INTERVAL_MS = WILD_CAT_SLOT_MS;
+
 const MAX_VISITED = 4096;
 const MAX_PER_RUN = 200;
 const DIRECTIONS = [[0, -1], [1, 0], [0, 1], [-1, 0]] as const;
@@ -54,7 +62,8 @@ export async function setWildCatMode(uid: number, enabled: boolean, now = new Da
     if (enabled && !Number.isSafeInteger(user.school_cat)) {
         throw new Error('请先绑定一只大猫，野猫模式会帮它占地盘。');
     }
-    const nextAt = enabled ? now : null;
+    // 开启后从下一个偶数整点开始参与检查；关闭时清空待检查时间。
+    const nextAt = enabled ? nextWildCatSlot(now) : null;
     await catMapPlayerColl.updateOne(
         { _id: uid } as any,
         {
@@ -72,7 +81,9 @@ export async function setWildCatMode(uid: number, enabled: boolean, now = new Da
             userId: uid,
             sender: uid,
             action: enabled ? 'wildcat_enable' : 'wildcat_disable',
-            reason: enabled ? '开启野猫模式：每 2 小时自动占地' : '关闭野猫模式',
+            reason: enabled
+                ? '开启野猫模式：每个偶数整点自动尝试占地（消耗 3g 猫粮）'
+                : '关闭野猫模式',
         } as any);
     } catch (e) {
         console.error('[oi33] failed to log wildcat toggle:', e);
@@ -90,13 +101,19 @@ export interface WildCatMoveEvent {
     schoolId: number;
     previousCatId: number;
     claimed: boolean;
+    painted: boolean;
+    foodCost: number;
     cans: number;
     food: number;
-    availableAt: Date | null;
+    freeColorAvailable: boolean;
+    availableAt: Date;
     wildcatNextAt: Date;
+    displaced: any[];
 }
 
-async function runOne(player: any, now: Date): Promise<WildCatMoveEvent | null> {
+async function runOne(
+    player: any, now: Date, nextAt: Date,
+): Promise<WildCatMoveEvent | null> {
     const uid = Number(player._id);
     const user: any = await userColl.findOne({
         _id: uid, realname_flag: { $gte: 1 },
@@ -113,9 +130,12 @@ async function runOne(player: any, now: Date): Promise<WildCatMoveEvent | null> 
     }
     // 有正在执行的路径计划时让路，等计划结束后的下一轮再走。
     const plan = await db.collection('oi33_cat_map_plan').findOne({
-        uid, status: 'running',
+        uid, status: 'active',
     } as any, { projection: { _id: 1 } });
     if (plan) return null;
+    // 消耗与冷却和手动移动完全一致：冷却中或猫粮不足就跳过这个整点。
+    if (player.availableAt && new Date(player.availableAt).getTime() > now.getTime()) return null;
+    if (Math.max(0, Number(user.cat_food) || 0) < CAT_MAP_MOVE_FOOD_COST) return null;
 
     const ownCatId = schoolCatKey(user.school_cat);
     const currentX = Number(player.x);
@@ -136,15 +156,7 @@ async function runOne(player: any, now: Date): Promise<WildCatMoveEvent | null> 
         }
         candidates.push({ x, y });
     }
-    if (!candidates.length) {
-        await catMapPlayerColl.updateOne({ _id: uid } as any, {
-            $set: {
-                wildcatNextAt: new Date(now.getTime() + WILD_CAT_INTERVAL_MS),
-                updatedAt: now,
-            },
-        } as any);
-        return null;
-    }
+    if (!candidates.length) return null;
     // 不只「没走过」：优先扩张到还没归自己大猫的格子，并避开刚离开的格子，
     // 否则在自家领地内随机走会来回绕圈。同分时再用一点随机量。
     const candidateIds = candidates.map((pos) => cellId(pos.x, pos.y));
@@ -176,71 +188,52 @@ async function runOne(player: any, now: Date): Promise<WildCatMoveEvent | null> 
     });
     scored.sort((a, b) => b.score - a.score);
     const target = scored[0].pos;
-
     const id = cellId(target.x, target.y);
-    const cell: any = cellById.get(id);
-    const previousCatId = normalizedCatId(cell?.catId);
-    let color: number | null = null;
-    let claimed = false;
-    if (cell && Number.isSafeInteger(cell.color)) {
-        color = cell.color;
-    } else {
-        // 从没人染过的格子：用该大猫领地颜色的最近调色板色补一个，保证
-        // 原始视图可见，也让「个人占格」和「大猫领地」都能统计到。
-        const cat: any = await schoolCatColl.findOne(
-            { _id: user.school_cat } as any,
-            { projection: { territoryColor: 1 } },
-        );
-        color = Number.isSafeInteger(cat?.territoryColor)
-            ? nearestCatMapPaletteCode(Number(cat.territoryColor))
-            : 34;
-    }
-    if (!cell || !Number.isSafeInteger(cell.color)
-        || previousCatId !== ownCatId || Number(cell.updatedBy) !== uid) {
-        const filter: any = { _id: id };
-        // 读到之后如果有人刚好重画了这一格，就不要覆盖别人的新画。
-        if (cell?.updatedAt) filter.updatedAt = cell.updatedAt;
-        let updated = false;
-        try {
-            const result = await catMapCellColl.updateOne(
-                filter,
-                {
-                    $set: {
-                        x: target.x,
-                        y: target.y,
-                        color,
-                        catId: ownCatId,
-                        updatedBy: uid,
-                        updatedAt: now,
-                    },
-                } as any,
-                { upsert: !cell },
-            );
-            updated = !!result.modifiedCount || !!result.upsertedCount;
-        } catch (e: any) {
-            if (e?.code !== 11000) throw e;
+
+    // 选格期间小猫可能被管理员迁移或另一个请求移动；确认仍在原格再走，
+    // 避免 moveCatMapPlayer 把相邻移动误判成消耗罐头的传送。
+    const livePlayer: any = await catMapPlayerColl.findOne({ _id: uid } as any);
+    if (!livePlayer
+        || Number(livePlayer.x) !== currentX
+        || Number(livePlayer.y) !== currentY) return null;
+
+    // 真正移动：扣 3g 猫粮、按罐头数量计算冷却、写账本日志、更新位置，
+    // 并赠送一次免冷却染色（下面立刻用它完成占地）。
+    let moveResult: any = null;
+    try {
+        moveResult = await moveCatMapPlayer(uid, target.x, target.y, now);
+    } catch (e: any) {
+        const message = String(e?.message || e);
+        // 冷却/缺粮/核心格/并发冲突都是正常的「这一轮不走」，不刷错误日志。
+        if (!/冷却中|猫粮不足|领地核心|已经在这个格子|请重试|刚刚发生变化/.test(message)) {
+            console.error(`[oi33] wildcat move failed for uid ${uid}:`, e);
         }
-        if (updated) {
-            if (previousCatId !== ownCatId) await moveTerritoryCount(previousCatId, ownCatId, now);
-            claimed = true;
-        }
+        return null;
     }
 
+    // 一次标准染色事件完成占地：先读取目标格当前颜色，有色格原样再染一次，
+    // 无色格染 15 号白色；归属、领地计数、核心驱逐与日志都交给
+    // setCatMapCellColor，不再单独维护一套格子写入逻辑。
+    const targetCell: any = await catMapCellColl.findOne(
+        { _id: id } as any,
+        { projection: { color: 1 } } as any,
+    );
+    const color = targetCell && Number.isSafeInteger(targetCell.color)
+        ? Number(targetCell.color)
+        : WILD_CAT_NEW_CELL_COLOR;
+    let colorResult: any = null;
+    try {
+        colorResult = await setCatMapCellColor(uid, target.x, target.y, color, now);
+    } catch (e) {
+        // 已经完成移动并扣费；染色失败时移动附带的免冷却染色会保留给用户手动补色。
+        console.error(`[oi33] wildcat color failed for uid ${uid}:`, e);
+    }
     const nextVisited = [...visited, id].slice(-MAX_VISITED);
-    const wildcatNextAt = new Date(now.getTime() + WILD_CAT_INTERVAL_MS);
     await catMapPlayerColl.updateOne(
         { _id: uid, wildcat: true } as any,
-        {
-            $set: {
-                x: target.x,
-                y: target.y,
-                movedAt: now,
-                updatedAt: now,
-                wildcatNextAt,
-                wildcatVisited: nextVisited,
-            },
-        } as any,
+        { $set: { wildcatVisited: nextVisited, updatedAt: now } } as any,
     );
+
     try {
         await addLog({
             type: 'cat_map',
@@ -251,42 +244,66 @@ async function runOne(player: any, now: Date): Promise<WildCatMoveEvent | null> 
             fromY: currentY,
             x: target.x,
             y: target.y,
-            color,
-            catId: ownCatId,
-            reason: claimed
+            color: colorResult?.color ?? null,
+            catId: colorResult?.catId ?? ownCatId,
+            foodCost: moveResult.foodCost,
+            reason: colorResult?.territoryChanged
                 ? `野猫模式从 (${currentY}, ${currentX}) 走到 (${target.y}, ${target.x})，`
                     + `为 #${user.school_cat} 抢下 1 格`
-                : `野猫模式从 (${currentY}, ${currentX}) 走到 (${target.y}, ${target.x})`,
+                : colorResult
+                    ? `野猫模式从 (${currentY}, ${currentX}) 走到 (${target.y}, ${target.x})`
+                    : `野猫模式走到 (${target.y}, ${target.x})，但染色失败，未完成占地`,
         } as any);
     } catch (e) {
         console.error('[oi33] failed to log wildcat move:', e);
     }
+
     return {
         uid,
         uname: String(user.uname || `UID ${uid}`),
         x: target.x,
         y: target.y,
-        color,
-        catId: ownCatId,
+        color: colorResult?.color ?? null,
+        catId: colorResult?.catId ?? ownCatId,
         schoolId: Number(user.school_cat),
-        previousCatId,
-        claimed,
-        cans: Math.max(0, Math.floor(Number(user.cat_can) || 0)),
-        food: Math.max(0, Number(user.cat_food) || 0),
-        availableAt: player.availableAt || null,
-        wildcatNextAt,
+        previousCatId: colorResult?.previousCatId ?? 0,
+        claimed: !!colorResult?.territoryChanged,
+        painted: !!colorResult,
+        foodCost: moveResult.foodCost,
+        cans: Math.max(0, Math.floor(Number(moveResult.cans) || 0)),
+        food: Math.max(0, Number(moveResult.food) || 0),
+        freeColorAvailable: !colorResult,
+        availableAt: colorResult?.availableAt
+            ? new Date(colorResult.availableAt)
+            : moveResult.availableAt ? new Date(moveResult.availableAt) : now,
+        wildcatNextAt: nextAt,
+        displaced: colorResult?.displaced || [],
     };
 }
 
 export async function runWildCats(now = new Date()) {
+    // 只结算「当前偶数整点槽位」到期的野猫。槽位内每只野猫只检查一次：先原子
+    // 推进 wildcatNextAt 再执行，避免 10 分钟调度器在同一槽位里重复尝试。
+    const slot = wildCatSlotStart(now);
+    const nextAt = nextWildCatSlot(now);
     const players: any[] = await catMapPlayerColl.find({
         wildcat: true,
-        wildcatNextAt: { $lte: now },
+        wildcatNextAt: { $lte: slot },
     } as any).sort({ _id: 1 }).limit(MAX_PER_RUN).toArray();
     const events: WildCatMoveEvent[] = [];
+    let checked = 0;
     for (const player of players) {
-        const event = await runOne(player, now);
+        const claimed = await catMapPlayerColl.updateOne({
+            _id: player._id,
+            wildcat: true,
+            wildcatNextAt: { $lte: slot },
+        } as any, {
+            $set: { wildcatNextAt: nextAt, updatedAt: now },
+        });
+        if (!claimed.modifiedCount) continue;
+        checked++;
+        const event = await runOne(player, now, nextAt);
         if (event) events.push(event);
     }
-    return { due: players.length, events };
+    return { due: players.length, checked, events };
 }

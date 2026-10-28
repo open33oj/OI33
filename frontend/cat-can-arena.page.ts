@@ -163,6 +163,8 @@ function mountMap() {
     let showEmpireBorder = true;
     let kittenView = false;
     let kittenCells = new Set<number>();
+    let kittenTotal = 0;
+    let kittenLimit = 100;
     let kittenLoading = false;
     let kittenReloadTimer: number | null = null;
     let viewScale = DEFAULT_GRID_SCALE;
@@ -417,12 +419,19 @@ function mountMap() {
     const syncKittenButton = () => {
         if (!kittenButton) return;
         kittenButton.hidden = !focusUserId;
-        kittenButton.textContent = kittenCells.size ? `小猫视角（${kittenCells.size} 格）` : '小猫视角';
+        const shown = kittenCells.size;
+        const total = Math.max(shown, kittenTotal);
+        kittenButton.textContent = shown
+            ? total > shown
+                ? `小猫视角（最近 ${shown} 格）`
+                : `小猫视角（${shown} 格）`
+            : '小猫视角';
         kittenButton.classList.toggle('is-active', kittenView);
         kittenButton.setAttribute('aria-pressed', String(kittenView));
         kittenButton.title = focusUserId
-            ? `高亮 UID ${focusUserId} 的小猫画过的格子`
-            : '高亮这只小猫画过的格子';
+            ? `高亮 UID ${focusUserId} 最近染色的 ${shown || kittenLimit} 个格子`
+                + (total > shown ? `（共 ${total} 格）` : '')
+            : '高亮这只小猫最近染色的格子';
     };
 
     const loadKittenCells = async () => {
@@ -433,6 +442,8 @@ function mountMap() {
             kittenCells = new Set((result.cells || []).map(
                 (cell: [number, number, number, number]) => Number(cell[1]) * MAP_WIDTH + Number(cell[0]),
             ));
+            kittenTotal = Math.max(kittenCells.size, Number(result.total) || 0);
+            kittenLimit = Math.max(1, Number(result.limit) || 100);
             syncKittenButton();
             invalidate();
         } catch (e: any) {
@@ -1488,7 +1499,7 @@ function mountMap() {
             state.me.wildcat = !!result.enabled;
             state.me.wildcatNextAt = result.nextAt ? new Date(result.nextAt).getTime() : 0;
             Notification.success(enabled
-                ? '野猫模式已开启：每 2 小时自动走一格，并帮你的大猫占地盘。'
+                ? '野猫模式已开启：每个偶数整点自动尝试走一格，扣 3g 猫粮并触发冷却。'
                 : '野猫模式已关闭。');
         } catch (e: any) {
             Notification.error(e.message || String(e));
@@ -1631,8 +1642,8 @@ function mountMap() {
         wildcatButton.classList.toggle('is-active', enabled);
         wildcatButton.textContent = enabled ? '野猫模式：开' : '野猫模式';
         wildcatButton.title = enabled
-            ? '每 2 小时自动走一格并为大猫占地；点击关闭'
-            : '每 2 小时自动走一格并为大猫占地；需要先绑定大猫';
+            ? '每个偶数整点自动尝试走一格，扣 3g 猫粮并触发冷却；点击关闭'
+            : '每个偶数整点自动尝试走一格，扣 3g 猫粮并触发冷却；需要先绑定大猫';
         wildcatButton.disabled = wildcatBusy || !state.me;
     };
 

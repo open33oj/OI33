@@ -171,7 +171,7 @@ export interface Oi33CatMapPlayer {
     freeColorAvailable?: boolean;
     movementLock?: ObjectId;
     movementLockAt?: Date;
-    // 野猫模式：用户自己的小猫每 2 小时自动走一格并抢占地盘。
+    // 野猫模式：每个偶数整点检查一次，能移动就扣粮/冷却并抢占地盘。
     wildcat?: boolean;
     wildcatNextAt?: Date;
     wildcatVisited?: string[];
@@ -426,7 +426,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'medal' | 'auction' | 'contract' | 'algorithm' | 'admin';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'medal' | 'auction' | 'contract' | 'algorithm' | 'admin' | 'solution';
     sender?: number;
     operator?: number;
     receiver?: number;
@@ -458,8 +458,16 @@ export interface Oi33Log {
     oauthScopes?: string[];
     x?: number;
     y?: number;
+    fromX?: number;
+    fromY?: number;
+    targetUid?: number;
     color?: number;
     catId?: number;
+    foodCost?: number;
+    stepCount?: number;
+    addedCount?: number;
+    auto?: boolean;
+    psid?: string;
     // Cat-food map moves write this marker when their cost has already been
     // included in the mover's current big-cat contribution. Legacy logs lack it.
     schoolCatContributionCounted?: boolean;
@@ -474,8 +482,19 @@ export interface Oi33Log {
     // Certification medals (奖项认证奖章) log the rung that was granted or
     // moved to, so the admin timeline can show the ladder movement.
     level?: number;
+    levelName?: string;
     auctionId?: string;
     contractId?: string;
+    // Cell-reward ledger rows keep the settled month and cell count.
+    cellRewardMonth?: string;
+    cellCount?: number;
+    // Legacy manual-feed refund bookkeeping: the original negative log is
+    // marked refunded, and one aggregated refund ledger row is added.
+    feedRefunded?: boolean;
+    feedRefundedAt?: Date;
+    feedRefundBatchAt?: Date;
+    feedRefundFeeds?: number;
+    feedRefundBackfill?: boolean;
 }
 
 // --- Medals ---

@@ -79,6 +79,8 @@
               {% elif entry.action == 'cat_map_move' %}猫咪地图移动
               {% elif entry.action == 'cat_map_teleport' %}猫咪地图传送
               {% elif entry.action == 'cat_map_territory_teleport' %}大猫领地内传送
+              {% elif entry.action == 'school_feed' %}大猫主动贡献投喂（历史）
+              {% elif entry.action == 'school_feed_refund' %}大猫主动贡献退役退款
               {% elif entry.action == 'buy' %}买入罐头
               {% elif entry.action == 'sell' %}卖出罐头
               {% elif entry.action == 'reverse' %}撤销{% if entry.originalAction == 'buy' %}买入{% else %}卖出{% endif %}

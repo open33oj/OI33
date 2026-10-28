@@ -81,6 +81,18 @@ const ACTIONS: Record<string, OpsAction> = {
             return `已清理 ${result?.users ?? '-'} 个未认证用户：猫粮 ${result?.food ?? 0}g、罐头 ${result?.cans ?? 0} 个。`;
         },
     },
+    backfill_feed_refund_logs: {
+        label: '补记大猫贡献退款流水',
+        description: '为已执行退役退款、但只有汇总日志的历史投喂补写个人账户退款记录；'
+            + '只补日志，不改余额，重复执行不会重复记账。',
+        minFlag: 3,
+        run: async () => {
+            const result: any = await oi33Model.backfillFeedRefundLogs();
+            return `新增 ${result?.inserted ?? 0} 条退款流水 / ${result?.insertedGrams ?? 0}g`
+                + `（共处理 ${result?.users ?? 0} 位用户、${result?.grams ?? 0}g）；`
+                + `已存在 ${result?.existing ?? 0} 条，跳过 ${result?.skipped ?? 0} 条。`;
+        },
+    },
 };
 
 const COLLECTION_COUNTS: Array<{ collection: string; label: string; cheap?: boolean }> = [

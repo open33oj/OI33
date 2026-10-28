@@ -226,6 +226,7 @@
             <option value="auction" {% if logType == 'auction' %}selected{% endif %}>拍卖</option>
             <option value="contract" {% if logType == 'contract' %}selected{% endif %}>合同</option>
             <option value="algorithm" {% if logType == 'algorithm' %}selected{% endif %}>算法掌握</option>
+            <option value="solution" {% if logType == 'solution' %}selected{% endif %}>题解</option>
             <option value="admin" {% if logType == 'admin' %}selected{% endif %}>管理</option>
           </select>
           <button type="submit" class="rounded button">筛选</button>
@@ -291,22 +292,38 @@
               {{ userLink(a.userId) }}
               {% if a.action == 'admin_paint_pixel' %}
                 <span class="oi33-timeline__note">后台绘制像素</span>
-                ({{ a.rowStart }}, {{ a.columnStart }}) 为颜色码 {{ a.color }}
+                （行 {{ a.rowStart }}, 列 {{ a.columnStart }}）为颜色码 {{ a.color }}
               {% elif a.action == 'admin_paint_rect' %}
                 <span class="oi33-timeline__note">后台填充矩形</span>
-                ({{ a.rowStart }}, {{ a.columnStart }}) 至 ({{ a.rowEnd }}, {{ a.columnEnd }}) 为颜色码 {{ a.color }}
+                （行 {{ a.rowStart }}, 列 {{ a.columnStart }}）至（行 {{ a.rowEnd }}, 列 {{ a.columnEnd }}）为颜色码 {{ a.color }}
               {% elif a.action == 'admin_relocate' %}
                 <span class="oi33-timeline__note">将</span>
                 {{ userLink(a.targetUid) }}
                 <span class="oi33-timeline__note">的小猫从</span>
-                ({{ a.fromY }}, {{ a.fromX }}) 随机迁移到 ({{ a.y }}, {{ a.x }})
+                （行 {{ a.fromY }}, 列 {{ a.fromX }}）随机迁移到（行 {{ a.y }}, 列 {{ a.x }}）
               {% elif a.action == 'join' %}
                 <span class="oi33-timeline__note">免费加入猫猫广场，初始位置为</span>
-                ({{ a.y }}, {{ a.x }})
+                （行 {{ a.y }}, 列 {{ a.x }}）
               {% elif a.action == 'admin_move' %}
-                <span class="oi33-timeline__note">免消耗移动到</span>格子 ({{ a.x }}, {{ a.y }})
+                <span class="oi33-timeline__note">免消耗移动到</span>（行 {{ a.y }}, 列 {{ a.x }}）
               {% elif a.action == 'admin_teleport' %}
-                <span class="oi33-timeline__note">免消耗传送到</span>格子 ({{ a.x }}, {{ a.y }})
+                <span class="oi33-timeline__note">免消耗传送到</span>（行 {{ a.y }}, 列 {{ a.x }}）
+              {% elif a.action == 'color' %}
+                <span class="oi33-timeline__note">设置格子</span>
+                （行 {{ a.y }}, 列 {{ a.x }}）为颜色码 {{ a.color }}
+              {% elif a.action == 'wildcat_enable' %}
+                <span class="oi33-timeline__note">开启野猫模式</span>
+                {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
+              {% elif a.action == 'wildcat_disable' %}
+                <span class="oi33-timeline__note">关闭野猫模式</span>
+              {% elif a.action == 'wildcat_move' %}
+                <span class="oi33-timeline__note">野猫自动移动</span>
+                （行 {{ a.fromY }}, 列 {{ a.fromX }}）→（行 {{ a.y }}, 列 {{ a.x }}）
+                {% if a.color !== undefined and a.color !== null %}，颜色码 {{ a.color }}{% endif %}
+                {% if a.foodCost %}，消耗 {{ catFood.amount(a.foodCost, true) }}{% endif %}
+              {% elif a.action == 'fortress_displace' %}
+                <span class="oi33-timeline__note">被大猫核心领地驱逐</span>
+                （行 {{ a.fromY }}, 列 {{ a.fromX }}）→（行 {{ a.y }}, 列 {{ a.x }}）
               {% elif a.action == 'refresh_territories' %}
                 <span class="oi33-timeline__note">按最后绘图者的当前绑定刷新全图大猫归属</span>
                 {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
@@ -320,7 +337,12 @@
                 <span class="oi33-timeline__note">{% if a.auto %}计划自动停止{% else %}取消路径计划{% endif %}</span>
                 {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
               {% else %}
-                <span class="oi33-timeline__note">设置</span>格子 ({{ a.x }}, {{ a.y }}) 为颜色码 {{ a.color }}
+                <span class="oi33-timeline__note">猫咪地图操作：{{ a.action or '未知' }}</span>
+                {% if a.y !== undefined and a.y !== null and a.x !== undefined and a.x !== null %}
+                  （行 {{ a.y }}, 列 {{ a.x }}）
+                {% endif %}
+                {% if a.color !== undefined and a.color !== null %}，颜色码 {{ a.color }}{% endif %}
+                {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
               {% endif %}
 
             {% elif a.type == 'cat_account' %}
@@ -334,8 +356,16 @@
                 <span class="oi33-timeline__note">从</span>
                 {{ userLink(a.userId) }}
                 <span class="oi33-timeline__amount-neg">{{ a.canAmount }} 个罐头（回滚每周奖励）</span>
+              {% elif a.action == 'cat_cell_monthly_reward' %}
+                <span class="oi33-timeline__note">系统向</span>
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__amount-pos">+{{ a.canAmount }} 个罐头</span>
+              {% elif a.action == 'meow_refund' %}
+                <span class="oi33-timeline__note">系统向</span>
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__amount-pos">+{{ a.canAmount }} 个罐头</span>
               {% else %}
-              {{ userLink(a.sender) }}
+              {% if a.sender %}{{ userLink(a.sender) }}{% else %}<span class="oi33-timeline__note">系统</span>{% endif %}
               {% if a.action == 'can_grant' or a.action == 'can_deduct' %}
                 <span class="oi33-timeline__note">{% if a.action == 'can_grant' %}向{% else %}从{% endif %}</span>
                 {{ userLink(a.userId) }}
@@ -346,6 +376,9 @@
               {% elif a.action == 'school_feed' %}
                 <span class="oi33-timeline__note">投喂大猫</span>
                 <span class="oi33-timeline__amount-neg">{{ catFood.amount(a.amount, true) }}</span>
+              {% elif a.action == 'school_feed_refund' %}
+                <span class="oi33-timeline__note">大猫主动贡献退役退款</span>
+                <span class="oi33-timeline__amount-pos">{{ catFood.amount(a.amount, true) }}</span>
               {% elif a.action == 'contract_accept' %}
                 <span class="oi33-timeline__note">奖章合同成交</span>
                 {{ userLink(a.userId) }}
@@ -363,11 +396,20 @@
                 {{ userLink(a.userId) }}
                 <span class="oi33-timeline__note">扣除</span>
                 <span class="oi33-timeline__amount-neg">{{ catFood.amount(a.amount, true) }}</span>
-              {% else %}
+              {% elif a.action == 'meow_post' %}
+                <span class="oi33-timeline__note">发布喵喵信息</span>
+                <span class="oi33-timeline__amount-neg">{{ a.canAmount }} 个罐头</span>
+              {% elif a.action == 'pool_calibrate' %}
+                <span class="oi33-timeline__note">校准罐头市场</span>
+              {% elif a.action == 'grant' or a.action == 'bulk_grant' %}
                 <span class="oi33-timeline__note">向</span>
                 {{ userLink(a.userId) }}
                 <span class="oi33-timeline__amount-pos">{{ catFood.amount(a.amount, true) }}</span>
                 {% if a.action == 'bulk_grant' %}<span class="oi33-timeline__note">（批量发放）</span>{% endif %}
+              {% else %}
+                <span class="oi33-timeline__note">猫账户变动：{{ a.action or '未知' }}</span>
+                {% if a.amount %}<span class="oi33-timeline__amount-pos">{{ catFood.amount(a.amount, true) }}</span>{% endif %}
+                {% if a.canAmount %}<span class="{% if a.canAmount > 0 %}oi33-timeline__amount-pos{% else %}oi33-timeline__amount-neg{% endif %}">{{ a.canAmount }} 个罐头</span>{% endif %}
               {% endif %}
               {% endif %}
               {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
@@ -440,10 +482,12 @@
 
             {% elif a.type == 'school_cat' %}
               <span class="oi33-timeline__tag">大猫</span>
-              {% if a.action == 'weekly_reward_settle' or a.action == 'weekly_reward_rollback' %}
+              {% if a.action == 'weekly_reward_settle' or a.action == 'weekly_reward_rollback' or a.action == 'weekly_food_decay' %}
                 {% if a.sender %}{{ userLink(a.sender) }}{% else %}<span class="oi33-timeline__note">自动任务</span>{% endif %}
-              {% else %}
+              {% elif a.userId %}
                 {{ userLink(a.userId) }}
+              {% else %}
+                <span class="oi33-timeline__note">自动任务</span>
               {% endif %}
               {% if a.reason %}<span class="oi33-timeline__note">{{ a.reason }}</span>{% endif %}
 
@@ -488,6 +532,11 @@
                 <span class="oi33-timeline__status-rejected">{{ _('Rejected') }}</span>
               {% elif a.action == 'medal' %}
                 <span class="oi33-timeline__note">获得奖章后自动发布了喵喵</span>
+              {% elif a.action == 'delete' %}
+                <span class="oi33-timeline__note">喵喵信息被删除</span>
+                {% if a.operator %}<span class="oi33-timeline__note">（操作者 {{ userLink(a.operator) }}）</span>{% endif %}
+              {% else %}
+                <span class="oi33-timeline__note">{{ a.action }}</span>
               {% endif %}
 
             {% elif a.type == 'medal' %}
@@ -502,6 +551,13 @@
                 {% elif a.action == 'definition_delete' %}删除了奖章定义
                 {% elif a.action == 'config_update' %}修改了奖章全局配置（AC 统计域：{{ a.reason or '全部域' }}）
                 {% elif a.action == 'initial_import' %}导入了初始奖章定义
+                {% elif a.action == 'definition_import' %}导入了奖章定义（{{ a.reason }}）
+                {% elif a.action == 'showcase_update' %}更新了奖章展示墙
+                {% elif a.action == 'blindbox_create' %}创建了盲盒 {{ a.reason }}
+                {% elif a.action == 'blindbox_update' %}修改了盲盒 {{ a.reason }}
+                {% elif a.action == 'blindbox_delete' %}删除了盲盒 {{ a.reason }}
+                {% elif a.action == 'blindbox_toggle' %}切换了盲盒状态 {{ a.reason }}
+                {% elif a.action == 'blindbox_purchase' %}购买了盲盒 {{ a.reason }}（{{ a.amount }} 个罐头）
                 {% else %}{{ a.action }}{% endif %}
                 {% if a.medalId %}「{{ a.medalId }}」{% endif %}
                 {% if a.action == 'level_update' and a.reason %}（{{ a.reason }}）{% endif %}
@@ -530,6 +586,7 @@
                 {% elif a.action == 'accept' %}接受了 {{ userLink(a.uid) }} 的奖章合同（{{ a.amount }} g）
                 {% elif a.action == 'decline' %}拒绝了 {{ userLink(a.uid) }} 的奖章合同
                 {% elif a.action == 'cancel' %}取消了与 {{ userLink(a.uid) }} 的奖章合同
+                {% elif a.action == 'delete' %}删除了与 {{ userLink(a.uid) }} 的已取消奖章合同
                 {% else %}{{ a.action }}{% endif %}
                 {% if a.medalId %}「{{ a.medalId }}」{% endif %}
               </span>
@@ -553,6 +610,24 @@
                 {% else %}{{ a.action }}{% endif %}
               </span>
 
+            {% elif a.type == 'solution' %}
+              <span class="oi33-timeline__tag">题解</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">
+                {% if a.action == 'feature' %}将题解设为精华
+                {% elif a.action == 'unfeature' %}取消题解精华
+                {% elif a.action == 'feature_config' %}修改了题解加精配置
+                {% elif a.action == 'feature_apply' %}申请题解加精
+                {% elif a.action == 'feature_apply_pass' %}题解加精申请通过
+                {% elif a.action == 'feature_apply_reject' %}题解加精申请未通过
+                {% elif a.action == 'feature_apply_error' %}题解加精申请失败
+                {% elif a.action == 'publish' %}恢复发布题解
+                {% else %}{{ a.action or '题解操作' }}{% endif %}
+                {% if a.psid %} · 题解 {{ a.psid }}{% endif %}
+              </span>
+              {% if a.uid and a.uid !== a.userId %}<span class="oi33-timeline__note">· 作者 {{ userLink(a.uid) }}</span>{% endif %}
+              {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
+
             {% elif a.type == 'admin' %}
               <span class="oi33-timeline__tag">管理</span>
               {{ userLink(a.sender) }}
@@ -563,8 +638,23 @@
                 <span class="oi33-timeline__note">重置了</span>
                 {{ userLink(a.userId) }}
                 <span class="oi33-timeline__note">的密码</span>
+              {% elif a.action == 'mail_blacklist_add' %}
+                <span class="oi33-timeline__note">屏蔽了邮箱域名 {{ a.reason }}</span>
+              {% elif a.action == 'mail_blacklist_del' %}
+                <span class="oi33-timeline__note">解除了邮箱域名屏蔽 {{ a.reason }}</span>
+              {% elif a.action == 'home_config_import' %}
+                <span class="oi33-timeline__note">导入了首页配置（{{ a.reason }}）</span>
+              {% elif a.action == 'home_config_update' %}
+                <span class="oi33-timeline__note">更新了首页配置（{{ a.reason }}）</span>
+              {% elif a.action == 'cat_cell_reward_settle' %}
+                <span class="oi33-timeline__note">结算了占格月奖励</span>
+                {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
+              {% elif a.action == 'retire_cat_contribution' %}
+                <span class="oi33-timeline__note">退役了大猫主动贡献</span>
+                {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
               {% else %}
                 <span class="oi33-timeline__note">{{ a.action }}</span>
+                {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
               {% endif %}
 
             {% else %}
