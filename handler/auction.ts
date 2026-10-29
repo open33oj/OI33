@@ -39,6 +39,8 @@ class AuctionListHandler extends Handler {
         const viewer = await getViewerInfo(this.user._id);
         const uids: number[] = [];
         for (const auction of [...active, ...finished]) {
+            // 卖家不一定出价/成交，漏掉会让模板退回 “UID n”。
+            if (auction.seller) uids.push(auction.seller);
             if (auction.highestBidder) uids.push(auction.highestBidder);
             if (auction.winner) uids.push(auction.winner);
         }
