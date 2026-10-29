@@ -226,12 +226,6 @@ html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .sec
   text-align: center;
 }
 
-html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child img {
-  width: clamp(96px, 13vw, 132px);
-  height: auto;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 16px 24px rgba(20, 34, 29, .16));
-}
 
 html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child table {
   width: auto;
@@ -343,7 +337,10 @@ html.oi33-shell.page--oi33_cat_can_arena #panel blockquote.note {
 
 /* Tables and form controls are the last surfaces that still came from
    Hydro's stock light/dark palette. Keep their geometry, but paint them with
-   the same card tokens as the surrounding content. */
+   the same card tokens as the surrounding content.
+   Important: only actual controls inside a content card are styled. Hydro's
+   immersive auth pages use <label class="material textbox"> as the visual
+   field; styling that label (or inputs on immersive pages) breaks login/sudo. */
 html.oi33-shell #panel .section .data-table th,
 html.oi33-shell #panel .section .section__table-header,
 html.oi33-shell #panel .section .table th {
@@ -357,75 +354,81 @@ html.oi33-shell #panel .section .table td {
   border-color: var(--oi33-card-border, var(--oi33-border));
 }
 
-html.oi33-shell #panel .textbox,
-html.oi33-shell #panel input:not([type]),
-html.oi33-shell #panel input[type="text"],
-html.oi33-shell #panel input[type="search"],
-html.oi33-shell #panel input[type="password"],
-html.oi33-shell #panel input[type="email"],
-html.oi33-shell #panel input[type="url"],
-html.oi33-shell #panel input[type="tel"],
-html.oi33-shell #panel input[type="number"],
-html.oi33-shell #panel input[type="date"],
-html.oi33-shell #panel input[type="datetime-local"],
-html.oi33-shell #panel input[type="time"],
-html.oi33-shell #panel select,
-html.oi33-shell #panel textarea {
+html.oi33-shell:not(.layout--immersive) #panel .section input.textbox,
+html.oi33-shell:not(.layout--immersive) #panel .section select.textbox,
+html.oi33-shell:not(.layout--immersive) #panel .section textarea.textbox,
+html.oi33-shell:not(.layout--immersive) #panel .section input:not([type]),
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="text"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="search"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="password"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="email"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="url"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="tel"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="number"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="date"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="datetime-local"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="time"],
+html.oi33-shell:not(.layout--immersive) #panel .section select,
+html.oi33-shell:not(.layout--immersive) #panel .section textarea {
   border-color: var(--oi33-card-border, var(--oi33-border));
   background-color: var(--oi33-card-bg, #ffffff);
   color: var(--oi33-card-fg, var(--oi33-text));
 }
 
-html.oi33-shell #panel input::placeholder,
-html.oi33-shell #panel textarea::placeholder {
+html.oi33-shell:not(.layout--immersive) #panel .section input::placeholder,
+html.oi33-shell:not(.layout--immersive) #panel .section textarea::placeholder {
   color: var(--oi33-card-muted, var(--oi33-muted));
 }
 
-html.oi33-shell #panel input:focus,
-html.oi33-shell #panel select:focus,
-html.oi33-shell #panel textarea:focus {
+html.oi33-shell:not(.layout--immersive) #panel .section input:focus,
+html.oi33-shell:not(.layout--immersive) #panel .section select:focus,
+html.oi33-shell:not(.layout--immersive) #panel .section textarea:focus {
   border-color: var(--oi33-accent);
 }
 
-html.oi33-shell #panel input[type="checkbox"],
-html.oi33-shell #panel input[type="radio"],
-html.oi33-shell #panel input[type="range"] {
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="checkbox"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="radio"],
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="range"] {
   accent-color: var(--oi33-accent);
 }
 
-html.oi33-shell #panel input[type="color"] {
+html.oi33-shell:not(.layout--immersive) #panel .section input[type="color"] {
   border-color: var(--oi33-card-border, var(--oi33-border));
   background: var(--oi33-card-bg, #ffffff);
 }
 
-html.oi33-shell.theme--dark #panel .textbox,
-html.oi33-shell.theme--dark #panel input:not([type]),
-html.oi33-shell.theme--dark #panel input[type="text"],
-html.oi33-shell.theme--dark #panel input[type="search"],
-html.oi33-shell.theme--dark #panel input[type="password"],
-html.oi33-shell.theme--dark #panel input[type="email"],
-html.oi33-shell.theme--dark #panel input[type="url"],
-html.oi33-shell.theme--dark #panel input[type="tel"],
-html.oi33-shell.theme--dark #panel input[type="number"],
-html.oi33-shell.theme--dark #panel input[type="date"],
-html.oi33-shell.theme--dark #panel input[type="datetime-local"],
-html.oi33-shell.theme--dark #panel input[type="time"],
-html.oi33-shell.theme--dark #panel select,
-html.oi33-shell.theme--dark #panel textarea,
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel .textbox,
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input:not([type]),
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="text"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="search"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="password"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="email"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="url"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="tel"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="number"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="date"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="datetime-local"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="time"],
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel select,
-html.oi33-shell[data-mantine-color-scheme="dark"] #panel textarea {
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input.textbox,
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section select.textbox,
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section textarea.textbox,
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input:not([type]),
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="text"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="search"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="password"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="email"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="url"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="tel"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="number"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="date"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="datetime-local"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section input[type="time"],
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section select,
+html.oi33-shell.theme--dark:not(.layout--immersive) #panel .section textarea,
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input.textbox,
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section select.textbox,
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section textarea.textbox,
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input:not([type]),
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="text"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="search"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="password"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="email"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="url"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="tel"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="number"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="date"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="datetime-local"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section input[type="time"],
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section select,
+html.oi33-shell[data-mantine-color-scheme="dark"]:not(.layout--immersive) #panel .section textarea {
   border-color: var(--oi33-card-border, #2b303a);
   background-color: var(--oi33-card-bg, #1b1f27);
   color: var(--oi33-card-fg, var(--oi33-text));

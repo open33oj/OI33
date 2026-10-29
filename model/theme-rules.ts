@@ -367,12 +367,14 @@ function cardCss(root: string, bg: string, fg: string, accent: string): string {
         // surface. Specialized controls (color pickers, code editors, canvases)
         // are excluded by the selector / keep their own styles.
         blocks.push(`${scopedList(root, [
-            '#panel .section .textbox',
-            '#panel .section .select',
+            '#panel .section input.textbox',
+            '#panel .section select.textbox',
+            '#panel .section textarea.textbox',
+            '#panel .section select',
             '#panel .section textarea',
         ])} { background-color: ${rgba(fg, 0.06)}; border-color: ${rgba(fg, 0.22)}; color: ${fg}; }`);
         blocks.push(`${scopedList(root, [
-            '#panel .section .textbox::placeholder',
+            '#panel .section input.textbox::placeholder',
             '#panel .section textarea::placeholder',
         ])} { color: ${rgba(fg, 0.5)}; }`);
         if (accent) {

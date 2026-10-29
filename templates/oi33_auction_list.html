@@ -24,7 +24,7 @@
           {% if handler.user._id %}你当前持有 <strong>{{ viewerCans }}</strong> 个猫罐头。{% endif %}
         </p>
 
-        {% if handler.user._id %}
+        {% if handler.user._id and canOffer %}
         <div class="auction-create auction-offer">
           <h2>出售我的可交易成就</h2>
           <p class="auction-help">
@@ -32,7 +32,6 @@
             只接受猫罐头出价；成交后按成交价的 {{ sellerFeePercent }}%（向上取整）收取手续费，
             手续费销毁，其余打给卖家。上架后奖章由系统托管，且不可取消；到期无人出价会自动流拍并退回奖章。
           </p>
-          {% if canOffer %}
           <form method="post" action="{{ url('oi33_auction_offer') }}">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <div class="row">
@@ -55,19 +54,13 @@
             </div>
             <button type="submit" class="rounded primary button">上架我的拍卖</button>
           </form>
-          {% elif viewerFlag >= 1 %}
-          <p class="auction-help">你目前没有可上架的可交易成就。通过拍卖或交易合同获得可售卖奖章后，就可以在这里再次上架。</p>
-          {% else %}
-          <p class="auction-help">只有通过认证的用户才能发起拍卖。</p>
-          {% endif %}
         </div>
         {% endif %}
 
-        {% if canManage %}
+        {% if canManage and medals.length %}
         <div class="auction-create">
-          <h2>管理员上架拍卖</h2>
+          <h2>上架拍卖</h2>
           <p class="auction-help">只有「可售卖奖章」中从未拍出的奖章可以上架；每个可售卖奖章只拍卖一次。</p>
-          {% if medals.length %}
           <form method="post" action="{{ url('oi33_auction_create') }}">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <div class="row">
@@ -90,9 +83,6 @@
             </div>
             <button type="submit" class="rounded primary button">上架拍卖</button>
           </form>
-          {% else %}
-          <p>暂无可以上架的奖章。请在奖章管理中创建「可售卖奖章」；已拍出或已被持有的奖章只能等待合同转让。</p>
-          {% endif %}
         </div>
         {% endif %}
 
