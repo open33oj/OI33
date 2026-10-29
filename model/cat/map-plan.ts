@@ -350,7 +350,7 @@ export async function advanceCatMapPlan(uid: number, now = new Date()) {
     }
     let moveResult: any = null;
     try {
-        moveResult = await moveCatMapPlayer(uid, step.x, step.y, now);
+        moveResult = await moveCatMapPlayer(uid, step.x, step.y, now, 'plan');
     } catch (e: any) {
         const message = e?.message || String(e);
         const attempts = (Number(plan.attempts) || 0) + 1;

@@ -91,6 +91,30 @@ export function applyUserPatches(ctx: Context) {
         };
     }
 
+    // (c) Avatar uploads always write to the same `/file/<uid>/.avatar<ext>`
+    // URL. Browsers (and Hydro's production service worker, which caches every
+    // same-origin URL containing a dot and explicitly skips only `?v=` URLs)
+    // then keep serving the old image after a replacement: an incognito window
+    // looks right, but a normal reload reverts. Append a version query after
+    // each successful upload so the URL changes and every consumer sees it.
+    ctx.on('handler/after/HomeAvatar', async (h: any) => {
+        if (!h.request?.files?.file) return;
+        try {
+            const uid = Number(h.user?._id);
+            if (!Number.isSafeInteger(uid) || uid <= 0) return;
+            const current: any = await (UserModel as any).coll.findOne(
+                { _id: uid }, { projection: { avatar: 1 } },
+            );
+            const avatar = String(current?.avatar || '');
+            if (!avatar.startsWith('url:/file/')) return;
+            const base = avatar.replace(/([?&])v=[^&]*/g, '').replace(/[?&]$/, '');
+            const versioned = `${base}${base.includes('?') ? '&' : '?'}v=${Date.now()}`;
+            if (versioned !== avatar) await UserModel.setById(uid, { avatar: versioned } as any);
+        } catch (e) {
+            console.error('[oi33] failed to version the uploaded avatar URL:', e);
+        }
+    });
+
     // (b4) `user.users` API — let OI33 admins (flag >= 2) search by real name.
     // The core autocomplete (used by the record filter and every OI33 user
     // picker) only matches uid/uname/displayName/mail, so an admin who knows

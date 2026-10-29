@@ -477,13 +477,27 @@ export function moderateContentInBackground(opts: ModerateContentOptions): void 
 // 被规则/AI 拦截而隐藏、但没有进入人工队列的题解：让管理员能在审核中心直接
 // 复核并恢复发布。已经在 oi33_ai_moderation 里 pending 的题解由队列处理，
 // 调用方负责过滤掉，避免同一篇出现两次。
-export async function listHiddenSolutions(limit = 20) {
-    return await db.collection<any>('document').find({
+// 内容审核主页只展示入口和数量；完整列表在独立的「隐藏题解」页（可按域筛选），
+// 因为隐藏题解可能来自任意域，不应和当前域的待审队列混在一起。
+export async function listHiddenSolutions(limit = 20, domainId?: string) {
+    const query: Record<string, any> = {
         docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
         hidden: true,
-    }).sort({ _id: -1 }).limit(Math.max(1, Math.min(100, limit)))
+    };
+    if (domainId) query.domainId = domainId;
+    return await db.collection<any>('document').find(query)
+        .sort({ _id: -1 }).limit(Math.max(1, Math.min(200, limit)))
         .project({ _id: 1, owner: 1, parentId: 1, domainId: 1, content: 1 })
         .toArray();
+}
+
+export async function countHiddenSolutions(domainId?: string) {
+    const query: Record<string, any> = {
+        docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
+        hidden: true,
+    };
+    if (domainId) query.domainId = domainId;
+    return await db.collection<any>('document').countDocuments(query);
 }
 
 export async function publishHiddenSolution(psid: ObjectId) {

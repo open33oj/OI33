@@ -42,36 +42,35 @@
   flex:1 1 320px; padding:1rem; border:1px solid rgba(127,127,127,.25); border-radius:8px; min-width:280px;
 }
 .oi33-alg-admin-card h3 { margin:0 0 .5rem; font-size:1rem; }
-.oi33-alg-admin-card p { margin:.25rem 0 .6rem; color:#777; font-size:.88em; }
+.oi33-alg-admin-card p { margin:.25rem 0 .6rem; color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.88em; }
 .oi33-alg-admin-card form { margin:0 0 .6rem; }
 .oi33-alg-admin-card label { display:block; margin-bottom:.4rem; font-size:.88em; }
 .oi33-alg-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.6rem; margin-bottom:.6rem; }
-.oi33-alg-grid label { display:block; font-size:.85em; color:#666; }
+.oi33-alg-grid label { display:block; font-size:.85em; color: var(--oi33-card-muted, var(--oi33-muted)); }
 .oi33-alg-grid input, .oi33-alg-form-note input { width:100%; }
-.oi33-alg-form-note { display:block; font-size:.85em; color:#666; margin-bottom:.6rem; }
+.oi33-alg-form-note { display:block; font-size:.85em; color: var(--oi33-card-muted, var(--oi33-muted)); margin-bottom:.6rem; }
 .oi33-alg-admin-group { border:1px solid rgba(127,127,127,.25); border-radius:8px; margin-bottom:.75rem; }
 .oi33-alg-admin-group > summary {
   cursor:pointer; padding:.55rem .85rem; font-weight:600; background:rgba(127,127,127,.06);
   display:flex; align-items:center; gap:.6rem;
 }
-.oi33-alg-admin-group__count { color:#999; font-weight:400; font-size:.85em; }
+.oi33-alg-admin-group__count { color: var(--oi33-card-muted, var(--oi33-muted)); font-weight:400; font-size:.85em; }
 .oi33-alg-admin-tools { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; padding:.5rem .85rem; }
 .oi33-alg-admin-tools form { margin:0; }
-.oi33-alg-admin-section__title { padding:.5rem .85rem .2rem; font-weight:600; font-size:.92em; color:#555; }
-.oi33-alg-admin-section__title code { color:#999; font-weight:400; }
+.oi33-alg-admin-section__title { padding:.5rem .85rem .2rem; font-weight:600; font-size:.92em; color: var(--oi33-card-fg, var(--oi33-text)); }
+.oi33-alg-admin-section__title code { color: var(--oi33-card-muted, var(--oi33-muted)); font-weight:400; }
 .oi33-alg-admin-name { font-weight:600; }
-.oi33-alg-admin-note { color:#888; font-size:.85em; }
-.oi33-alg-admin-id { color:#aaa; font-size:.75em; }
-.oi33-alg-admin-tag { margin-left:.4rem; font-size:.72em; padding:.05rem .4rem; border-radius:999px; border:1px solid rgba(76,139,245,.5); color:#3a6fd0; }
+.oi33-alg-admin-note { color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.85em; }
+.oi33-alg-admin-id { color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.75em; }
+.oi33-alg-admin-tag { margin-left:.4rem; font-size:.72em; padding:.05rem .4rem; border-radius:999px; border:1px solid rgba(76,139,245,.5); color: var(--oi33-accent, #3a6fd0); }
 .oi33-alg-admin-on { color:#1f7d50; }
 .oi33-alg-admin-off { color:#a8761a; }
 .oi33-alg-admin-actions { white-space:nowrap; }
 .oi33-alg-admin-actions form { display:inline-block; margin:0 0 0 .25rem; }
 .oi33-alg-admin-table td { vertical-align:middle; }
 .theme--dark .oi33-alg-admin-card, [data-mantine-color-scheme=dark] .oi33-alg-admin-card,
-.theme--dark .oi33-alg-admin-group, [data-mantine-color-scheme=dark] .oi33-alg-admin-group { border-color:rgba(160,160,160,.28); }
-.theme--dark .oi33-alg-admin-section__title, [data-mantine-color-scheme=dark] .oi33-alg-admin-section__title { color:#ccc; }
-.theme--dark .oi33-alg-admin-note, [data-mantine-color-scheme=dark] .oi33-alg-admin-note { color:#aaa; }
+.theme--dark .oi33-alg-admin-group, [data-mantine-color-scheme=dark] .oi33-alg-admin-group { border-color: var(--oi33-card-border, rgba(160,160,160,.28)); }
+.theme--dark .oi33-alg-admin-note, [data-mantine-color-scheme=dark] .oi33-alg-admin-note { color: var(--oi33-card-muted, var(--oi33-muted)); }
 </style>
 <div class="row">
   <div class="medium-12 columns">
@@ -109,7 +108,7 @@
                 <input type="checkbox" name="selfEdit" {% if config.selfEdit %}checked{% endif %}>
                 允许学生自行评价掌握程度（关闭后学生面板只读，仅老师可设置）
               </label>
-              <p style="color:#777;font-size:.85em;margin:.2rem 0 .6rem;">
+              <p class="oi33-hint" style="margin:.2rem 0 .6rem;">
                 学生在页面上改完整份面板后一次提交，每个自然月只能提交一次；老师随时可改，
                 不受月度限制。若要让学生本月再改一次，请打开该学生的面板点「重置该学生本月额度」。
               </p>

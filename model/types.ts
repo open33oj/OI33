@@ -83,6 +83,41 @@ export interface Oi33User {
     // by the admin "reset this student's month" action. Teachers are exempt.
     algorithm_self_month?: string;
     algorithm_self_at?: Date;
+    // Per-user shell theme. All optional: empty means "use the site defaults".
+    // Colors are normalized '#rrggbb' and stored per scheme
+    // (`theme_light_*` / `theme_dark_*`); the old single-scheme `theme_*`
+    // fields are a light-mode fallback for pre-existing rows. theme_links is
+    // the top-bar textarea format (`名称|URL` per line); theme_nav_groups only
+    // stores the middle sidebar groups (the first/last groups stay
+    // site-controlled).
+    theme_topbar_bg?: string;
+    theme_topbar_fg?: string;
+    theme_sidebar_bg?: string;
+    theme_sidebar_fg?: string;
+    theme_accent?: string;
+    theme_light_css?: string;
+    theme_light_page_bg?: string;
+    theme_light_page_fg?: string;
+    theme_light_topbar_bg?: string;
+    theme_light_topbar_fg?: string;
+    theme_light_sidebar_bg?: string;
+    theme_light_sidebar_fg?: string;
+    theme_light_accent?: string;
+    theme_light_card_bg?: string;
+    theme_light_card_fg?: string;
+    theme_dark_css?: string;
+    theme_dark_page_bg?: string;
+    theme_dark_page_fg?: string;
+    theme_dark_topbar_bg?: string;
+    theme_dark_topbar_fg?: string;
+    theme_dark_sidebar_bg?: string;
+    theme_dark_sidebar_fg?: string;
+    theme_dark_accent?: string;
+    theme_dark_card_bg?: string;
+    theme_dark_card_fg?: string;
+    theme_links?: string;
+    theme_nav_groups?: import('./nav-rules').NavGroupConfig[];
+    theme_updated_at?: Date;
 }
 
 export interface Oi33CatCanBill {
@@ -426,7 +461,7 @@ export interface Oi33OAuthRefreshToken {
 export interface Oi33Log {
     _id: ObjectId;
     createdAt: Date;
-    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'medal' | 'auction' | 'contract' | 'algorithm' | 'admin' | 'solution';
+    type: 'coin' | 'birthday' | 'badge' | 'realname' | 'checkin' | 'cat_account' | 'cat_map' | 'paste' | 'request' | 'wiki' | 'oauth' | 'school_cat' | 'meow' | 'medal' | 'auction' | 'contract' | 'algorithm' | 'admin' | 'solution' | 'user';
     sender?: number;
     operator?: number;
     receiver?: number;
@@ -669,14 +704,24 @@ export interface Oi33Auction {
     lastBidAt?: Date;
     createdBy: number;
     createdAt: Date;
+    // User-initiated auction: the seller's tradeable award was escrowed at
+    // creation and is granted to the winner at settlement (or returned to the
+    // seller on cancel / no bids). Absent on administrator auctions, which mint
+    // the medal from the definition pool.
+    seller?: number;
+    sellerAwardSource?: string;
     status: 'active' | 'settled' | 'cancelled';
     highestBid: number | null;
     highestBidder: number | null;
     bidCount: number;
     winner?: number;
     settlePrice?: number;
+    // User auctions only: 5% (ceiled) seller fee and the net seller proceeds;
+    // the fee is burned from circulation at settlement.
+    fee?: number;
+    sellerProceeds?: number;
     // Reserve food burned at settlement (= settlePrice cans × sell price at
-    // settle time, clamped to the reserve). Absent on legacy settlements.
+    // settle time, clamped to the reserve). Administrator auctions only.
     foodBurn?: number;
     settledAt?: Date;
     cancelledAt?: Date;

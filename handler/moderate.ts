@@ -1,6 +1,6 @@
 import {
     Context, DiscussionModel, DocumentModel, ForbiddenError, Handler, MessageModel,
-    NotFoundError, ObjectId, PERM, PRIV, Types, UserModel, ValidationError, db, param,
+    NotFoundError, ObjectId, PERM, PRIV, Types, UserModel, ValidationError, db, param, query,
 } from 'hydrooj';
 import { oi33Model } from '../model';
 import {
@@ -431,17 +431,19 @@ class Ai33ModerationHandler extends Handler {
         // Close legacy pending entries that can't be operated on (missing
         // target), so they don't error out or clog the queue.
         await oi33Model.modCloseMissingTarget(this.user._id);
-        const [pendingAll, recentAll, stats, cfg, todayCost, meowPending, hiddenSolutions] = await Promise.all([
+        const [pendingAll, recentAll, stats, cfg, todayCost, meowPending, hiddenSolutionCount] = await Promise.all([
             oi33Model.modListPending(),
             oi33Model.modListRecent(50),
             oi33Model.modStats(),
             oi33Model.aiGetConfig(),
             oi33Model.modTodayCost(),
             oi33Model.meowListPending(),
-            oi33Model.listHiddenSolutions(30),
+            oi33Model.countHiddenSolutions(),
         ]);
+        const fallbackDomain = String((this as any).args?.domainId || 'system');
         // 给每条待审记录算出目标位置：题解需要 parentId(docId) 拼 URL，讨论直接
         // 用 did，简介落到用户资料页；这些链接只用于管理员查看，不参与裁决。
+        // 内容可能来自其它域，URL 必须带上 target.domainId 才会生成 /d/<domain> 前缀。
         const solutionPsids = [...new Set([...pendingAll, ...recentAll]
             .map((entry) => (entry.target?.psid ? String(entry.target.psid) : ''))
             .filter(Boolean))];
@@ -449,7 +451,7 @@ class Ai33ModerationHandler extends Handler {
             ? await db.collection<any>('document').find({
                 _id: { $in: solutionPsids.map((id) => new ObjectId(id)) },
                 docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
-            }).project({ _id: 1, parentId: 1 }).toArray()
+            }).project({ _id: 1, parentId: 1, domainId: 1 }).toArray()
             : [];
         const parentByPsid = new Map<string, number>(
             solutionParents.map((doc: any) => [String(doc._id), Number(doc.parentId)]),
@@ -468,30 +470,37 @@ class Ai33ModerationHandler extends Handler {
         const didByDrid = new Map<string, any>(
             replyParents.map((doc: any) => [String(doc._id), doc.parentId]),
         );
+        const targetDomainOf = (entry: any): string => {
+            if (entry.kind === 'bio') return '';
+            return String(entry.target?.domainId || '');
+        };
         const targetUrlOf = (entry: any): string => {
             if (entry.kind === 'bio') return this.url('user_detail', { uid: entry.uid });
             const target = entry.target;
             if (!target) return '';
+            const domain = target.domainId || fallbackDomain;
             if (target.psid) {
                 const pid = parentByPsid.get(String(target.psid));
                 return Number.isSafeInteger(pid) && pid > 0
-                    ? this.url('problem_solution_detail', { pid, sid: target.psid }) : '';
+                    ? this.url('problem_solution_detail', { domainId: domain, pid, sid: target.psid }) : '';
             }
-            if (target.did) return this.url('discussion_detail', { did: target.did });
+            if (target.did) return this.url('discussion_detail', { domainId: domain, did: target.did });
             if (target.drid) {
                 const did = didByDrid.get(String(target.drid));
-                return did ? this.url('discussion_detail', { did }) : '';
+                return did ? this.url('discussion_detail', { domainId: domain, did }) : '';
             }
             return '';
         };
-        for (const entry of pendingAll) (entry as any).targetUrl = targetUrlOf(entry);
-        for (const entry of recentAll) (entry as any).targetUrl = targetUrlOf(entry);
+        for (const entry of pendingAll) {
+            (entry as any).targetUrl = targetUrlOf(entry);
+            (entry as any).targetDomain = targetDomainOf(entry);
+        }
+        for (const entry of recentAll) {
+            (entry as any).targetUrl = targetUrlOf(entry);
+            (entry as any).targetDomain = targetDomainOf(entry);
+        }
         for (const post of meowPending) {
             (post as any).targetUrl = this.url('oi33_meow_user', { uid: post.uid });
-        }
-        for (const doc of hiddenSolutions) {
-            (doc as any).targetUrl = Number(doc.parentId) > 0
-                ? this.url('problem_solution_detail', { pid: doc.parentId, sid: doc._id }) : '';
         }
         const args = (this as any).args || {};
         const kind = Object.prototype.hasOwnProperty.call(KIND_GROUPS, String(args.kind))
@@ -506,17 +515,11 @@ class Ai33ModerationHandler extends Handler {
             { id: 'solution', label: '题解', count: countOf('solution') },
             { id: 'bio', label: '简介', count: countOf('bio') },
         ];
-        // Pending solution entries are handled by the queue above; the extra
-        // list is for solutions hidden by rules/AI without a queue entry.
-        const pendingSolutionIds = new Set(pendingAll
-            .map((e) => (e.target?.psid ? String(e.target.psid) : ''))
-            .filter(Boolean));
-        const extraHidden = hiddenSolutions.filter((doc: any) => !pendingSolutionIds.has(String(doc._id)));
+        // 隐藏题解有独立页面（可能来自任意域），主页只保留入口与数量。
         const uids = [...new Set([
             ...pendingAll.map((e) => e.uid),
             ...recentAll.map((e) => e.uid),
             ...meowPending.map((post) => post.uid),
-            ...extraHidden.map((doc: any) => Number(doc.owner)),
         ].filter((uid) => Number.isSafeInteger(uid) && uid > 0))];
         const udict = uids.length ? await UserModel.getList('', uids) : {};
         // Flag queued bio versions that are no longer the live bio: they can
@@ -559,7 +562,7 @@ class Ai33ModerationHandler extends Handler {
             staleBioCount,
             notice,
             meowPending,
-            hiddenSolutions: extraHidden,
+            hiddenSolutionCount,
         };
     }
 
@@ -575,6 +578,7 @@ class Ai33ModerationHandler extends Handler {
     @param('moderation_link_allow', Types.String, true)
     @param('moderation_daily_budget', Types.Float, true)
     @param('moderation_rate_limit', Types.UnsignedInt, true)
+    @param('from', Types.String, true)
     async post(
         // First param must be named domainId* — the framework only injects
         // args.domainId as the first positional arg when the source name
@@ -588,6 +592,7 @@ class Ai33ModerationHandler extends Handler {
         moderation_words?: string, moderation_review_words?: string,
         moderation_link_review?: string, moderation_link_allow?: string,
         moderation_daily_budget = 0, moderation_rate_limit = 0,
+        from?: string,
     ) {
         await checkOi33Admin(this.user._id);
         if (action === 'meow_approve' || action === 'meow_reject') {
@@ -612,9 +617,9 @@ class Ai33ModerationHandler extends Handler {
                 type: 'solution', userId: Number((doc as any).owner) || 0,
                 action: 'publish', psid: String(id), reason: '审核中心恢复发布',
             } as any);
-            this.response.redirect = this.url('oi33_ai_moderation', {
-                query: { solution: 'published' },
-            });
+            this.response.redirect = from === 'hidden'
+                ? this.url('oi33_ai_hidden_solutions', { query: { published: '1' } })
+                : this.url('oi33_ai_moderation', { query: { solution: 'published' } });
             return;
         }
         if (action === 'save_settings') {
@@ -735,8 +740,68 @@ class Ai33ModerationHandler extends Handler {
     }
 }
 
+// 隐藏题解独立页：被规则/AI 隐藏、又不在人工队列里的题解，可能来自任意域，
+// 所以从内容审核主页拆出来，按目标域筛选并生成带 /d/<domain> 的链接。
+class Ai33HiddenSolutionsHandler extends Handler {
+    @query('domain', Types.String, true)
+    async get(domainId: string, domainFilter = '') {
+        await checkOi33Admin(this.user._id);
+        const filter = String(domainFilter || '').trim();
+        const args = (this as any).args || {};
+        const [docs, domains] = await Promise.all([
+            oi33Model.listHiddenSolutions(200, filter || undefined),
+            db.collection<any>('document').distinct('domainId', {
+                docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
+                hidden: true,
+            }) as Promise<string[]>,
+        ]);
+        const uids = [...new Set(docs
+            .map((doc: any) => Number(doc.owner))
+            .filter((uid) => Number.isSafeInteger(uid) && uid > 0))];
+        const udict = uids.length ? await UserModel.getList('', uids) : {};
+        for (const doc of docs) {
+            const targetDomain = String(doc.domainId || 'system');
+            (doc as any).targetDomain = targetDomain;
+            (doc as any).targetUrl = Number(doc.parentId) > 0
+                ? this.url('problem_solution_detail', {
+                    domainId: targetDomain, pid: doc.parentId, sid: doc._id,
+                })
+                : '';
+        }
+        this.response.template = 'oi33_ai_hidden_solutions.html';
+        this.response.body = {
+            docs,
+            udict,
+            domains: [...new Set(domains.map(String))].sort(),
+            domain: filter,
+            notice: args.published ? '题解已恢复发布。' : '',
+            noDomain: !filter,
+        };
+    }
+
+    @param('id', Types.ObjectId)
+    @param('domain', Types.String, true)
+    async post(domainId: string, id: ObjectId, domainFilter?: string) {
+        await checkOi33Admin(this.user._id);
+        const doc = await oi33Model.publishHiddenSolution(id);
+        if (!doc) throw new NotFoundError(id);
+        await addLog({
+            type: 'solution', userId: Number((doc as any).owner) || 0,
+            action: 'publish', psid: String(id), reason: '审核中心恢复发布（隐藏题解页）',
+        } as any);
+        const filter = String(domainFilter || '').trim();
+        this.response.redirect = this.url('oi33_ai_hidden_solutions', {
+            query: { ...(filter ? { domain: filter } : {}), published: '1' },
+        });
+    }
+}
+
 export async function apply(ctx: Context) {
     applyDiscussionHooks(ctx);
     applySolutionHooks(ctx);
     ctx.Route('oi33_ai_moderation', '/oi33/ai/moderation', Ai33ModerationHandler, PRIV.PRIV_USER_PROFILE);
+    ctx.Route(
+        'oi33_ai_hidden_solutions', '/oi33/ai/moderation/hidden-solutions',
+        Ai33HiddenSolutionsHandler, PRIV.PRIV_USER_PROFILE,
+    );
 }

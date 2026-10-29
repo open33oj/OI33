@@ -5,21 +5,21 @@
 {% block content %}
 
 <div class="row">
-  <div class="medium-12 columns">
-    <div class="section">
+  <div class="medium-12 columns ai33-cards">
+    <div class="section ai33-card">
       <div class="section__header">
         <h1 class="section__title">{{ _('AI Moderation') }}</h1>
+        <div class="section__tools">
+          <a class="rounded button" href="{{ url('oi33_ai_hidden_solutions') }}">隐藏题解（{{ hiddenSolutionCount }}）</a>
+          <a class="rounded button" href="{{ url('oi33_ai_bio_review') }}">个人简介批量审查</a>
+          {% if (handler.user.realname_flag or 0) >= 2 %}
+          <a class="rounded button" href="/oi33/admin">{{ _('Back to Admin') }}</a>
+          {% endif %}
+        </div>
       </div>
       <div class="section__body">
-        {% if (handler.user.realname_flag or 0) >= 2 %}
-          <p>
-            <a href="/oi33/admin">&laquo; {{ _('Back to Admin') }}</a>
-          </p>
-        {% endif %}
         <p class="ai33-desc">{{ _('ai_moderation_help') }}</p>
         {% if notice %}<p class="ai33-notice">{{ notice }}</p>{% endif %}
-
-        <h3 style="margin-bottom:1rem;">{{ _('Today') }}</h3>
         <p>
           <span class="ai33-stat">{{ _('Pending') }}: <b>{{ stats.pending }}</b></span>
           <span class="ai33-stat">{{ _('Auto Passed') }}: <b>{{ stats.pass }}</b></span>
@@ -27,7 +27,14 @@
           <span class="ai33-stat">{{ _('Handled') }}: <b>{{ stats.handled }}</b></span>
           <span class="ai33-stat">{{ _('AI Cost') }}: <b>¥{{ todayCost }}</b></span>
         </p>
+      </div>
+    </div>
 
+    <div class="section ai33-card" id="pending">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('Pending Queue') }}{% if pending.length %}<span class="ai33-subtitle">（{{ pending.length }}）</span>{% endif %}</h2>
+      </div>
+      <div class="section__body">
         <div class="ai33-tabs">
           {% for tab in kindTabs %}
           {% if tab.id == 'all' %}
@@ -37,7 +44,6 @@
           {% endif %}
           {% endfor %}
         </div>
-        <h3 style="margin:1rem 0 1rem;">{{ _('Pending Queue') }}{% if pending.length %}<span class="ai33-subtitle">（{{ pending.length }}）</span>{% endif %}</h3>
         {% if pending.length %}
         <table class="data-table">
           <thead>
@@ -56,7 +62,12 @@
             <tr>
               <td style="white-space:nowrap;">{{ datetimeSpan(e.createdAt)|safe }}</td>
               <td>{% if udict[e.uid] %}{{ user.render_inline(udict[e.uid]) }}{% else %}UID {{ e.uid }}{% endif %}</td>
-              <td>{{ kindLabels[e.kind] or e.kind }}{% if e.targetUrl %} <a class="ai33-target" href="{{ e.targetUrl }}" target="_blank" rel="noopener">查看目标</a>{% endif %}{% if e.bioState === 'stale' %}<span class="ai33-status-stale">简介已变更，仅可标记失效</span>{% elif e.bioState === 'text' %}<span class="ai33-status-warn">哈希异常，按当前简介处理</span>{% endif %}</td>
+              <td>
+                {{ kindLabels[e.kind] or e.kind }}
+                {% if e.targetDomain %}<span class="ai33-domain" title="目标所属域">{{ e.targetDomain }}</span>{% endif %}
+                {% if e.targetUrl %} <a class="ai33-target" href="{{ e.targetUrl }}" target="_blank" rel="noopener">查看目标</a>{% endif %}
+                {% if e.bioState === 'stale' %}<span class="ai33-status-stale">简介已变更，仅可标记失效</span>{% elif e.bioState === 'text' %}<span class="ai33-status-warn">哈希异常，按当前简介处理</span>{% endif %}
+              </td>
               <td>{{ e.category }}<span class="ai33-subtitle">{{ e.source }}</span></td>
               <td class="ai33-content-cell">
                 <details>
@@ -73,21 +84,21 @@
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <input type="hidden" name="action" value="expire">
                   <input type="hidden" name="id" value="{{ e._id }}">
-                  <a href="javascript:void(0)" onclick="return confirm('该记录对应的简介已被本人修改，无法通过或驳回。标记为失效只会把它移出队列，不会改动该用户的简介状态。确定吗？') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">标记失效</a>
+                  <a href="javascript:void(0)" onclick="return confirm('该记录对应的简介已被本人修改，无法通过或驳回。标记为失效只会把它移出队列，不会改动该用户的简介状态。确定吗？') && this.parentNode.submit();return false;" class="oi33-link-action">标记失效</a>
                 </form>
                 {% else %}
                 <form method="post" style="display:inline;">
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <input type="hidden" name="action" value="approve">
                   <input type="hidden" name="id" value="{{ e._id }}">
-                  <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
+                  <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" class="oi33-link-action">{{ _('Approve') }}</a>
                 </form>
                 <span style="opacity:0.3;">/</span>
                 <form method="post" style="display:inline;">
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <input type="hidden" name="action" value="reject">
                   <input type="hidden" name="id" value="{{ e._id }}">
-                  <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
+                  <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" class="oi33-link-action">{{ _('Reject') }}</a>
                 </form>
                 {% endif %}
               </td>
@@ -105,8 +116,14 @@
         {% else %}
         <p>{{ _('Nothing pending.') }}</p>
         {% endif %}
+      </div>
+    </div>
 
-        <h3 id="meow" style="margin:1.8rem 0 1rem;">喵喵待审{% if meowPending.length %}<span class="ai33-subtitle">（{{ meowPending.length }}）</span>{% endif %}</h3>
+    <div class="section ai33-card" id="meow">
+      <div class="section__header">
+        <h2 class="section__title">喵喵待审{% if meowPending.length %}<span class="ai33-subtitle">（{{ meowPending.length }}）</span>{% endif %}</h2>
+      </div>
+      <div class="section__body">
         {% if meowPending.length %}
         <table class="data-table">
           <thead>
@@ -139,14 +156,14 @@
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <input type="hidden" name="action" value="meow_approve">
                   <input type="hidden" name="id" value="{{ post._id }}">
-                  <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
+                  <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" class="oi33-link-action">{{ _('Approve') }}</a>
                 </form>
                 <span style="opacity:0.3;">/</span>
                 <form method="post" style="display:inline;">
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
                   <input type="hidden" name="action" value="meow_reject">
                   <input type="hidden" name="id" value="{{ post._id }}">
-                  <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
+                  <a href="javascript:void(0)" onclick="return confirm('{{ _('Reject this entry?') }}') && this.parentNode.submit();return false;" class="oi33-link-action">{{ _('Reject') }}</a>
                 </form>
               </td>
             </tr>
@@ -156,54 +173,32 @@
         {% else %}
         <p class="ai33-desc">暂无待审喵喵。</p>
         {% endif %}
+      </div>
+    </div>
 
-        <h3 id="solution" style="margin:1.8rem 0 1rem;">隐藏题解{% if hiddenSolutions.length %}<span class="ai33-subtitle">（{{ hiddenSolutions.length }}）</span>{% endif %}</h3>
-        <p class="ai33-desc">被规则/AI 拦截、但没有进入人工队列的题解。通过后恢复发布；作者修改后会重新送审。</p>
-        {% if hiddenSolutions.length %}
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ _('Time') }}</th>
-              <th>{{ _('User') }}</th>
-              <th>题目</th>
-              <th>{{ _('Content') }}</th>
-              <th>{{ _('Actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for doc in hiddenSolutions %}
-            <tr>
-              <td style="white-space:nowrap;">{{ datetimeSpan(doc._id)|safe }}</td>
-              <td>{% if udict[doc.owner] %}{{ user.render_inline(udict[doc.owner]) }}{% else %}UID {{ doc.owner }}{% endif %}</td>
-              <td>{% if doc.targetUrl %}<a href="{{ doc.targetUrl }}" target="_blank" rel="noopener">#{{ doc.parentId }}</a>{% else %}#{{ doc.parentId }}{% endif %}</td>
-              <td class="ai33-content-cell">
-                <details>
-                  <summary>{{ doc.content|truncate(120) }}</summary>
-                  <div class="ai33-full-scroll"><pre class="ai33-full-content">{{ doc.content }}</pre></div>
-                </details>
-              </td>
-              <td style="white-space:nowrap;">
-                <form method="post" style="display:inline;" onsubmit="return confirm('确认恢复发布这篇题解？');">
-                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-                  <input type="hidden" name="action" value="solution_publish">
-                  <input type="hidden" name="id" value="{{ doc._id }}">
-                  <button type="submit" class="rounded button">通过并发布</button>
-                </form>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <p class="ai33-desc">没有被拦截且未入队的隐藏题解。</p>
-        {% endif %}
+    <div class="section ai33-card" id="review-tools">
+      <div class="section__header">
+        <h2 class="section__title">其他审核</h2>
+      </div>
+      <div class="section__body">
+        <p class="ai33-desc">
+          被规则/AI 隐藏、但没有进入人工队列的题解，统一在独立页面按域查看和恢复发布；
+          内容审核页不再默认混入这些题解。
+        </p>
+        <p>
+          <a class="rounded primary button" href="{{ url('oi33_ai_hidden_solutions') }}">隐藏题解（{{ hiddenSolutionCount }}）</a>
+          <a class="rounded button" href="{{ url('oi33_ai_bio_review') }}">个人简介批量审查</a>
+        </p>
+        <p class="ai33-desc">个人简介的待审记录在「简介」标签页的队列里（通过 / 驳回 / 标记失效都在那里）。</p>
+      </div>
+    </div>
 
-        <h3 id="bio" style="margin:1.8rem 0 1rem;">个人简介</h3>
-        <p class="ai33-desc">简介的待审记录在「简介」标签页的队列里（通过 / 驳回 / 标记失效都在那里）。需要重跑历史简介时使用批量审查。</p>
-        <p><a class="rounded button" href="{{ url('oi33_ai_bio_review') }}">个人简介批量审查</a></p>
-
-        <h3 style="margin:1.5rem 0 1rem;">{{ _('Moderation Settings') }}</h3>
-        <form method="post" style="margin-bottom:2rem;">
+    <div class="section ai33-card" id="settings">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('Moderation Settings') }}</h2>
+      </div>
+      <div class="section__body">
+        <form method="post" style="margin-bottom:0;">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <input type="hidden" name="action" value="save_settings">
           <div class="row">
@@ -296,8 +291,14 @@
             <button type="submit" class="rounded primary button">{{ _('Save Config') }}</button>
           </div></div>
         </form>
+      </div>
+    </div>
 
-        <h3 style="margin:1.5rem 0 1rem;">{{ _('Recent Log') }}</h3>
+    <div class="section ai33-card" id="recent">
+      <div class="section__header">
+        <h2 class="section__title">{{ _('Recent Log') }}</h2>
+      </div>
+      <div class="section__body">
         {% if recent.length %}
         <div class="ai33-table-scroll">
         <table class="data-table ai33-table">
@@ -322,7 +323,11 @@
             <tr>
               <td style="white-space:nowrap;">{{ datetimeSpan(e.createdAt)|safe }}</td>
               <td>{% if udict[e.uid] %}{{ user.render_inline(udict[e.uid]) }}{% else %}UID {{ e.uid }}{% endif %}</td>
-              <td>{{ kindLabels[e.kind] or e.kind }}<span class="ai33-subtitle">{{ e.category }}</span>{% if e.targetUrl %} <a class="ai33-target" href="{{ e.targetUrl }}" target="_blank" rel="noopener">查看目标</a>{% endif %}</td>
+              <td>
+                {{ kindLabels[e.kind] or e.kind }}<span class="ai33-subtitle">{{ e.category }}</span>
+                {% if e.targetDomain %}<span class="ai33-domain" title="目标所属域">{{ e.targetDomain }}</span>{% endif %}
+                {% if e.targetUrl %} <a class="ai33-target" href="{{ e.targetUrl }}" target="_blank" rel="noopener">查看目标</a>{% endif %}
+              </td>
               <td class="ai33-verdict-cell">
                 {% if e.verdict === 'pass' %}<span class="ai33-ok">{{ _('Pass') }}</span>
                 {% elif e.verdict === 'block' %}<span class="ai33-bad">{{ _('Block') }}</span>
@@ -355,11 +360,13 @@
 </div>
 
 <style>
-.ai33-desc { color: #666; margin-bottom: 1rem; }
-.theme--dark .ai33-desc, [data-mantine-color-scheme=dark] .ai33-desc { color: #aaa; }
+.ai33-cards > .ai33-card + .ai33-card { margin-top: 1rem; }
+.ai33-card .section__title { margin: 0; }
+.ai33-desc { color: var(--oi33-card-muted, var(--oi33-muted)); margin-bottom: 1rem; }
 .ai33-prompt { width: 100%; font-family: monospace; font-size: 0.85em; white-space: pre; }
-.ai33-subtitle { font-size: 0.7em; color: #888; font-weight: normal; margin-left: 0.5rem; }
-.theme--dark .ai33-subtitle, [data-mantine-color-scheme=dark] .ai33-subtitle { color: #999; }
+.ai33-subtitle { font-size: 0.7em; color: var(--oi33-card-muted, var(--oi33-muted)); font-weight: normal; margin-left: 0.5rem; }
+.ai33-domain { display:inline-block; margin-left:.45rem; padding:0 .4rem; border-radius:4px; background:rgba(127,127,127,.14); color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.72em; line-height:1.5; vertical-align:1px; }
+.theme--dark .ai33-domain, [data-mantine-color-scheme=dark] .ai33-domain { background:rgba(255,255,255,.12); color:#bbb; }
 .ai33-reason { white-space: pre-wrap; word-break: break-all; margin: 0.5rem 0 0; }
 .ai33-stat { margin-right: 1.2rem; }
 .ai33-ok { color: #2a7d2a; }
@@ -395,10 +402,10 @@
 /* Content + reason scroll together inside one container, so nothing is ever
    clipped below the fold without a way to reach it. */
 .ai33-full-scroll { max-height: 20rem; overflow-y: auto; }
-.ai33-tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin:1rem 0 .2rem; }
+.ai33-tabs { display:flex; flex-wrap:wrap; gap:.4rem; margin:0 0 .8rem; }
 .ai33-tab { display:inline-block; padding:.2rem .8rem; border-radius:999px; background:rgba(127,127,127,.12); color:inherit; font-size:.85em; text-decoration:none; }
 .ai33-tab b { margin-left:.3rem; }
-.ai33-tab--on { background:rgba(85,182,226,.18); color:var(--accent-color,#55b6e2); font-weight:600; }
+.ai33-tab--on { background: var(--oi33-accent-weak, rgba(85,182,226,.18)); color:var(--oi33-accent, #55b6e2); font-weight:600; }
 .ai33-target { margin-left:.45rem; font-size:.8em; white-space:nowrap; }
 </style>
 {% endblock %}

@@ -687,6 +687,19 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
     for (const auction of settledAuctions) {
         reserveFood -= Math.max(0, Number((auction as any).foodBurn) || 0);
     }
+    // 用户拍卖的 5% 手续费没有打进任何账户，直接从流通中销毁；结算时已扣减
+    // virtualCanSupply，这里重放同一笔销毁，避免校准把手续费又补回供应量。
+    const feeAuctions = await db.collection('oi33_auction').find({
+        status: 'settled',
+        fee: { $exists: true, $gt: 0 },
+    } as any, {
+        projection: { fee: 1 },
+    }).toArray();
+    let auctionFeeBurned = 0;
+    for (const auction of feeAuctions) {
+        auctionFeeBurned += Math.max(0, Number((auction as any).fee) || 0);
+    }
+    const burnedTotal = burned + auctionFeeBurned;
 
     const balances = await getGlobalBalances();
     // Bids are escrowed out of the user balances but still count as
@@ -706,9 +719,9 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
     // pre-existing pools converge to the same invariant as new ones.
     let base = Number(pool?.baseVirtualSupply);
     if (!Number.isFinite(base) || base <= 0) {
-        base = Math.max(1000, (Number(pool?.virtualCanSupply) || 0) - minted + burned);
+        base = Math.max(1000, (Number(pool?.virtualCanSupply) || 0) - minted + burnedTotal);
     }
-    const virtualCanSupply = Math.max(1000, base + minted - burned);
+    const virtualCanSupply = Math.max(1000, base + minted - burnedTotal);
     const circulatingCans = Math.max(0, balances.userCans + escrowedCans);
     const userFoodTotal = Math.max(0, balances.userFood);
 
@@ -740,9 +753,9 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
             + `供应 ${before.virtualCanSupply}→${after.virtualCanSupply}，`
             + `储备 ${before.reserveFood}→${after.reserveFood}，`
             + `手续费 ${before.feesBurned}→${after.feesBurned}；`
-            + `累计增发 ${minted}，累计销毁 ${burned}`,
+            + `累计增发 ${minted}，累计销毁 ${burnedTotal}（含拍卖手续费 ${auctionFeeBurned}）`,
     } as any);
-    return { before, after, minted, burned };
+    return { before, after, minted, burned: burnedTotal };
 }
 
 export async function getCatCanPage(uid: number, now = new Date()) {

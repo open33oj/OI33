@@ -58,6 +58,9 @@ try {
   }
 } catch (e) { /* localStorage unavailable */ }
 </script>
+{%- if handler.oi33ThemeCss %}
+<style>{{ handler.oi33ThemeCss|safe }}</style>
+{%- endif %}
 {%- set is_system_admin = handler.user.hasPriv(PRIV.PRIV_EDIT_SYSTEM) -%}
 
 <svg class="oi33-sprite" aria-hidden="true" focusable="false" width="0" height="0">
@@ -115,7 +118,7 @@ try {
   <div class="oi33-user" data-oi33-user>
     <a class="oi33-user__profile" href="{{ url('user_detail', uid=handler.user._id) }}">
       <img class="oi33-user__avatar" src="{{ avatarUrl(handler.user.avatar|default('')) }}" alt="" width="26" height="26" loading="lazy">
-      <span class="oi33-user__name">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %}</span>
+      <span class="oi33-user__name" title="{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %}">{% if handler.user.oi33_profile_hidden %}UID {{ handler.user._id }}{% else %}{{ handler.user.uname }}{% endif %}</span>
     </a>
     <button type="button" class="oi33-user__toggle" data-oi33-user-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="oi33-user-menu" aria-label="展开用户菜单">
       <svg class="oi33-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-chevron"></use></svg>
@@ -132,13 +135,16 @@ try {
       <a class="oi33-menu__link" href="{{ url('user_detail', uid=handler.user._id) }}" role="menuitem"><span class="icon icon-account--circle"></span>{{ _('My Profile') }}</a>
       <a class="oi33-menu__link" href="{{ url('home_messages') }}" role="menuitem"><span class="icon icon-comment--multiple"></span>{{ _('home_messages') }}</a>
       <a class="oi33-menu__link" href="{{ url('home_settings', category='account') }}" role="menuitem"><span class="icon icon-wrench"></span>{{ _('home_account') }}</a>
+      {%- if handler.oi33ThemeUrl %}
+      <a class="oi33-menu__link" href="{{ handler.oi33ThemeUrl }}" role="menuitem"><span class="icon icon-star"></span>个性化主题</a>
+      {%- endif %}
       <a class="oi33-menu__link" href="{{ url('home_domain') }}" role="menuitem"><span class="icon icon-web"></span>{{ _('My Domains') }}</a>
       {%- if handler.user.hasPriv(PRIV.PRIV_CREATE_FILE) %}
       <a class="oi33-menu__link" href="{{ url('home_files') }}" role="menuitem"><span class="icon icon-file"></span>{{ _('My Files') }}</a>
       {%- endif %}
       {%- if is_system_admin %}
       <div class="oi33-menu__sep"></div>
-      <a class="oi33-menu__link" href="javascript:;" name="nav_switch_account" role="menuitem"><span class="icon icon-user--multiple"></span>{{ _('Switch account') }}</a>
+      <button type="button" class="oi33-menu__link" name="nav_switch_account" role="menuitem"><span class="icon icon-user--multiple"></span>{{ _('Switch account') }}</button>
       {%- endif %}
       <div class="oi33-menu__sep"></div>
       <form method="post" action="{{ url('user_logout') }}">

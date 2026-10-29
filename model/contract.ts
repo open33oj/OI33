@@ -79,6 +79,10 @@ export async function contractCreate(input: {
     if (buyerAward) throw new ValidationError('对方已经拥有这个奖章。');
     const running = await contractColl.findOne({ seller, medalId, status: 'pending' });
     if (running) throw new ValidationError('该奖章已有一份待处理的合同。');
+    // 用户拍卖会把奖章托管出去，正常情况下这里已经查不到 award；再显式挡一次，
+    // 避免拍卖进行中又签一份合同（合同和拍卖只能有一个在途）。
+    const liveAuction = await db.collection('oi33_auction').findOne({ medalId, status: 'active' });
+    if (liveAuction) throw new ValidationError('该奖章正在拍卖中，结束后才能创建交易合同。');
     const now = new Date();
     const doc: Oi33Contract = {
         _id: new ObjectId(),

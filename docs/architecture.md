@@ -148,6 +148,36 @@ index.ts            汇总再导出
     不显示图标，未知名称回退 `dot`。
   - 比赛详情页 Hydro 会提供 `response.body.overrideNav`；此时和旧顶栏一样，用比赛上下文
     导航替换整栏。
+  - **用户个性化**（`/oi33/settings/theme`，`handler/theme.ts` + `model/theme*.ts`）：
+    每人可分别配置**亮色 / 暗色**两套颜色，并提供「自定义 CSS」为主入口。第一组
+    （基础栏目）和最后一组（管理）始终来自全站配置；`theme_nav_groups` 为 `null`
+    时跟随全站中间分组，`[]` 表示主动清空中间分组；顶部链接同样可覆盖。
+  - **受限自定义 CSS**：`theme_light_css` / `theme_dark_css`（旧逐项颜色字段仍保留，
+    位于页面「高级」折叠区）。保存与读取都走 `sanitizeThemeCss`：
+    - 只允许 `background-color` / `color` 两个声明；
+    - 选择器必须命中 `THEME_CSS_SELECTORS` 白名单（`body` / `#panel` / `.footer` /
+      `.section` 及其 header/body/footer/title / 表格 / 输入框 / 按钮 / 标题 /
+      链接 / `pre` / `code` / `.oi33-topbar` / `.oi33-sidebar` / 侧栏条目 / 用户菜单）；
+    - 颜色值仅接受 hex、`rgb[a]()`、`hsl[a]()`、关键字；拒绝注释、`@` 规则、
+      `url()`、`var()`、`calc()`、`!important`、`<style>` 等；
+    - 每条规则统一加上当前配色模式的前缀（亮色排除 `theme--dark`，暗色反之），
+      亮色规则不会污染暗色；
+    - 非法规则在保存时直接报错，读取时再校验一次（手改数据库也不会注入）。
+    规则与单测在 `model/theme-rules.ts` / `.test.ts`。
+  - **预设**：`THEME_PRESETS` 提供默认 + 胭脂 / 朱砂 / 绛紫 / 藕荷 / 天青 /
+    黛蓝 / 竹青 / 苍绿 / 青瓷 / 秋香 / 茶色 / 玄青 / 月白共 13 套传统色；
+    每套都包含亮/暗两份完整 CSS（由 `themeSnippet()` 生成）和色卡预览，点击预设会
+    同时填入 CSS 编辑器与高级逐项颜色，便于继续微调。`themeWarnings()` 会对逐项
+    颜色的文字/背景对比度给出提示；自定义 CSS 的对比度由用户自行把握。
+  - **边界**：只覆盖页面/默认卡片/顶栏/侧栏/其文字与卡片内普通表单控件；
+    评测状态色、难度色、奖章/徽章、图表、猫咪地图/奖章墙画布、代码高亮 token、
+    图片等语义色保持不变；弹窗/下拉浮层保留站点模式配色，避免浮层文字不可读。
+  - 页面同时列出 `NAV_ICONS` 白名单（编号 + 预览），未知图标回退 `dot`，`none`
+    表示不显示。链接/路由/图标均经过 `nav-rules` 归一化：拒绝 `javascript:`、
+    协议相对 `//`、反斜杠、控制字符和带凭据的外链；YAML 只作为数据，模板输出统一转义。
+    逐项颜色、亮/暗整组、自定义 CSS、顶部链接和中间栏目都有「还原系统默认」按钮：
+    `resetUserTheme` 只 `$unset` 选中项（亮色项同时清旧 `theme_*` 回退字段），
+    不影响其它配置。`model/nav-rules.ts` / `.test.ts` 覆盖链接与 YAML 规则。
 
 ```yaml
 - title: 社区

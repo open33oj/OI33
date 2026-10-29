@@ -10,6 +10,7 @@ import {
     normalizeNavGroups, normalizeNavLinks,
 } from './nav-rules';
 import type { NavGroupConfig, NavItemConfig, NavLink } from './nav-rules';
+import { mergeSidebarGroups } from './theme-rules';
 
 export const DEFAULT_NAV_GROUPS_YAML = yaml.dump(DEFAULT_NAV_GROUPS, { noRefs: true, lineWidth: -1 });
 export const DEFAULT_NAV_LINKS_TEXT = navLinksToText(DEFAULT_NAV_LINKS);
@@ -109,9 +110,13 @@ function resolveLink(handler: any, item: NavItemConfig): NavRenderItem | null {
 /**
  * Build the per-request sidebar. Contest pages set `response.body.overrideNav`
  * (Hydro's contextual nav); when present that replaces the configured sidebar,
- * matching the old horizontal nav's behaviour.
+ * matching the old horizontal nav's behaviour. `customMiddle` is the user's
+ * theme override for the middle groups (null = use the site's middle groups).
  */
-export function buildNavGroups(handler: any): NavRenderGroup[] {
+export function buildNavGroups(
+    handler: any,
+    customMiddle: NavGroupConfig[] | null = null,
+): NavRenderGroup[] {
     const override = handler?.response?.body?.overrideNav;
     if (Array.isArray(override) && override.length) {
         const items: NavRenderItem[] = [];
@@ -130,7 +135,7 @@ export function buildNavGroups(handler: any): NavRenderGroup[] {
 
     const nodes = ((global as any).Hydro?.ui?.getNodes?.('Nav') || []) as any[];
     const result: NavRenderGroup[] = [];
-    for (const group of getNavGroups()) {
+    for (const group of mergeSidebarGroups(getNavGroups(), customMiddle)) {
         const items: NavRenderItem[] = [];
         for (const item of group.items) {
             if (item.node) {

@@ -57,8 +57,28 @@ const text = (value: unknown, max: number): string => (
     typeof value === 'string' ? value.trim().slice(0, max) : ''
 );
 const flag = (value: unknown): boolean => value === true;
-const isHttp = (url: string): boolean => /^https?:\/\//i.test(url);
-const isLinkHref = (url: string): boolean => url.startsWith('/') || isHttp(url);
+// Control characters and backslashes are unsafe in hrefs: browsers normalize
+// `\` to `/`, so `/\evil.example` would otherwise escape to another origin.
+// eslint-disable-next-line no-control-regex
+const UNSAFE_URL_CHARS = /[\u0000-\u0020\u007f\u2028\u2029\\]/;
+const isHttp = (url: string): boolean => {
+    if (!/^https?:\/\//i.test(url) || UNSAFE_URL_CHARS.test(url)) return false;
+    try {
+        const parsed = new URL(url);
+        // Embedded credentials are a classic phishing vector; no legitimate
+        // top-bar/nav link needs them.
+        return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+            && !parsed.username && !parsed.password;
+    } catch {
+        return false;
+    }
+};
+// Internal links must start with a single slash. `//host` is a
+// protocol-relative external URL, and `/\host` is normalized to it by browsers,
+// so neither may pass as an internal path.
+const isLinkHref = (url: string): boolean => (
+    (url.startsWith('/') && !url.startsWith('//') && !UNSAFE_URL_CHARS.test(url)) || isHttp(url)
+);
 const isRouteName = (route: string): boolean => /^[a-z0-9_]+$/i.test(route);
 
 function normalizeIcon(value: unknown): string | undefined {

@@ -52,7 +52,7 @@
           &nbsp;/&nbsp;
           <a href="{{ url('oi33_meow_followers', query={uid: target._id}) }}">粉丝: {{ followerCount }}</a>
         </p>
-        {% if not canSee %}<p style="margin:.5rem 0 0;color:#888;">{{ _('Meow posts hidden') }}</p>{% endif %}
+        {% if not canSee %}<p class="oi33-hint" style="margin:.5rem 0 0;">{{ _('Meow posts hidden') }}</p>{% endif %}
       </div>
     </div>
   </div>

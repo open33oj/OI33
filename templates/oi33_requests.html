@@ -45,13 +45,13 @@
             {% if canApprove %}
             <form method="post" action="/oi33/requests/{{ r._id }}/approve" style="display:inline;">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-              <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Approve') }}</a>
+              <button type="submit" class="oi33-link-action oi33-link-button">{{ _('Approve') }}</button>
             </form>
             <span style="opacity:0.3;">/</span>
             {% endif %}
             <form method="post" action="/oi33/requests/{{ r._id }}/reject" style="display:inline;">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
-              <a href="javascript:void(0)" onclick="this.parentNode.submit();return false;" style="color:var(--accent-color, #55b6e2);">{{ _('Reject') }}</a>
+              <button type="submit" class="oi33-link-action oi33-link-button">{{ _('Reject') }}</button>
             </form>
           </div>
 

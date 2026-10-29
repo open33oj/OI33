@@ -1172,6 +1172,10 @@ function mountMap() {
             Notification.error('小猫已经在这个格子里。');
             return;
         }
+        if (me?.wildcat) {
+            Notification.error('野猫模式已开启，不能手动移动；请先关闭野猫模式。');
+            return;
+        }
         selectedTarget = { x, y };
         const distance = me ? Math.abs(me.x - x) + Math.abs(me.y - y) : 0;
         const adjacent = distance === 1;
@@ -1249,17 +1253,20 @@ function mountMap() {
             const territoryTeleport = isOwnTerritoryTeleport(me, x, y);
             const fortressBlocked = !!fortressCatIdAt(x, y)
                 && fortressCatIdAt(x, y) !== (bigCats?.boundCatId() || 0);
+            const wildcatBlocked = !!me?.wildcat && !sameCell;
             action.hidden = !canAct || sameCell;
-            action.textContent = fortressBlocked
-                ? '禁止进入（大猫领地核心）'
-                : joining
-                    ? '免费加入这里'
-                    : adjacent
-                        ? '移动到这里（3g）'
-                        : territoryTeleport
-                            ? '领地传送到这里（3g）'
-                            : '传送到这里（3 个罐头）';
-            action.disabled = fortressBlocked;
+            action.textContent = wildcatBlocked
+                ? '野猫模式已开启'
+                : fortressBlocked
+                    ? '禁止进入（大猫领地核心）'
+                    : joining
+                        ? '免费加入这里'
+                        : adjacent
+                            ? '移动到这里（3g）'
+                            : territoryTeleport
+                                ? '领地传送到这里（3g）'
+                                : '传送到这里（3 个罐头）';
+            action.disabled = fortressBlocked || wildcatBlocked;
         }
         cellDialog.showModal();
     };
@@ -1592,6 +1599,11 @@ function mountMap() {
             if (!joining && state.me
                 && state.me.x === selectedTarget.x && state.me.y === selectedTarget.y) {
                 Notification.error('小猫已经在这个格子里。');
+                actionDialog.close();
+                return;
+            }
+            if (state.me?.wildcat && !joining) {
+                Notification.error('野猫模式已开启，不能手动移动；请先关闭野猫模式。');
                 actionDialog.close();
                 return;
             }

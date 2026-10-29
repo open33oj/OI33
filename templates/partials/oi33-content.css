@@ -1,3 +1,28 @@
+
+/* Shared presentation helpers for OI33 pages. Use these instead of inline
+   color/spacing styles so a user theme (page/card/text/accent) reaches them. */
+.oi33-muted {
+  color: var(--oi33-card-muted, var(--oi33-page-muted, var(--oi33-muted)));
+}
+
+.oi33-hint {
+  color: var(--oi33-card-muted, var(--oi33-page-muted, var(--oi33-muted)));
+  font-size: .9em;
+}
+
+.oi33-link-action {
+  color: var(--oi33-accent, var(--oi33-accent, #55b6e2));
+}
+
+.oi33-ok { color: #2e7d32; }
+.oi33-warn { color: #b26a00; }
+.oi33-bad { color: #c62828; }
+.oi33-info { color: #1976d2; }
+.theme--dark .oi33-ok, [data-mantine-color-scheme=dark] .oi33-ok { color: #6fcf76; }
+.theme--dark .oi33-warn, [data-mantine-color-scheme=dark] .oi33-warn { color: #ffb74d; }
+.theme--dark .oi33-bad, [data-mantine-color-scheme=dark] .oi33-bad { color: #ef6c6c; }
+.theme--dark .oi33-info, [data-mantine-color-scheme=dark] .oi33-info { color: #64b5f6; }
+
 .oi33-file-io-tag {
   padding: 0 10px !important;
   border: 1px solid rgba(214, 60, 42, .4) !important;
@@ -33,27 +58,19 @@
 }
 
 /* Hydro's typography renders headings at font-weight 300–500, so from h3 on
-   they are thinner than body text. Restore a clear hierarchy: bold headings,
-   a darker green-tinted color, and a GitHub-style underline for h1/h2. */
+   they are thinner than body text. Restore a clear hierarchy: bold headings and
+   a GitHub-style underline for h1/h2. Colors come from the active theme so a
+   user palette (page/card) also reaches prose headings. */
 .typo h1, .typo h2, .typo h3, .typo h4, .typo h5, .typo h6 {
   font-weight: 600 !important;
   line-height: 1.35;
-  color: #23402e;
+  color: var(--oi33-card-fg, var(--oi33-page-fg, var(--oi33-text)));
 }
 
 .typo h1, .typo h2 {
   font-weight: 700 !important;
   padding-bottom: .25em;
-  border-bottom: 1px solid rgba(67, 108, 78, .2);
-}
-
-.theme--dark .typo h1, .theme--dark .typo h2, .theme--dark .typo h3,
-.theme--dark .typo h4, .theme--dark .typo h5, .theme--dark .typo h6 {
-  color: #cfe3d2;
-}
-
-.theme--dark .typo h1, .theme--dark .typo h2 {
-  border-bottom-color: rgba(137, 181, 145, .22);
+  border-bottom: 1px solid var(--oi33-card-border, var(--oi33-page-border, var(--oi33-border)));
 }
 
 .oi33-content-toc-controls {
@@ -69,13 +86,13 @@
   align-items: center;
   gap: 7px;
   margin: 0;
-  color: #52645a;
+  color: var(--oi33-page-muted, var(--oi33-muted));
   font-size: 13px;
   cursor: pointer;
   user-select: none;
 }
 
-.oi33-content-toc-toggle input { margin: 0; accent-color: #31824d; }
+.oi33-content-toc-toggle input { margin: 0; accent-color: var(--oi33-accent); }
 
 .oi33-content-layout { min-width: 0; }
 
@@ -94,17 +111,17 @@
   max-height: calc(100vh - 92px);
   overflow: auto;
   padding: 14px 14px 14px 16px;
-  border: 1px solid rgba(67, 108, 78, .18);
+  border: 1px solid var(--oi33-card-border, var(--oi33-border));
   border-radius: 10px;
-  background: rgba(248, 251, 248, .94);
-  box-shadow: 0 5px 18px rgba(36, 68, 44, .07);
+  background: var(--oi33-card-bg, var(--oi33-sidebar-bg));
+  box-shadow: 0 5px 18px rgba(0, 0, 0, .08);
 }
 
 .oi33-content-toc[hidden] { display: none; }
 
 .oi33-content-toc__title {
   margin-bottom: 9px;
-  color: #2e6e43;
+  color: var(--oi33-accent);
   font-size: 13px;
   font-weight: 700;
 }
@@ -119,7 +136,7 @@
   display: block;
   padding: 4px 4px 4px calc(4px + var(--oi33-toc-depth, 0) * 14px);
   border-left: 2px solid transparent;
-  color: #55665a;
+  color: var(--oi33-card-muted, var(--oi33-page-muted, var(--oi33-muted)));
   font-size: 12px;
   line-height: 1.45;
   text-decoration: none !important;
@@ -127,24 +144,13 @@
 }
 
 .oi33-content-toc__link:hover {
-  border-left-color: #3f8b58;
-  color: #267044;
-  background: rgba(63, 139, 88, .08);
+  border-left-color: var(--oi33-accent);
+  color: var(--oi33-accent);
+  background: var(--oi33-card-hover, var(--oi33-hover));
 }
 
 [data-content-toc-source] :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: 76px; }
 
-.theme--dark .oi33-content-toc-toggle,
-.theme--dark .oi33-content-toc__link { color: #b8c5ba; }
-
-.theme--dark .oi33-content-toc {
-  border-color: rgba(137, 181, 145, .18);
-  background: rgba(29, 35, 30, .95);
-  box-shadow: 0 5px 18px rgba(0, 0, 0, .2);
-}
-
-.theme--dark .oi33-content-toc__title,
-.theme--dark .oi33-content-toc__link:hover { color: #83cf96; }
 
 @media (max-width: 900px) {
   .oi33-content-layout.is-toc-visible {
@@ -160,4 +166,280 @@
     position: static;
     max-height: min(42vh, 360px);
   }
+}
+
+/* -------------------------------------------------------------------------
+   Visual polish (2026-10)
+   A small, theme-aware layer on top of Hydro's stock cards. It intentionally
+   uses only tokens so light/dark and user palettes keep working.
+   ------------------------------------------------------------------------- */
+
+html.oi33-shell #panel .section {
+  border: 1px solid var(--oi33-card-border, var(--oi33-border));
+  border-radius: var(--oi33-radius, 2px);
+  box-shadow: var(--oi33-card-shadow);
+}
+
+html.oi33-shell #panel .section__header {
+  padding: 18px 22px 0;
+}
+
+html.oi33-shell #panel .section__body:not(.no-padding) {
+  padding: 18px 22px;
+}
+
+html.oi33-shell #panel .section__footer {
+  padding: 12px 22px;
+}
+
+html.oi33-shell #panel .section__title {
+  font-size: clamp(1.15rem, 1.4vw, 1.35rem);
+  line-height: 1.25;
+  letter-spacing: -.01em;
+}
+
+/* Homepage hero: the site's homepage is raw HTML (logo + a table of domain
+   links), so style it by structure rather than requiring config changes. */
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child {
+  position: relative;
+  overflow: hidden;
+  background-image:
+    radial-gradient(900px 320px at 50% -140px, var(--oi33-accent-weak, rgba(58, 111, 216, .12)), transparent 70%);
+}
+
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child::after {
+  position: absolute;
+  inset: auto -10% -55% -10%;
+  height: 60%;
+  border-radius: 50%;
+  background: var(--oi33-accent-weak, rgba(58, 111, 216, .12));
+  content: '';
+  filter: blur(55px);
+  opacity: .55;
+  pointer-events: none;
+}
+
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child > .section__body {
+  position: relative;
+  z-index: 1;
+  padding: clamp(30px, 5vw, 54px) clamp(18px, 4vw, 44px) clamp(26px, 4vw, 42px);
+  text-align: center;
+}
+
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child img {
+  width: clamp(96px, 13vw, 132px);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 16px 24px rgba(20, 34, 29, .16));
+}
+
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child table {
+  width: auto;
+  margin: 18px auto 0;
+  border: 0;
+  background: transparent;
+}
+
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child td {
+  padding: 0;
+  border: 0;
+  text-align: center;
+}
+
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child td p {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 0;
+  line-height: 0;
+}
+
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child td a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 12px;
+  border: 1px solid var(--oi33-card-border, var(--oi33-border));
+  border-radius: 4px;
+  background: var(--oi33-card-hover, var(--oi33-hover));
+  color: var(--oi33-card-fg, var(--oi33-text));
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-decoration: none;
+  transition: border-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child td a:hover {
+  border-color: var(--oi33-accent);
+  color: var(--oi33-accent);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+/* Homepage discussion list: one calm row per topic, with a real footer link. */
+html.oi33-shell.page--homepage .page--discussion_main .oi33-contest-table__group {
+  transition: background .15s ease;
+}
+
+html.oi33-shell.page--homepage .page--discussion_main .oi33-contest-table__group:hover {
+  background: var(--oi33-card-hover, var(--oi33-hover));
+}
+
+html.oi33-shell.page--homepage .page--discussion_main .pager-bottom {
+  margin: 0;
+  padding: 10px 18px;
+  border-top: 1px solid var(--oi33-card-border, var(--oi33-border));
+  text-align: center;
+}
+
+html.oi33-shell.page--homepage .page--discussion_main .pager-bottom .pager__item {
+  color: var(--oi33-card-muted, var(--oi33-muted));
+  font-size: 13px;
+}
+
+html.oi33-shell.page--homepage .section.side .section__header {
+  padding: 14px 18px 0;
+}
+
+html.oi33-shell.page--homepage .section.side .section__body {
+  padding: 12px 18px 16px;
+}
+
+@media (max-width: 900px) {
+  html.oi33-shell #panel .section__header { padding: 14px 16px 0; }
+  html.oi33-shell #panel .section__body:not(.no-padding) { padding: 14px 16px; }
+  html.oi33-shell #panel .section__footer { padding: 10px 16px; }
+  html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child > .section__body {
+    padding: 26px 16px 24px;
+  }
+}
+
+/* Default dark palette: Hydro's stock dark card (#323334) is much warmer and
+   lighter than the OI33 blue-black shell (#1b1f27). Pull the default card
+   surface into the same family so dark mode feels like one system. User themes
+   are injected later and still win. */
+html.oi33-shell.theme--dark #panel .section,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel .section {
+  background-color: #1b1f27;
+  border-color: #2b303a;
+  color: var(--oi33-text);
+}
+
+html.oi33-shell.theme--dark #panel .section > .section__header > .section__title,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel .section > .section__header > .section__title {
+  color: var(--oi33-text);
+}
+
+/* The cat arena note sits directly above the map card; use the theme surface
+   instead of the default blue note block so the whole page reads as one card. */
+html.oi33-shell.page--oi33_cat_can_arena #panel blockquote.note {
+  border-left-color: var(--oi33-accent, var(--oi33-border));
+  background: var(--oi33-card-hover, var(--oi33-hover));
+  color: var(--oi33-card-fg, var(--oi33-text));
+}
+
+/* Tables and form controls are the last surfaces that still came from
+   Hydro's stock light/dark palette. Keep their geometry, but paint them with
+   the same card tokens as the surrounding content. */
+html.oi33-shell #panel .section .data-table th,
+html.oi33-shell #panel .section .section__table-header,
+html.oi33-shell #panel .section .table th {
+  background: var(--oi33-card-bg, var(--oi33-sidebar-bg));
+  border-color: var(--oi33-card-border, var(--oi33-border));
+  color: var(--oi33-card-muted, var(--oi33-muted));
+}
+
+html.oi33-shell #panel .section .data-table td,
+html.oi33-shell #panel .section .table td {
+  border-color: var(--oi33-card-border, var(--oi33-border));
+}
+
+html.oi33-shell #panel .textbox,
+html.oi33-shell #panel input:not([type]),
+html.oi33-shell #panel input[type="text"],
+html.oi33-shell #panel input[type="search"],
+html.oi33-shell #panel input[type="password"],
+html.oi33-shell #panel input[type="email"],
+html.oi33-shell #panel input[type="url"],
+html.oi33-shell #panel input[type="tel"],
+html.oi33-shell #panel input[type="number"],
+html.oi33-shell #panel input[type="date"],
+html.oi33-shell #panel input[type="datetime-local"],
+html.oi33-shell #panel input[type="time"],
+html.oi33-shell #panel select,
+html.oi33-shell #panel textarea {
+  border-color: var(--oi33-card-border, var(--oi33-border));
+  background-color: var(--oi33-card-bg, #ffffff);
+  color: var(--oi33-card-fg, var(--oi33-text));
+}
+
+html.oi33-shell #panel input::placeholder,
+html.oi33-shell #panel textarea::placeholder {
+  color: var(--oi33-card-muted, var(--oi33-muted));
+}
+
+html.oi33-shell #panel input:focus,
+html.oi33-shell #panel select:focus,
+html.oi33-shell #panel textarea:focus {
+  border-color: var(--oi33-accent);
+}
+
+html.oi33-shell #panel input[type="checkbox"],
+html.oi33-shell #panel input[type="radio"],
+html.oi33-shell #panel input[type="range"] {
+  accent-color: var(--oi33-accent);
+}
+
+html.oi33-shell #panel input[type="color"] {
+  border-color: var(--oi33-card-border, var(--oi33-border));
+  background: var(--oi33-card-bg, #ffffff);
+}
+
+html.oi33-shell.theme--dark #panel .textbox,
+html.oi33-shell.theme--dark #panel input:not([type]),
+html.oi33-shell.theme--dark #panel input[type="text"],
+html.oi33-shell.theme--dark #panel input[type="search"],
+html.oi33-shell.theme--dark #panel input[type="password"],
+html.oi33-shell.theme--dark #panel input[type="email"],
+html.oi33-shell.theme--dark #panel input[type="url"],
+html.oi33-shell.theme--dark #panel input[type="tel"],
+html.oi33-shell.theme--dark #panel input[type="number"],
+html.oi33-shell.theme--dark #panel input[type="date"],
+html.oi33-shell.theme--dark #panel input[type="datetime-local"],
+html.oi33-shell.theme--dark #panel input[type="time"],
+html.oi33-shell.theme--dark #panel select,
+html.oi33-shell.theme--dark #panel textarea,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel .textbox,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input:not([type]),
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="text"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="search"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="password"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="email"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="url"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="tel"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="number"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="date"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="datetime-local"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel input[type="time"],
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel select,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel textarea {
+  border-color: var(--oi33-card-border, #2b303a);
+  background-color: var(--oi33-card-bg, #1b1f27);
+  color: var(--oi33-card-fg, var(--oi33-text));
+}
+
+/* Dark default table header must stay opaque while the sticky table body
+   scrolls underneath it. */
+html.oi33-shell.theme--dark #panel .section .data-table th,
+html.oi33-shell.theme--dark #panel .section .section__table-header,
+html.oi33-shell.theme--dark #panel .section .table th,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel .section .data-table th,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel .section .section__table-header,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel .section .table th {
+  background: var(--oi33-card-bg, #1b1f27);
+  border-color: var(--oi33-card-border, #2b303a);
+  color: var(--oi33-card-muted, var(--oi33-muted));
 }

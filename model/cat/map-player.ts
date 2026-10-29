@@ -5,6 +5,8 @@ import { catCanPoolColl } from './can';
 import { getEligibleUser } from './eligibility';
 import { CAT_MAP_TELEPORT_CAN_COST, cellId, cooldownMinutes, boundCatIdOf, catMapCellColl, catMapPlayerColl, CAT_MAP_MOVE_FOOD_COST, displaceFortressIntruders, fortressCatIdAt, moveTerritoryCount, normalizedCatId, recountSchoolCatTerritories, validColor, validCoordinate } from './map';
 import { ensureSchoolCatRecord, schoolCatKey } from './school-shared';
+import { wildCatBlocksManualMove } from './wildcat-rules';
+import type { CatMoveSource } from './wildcat-rules';
 
 // 小猫在地图上的动作：加入、移动、染色、切换领地传送与冷却计算。
 // 地图数据与领土统计在 map.ts，管理员强制操作在 map-admin.ts。
@@ -62,13 +64,19 @@ export async function joinCatMapPlayer(uid: number, x: number, y: number, now = 
     };
 }
 
-export async function moveCatMapPlayer(uid: number, targetX: number, targetY: number, now = new Date()) {
+export async function moveCatMapPlayer(
+    uid: number, targetX: number, targetY: number,
+    now = new Date(), source: CatMoveSource = 'manual',
+) {
     if (!validCoordinate(targetX, targetY)) throw new Error('目标格子超出地图范围。');
     const user: any = await getEligibleUser(uid);
     if (!user) throw new Error('只有已认证用户可以进入猫咪地图。');
     const player: any = await catMapPlayerColl.findOne({ _id: uid });
     if (!player) throw new Error('请先在地图上免费选择一个位置加入猫猫广场。');
     if (player.x === targetX && player.y === targetY) throw new Error('小猫已经在这个格子里。');
+    if (wildCatBlocksManualMove(player.wildcat, source)) {
+        throw new Error('野猫模式已开启，不能手动移动；请先关闭野猫模式。');
+    }
     if (player.availableAt && new Date(player.availableAt).getTime() > now.getTime()) {
         throw new Error(`操作冷却中，请在 ${new Date(player.availableAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })} 后再试。`);
     }

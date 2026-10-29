@@ -84,6 +84,39 @@ test('normalizeNavLinks parses name|url, ignores bad lines and javascript', () =
     ]);
 });
 
+test('protocol-relative URLs are not accepted as internal links', () => {
+    const links = normalizeNavLinks('伪内部|//evil.example/x\n正常|/oi33/wiki');
+    assert.deepEqual(links, [{ name: '正常', url: '/oi33/wiki', external: false }]);
+    const groups = normalizeNavGroups([{
+        items: [
+            { label: '伪内部', href: '//evil.example' },
+            { label: '正常', href: '/ok' },
+        ],
+    }]);
+    assert.deepEqual(groups[0].items.map((item) => item.label), ['正常']);
+});
+
+test('backslash/whitespace/credential URLs are rejected', () => {
+    assert.deepEqual(
+        normalizeNavLinks([
+            '反斜杠|/\\evil.example',
+            '空白|/a b',
+            '跳转|javascript:alert(1)',
+            '凭据|https://user:pass@evil.example',
+            '正常|https://example.com/x?a=1',
+        ].join('\n')).map((link) => link.name),
+        ['正常'],
+    );
+    const groups = normalizeNavGroups([{
+        items: [
+            { label: '反斜杠', href: '/\\evil.example' },
+            { label: '换行', href: '/o\nk' },
+            { label: '正常', href: '/ok' },
+        ],
+    }]);
+    assert.deepEqual(groups[0].items.map((item) => item.label), ['正常']);
+});
+
 test('normalizeNavLinks caps the number of links', () => {
     const raw = Array.from({ length: 30 }, (_, i) => `L${i}|https://x${i}.example`).join('\n');
     assert.equal(normalizeNavLinks(raw).length, 12);

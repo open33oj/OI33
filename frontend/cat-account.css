@@ -1,6 +1,6 @@
 .oi33-account-page { --account-food: #d98736; --account-can: #5974a6; }
 .oi33-account-balances { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.oi33-account-balances > div { padding: 16px 20px; border-radius: 12px; background: rgba(128,128,128,.08); }
+.oi33-account-balances > div { padding: 16px 20px; border-radius: 12px; background: var(--oi33-card-hover, rgba(128,128,128,.08)); }
 .oi33-account-balances span, .oi33-account-balances strong { display: block; }
 .oi33-account-balances span { opacity: .65; }
 .oi33-account-balances strong { margin-top: 4px; font-size: 2rem; }
@@ -11,8 +11,7 @@
 .oi33-account-chart-legend .is-food::before { background: var(--account-food); }
 .oi33-account-chart-legend .is-can::before { background: var(--account-can); }
 .oi33-account-chart-wrap { overflow-x: auto; }
-.oi33-account-chart { display: block; width: 100%; min-width: 620px; height: auto; color: rgba(80,80,80,.65); }
-.theme--dark .oi33-account-chart { color: rgba(230,230,230,.62); }
+.oi33-account-chart { display: block; width: 100%; min-width: 620px; height: auto; color: var(--oi33-card-muted, var(--oi33-muted)); }
 .oi33-account-chart text { fill: currentColor; font-size: 11px; }
 .oi33-account-grid { stroke: currentColor; stroke-width: 1; opacity: .16; }
 .oi33-account-line { fill: none; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }

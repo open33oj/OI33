@@ -54,7 +54,7 @@
   .medal-list__stars { flex:0 0 auto; color:#e8a33d; font-weight:600; font-size:.85em; letter-spacing:.05em; }
   .medal-list__tag {
     flex:0 0 auto; font-size:.75em; padding:.05rem .45rem; border-radius:999px;
-    border:1px solid rgba(127,127,127,.4); color:#777;
+    border:1px solid rgba(127,127,127,.4); color: var(--oi33-card-muted, var(--oi33-muted));
   }
   .medal-list__tag--oj { border-color:#4c8bf5; color:#3a6fd0; }
   .medal-list__tag--saleable { border-color:#d99b2b; color:#a8761a; }
@@ -64,16 +64,16 @@
     border:1px solid rgba(217,155,43,.6); color:#a8761a;
   }
   .medal-list__desc {
-    flex:1 1 auto; min-width:0; color:#777; font-size:.85em;
+    flex:1 1 auto; min-width:0; color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.85em;
     overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
   }
-  .medal-list__time { flex:0 0 auto; color:#888; font-size:.8em; }
-  .medal-list-empty { color:#777; font-size:.85em; }
-  .theme--dark .medal-list__desc, [data-mantine-color-scheme=dark] .medal-list__desc { color:#aaa; }
+  .medal-list__time { flex:0 0 auto; color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.8em; }
+  .medal-list-empty { color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.85em; }
+  .theme--dark .medal-list__desc, [data-mantine-color-scheme=dark] .medal-list__desc { color: var(--oi33-card-muted, var(--oi33-muted)); }
   .theme--dark .medal-list__tag, [data-mantine-color-scheme=dark] .medal-list__tag { color:#bbb; }
   .theme--dark .medal-list__time, .theme--dark .medal-list-empty,
   [data-mantine-color-scheme=dark] .medal-list__time,
-  [data-mantine-color-scheme=dark] .medal-list-empty { color:#aaa; }
+  [data-mantine-color-scheme=dark] .medal-list-empty { color: var(--oi33-card-muted, var(--oi33-muted)); }
 </style>
 {{ profile.style() }}
 {% endblock %}

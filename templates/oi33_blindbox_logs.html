@@ -66,7 +66,7 @@
   </div>
 </div>
 <style>
-  .oi33-bbl__summary { color:#888; font-size:.85em; }
+  .oi33-bbl__summary { color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.85em; }
   .oi33-bbl__medal { display:flex; align-items:center; gap:.45rem; }
   .oi33-bbl__icon {
     width:28px; height:28px; flex:0 0 28px; object-fit:fill;
@@ -74,11 +74,11 @@
   }
   .oi33-bbl__icon--missing {
     display:flex; align-items:center; justify-content:center;
-    color:#999; border:1px dashed rgba(127,127,127,.4); border-radius:6px;
+    color: var(--oi33-card-muted, var(--oi33-muted)); border:1px dashed var(--oi33-card-border, rgba(127,127,127,.4)); border-radius:6px;
   }
   .oi33-bbl__own { font-variant-numeric:tabular-nums; }
   .oi33-bbl__stars { color:#e8a33d; font-weight:600; }
   .oi33-bbl__price { color:#d97706; white-space:nowrap; }
-  .oi33-bbl__empty { color:#888; }
+  .oi33-bbl__empty { color: var(--oi33-card-muted, var(--oi33-muted)); }
 </style>
 {% endblock %}

@@ -6,6 +6,17 @@ export const WILD_CAT_SLOT_MS = WILD_CAT_SLOT_HOURS * 60 * 60 * 1000;
 // 走到从未染色的格子时使用的颜色：xterm-256 的 15 号白色。
 export const WILD_CAT_NEW_CELL_COLOR = 15;
 
+// 移动来源：手动操作、路径计划自动执行、野猫自动移动。野猫模式开启后
+// 只允许后两者继续，手动移动必须等用户关闭野猫模式。
+export type CatMoveSource = 'manual' | 'plan' | 'wildcat';
+
+export function wildCatBlocksManualMove(
+    wildcat: unknown,
+    source: CatMoveSource = 'manual',
+): boolean {
+    return wildcat === true && source === 'manual';
+}
+
 // Asia/Shanghai 固定 UTC+8、没有夏令时，因此可以直接在 epoch 上取整。
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
 

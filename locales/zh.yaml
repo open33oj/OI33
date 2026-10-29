@@ -644,6 +644,8 @@ oi33_ai_summary: 'AI 精简题意'
 
 # --- AI Discussion Moderation ---
 oi33_ai_moderation: '内容审核'
+oi33_ai_hidden_solutions: '隐藏题解'
+oi33_theme: '个性化主题'
 'AI Moderation': '内容审核'
 'ai_moderation_help': '这里统一处理讨论、题解、喵喵与个人简介的审核：学生内容先经规则层与 AI 审核，通过自动发布，违规自动拦截，存疑进入人工队列；喵喵待审、AI 拦截的隐藏题解和简介待审也都在本页处理。教师及以上免审。'
 'Today': '今日'

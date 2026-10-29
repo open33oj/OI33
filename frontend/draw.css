@@ -1,5 +1,5 @@
 .oi33-draw-page {
-  --draw-accent: #5f9fd6;
+  --draw-accent: var(--oi33-accent, #5f9fd6);
   --draw-border: rgba(128,128,128,.22);
   --draw-bg: rgba(255,255,255,.72);
   --draw-btn: rgba(128,128,128,.1);

@@ -20,6 +20,8 @@ wiki、OAuth 等整合为**单个** Hydro addon：入口 `index.ts` 按功能 `a
 | [docs/features/accounts.md](docs/features/accounts.md) | 身份/主档、OAuth、Token、Paste、评测机监控 |
 | [docs/features/ops.md](docs/features/ops.md) | `/oi33/admin/ops`：健康状态与运维动作 |
 | [docs/patches.md](docs/patches.md) | 17 处 monkey-patch 与 25 个 core 模板覆盖清单 |
+| [docs/style-guide.md](docs/style-guide.md) | 前端配色/主题变量、共享 class 与语义色边界 |
+| [docs/frontend-review.md](docs/frontend-review.md) | 前端全量 review：检查结果、修复与遗留项 |
 | [API.md](API.md) | Bearer Token 只读 API（MCP/Agent） |
 
 ## 目录

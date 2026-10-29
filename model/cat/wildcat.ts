@@ -133,8 +133,14 @@ async function runOne(
         uid, status: 'active',
     } as any, { projection: { _id: 1 } });
     if (plan) return null;
-    // 消耗与冷却和手动移动完全一致：冷却中或猫粮不足就跳过这个整点。
-    if (player.availableAt && new Date(player.availableAt).getTime() > now.getTime()) return null;
+    // 每个偶数点都重新读一次当前冷却：调度器手里的 player 是领取槽位之前
+    // 读的，期间可能已被路径计划/管理员操作更新。冷却中或猫粮不足就跳过
+    // 这个整点，不能因为「到点了」就无视冷却。
+    const live: any = await catMapPlayerColl.findOne({ _id: uid } as any, {
+        projection: { availableAt: 1, wildcat: 1, x: 1, y: 1 },
+    });
+    if (!live?.wildcat) return null;
+    if (live.availableAt && new Date(live.availableAt).getTime() > now.getTime()) return null;
     if (Math.max(0, Number(user.cat_food) || 0) < CAT_MAP_MOVE_FOOD_COST) return null;
 
     const ownCatId = schoolCatKey(user.school_cat);
@@ -201,7 +207,7 @@ async function runOne(
     // 并赠送一次免冷却染色（下面立刻用它完成占地）。
     let moveResult: any = null;
     try {
-        moveResult = await moveCatMapPlayer(uid, target.x, target.y, now);
+        moveResult = await moveCatMapPlayer(uid, target.x, target.y, now, 'wildcat');
     } catch (e: any) {
         const message = String(e?.message || e);
         // 冷却/缺粮/核心格/并发冲突都是正常的「这一轮不走」，不刷错误日志。

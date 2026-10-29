@@ -50,7 +50,7 @@
   .oi33-timeline__status-pending  { color: #f29b3d; }
   .oi33-timeline__status-approved { color: #2e7d32; }
   .oi33-timeline__status-rejected { color: #c62828; }
-  .oi33-timeline__status-cancelled { color: #888; text-decoration: line-through; }
+  .oi33-timeline__status-cancelled { color: var(--oi33-card-muted, var(--oi33-muted)); text-decoration: line-through; }
   .theme--dark .oi33-timeline { border-left-color: #323232; }
   .theme--dark .oi33-timeline__item { border-bottom-color: #2b2b2b; }
   .theme--dark .oi33-timeline__amount-pos { color: #6fcf76; }
@@ -227,6 +227,7 @@
             <option value="contract" {% if logType == 'contract' %}selected{% endif %}>合同</option>
             <option value="algorithm" {% if logType == 'algorithm' %}selected{% endif %}>算法掌握</option>
             <option value="solution" {% if logType == 'solution' %}selected{% endif %}>题解</option>
+            <option value="user" {% if logType == 'user' %}selected{% endif %}>个性化</option>
             <option value="admin" {% if logType == 'admin' %}selected{% endif %}>管理</option>
           </select>
           <button type="submit" class="rounded button">筛选</button>
@@ -627,6 +628,14 @@
               </span>
               {% if a.uid and a.uid !== a.userId %}<span class="oi33-timeline__note">· 作者 {{ userLink(a.uid) }}</span>{% endif %}
               {% if a.reason %}<span class="oi33-timeline__note">— {{ a.reason }}</span>{% endif %}
+
+            {% elif a.type == 'user' %}
+              <span class="oi33-timeline__tag">个性化</span>
+              {{ userLink(a.userId) }}
+              <span class="oi33-timeline__note">
+                {% if a.action == 'theme_update' %}更新了个性化主题（{{ a.reason }}）
+                {% else %}{{ a.action or '用户设置' }}{% endif %}
+              </span>
 
             {% elif a.type == 'admin' %}
               <span class="oi33-timeline__tag">管理</span>

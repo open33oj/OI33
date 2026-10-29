@@ -24,9 +24,9 @@ html.hasjs .oi33-diffwrap.oi33-diff-shown .oi33-diff-mask { display: none; }
 html.hasjs .oi33-diffwrap.oi33-diff-shown .oi33-diff-real { display: inline-block; }
 html.nojs .oi33-diff-mask { display: none; }
 /* 列表页难度列：表头纯文字开关，点击整列显隐；隐藏时单元格显示灰色「隐藏」占位 */
-.oi33-diff-col-toggle { cursor: pointer; user-select: none; font-weight: normal; color: #888; }
-.theme--dark .oi33-diff-col-toggle, [data-mantine-color-scheme=dark] .oi33-diff-col-toggle { color: #999; }
-.oi33-diff-col-hidden { color: #999; font-size: 0.75rem; }
+.oi33-diff-col-toggle { cursor: pointer; user-select: none; font-weight: normal; color: var(--oi33-card-muted, var(--oi33-muted)); }
+.theme--dark .oi33-diff-col-toggle, [data-mantine-color-scheme=dark] .oi33-diff-col-toggle { color: var(--oi33-card-muted, var(--oi33-muted)); }
+.oi33-diff-col-hidden { color: var(--oi33-card-muted, var(--oi33-muted)); font-size: 0.75rem; }
 html.hasjs .oi33-diff-shown .oi33-diff-col-hidden,
 html.nojs .oi33-diff-col-hidden { display: none; }
 html.hasjs .oi33-diff-col-value { display: none; }

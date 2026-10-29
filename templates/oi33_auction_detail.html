@@ -25,6 +25,14 @@
               {{ datetimeSpan(auction.endAt)|safe }} 结束
               {% if auction.status == 'active' %}（剩余 {{ remainText }}）{% endif %}
             </p>
+            {% if auction.seller %}
+            <p class="auction-meta">
+              <strong>卖家：</strong>{% if udict[auction.seller] %}{{ user.render_inline(udict[auction.seller]) }}{% else %}UID {{ auction.seller }}{% endif %}
+              · 用户拍卖固定 7 天，成交后收取 {{ sellerFeePercent }}%（向上取整）手续费，其余打给卖家。
+            </p>
+            {% else %}
+            <p class="auction-meta"><strong>卖家：</strong>官方</p>
+            {% endif %}
             {% if auction.status == 'active' %}
             <p class="auction-help">结束时间取设定时间与最后一次有效出价后 1 分钟中的较晚者。</p>
             {% endif %}
@@ -41,6 +49,9 @@
               {% if auction.winner %}
               <p class="auction-price">已成交：<strong>{{ auction.settlePrice }}</strong> 罐头，赢家
                 {% if udict[auction.winner] %}{{ user.render_inline(udict[auction.winner]) }}{% else %}UID {{ auction.winner }}{% endif %}。</p>
+              {% if auction.seller %}
+              <p class="auction-help">卖家获得 {{ auction.sellerProceeds }} 罐头（成交价 {{ auction.settlePrice }}，手续费 {{ auction.fee }}）。</p>
+              {% endif %}
               {% if medal.saleable and auction.winner == handler.user._id %}
               <p><a href="{{ url('oi33_contracts') }}">该奖章可售卖，前往「我的交易合同」创建转售合同 →</a></p>
               {% endif %}
@@ -69,12 +80,14 @@
           </form>
           {% elif viewerOwned %}
           <p class="auction-help">你已经拥有这个奖章，无需竞拍。</p>
+          {% elif isSeller %}
+          <p class="auction-help">这是你发起的拍卖，不能竞拍自己的奖章。拍卖不可取消，只能等结束；无人出价会自动流拍并把奖章退回给你。</p>
           {% elif auction.highestBidder == handler.user._id %}
           <p class="auction-help">你已经是当前最高出价者，静候结果即可。</p>
           {% else %}
           <p class="auction-help">只有通过认证的用户才能参与拍卖出价。</p>
           {% endif %}
-          {% if canManage %}
+          {% if canCancel %}
           <form method="post" action="{{ url('oi33_auction_cancel', id=auction._id) }}" style="margin-top:1rem;"
             onsubmit="return confirm('取消拍卖将退还当前最高出价。确定取消吗？');">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -111,10 +124,10 @@
   .auction-detail__body h2 { margin:0 0 .5rem; }
   .auction-detail__body p { margin:.35rem 0; }
   .auction-pixel { width:96px; height:96px; object-fit:fill; flex:0 0 96px; image-rendering:crisp-edges; image-rendering:pixelated; }
-  .auction-meta, .auction-help { color:#777; }
+  .auction-meta, .auction-help { color: var(--oi33-card-muted, var(--oi33-muted)); }
   .auction-price { font-size:1.05em; }
   .theme--dark .auction-meta, .theme--dark .auction-help,
-  [data-mantine-color-scheme=dark] .auction-meta, [data-mantine-color-scheme=dark] .auction-help { color:#aaa; }
+  [data-mantine-color-scheme=dark] .auction-meta, [data-mantine-color-scheme=dark] .auction-help { color: var(--oi33-card-muted, var(--oi33-muted)); }
   .auction-bidbox { margin-bottom:1.5rem; padding:1rem; border:1px solid rgba(127,127,127,.2); border-radius:8px; }
   .data-table form { margin:0; }
 </style>

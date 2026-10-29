@@ -3,9 +3,11 @@ import {
 } from 'hydrooj';
 import type { Oi33Auction } from './types';
 import { addLog } from './log';
-import { medalColl, medalGrant, userMedalColl } from './medal';
+import { medalColl, medalEvaluateUser, medalGrant, userMedalColl } from './medal';
 import { catCanPoolColl, ensureCurrentCatCanPrice } from './cat/can';
 import { userColl } from './user';
+import { auctionSellerFee, auctionSellerProceeds, AUCTION_USER_DURATION_MS } from './auction-rules';
+import { TRADE_AWARD_SOURCES, contractColl } from './contract';
 
 export const auctionColl = db.collection('oi33_auction');
 export const auctionBidColl = db.collection('oi33_auction_bid');
@@ -30,6 +32,7 @@ export async function ensureAuctionIndexes() {
         auctionColl.createIndex({ status: 1, endAt: 1 }),
         auctionColl.createIndex({ medalId: 1, status: 1 }),
         auctionColl.createIndex({ createdAt: -1 }),
+        auctionColl.createIndex({ seller: 1, status: 1 }),
         auctionBidColl.createIndex({ auctionId: 1, createdAt: -1 }),
     ]);
 }
@@ -96,6 +99,71 @@ export async function auctionCreate(input: {
     return doc;
 }
 
+// 用户发起拍卖：卖家必须持有一枚「可交易成就」（来自拍卖/合同的可售卖奖章）。
+// 上架时把奖章从卖家账户托管出来，固定一周、只收罐头；成交后卖家拿到
+// 成交价减去 5%（向上取整）手续费，手续费销毁。
+export async function auctionOffer(input: {
+    medalId: string;
+    seller: number;
+    startPrice: number;
+}) {
+    const { medalId, seller } = input;
+    if (!Number.isSafeInteger(input.startPrice) || input.startPrice < 1) {
+        throw new ValidationError('起拍价必须是不少于 1 的整数个猫罐头。');
+    }
+    const medal = await medalColl.findOne({ _id: medalId });
+    if (!medal) throw new ValidationError('奖章不存在。');
+    if (!medal.saleable) throw new ValidationError('只有可交易成就（可售卖奖章）才能发起拍卖。');
+    const award = await userMedalColl.findOne({
+        uid: seller, medalId, source: { $in: TRADE_AWARD_SOURCES },
+    });
+    if (!award) {
+        throw new ValidationError('只有通过拍卖或交易合同获得的可售卖奖章才能再次拍卖。');
+    }
+    const [pendingContract, running] = await Promise.all([
+        contractColl.findOne({ medalId, status: 'pending' }),
+        auctionColl.findOne({ medalId, status: 'active' }),
+    ]);
+    if (pendingContract) throw new ValidationError('该奖章有进行中的交易合同，结束后才能上架拍卖。');
+    if (running) throw new ValidationError('该奖章已有进行中的拍卖。');
+    // 原子托管：抢在上架前被合同/其它拍卖拿走时直接失败。
+    const escrowed = await userMedalColl.findOneAndDelete({ _id: award._id } as any);
+    if (!escrowed) throw new ValidationError('奖章状态刚刚发生变化，请重试。');
+    const now = new Date();
+    const endAt = new Date(now.getTime() + AUCTION_USER_DURATION_MS);
+    const doc: Oi33Auction = {
+        _id: new ObjectId(),
+        medalId,
+        startPrice: input.startPrice,
+        startAt: now,
+        scheduledEndAt: endAt,
+        endAt,
+        createdBy: seller,
+        createdAt: now,
+        seller,
+        sellerAwardSource: award.source,
+        status: 'active',
+        highestBid: null,
+        highestBidder: null,
+        bidCount: 0,
+    };
+    try {
+        await auctionColl.insertOne(doc as any);
+    } catch (e) {
+        await userMedalColl.insertOne(escrowed as any).catch((restoreError) => {
+            console.error('[oi33] failed to restore escrowed award after auction insert failed:', restoreError);
+        });
+        throw e;
+    }
+    medalEvaluateUser(seller, { ruleTypes: ['special_medals'], source: 'special' })
+        .catch((e) => console.error('[oi33] special-medal evaluation failed:', e));
+    await addLog({
+        type: 'auction', userId: seller, action: 'offer',
+        auctionId: doc._id.toHexString(), medalId, amount: doc.startPrice,
+    } as any);
+    return doc;
+}
+
 async function auctionRefund(uid: number, amount: number, auctionId: ObjectId, reason: string) {
     await userColl.updateOne({ _id: uid }, { $inc: { cat_can: amount } }, { upsert: true });
     await addLog({
@@ -121,6 +189,7 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
         throw new ValidationError('拍卖已结束。');
     }
     if (auction.highestBidder === uid) throw new ValidationError('你已经是当前最高出价者。');
+    if (auction.seller === uid) throw new ValidationError('不能竞拍自己发起的拍卖。');
     if (!Number.isSafeInteger(amount) || amount < 1) throw new ValidationError('出价无效。');
     const owned = await userMedalColl.findOne({ uid, medalId: auction.medalId });
     if (owned) throw new ValidationError('你已经拥有这个奖章，无需竞拍。');
@@ -190,6 +259,19 @@ export async function auctionBid(id: string | ObjectId, uid: number, amount: num
 
 // Lazy settlement: called whenever an auction is viewed or bid on after its
 // end time. The atomic status flip guarantees only one caller settles.
+async function auctionReturnAward(auction: any, reason: string) {
+    if (auction?.seller == null) return;
+    try {
+        await medalGrant(auction.seller, auction.medalId, 0, auction.sellerAwardSource || 'auction');
+        await addLog({
+            type: 'auction', userId: auction.seller, action: 'return',
+            auctionId: auction._id.toHexString(), medalId: auction.medalId, reason,
+        } as any);
+    } catch (e) {
+        console.error(`[oi33] failed to return auction ${auction._id} award to seller:`, e);
+    }
+}
+
 export async function auctionSettle(id: string | ObjectId, now = new Date()) {
     const auction = await auctionGet(id);
     if (!auction || auction.status !== 'active') return auction;
@@ -203,48 +285,113 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
     );
     if (!settledAuction) return await auctionColl.findOne({ _id: auction._id });
     if (settledAuction.highestBidder != null && settledAuction.highestBid != null) {
+        let medalGranted = false;
         try {
             await medalGrant(settledAuction.highestBidder, settledAuction.medalId, 0, 'auction');
-            // The winning cans return to the AMM pool, and the pool burns
-            // reserve food equal to their current sell value — exactly as if
-            // the winner sold the cans back and the proceeds were destroyed
-            // (no fee, no cooldown). This makes auctions a cat-food sink.
-            const market: any = await ensureCurrentCatCanPrice(now);
-            const pool: any = await catCanPoolColl.findOne({ _id: 'main' });
-            const foodBurn = Math.min(
-                Math.max(0, Number(pool?.reserveFood) || 0),
-                settledAuction.highestBid * Math.max(0, Number(market?.sellPrice) || 0),
-            );
-            const poolUpdated = await catCanPoolColl.updateOne(
-                { _id: 'main', reserveFood: { $gte: foodBurn } },
-                {
-                    $inc: { reserveFood: -foodBurn, circulatingCans: -settledAuction.highestBid },
-                    $set: { updatedAt: now },
-                },
-            );
-            if (!poolUpdated.modifiedCount) {
-                // The reserve moved concurrently; never leave the cans stuck.
-                await catCanPoolColl.updateOne(
-                    { _id: 'main' },
-                    { $inc: { circulatingCans: -settledAuction.highestBid }, $set: { updatedAt: now } },
+            medalGranted = true;
+            if (settledAuction.seller != null) {
+                // 用户拍卖：成交价扣 5%（向上取整）手续费后打给卖家，手续费销毁。
+                const fee = auctionSellerFee(settledAuction.highestBid);
+                const proceeds = auctionSellerProceeds(settledAuction.highestBid);
+                if (proceeds > 0) {
+                    const paid = await userColl.updateOne(
+                        { _id: settledAuction.seller },
+                        { $inc: { cat_can: proceeds } },
+                    );
+                    if (!paid.modifiedCount) {
+                        console.error(`[oi33] auction ${auction._id}: seller ${settledAuction.seller} not found`);
+                    }
+                }
+                if (fee > 0) {
+                    await catCanPoolColl.updateOne(
+                        { _id: 'main' },
+                        { $inc: { circulatingCans: -fee, virtualCanSupply: -fee }, $set: { updatedAt: now } },
+                    ).catch((error) => {
+                        console.error(`[oi33] auction ${auction._id}: failed to burn fee cans:`, error);
+                    });
+                }
+                await auctionColl.updateOne(
+                    { _id: auction._id },
+                    {
+                        $set: {
+                            winner: settledAuction.highestBidder,
+                            settlePrice: settledAuction.highestBid,
+                            fee,
+                            sellerProceeds: proceeds,
+                            foodBurn: 0,
+                        },
+                    },
                 );
+                await addLog({
+                    type: 'auction', userId: settledAuction.highestBidder, action: 'settle',
+                    auctionId: auction._id.toHexString(), medalId: settledAuction.medalId,
+                    amount: settledAuction.highestBid, fee,
+                } as any);
+                await addLog({
+                    type: 'cat_account', userId: settledAuction.seller, sender: settledAuction.highestBidder,
+                    action: 'auction_sale', amount: 0, canAmount: proceeds,
+                    reason: `拍卖成交（成交价 ${settledAuction.highestBid}，手续费 ${fee}）`,
+                } as any);
+            } else {
+                // 管理员拍卖：赢家支付的罐头回流罐头池，同时按当前卖价销毁等值储备粮
+                // （相当于赢家把罐头卖回市场并销毁所得，无手续费、无冷却）。
+                const market: any = await ensureCurrentCatCanPrice(now);
+                const pool: any = await catCanPoolColl.findOne({ _id: 'main' });
+                const foodBurn = Math.min(
+                    Math.max(0, Number(pool?.reserveFood) || 0),
+                    settledAuction.highestBid * Math.max(0, Number(market?.sellPrice) || 0),
+                );
+                const poolUpdated = await catCanPoolColl.updateOne(
+                    { _id: 'main', reserveFood: { $gte: foodBurn } },
+                    {
+                        $inc: { reserveFood: -foodBurn, circulatingCans: -settledAuction.highestBid },
+                        $set: { updatedAt: now },
+                    },
+                );
+                if (!poolUpdated.modifiedCount) {
+                    // The reserve moved concurrently; never leave the cans stuck.
+                    await catCanPoolColl.updateOne(
+                        { _id: 'main' },
+                        { $inc: { circulatingCans: -settledAuction.highestBid }, $set: { updatedAt: now } },
+                    );
+                }
+                await auctionColl.updateOne(
+                    { _id: auction._id },
+                    { $set: { winner: settledAuction.highestBidder, settlePrice: settledAuction.highestBid, foodBurn } },
+                );
+                await addLog({
+                    type: 'auction', userId: settledAuction.highestBidder, action: 'settle',
+                    auctionId: auction._id.toHexString(), medalId: settledAuction.medalId,
+                    amount: settledAuction.highestBid, foodBurn,
+                } as any);
             }
-            await auctionColl.updateOne(
-                { _id: auction._id },
-                { $set: { winner: settledAuction.highestBidder, settlePrice: settledAuction.highestBid, foodBurn } },
-            );
-            await addLog({
-                type: 'auction', userId: settledAuction.highestBidder, action: 'settle',
-                auctionId: auction._id.toHexString(), medalId: settledAuction.medalId,
-                amount: settledAuction.highestBid, foodBurn,
-            } as any);
         } catch (e) {
             // Never leave the escrowed cans stuck: if the grant fails (e.g.
-            // the medal was deleted mid-auction) refund the leader.
+            // the medal was deleted mid-auction) refund the leader. A user
+            // auction also gets its escrowed award back.
             console.error(`[oi33] auction settle grant failed for ${auction._id}:`, e);
-            await auctionRefund(settledAuction.highestBidder, settledAuction.highestBid, auction._id, '结算失败退款');
+            if (!medalGranted) {
+                await auctionRefund(
+                    settledAuction.highestBidder, settledAuction.highestBid,
+                    auction._id, '结算失败退款',
+                );
+                await auctionReturnAward(settledAuction, '结算失败退回');
+            } else {
+                // The award was already handed over; keep the record readable
+                // even if a later bookkeeping write failed.
+                await auctionColl.updateOne(
+                    { _id: auction._id },
+                    {
+                        $set: {
+                            winner: settledAuction.highestBidder,
+                            settlePrice: settledAuction.highestBid,
+                        },
+                    },
+                ).catch(() => {});
+            }
         }
     } else {
+        await auctionReturnAward(settledAuction, '流拍退回');
         await addLog({
             type: 'auction', userId: settledAuction.createdBy, action: 'settle_unsold',
             auctionId: auction._id.toHexString(), medalId: settledAuction.medalId,
@@ -271,6 +418,11 @@ export async function auctionCancel(id: string | ObjectId, operator: number, now
     const auction = await auctionGet(id);
     if (!auction) throw new NotFoundError(String(id));
     if (auction.status !== 'active') throw new ValidationError('拍卖已结束。');
+    // 用户拍卖是卖家把奖章托管后发起的，不能中途取消（管理员也不行）：
+    // 只能等到期；无人出价时自动流拍并把奖章退回卖家。
+    if (auction.seller != null) {
+        throw new ValidationError('用户拍卖不可取消，只能等到结束；无人出价会自动流拍并退回奖章。');
+    }
     // Refund the leader captured by the same atomic status change. A bid may
     // otherwise land between the read above and cancellation, leaving its
     // newer escrow unrefunded.
@@ -288,6 +440,7 @@ export async function auctionCancel(id: string | ObjectId, operator: number, now
             '拍卖已取消',
         );
     }
+    await auctionReturnAward(cancelledAuction, '拍卖已取消，退回卖家');
     await addLog({
         type: 'auction', userId: operator, action: 'cancel',
         auctionId: auction._id.toHexString(), medalId: auction.medalId,

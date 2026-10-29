@@ -16,15 +16,56 @@
       <div class="section__body">
         <p class="auction-help">
           出价立即托管扣除猫罐头，被超越时自动退款；每次出价至少比当前最高价多 1 个罐头。
-          实际结束时间取管理员设定时间与最后一次有效出价后 1 分钟中的较晚者。
-          成交后赢家获得奖章，支付的罐头回流罐头池，同时按当前卖价销毁等值储备粮；流拍或取消则全额退款。
-          可售卖奖章只拍卖一次，成交后只能通过交易合同转让。
+          实际结束时间取设定时间与最后一次有效出价后 1 分钟中的较晚者。
+          管理员拍卖成交后，支付的罐头回流罐头池并销毁等值储备粮；用户拍卖成交后，
+          成交价扣除 5%（向上取整）手续费打给卖家，手续费销毁；流拍则全额退款。
+          用户拍卖上架后不可取消，只能等结束；无人出价会自动流拍并退回奖章。
+          可售卖奖章只拍卖一次，之后只能通过拍卖或交易合同转让。
           {% if handler.user._id %}你当前持有 <strong>{{ viewerCans }}</strong> 个猫罐头。{% endif %}
         </p>
 
+        {% if handler.user._id %}
+        <div class="auction-create auction-offer">
+          <h2>出售我的可交易成就</h2>
+          <p class="auction-help">
+            只有通过拍卖或交易合同获得的可售卖奖章才能再次上架。用户拍卖固定 {{ userAuctionDays }} 天、
+            只接受猫罐头出价；成交后按成交价的 {{ sellerFeePercent }}%（向上取整）收取手续费，
+            手续费销毁，其余打给卖家。上架后奖章由系统托管，且不可取消；到期无人出价会自动流拍并退回奖章。
+          </p>
+          {% if canOffer %}
+          <form method="post" action="{{ url('oi33_auction_offer') }}">
+            <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+            <div class="row">
+              <div class="medium-7 columns form__item">
+                <label>我的奖章</label>
+                <select class="select" name="medalId" required>
+                  {% for medal in offerable %}
+                  <option value="{{ medal._id }}">{{ medal.name }}（{{ medal._id }}）</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="medium-3 columns form__item">
+                <label>起拍价（猫罐头）</label>
+                <input class="textbox" type="number" name="startPrice" min="1" value="1" required>
+              </div>
+              <div class="medium-2 columns form__item">
+                <label>时长</label>
+                <input class="textbox" type="text" value="固定 {{ userAuctionDays }} 天" disabled>
+              </div>
+            </div>
+            <button type="submit" class="rounded primary button">上架我的拍卖</button>
+          </form>
+          {% elif viewerFlag >= 1 %}
+          <p class="auction-help">你目前没有可上架的可交易成就。通过拍卖或交易合同获得可售卖奖章后，就可以在这里再次上架。</p>
+          {% else %}
+          <p class="auction-help">只有通过认证的用户才能发起拍卖。</p>
+          {% endif %}
+        </div>
+        {% endif %}
+
         {% if canManage %}
         <div class="auction-create">
-          <h2>上架拍卖</h2>
+          <h2>管理员上架拍卖</h2>
           <p class="auction-help">只有「可售卖奖章」中从未拍出的奖章可以上架；每个可售卖奖章只拍卖一次。</p>
           {% if medals.length %}
           <form method="post" action="{{ url('oi33_auction_create') }}">
@@ -67,6 +108,9 @@
             <div class="auction-card__body">
               <h3><a href="{{ url('oi33_auction_detail', id=auction._id) }}">{{ medal.name if medal else auction.medalId }}</a></h3>
               <p class="auction-meta">起拍价 {{ auction.startPrice }} 罐头 · 剩余 {{ auction.remainText }}</p>
+              {% if auction.seller %}
+              <p class="auction-meta">卖家：{% if udict[auction.seller] %}{{ user.render_inline(udict[auction.seller], false, false) }}{% else %}UID {{ auction.seller }}{% endif %} · 成交后收 {{ sellerFeePercent }}% 手续费</p>
+              {% endif %}
               <p class="auction-price">
                 {% if auction.highestBid != null %}
                 当前价 <strong>{{ auction.highestBid }}</strong> 罐头（{{ auction.bidCount }} 次出价）<br>
@@ -87,7 +131,7 @@
         {% if finished.length %}
         <h2>最近结束的拍卖</h2>
         <table class="data-table">
-          <thead><tr><th>奖章</th><th>结果</th><th>成交价</th><th>赢家</th><th>结束时间</th><th></th></tr></thead>
+          <thead><tr><th>奖章</th><th>卖家</th><th>结果</th><th>成交价</th><th>赢家</th><th>结束时间</th><th></th></tr></thead>
           <tbody>
           {% for auction in finished %}
             <tr>
@@ -97,6 +141,11 @@
                 {% else %}
                   {{ auction.medalId }}
                 {% endif %}
+              </td>
+              <td>
+                {% if auction.seller %}
+                  {% if udict[auction.seller] %}{{ user.render_inline(udict[auction.seller], false, false) }}{% else %}UID {{ auction.seller }}{% endif %}
+                {% else %}官方{% endif %}
               </td>
               <td>{{ '已取消' if auction.status == 'cancelled' else ('成交' if auction.winner else '流拍') }}</td>
               <td>{{ auction.settlePrice + ' 罐头' if auction.settlePrice else '—' }}</td>
@@ -117,8 +166,8 @@
   </div>
 </div>
 <style>
-  .auction-help { color:#777; }
-  .theme--dark .auction-help, [data-mantine-color-scheme=dark] .auction-help { color:#aaa; }
+  .auction-help { color: var(--oi33-card-muted, var(--oi33-muted)); }
+  .theme--dark .auction-help, [data-mantine-color-scheme=dark] .auction-help { color: var(--oi33-card-muted, var(--oi33-muted)); }
   .auction-create { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(127,127,127,.2); }
   .auction-create h2 { margin-top:0; }
   .auction-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:1rem; margin-bottom:1.5rem; }
@@ -127,8 +176,8 @@
   .auction-card__body h3 { margin:0 0 .5rem; }
   .auction-card__body p { margin:.35rem 0; }
   .auction-pixel { width:64px; height:64px; object-fit:fill; flex:0 0 64px; image-rendering:crisp-edges; image-rendering:pixelated; }
-  .auction-meta { color:#888; font-size:.85em; }
-  .theme--dark .auction-meta, [data-mantine-color-scheme=dark] .auction-meta { color:#aaa; }
+  .auction-meta { color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.85em; }
+  .theme--dark .auction-meta, [data-mantine-color-scheme=dark] .auction-meta { color: var(--oi33-card-muted, var(--oi33-muted)); }
   .data-table form { margin:0; }
   .data-table td:first-child { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; word-break: break-word; }
   @media (max-width:600px) { .auction-grid { grid-template-columns:1fr; } }

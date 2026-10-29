@@ -103,10 +103,10 @@
   /* 所有 IP 折叠：标题行带 ▸，点开展示完整 IP 列表。 */
   .page--oi33_accounts .oi33-ip-fold > summary {
     display:inline-flex; align-items:center; gap:.3rem;
-    cursor:pointer; list-style:none; color:#3a6fd0;
+    cursor:pointer; list-style:none; color: var(--oi33-accent, #3a6fd0);
   }
   .page--oi33_accounts .oi33-ip-fold > summary::-webkit-details-marker { display:none; }
-  .page--oi33_accounts .oi33-ip-fold > summary::before { content:'▸'; color:#999; transition:transform .15s ease; }
+  .page--oi33_accounts .oi33-ip-fold > summary::before { content:'▸'; color: var(--oi33-card-muted, var(--oi33-muted)); transition:transform .15s ease; }
   .page--oi33_accounts .oi33-ip-fold[open] > summary::before { transform:rotate(90deg); }
   .page--oi33_accounts .oi33-ip-fold > summary:hover { text-decoration:underline; }
   .page--oi33_accounts .oi33-ip-fold__list { margin-top:.35rem; }

@@ -39,7 +39,7 @@
             {% if udict[ddoc.lastReply.owner] %}{{ user.render_inline(udict[ddoc.lastReply.owner], false, false) }}{% else %}UID {{ ddoc.lastReply.owner }}{% endif %}
           {% else %}—{% endif %}
           &middot;
-          {% if ddoc.nReply %}{{ datetimeSpan(ddoc.updateAt)|safe }}{% else %}暂无回复{% endif %}
+          {% if ddoc.lastReply %}{{ datetimeSpan(ddoc.lastReply.at)|safe }}{% else %}暂无回复{% endif %}
         </td>
       </tr>
     </tbody>

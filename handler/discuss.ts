@@ -1,6 +1,7 @@
 import {
     Context, DiscussionModel, DocumentModel, Handler, PERM, Types, UserModel, query,
 } from 'hydrooj';
+import { latestReplyInfo } from './discuss-rules';
 
 // 题目讨论（parentType = TYPE_PROBLEM）不再混进 /discuss 的「全部讨论」，
 // 而是集中在本插件的「题目讨论」板块页。板块本身仍是一个普通概念：它只
@@ -15,22 +16,34 @@ const MAIN_LIST_TYPES = [
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // 列表卡片需要「最后回复人」和「回复新鲜度」，而 core 的 discussion 文档只存
-// 了 updateAt / nReply。这里按列表批量补一次最后一条回复，供同一个 partial 使用。
+// 了 updateAt / nReply。这里一次查出本页所有讨论的回复，连同楼中楼一起取最晚
+// 的一条活动，供同一个 partial 使用。
 async function decorateDiscussionRows(domainId: string, ddocs: any[]) {
     const now = Date.now();
-    await Promise.all(ddocs.map(async (ddoc) => {
-        let lastReply: { owner: number; at: Date } | null = null;
-        if (Number(ddoc.nReply) > 0) {
-            const [reply]: any[] = await DiscussionModel.getMultiReply(domainId, ddoc.docId)
-                .limit(1).toArray();
-            if (reply) lastReply = { owner: Number(reply.owner), at: ddoc.updateAt };
+    const dids = ddocs.map((ddoc) => ddoc.docId).filter(Boolean);
+    const repliesByDid = new Map<string, any[]>();
+    if (dids.length) {
+        const replies: any[] = await DocumentModel.getMulti(domainId, DocumentModel.TYPE_DISCUSSION_REPLY, {
+            parentType: DocumentModel.TYPE_DISCUSSION,
+            parentId: { $in: dids },
+        } as any).project({
+            parentId: 1, owner: 1, 'reply._id': 1, 'reply.owner': 1,
+        }).sort({ _id: 1 }).toArray();
+        for (const reply of replies) {
+            const key = String(reply.parentId);
+            const list = repliesByDid.get(key);
+            if (list) list.push(reply);
+            else repliesByDid.set(key, [reply]);
         }
-        const age = ddoc.updateAt ? now - new Date(ddoc.updateAt).getTime() : Number.POSITIVE_INFINITY;
+    }
+    for (const ddoc of ddocs as any[]) {
+        const lastReply = latestReplyInfo(repliesByDid.get(String(ddoc.docId)) || []);
+        const age = lastReply ? now - lastReply.at.getTime() : Number.POSITIVE_INFINITY;
         ddoc.lastReply = lastReply;
         ddoc.listStatus = !lastReply
             ? 'gray'
             : age <= 3 * DAY_MS ? 'green' : age <= 7 * DAY_MS ? 'yellow' : 'gray';
-    }));
+    }
     return ddocs;
 }
 

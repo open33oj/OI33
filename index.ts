@@ -25,6 +25,7 @@ import { apply as applyBlindbox } from './handler/blindbox';
 import { apply as applyDiscuss } from './handler/discuss';
 import { apply as applyOps } from './handler/ops';
 import { apply as applyNav } from './handler/nav';
+import { apply as applyTheme } from './handler/theme';
 import { backfillAllCatFood } from './model/user';
 import { ensureModerationIndexes } from './model/moderate';
 import {
@@ -247,6 +248,7 @@ export async function apply(ctx: Context) {
     }, (handler: any) => (handler.user.realname_flag || 0) >= 2);
     const parts: Array<[string, (ctx: Context) => any]> = [
         ['nav', applyNav],
+        ['theme', applyTheme],
         ['user', applyUser],
         ['content', applyContent],
         ['admin', applyAdmin],

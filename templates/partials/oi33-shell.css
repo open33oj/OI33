@@ -2,9 +2,9 @@
    Loaded on every page through frontend/oi33-shell.page.ts (AutoloadPage). */
 
 :root {
-  /* 48 / 216 are mirrored in templates/layout/html5.html's critical skeleton. */
-  --oi33-topbar-h: 48px;
-  --oi33-sidebar-w: 216px;
+  /* 52 / 232 are the shell dimensions; layout uses the same CSS variables. */
+  --oi33-topbar-h: 52px;
+  --oi33-sidebar-w: 232px;
   --oi33-sidebar-collapsed-w: 64px;
   --oi33-accent: #3a6fd8;
   --oi33-accent-strong: #2f5fc0;
@@ -16,6 +16,8 @@
   --oi33-sidebar-bg: #ffffff;
   --oi33-hover: #f3f6fc;
   --oi33-shadow: 0 12px 32px rgba(24, 39, 75, .14);
+  --oi33-radius: 2px;
+  --oi33-card-shadow: 0 1px 2px rgba(24, 39, 75, .03), 0 6px 18px rgba(24, 39, 75, .04);
 }
 
 .theme--dark,
@@ -30,6 +32,7 @@
   --oi33-sidebar-bg: #1b1f27;
   --oi33-hover: rgba(255, 255, 255, .06);
   --oi33-shadow: 0 12px 32px rgba(0, 0, 0, .48);
+  --oi33-card-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 6px 18px rgba(0, 0, 0, .16);
 }
 
 html.oi33-shell {
@@ -55,7 +58,7 @@ html.oi33-shell {
   align-items: center;
   gap: 18px;
   height: var(--oi33-topbar-h);
-  padding: 0 16px;
+  padding: 0 20px;
   background: var(--oi33-topbar-bg);
   border-bottom: 1px solid var(--oi33-border);
 }
@@ -75,24 +78,34 @@ html.oi33-shell {
 .oi33-topbar__brand img {
   display: block;
   width: auto;
-  height: 26px;
+  height: 28px;
 }
 
 .oi33-topbar__links {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 8px;
   min-width: 0;
 }
 
 .oi33-topbar__links a {
+  padding: 6px 9px;
+  border-radius: 4px;
   color: var(--oi33-muted);
   font-size: 13px;
   white-space: nowrap;
+  transition: color .15s ease, background .15s ease;
 }
 
-.oi33-topbar__links a:hover {
-  color: var(--oi33-accent);
+.oi33-topbar__links a:visited {
+  color: var(--oi33-muted);
+}
+
+.oi33-topbar__links a:hover,
+.oi33-topbar__links a:visited:hover {
+  color: var(--oi33-text);
+  background: var(--oi33-hover);
+  text-decoration: none;
 }
 
 .oi33-topbar__spacer {
@@ -104,6 +117,10 @@ html.oi33-shell {
   border-radius: 6px;
   color: var(--oi33-text);
   font-size: 13px;
+}
+
+.oi33-topbar__signin:visited {
+  color: var(--oi33-text);
 }
 
 .oi33-topbar__signin:hover {
@@ -160,23 +177,24 @@ html.oi33-shell {
   display: none;
   position: fixed;
   z-index: 850;
-  left: 14px;
-  bottom: 16px;
+  left: 12px;
+  bottom: 14px;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 1px solid var(--oi33-border);
-  border-radius: 50%;
-  background: var(--oi33-topbar-bg);
-  box-shadow: 0 2px 8px rgba(24, 39, 75, .12);
-  color: var(--oi33-text);
+  border-radius: 4px;
+  background: var(--oi33-sidebar-bg);
+  box-shadow: 0 2px 8px rgba(24, 39, 75, .1);
+  color: var(--oi33-muted);
   cursor: pointer;
 }
 
 .oi33-sidebar-toggle:hover {
   background: var(--oi33-hover);
+  color: var(--oi33-accent);
 }
 
 .oi33-sidebar-toggle svg {
@@ -263,7 +281,11 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
 
 .oi33-user__name {
   overflow: hidden;
-  max-width: 130px;
+  max-width: 200px;
+  /* Explicit line box: some CJK fonts have taller glyphs than `normal`, and
+     with overflow:hidden that clips the bottom of the name. */
+  line-height: 21px;
+  padding: 1px 0;
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -296,7 +318,7 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
   overflow-y: auto;
   padding: 6px 0;
   border: 1px solid var(--oi33-border);
-  border-radius: 10px;
+  border-radius: 4px;
   background: var(--oi33-topbar-bg);
   box-shadow: var(--oi33-shadow);
 }
@@ -327,6 +349,8 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
   color: var(--oi33-text);
   font-size: 13px;
   font-weight: 600;
+  line-height: 21px;
+  padding: 1px 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -359,7 +383,12 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
   cursor: pointer;
 }
 
-.oi33-menu__link:hover {
+.oi33-menu__link:visited {
+  color: var(--oi33-text);
+}
+
+.oi33-menu__link:hover,
+.oi33-menu__link:visited:hover {
   background: var(--oi33-hover);
   color: var(--oi33-text);
   text-decoration: none;
@@ -395,7 +424,7 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
   flex: 1;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 8px 10px 24px;
+  padding: 12px 12px 28px;
   scrollbar-width: thin;
   scrollbar-color: var(--oi33-border) transparent;
 }
@@ -416,12 +445,15 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
 }
 
 .oi33-nav__label {
-  margin: 12px 0 3px;
-  padding: 11px 10px 0;
+  margin: 16px 0 6px;
+  padding: 12px 10px 0;
   border-top: 1px solid var(--oi33-border);
   color: var(--oi33-muted);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
   line-height: 1;
+  opacity: .82;
 }
 
 .oi33-nav__item {
@@ -429,12 +461,12 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 34px;
-  padding: 0 10px;
-  border-radius: 6px;
+  min-height: 38px;
+  padding: 0 11px;
+  border-radius: 0;
   color: var(--oi33-text);
   font-size: 13.5px;
-  line-height: 20px;
+  line-height: 22px;
 }
 
 .oi33-nav__item:hover {
@@ -443,11 +475,17 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
   text-decoration: none;
 }
 
-.oi33-nav__item.is-active {
-  background: var(--oi33-accent-weak);
-  color: var(--oi33-accent);
+.oi33-nav__item:visited {
+  color: var(--oi33-text);
+}
+
+.oi33-nav__item.is-active,
+.oi33-nav__item.is-active:visited {
+  background: transparent;
+  color: var(--oi33-text);
   font-weight: 600;
 }
+
 
 .oi33-nav__icon {
   flex: none;
@@ -514,10 +552,9 @@ html.oi33-shell .nav--placeholder {
     padding-bottom: 68px;
   }
 
-  /* Keep the floating rail toggle from covering the footer's left links. */
-  html.oi33-shell .footer {
-    padding-bottom: 64px;
-  }
+  /* The floating rail toggle lives inside the rail column (left: 14px), so it
+     never overlaps the footer, which starts after the #panel offset. Keep the
+     footer's own padding instead of adding 64px of blank page at the bottom. */
 
   html.oi33-shell .oi33-sidebar {
     width: var(--oi33-sidebar-w);
@@ -648,9 +685,9 @@ html.oi33-shell .nav--placeholder {
   min-height: 46px;
   margin: 0 0 12px;
   padding: 0 14px;
-  background: var(--oi33-topbar-bg);
-  border: 1px solid var(--oi33-border);
-  box-shadow: 0 1px 3px rgba(24, 39, 75, .06);
+  background: var(--oi33-card-bg, var(--oi33-sidebar-bg));
+  border: 1px solid var(--oi33-card-border, var(--oi33-border));
+  box-shadow: var(--oi33-card-shadow);
 }
 
 .oi33-wiki-bar__nav {
@@ -661,18 +698,24 @@ html.oi33-shell .nav--placeholder {
 
 .oi33-wiki-bar__link {
   padding: 4px 2px;
-  color: var(--oi33-muted);
+  color: var(--oi33-card-muted, var(--oi33-muted));
   font-size: 13px;
   line-height: 20px;
 }
 
-.oi33-wiki-bar__link:hover {
+.oi33-wiki-bar__link:visited {
+  color: var(--oi33-card-muted, var(--oi33-muted));
+}
+
+.oi33-wiki-bar__link:hover,
+.oi33-wiki-bar__link:visited:hover {
   color: var(--oi33-accent);
   text-decoration: none;
 }
 
-.oi33-wiki-bar__link.is-active {
-  color: var(--oi33-text);
+.oi33-wiki-bar__link.is-active,
+.oi33-wiki-bar__link.is-active:visited {
+  color: var(--oi33-card-fg, var(--oi33-text));
   font-weight: 600;
 }
 

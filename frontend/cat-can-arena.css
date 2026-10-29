@@ -204,3 +204,62 @@
   .oi33-bigcat-side { width: 100%; height: auto; max-height: 260px; flex: none; border-top: 1px solid rgba(128,128,128,.16); border-left: 0; }
   .oi33-bigcat-picker-list li { flex-wrap: wrap; }
 }
+
+/* Theme integration: the map/cat pixels keep their own data colors, but the
+   surrounding chrome follows the shell palette (especially in custom dark /
+   light themes). These selectors out-rank the legacy .theme--dark greens. */
+html.oi33-shell .oi33-map-viewport {
+  background: var(--oi33-card-bg, rgb(68, 68, 68));
+}
+
+html.oi33-shell .oi33-map-toolbar,
+html.oi33-shell .oi33-map-navigation,
+html.oi33-shell .oi33-map-tabs,
+html.oi33-shell .oi33-bigcat-side {
+  background: var(--oi33-card-bg, rgba(248, 250, 247, .92));
+  border-color: var(--oi33-card-border, var(--oi33-border));
+  color: var(--oi33-card-fg, var(--oi33-text));
+}
+
+html.oi33-shell .oi33-map-stat,
+html.oi33-shell .oi33-map-coordinate,
+html.oi33-shell .oi33-map-costs,
+html.oi33-shell .oi33-map-me,
+html.oi33-shell .oi33-map-plan__count,
+html.oi33-shell .oi33-map-plan__hint,
+html.oi33-shell .oi33-bigcat-ranking-cells,
+html.oi33-shell .oi33-bigcat-ranking-empty,
+html.oi33-shell .oi33-bigcat-board-amount,
+html.oi33-shell .oi33-bigcat-tip {
+  color: var(--oi33-card-muted, var(--oi33-muted));
+}
+
+html.oi33-shell .oi33-map-stat strong,
+html.oi33-shell .oi33-map-toggles button,
+html.oi33-shell .oi33-map-tab,
+html.oi33-shell .oi33-bigcat-board-tabs button,
+html.oi33-shell .oi33-bigcat-ranking button,
+html.oi33-shell .oi33-bigcat-board li,
+html.oi33-shell .oi33-map-plan__steps li {
+  color: var(--oi33-card-fg, var(--oi33-text));
+}
+
+html.oi33-shell .oi33-map-tab.is-active,
+html.oi33-shell .oi33-map-toggles button.is-active,
+html.oi33-shell .oi33-bigcat-board-tabs button.is-active {
+  border-color: var(--oi33-accent);
+  background: var(--oi33-accent);
+  color: #fff;
+}
+
+html.oi33-shell .oi33-map-tab:hover,
+html.oi33-shell .oi33-bigcat-ranking-link {
+  color: var(--oi33-accent);
+}
+
+html.oi33-shell .oi33-map-plan,
+html.oi33-shell .oi33-map-plan__steps li {
+  border-color: var(--oi33-card-border, var(--oi33-border));
+  background: var(--oi33-card-hover, var(--oi33-hover));
+  color: var(--oi33-card-fg, var(--oi33-text));
+}

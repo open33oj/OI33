@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-    WILD_CAT_NEW_CELL_COLOR, WILD_CAT_SLOT_MS, nextWildCatSlot, wildCatSlotStart,
+    WILD_CAT_NEW_CELL_COLOR, WILD_CAT_SLOT_MS, nextWildCatSlot, wildCatBlocksManualMove, wildCatSlotStart,
 } from './wildcat-rules.ts';
 
 test('wildcat slots start on Asia/Shanghai even hours', () => {
@@ -50,4 +50,13 @@ test('nextWildCatSlot is the next even hour strictly after now', () => {
 test('wildcat constants keep the two-hour rhythm and white paint color', () => {
     assert.equal(WILD_CAT_SLOT_MS, 2 * 60 * 60 * 1000);
     assert.equal(WILD_CAT_NEW_CELL_COLOR, 15);
+});
+
+test('wildCatBlocksManualMove only blocks manual movement while wildcat is on', () => {
+    assert.equal(wildCatBlocksManualMove(true, 'manual'), true);
+    assert.equal(wildCatBlocksManualMove(true), true);
+    assert.equal(wildCatBlocksManualMove(true, 'plan'), false);
+    assert.equal(wildCatBlocksManualMove(true, 'wildcat'), false);
+    assert.equal(wildCatBlocksManualMove(false, 'manual'), false);
+    assert.equal(wildCatBlocksManualMove(undefined, 'manual'), false);
 });

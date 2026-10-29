@@ -26,7 +26,9 @@
 ## 题目讨论
 
 - 题目页讨论（`parentType = TYPE_PROBLEM`）不再出现在 `/discuss` 与首页讨论组件，
-  集中到 `/oi33/discuss/problem`（复用 core `partials/discussion_list.html`）。
+  集中到 `/oi33/discuss/problem`（复用 `partials/oi33_discussion_list.html`）。
+- 讨论卡片的「最后回复」取本页所有回复（含楼中楼）里最晚的一条，时间来自该条回复的
+  `ObjectId`；卡片颜色按这条回复距今 3 天 / 7 天分绿 / 黄 / 灰。
 - 讨论侧栏组件 `templates/partials/discussion_nodes_widget.html` 提供
   「题目讨论 / 全部题解」入口。
 

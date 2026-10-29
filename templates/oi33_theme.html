@@ -1,0 +1,428 @@
+{% set page_name = "oi33_theme" %}
+{% extends "layout/basic.html" %}
+{% block content %}
+
+{% macro color_field(mode, key, label, value, fallback, placeholder) %}
+<div class="form__item">
+  <label>{{ label }}</label>
+  <div class="theme-color-row">
+    <input class="textbox theme-color-input" type="text" name="{{ mode }}_{{ key }}" id="oi33-theme-{{ mode }}-{{ key }}"
+      value="{{ value or '' }}" placeholder="{{ placeholder }}" pattern="#[0-9a-fA-F]{6}" autocomplete="off">
+    <input class="theme-color-picker" type="color" value="{{ value or fallback }}"
+      data-target="#oi33-theme-{{ mode }}-{{ key }}" data-default="{{ fallback }}" aria-label="选择{{ label }}">
+    <button type="submit" class="theme-reset-item" name="reset_item" value="{{ mode }}_{{ key }}" formnovalidate title="还原为系统设置">系统默认</button>
+  </div>
+</div>
+{% endmacro %}
+<div class="row">
+  <div class="medium-9 columns">
+    <div class="section">
+      <div class="section__header">
+        <h1 class="section__title">个性化主题</h1>
+        <div class="section__tools">
+          <a class="rounded button" href="{{ url('user_detail', uid=handler.user._id) }}">返回个人页</a>
+        </div>
+      </div>
+      <div class="section__body">
+        <p class="theme-help">
+          推荐直接使用下面的「自定义 CSS」：亮色和暗色各一份，只允许改背景色和文字色。
+          预设方案就是整套 CSS，点一下会填入编辑器（同时同步到「高级」里的逐项颜色，方便微调）。
+          自定义 CSS 会覆盖逐项颜色；两者都留空时使用全站默认值。
+        </p>
+        <p class="theme-help">
+          <strong>边界：</strong>只覆盖页面背景/文字、默认卡片、顶栏、侧边栏和卡片内普通表单控件；
+          评测状态色、难度色、奖章/徽章、图表、猫咪地图/画布、代码高亮、图片等语义色不会跟随主题；
+          弹窗和下拉浮层保留站点模式配色，避免浮层文字不可读。
+        </p>
+        {% if themeWarnings.length %}
+        <div class="theme-warning" role="status">
+          <strong>可读性提醒</strong>
+          <ul>
+            {% for warning in themeWarnings %}<li>{{ warning }}</li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ url('oi33_theme') }}" id="oi33-theme-form">
+          <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+
+          <h2 class="theme-heading">颜色预设 · 中华传统色</h2>
+          <div class="theme-presets" id="oi33-theme-presets">
+            {% for preset in themePresets %}
+            <button type="button" class="theme-preset" data-preset="{{ preset.id }}" title="套用「{{ preset.label }}」">
+              <span class="theme-preset__swatches" aria-hidden="true">
+                <i style="background:{{ preset.light.topbarBg|default('#ffffff') }}"></i>
+                <i style="background:{{ preset.light.sidebarBg|default('#ffffff') }}"></i>
+                <i style="background:{{ preset.light.cardBg|default('#ffffff') }}"></i>
+                <i style="background:{{ preset.light.accent|default('#3a6fd8') }}"></i>
+              </span>
+              <span class="theme-preset__swatches theme-preset__swatches--dark" aria-hidden="true">
+                <i style="background:{{ preset.dark.topbarBg|default('#1b1f27') }}"></i>
+                <i style="background:{{ preset.dark.sidebarBg|default('#1b1f27') }}"></i>
+                <i style="background:{{ preset.dark.cardBg|default('#1b1f27') }}"></i>
+                <i style="background:{{ preset.dark.accent|default('#7fa5f2') }}"></i>
+              </span>
+              <span class="theme-preset__label">{{ preset.label }}<small>亮 / 暗</small></span>
+            </button>
+            {% endfor %}
+          </div>
+
+          <h2 class="theme-heading">自定义 CSS</h2>
+          <p class="theme-help">
+            只允许 <code>background-color</code> 和 <code>color</code> 两个属性，选择器必须来自下面的白名单；
+            亮色/暗色分开填写，留空表示不额外覆盖。保存时会逐条校验，非法规则会直接拒绝。
+          </p>
+          <div class="theme-css-grid">
+            <div class="form__item">
+              <label>亮色模式 CSS
+                <button type="submit" class="theme-reset-item" name="reset_item" value="light_css" formnovalidate>还原</button>
+              </label>
+              <textarea class="textbox theme-css-editor" name="light_css" rows="12" spellcheck="false"
+                placeholder="body { background-color: #f5f6f8; color: #303845; }">{{ lightCss }}</textarea>
+            </div>
+            <div class="form__item">
+              <label>暗色模式 CSS
+                <button type="submit" class="theme-reset-item" name="reset_item" value="dark_css" formnovalidate>还原</button>
+              </label>
+              <textarea class="textbox theme-css-editor" name="dark_css" rows="12" spellcheck="false"
+                placeholder="body { background-color: #121212; color: #eeeeee; }">{{ darkCss }}</textarea>
+            </div>
+          </div>
+          <details class="theme-selectors">
+            <summary>允许的选择器（{{ themeCssSelectors.length }} 个）</summary>
+            <div class="theme-selector-grid">
+              {% for item in themeCssSelectors %}
+              <div class="theme-selector"><code>{{ item.selector }}</code><span>{{ item.label }}</span></div>
+              {% endfor %}
+            </div>
+            <p class="theme-help" style="margin:.6rem 0 0;">
+              颜色值支持 <code>#rrggbb</code> / <code>#rgb</code>、<code>rgb()</code> / <code>rgba()</code> /
+              <code>hsl()</code> / <code>hsla()</code>、以及 <code>transparent</code> / <code>inherit</code> 等关键字；
+              不允许注释、<code>@</code> 规则、<code>url()</code>、<code>var()</code> 或 <code>!important</code>。
+              自定义 CSS 的对比度请自行把握，页面只在逐项颜色明显不可读时提示。
+            </p>
+          </details>
+
+          <details class="theme-advanced">
+            <summary>高级：逐项颜色（可选，自定义 CSS 会覆盖）</summary>
+          <h2 class="theme-heading">亮色模式 <button type="submit" class="theme-reset-item" name="reset_mode" value="light" formnovalidate>还原亮色全部</button></h2>
+          <div class="theme-grid">
+            {{ color_field('light', 'page_bg', '页面背景色', lightTheme.pageBg, '#f5f6f8', '#f5f6f8（留空用默认）') }}
+            {{ color_field('light', 'page_fg', '页面文字色', lightTheme.pageFg, '#303845', '留空自动取对比色') }}
+            {{ color_field('light', 'topbar_bg', '顶栏背景色', lightTheme.topbarBg, '#ffffff', '#ffffff（留空用默认）') }}
+            {{ color_field('light', 'topbar_fg', '顶栏文字色', lightTheme.topbarFg, '#1f2430', '留空自动取对比色') }}
+            {{ color_field('light', 'sidebar_bg', '侧边栏背景色', lightTheme.sidebarBg, '#ffffff', '#ffffff（留空用默认）') }}
+            {{ color_field('light', 'sidebar_fg', '侧边栏文字色', lightTheme.sidebarFg, '#1f2430', '留空自动取对比色') }}
+            {{ color_field('light', 'accent', '强调色', lightTheme.accent, '#3a6fd8', '留空用默认蓝色') }}
+            {{ color_field('light', 'card_bg', '卡片背景色', lightTheme.cardBg, '#ffffff', '留空跟随侧边栏/顶栏') }}
+            {{ color_field('light', 'card_fg', '卡片文字色', lightTheme.cardFg, '#1f2430', '留空自动取对比色') }}
+          </div>
+
+          <h2 class="theme-heading">暗色模式 <button type="submit" class="theme-reset-item" name="reset_mode" value="dark" formnovalidate>还原暗色全部</button></h2>
+          <div class="theme-grid">
+            {{ color_field('dark', 'page_bg', '页面背景色', darkTheme.pageBg, '#121212', '#121212（留空用默认）') }}
+            {{ color_field('dark', 'page_fg', '页面文字色', darkTheme.pageFg, '#eeeeee', '留空自动取对比色') }}
+            {{ color_field('dark', 'topbar_bg', '顶栏背景色', darkTheme.topbarBg, '#1b1f27', '#1b1f27（留空用默认）') }}
+            {{ color_field('dark', 'topbar_fg', '顶栏文字色', darkTheme.topbarFg, '#e7ebf2', '留空自动取对比色') }}
+            {{ color_field('dark', 'sidebar_bg', '侧边栏背景色', darkTheme.sidebarBg, '#20252e', '#20252e（留空用默认）') }}
+            {{ color_field('dark', 'sidebar_fg', '侧边栏文字色', darkTheme.sidebarFg, '#e7ebf2', '留空自动取对比色') }}
+            {{ color_field('dark', 'accent', '强调色', darkTheme.accent, '#7fa5f2', '留空用默认蓝色') }}
+            {{ color_field('dark', 'card_bg', '卡片背景色', darkTheme.cardBg, '#323334', '留空跟随侧边栏/顶栏') }}
+            {{ color_field('dark', 'card_fg', '卡片文字色', darkTheme.cardFg, '#eeeeee', '留空自动取对比色') }}
+          </div>
+          </details>
+
+          <h2 class="theme-heading">顶部链接</h2>
+          <p class="theme-help">每行一条「名称|URL」，URL 以 / 或 http(s):// 开头（协议相对 // 不安全，会被拒绝）。编辑文本会自动勾选自定义。</p>
+          <div class="theme-toggle-row">
+            <label class="checkbox theme-toggle">
+              <input type="checkbox" name="links_custom" value="1"{% if linksCustom %} checked{% endif %}>
+              使用我自己的顶部链接（不勾选则跟随全站配置）
+            </label>
+            <button type="submit" class="theme-reset-item" name="reset_item" value="links" formnovalidate>还原为系统设置</button>
+          </div>
+          <textarea class="textbox theme-textarea" name="links_text" rows="5" spellcheck="false"
+            placeholder="{{ defaultLinksText }}">{{ linksText }}</textarea>
+
+          <h2 class="theme-heading">可用图标</h2>
+          <p class="theme-help">
+            在侧边栏条目里写 <code>icon: 名称</code>；下面列出所有允许使用的图标（编号仅用于对照）。
+            写 <code>none</code> 表示不显示图标；未知图标会回退成 <code>dot</code>。
+          </p>
+          <div class="theme-icons">
+            {% for icon in navIcons %}
+            <span class="theme-icon" title="{{ icon }}">
+              <svg class="theme-icon__svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#oi33-i-{{ icon }}"></use></svg>
+              <span class="theme-icon__name">{{ loop.index }}. {{ icon }}</span>
+            </span>
+            {% endfor %}
+            <span class="theme-icon theme-icon--none" title="none">
+              <span class="theme-icon__none">∅</span>
+              <span class="theme-icon__name">none（不显示）</span>
+            </span>
+          </div>
+
+          <h2 class="theme-heading">侧边栏中间栏目</h2>
+          <p class="theme-help">
+            最上面的基础栏目和最下面的「管理」由全站统一配置，不能修改；只有中间部分可以替换。编辑下方 YAML 会自动勾选「使用我自己的中间栏目」；每组至少需要一个有效条目，只有 title 的空组会被忽略。
+            格式与全站导航一致：每组 <code>{ title, items }</code>，条目支持
+            <code>node</code>、<code>label + href</code> / <code>route</code>，可选
+            <code>icon</code> / <code>prefix</code> / <code>exact</code> / <code>login</code> / <code>admin</code>。
+          </p>
+          <div class="theme-fixed">
+            <div>
+              <span class="theme-fixed__label">固定 · 基础栏目</span>
+              <span class="theme-fixed__items">
+                {% for item in (firstGroup.items if firstGroup else []) %}
+                <span class="theme-chip">{{ item.label or item.node or item.href }}</span>
+                {% endfor %}
+                {% if not firstGroup %}<span class="theme-chip">（空）</span>{% endif %}
+              </span>
+            </div>
+            <div>
+              <span class="theme-fixed__label">固定 · 管理</span>
+              <span class="theme-fixed__items">
+                {% for item in (lastGroup.items if lastGroup else []) %}
+                <span class="theme-chip">{{ item.label or item.node or item.href }}</span>
+                {% endfor %}
+                {% if not lastGroup %}<span class="theme-chip">（空）</span>{% endif %}
+              </span>
+            </div>
+          </div>
+          <div class="theme-toggle-row">
+            <label class="checkbox theme-toggle">
+              <input type="checkbox" name="nav_custom" value="1"{% if navCustom %} checked{% endif %}>
+              使用我自己的中间栏目（不勾选则跟随全站配置）
+            </label>
+            <button type="submit" class="theme-reset-item" name="reset_item" value="nav" formnovalidate>还原为系统设置</button>
+          </div>
+          <textarea class="textbox theme-textarea theme-textarea--mono" name="nav_groups" rows="16" spellcheck="false">{{ navGroupsYaml }}</textarea>
+
+          <div class="theme-actions">
+            <button type="submit" class="rounded primary button">保存个性化设置</button>
+            <button type="submit" class="rounded button theme-reset" name="action" value="reset"
+              onclick="return confirm('恢复默认会清除亮色/暗色颜色、顶部链接和中间栏目设置，确定吗？');">恢复默认</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="medium-3 columns">
+    <div class="section side">
+      <div class="section__header">
+        <h2 class="section__title">预览</h2>
+      </div>
+      <div class="section__body">
+        <div class="theme-previews">
+          <div class="theme-preview theme-preview--light" id="oi33-theme-preview-light">
+            <div class="theme-preview__caption">亮色模式</div>
+            <div class="theme-preview__topbar">顶部条</div>
+            <div class="theme-preview__rail">
+              <span class="theme-preview__item is-active">基础</span>
+              <span class="theme-preview__item">中间</span>
+              <span class="theme-preview__item">管理</span>
+            </div>
+            <div class="theme-preview__card">
+              <strong>卡片标题</strong>
+              <p>正文文字 · <a href="#">链接</a></p>
+            </div>
+          </div>
+          <div class="theme-preview theme-preview--dark" id="oi33-theme-preview-dark">
+            <div class="theme-preview__caption">暗色模式</div>
+            <div class="theme-preview__topbar">顶部条</div>
+            <div class="theme-preview__rail">
+              <span class="theme-preview__item is-active">基础</span>
+              <span class="theme-preview__item">中间</span>
+              <span class="theme-preview__item">管理</span>
+            </div>
+            <div class="theme-preview__card">
+              <strong>卡片标题</strong>
+              <p>正文文字 · <a href="#">链接</a></p>
+            </div>
+          </div>
+        </div>
+        <p class="theme-help" style="margin:1rem 0 0;">预览只示意颜色，实际以保存后的页面为准。某种模式留空时，该模式保持全站默认。</p>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+.theme-warning { margin:0 0 1rem; padding:.6rem .8rem; border:1px solid #e8b04a; border-radius:8px; background:rgba(232,176,74,.12); color:#7a5510; font-size:.88em; }
+.theme-warning ul { margin:.3rem 0 0; padding-left:1.2rem; }
+.theme--dark .theme-warning, [data-mantine-color-scheme=dark] .theme-warning { color:#f0c879; border-color:#8a6a2a; background:rgba(232,176,74,.14); }
+.theme-help { color: var(--oi33-card-muted, var(--oi33-muted)); margin-bottom:1rem; }
+.theme--dark .theme-help, [data-mantine-color-scheme=dark] .theme-help { color: var(--oi33-card-muted, var(--oi33-muted)); }
+.theme-heading { margin:1.6rem 0 .5rem; font-size:1.05rem; }
+.theme-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:0 1rem; }
+.theme-color-row { display:flex; align-items:center; gap:.5rem; }
+.theme-color-input { min-width:0; }
+.theme-color-picker { flex:none; width:38px; height:34px; padding:2px; border:1px solid rgba(127,127,127,.35); border-radius:6px; background:none; cursor:pointer; }
+.theme-toggle { display:block; margin:0 0 .5rem; }
+.theme-toggle-row { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; }
+.theme-toggle-row .theme-toggle { margin:0; }
+.theme-reset-item { padding:0 .2rem; border:0; background:none; color:#3a6fd8; font-size:.78em; line-height:1.4; text-decoration:underline; cursor:pointer; }
+.theme-reset-item:hover { color:#2f5fc0; }
+.theme--dark .theme-reset-item, [data-mantine-color-scheme=dark] .theme-reset-item { color:#8fb2ee; }
+.theme-heading .theme-reset-item { margin-left:.5rem; font-size:.72em; font-weight:normal; }
+.theme-textarea { width:100%; font-size:.9em; }
+.theme-textarea--mono { font-family:monospace; line-height:1.55; }
+.theme-css-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:1rem; }
+.theme-css-editor { width:100%; min-height:14rem; font-family:monospace; font-size:.86em; line-height:1.55; white-space:pre; }
+.theme-selectors, .theme-advanced { margin:1rem 0 0; padding:.7rem .8rem; border:1px solid rgba(127,127,127,.28); border-radius:8px; }
+.theme-selectors summary, .theme-advanced summary { cursor:pointer; color:#555; font-weight:600; }
+.theme--dark .theme-selectors summary, .theme--dark .theme-advanced summary,
+[data-mantine-color-scheme=dark] .theme-selectors summary, [data-mantine-color-scheme=dark] .theme-advanced summary { color:#bbb; }
+.theme-selector-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:.3rem .8rem; margin:.6rem 0 0; font-size:.82em; }
+.theme-selector { display:flex; align-items:center; gap:.45rem; min-width:0; }
+.theme-selector code { flex:none; color:#3a6fd8; }
+.theme--dark .theme-selector code, [data-mantine-color-scheme=dark] .theme-selector code { color:#8fb2ee; }
+.theme-selector span { overflow:hidden; color: var(--oi33-card-muted, var(--oi33-muted)); text-overflow:ellipsis; white-space:nowrap; }
+.theme--dark .theme-selector span, [data-mantine-color-scheme=dark] .theme-selector span { color: var(--oi33-card-muted, var(--oi33-muted)); }
+.theme-fixed { display:grid; gap:.4rem; margin:0 0 1rem; padding:.7rem .8rem; border:1px dashed rgba(127,127,127,.35); border-radius:8px; font-size:.85em; }
+.theme-fixed__label { display:inline-block; min-width:9rem; color: var(--oi33-card-muted, var(--oi33-muted)); }
+.theme-fixed__items { display:inline-flex; flex-wrap:wrap; gap:.35rem; }
+.theme-chip { display:inline-block; padding:0 .45rem; border-radius:4px; background:rgba(127,127,127,.13); }
+.theme-presets { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:.5rem; margin:.2rem 0 .8rem; }
+.theme-preset { display:flex; flex-direction:column; gap:.3rem; padding:.42rem; border:1px solid var(--oi33-card-border, var(--oi33-border)); border-radius:2px; font:inherit; background:var(--oi33-card-hover, var(--oi33-hover)); color:var(--oi33-card-fg, var(--oi33-text)); cursor:pointer; text-align:left; }
+.theme-preset:hover,
+.theme-preset.is-active { border-color:var(--oi33-accent); }
+.theme-preset.is-active { box-shadow: inset 0 0 0 1px var(--oi33-accent); }
+.theme-preset__swatches { display:flex; height:13px; overflow:hidden; border:1px solid rgba(127,127,127,.24); border-radius:2px; }
+.theme-preset__swatches i { flex:1; }
+.theme-preset__swatches--dark { height:9px; opacity:.9; }
+.theme-preset__label { display:flex; align-items:baseline; justify-content:space-between; gap:.3rem; font-size:.8em; font-weight:600; }
+.theme-preset__label small { color:var(--oi33-card-muted, var(--oi33-muted)); font-size:.9em; font-weight:400; }
+.theme-actions { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1.2rem; }
+.theme-reset { color:#b45309; }
+.theme-icons { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:.4rem; margin:0 0 1rem; }
+.theme-icon { display:flex; align-items:center; gap:.45rem; min-width:0; padding:.35rem .5rem; border:1px solid rgba(127,127,127,.22); border-radius:6px; font-size:.82em; }
+.theme-icon__svg { flex:none; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; color: var(--oi33-card-muted, var(--oi33-muted)); }
+.theme--dark .theme-icon__svg, [data-mantine-color-scheme=dark] .theme-icon__svg { color:#bbb; }
+.theme-icon__name { overflow:hidden; color:#555; text-overflow:ellipsis; white-space:nowrap; }
+.theme--dark .theme-icon__name, [data-mantine-color-scheme=dark] .theme-icon__name { color:#bbb; }
+.theme-icon--none .theme-icon__none { flex:none; width:18px; text-align:center; font-weight:700; color: var(--oi33-card-muted, var(--oi33-muted)); }
+.theme-previews { display:grid; grid-template-columns:1fr; gap:.8rem; }
+.theme-preview { overflow:hidden; border:1px solid rgba(127,127,127,.3); border-radius:8px; padding:.5rem; }
+.theme-preview__caption { padding:.3rem .7rem; background:rgba(127,127,127,.12); color: var(--oi33-card-muted, var(--oi33-muted)); font-size:.78em; }
+.theme-preview--dark .theme-preview__caption { color:#bbb; background:rgba(255,255,255,.08); }
+.theme-preview__topbar { padding:.55rem .8rem; border-bottom:1px solid rgba(127,127,127,.3); font-size:.85em; }
+.theme-preview__rail { display:flex; flex-direction:column; gap:2px; padding:.5rem; font-size:.85em; }
+.theme-preview__item { padding:.25rem .45rem; border-radius:4px; }
+.theme-preview__card { margin:.5rem; padding:.55rem .7rem; border:1px solid rgba(127,127,127,.3); border-radius:6px; font-size:.85em; }
+.theme-preview__card strong { display:block; margin-bottom:.25rem; }
+.theme-preview__card p { margin:0; }
+.theme--dark .theme-chip, [data-mantine-color-scheme=dark] .theme-chip { background:rgba(255,255,255,.12); }
+.theme--dark .theme-fixed, [data-mantine-color-scheme=dark] .theme-fixed { border-color:rgba(255,255,255,.22); }
+</style>
+<script type="application/json" id="oi33-theme-presets-data">{{ themePresets|json|safe }}</script>
+<script>
+(function () {
+  const form = document.getElementById('oi33-theme-form');
+  if (!form) return;
+  const modes = ['light', 'dark'];
+  const keys = ['page_bg', 'page_fg', 'topbar_bg', 'topbar_fg', 'sidebar_bg', 'sidebar_fg', 'accent', 'card_bg', 'card_fg'];
+  const fieldNames = {
+    pageBg: 'page_bg', pageFg: 'page_fg', cardBg: 'card_bg', cardFg: 'card_fg',
+    topbarBg: 'topbar_bg', topbarFg: 'topbar_fg', sidebarBg: 'sidebar_bg', sidebarFg: 'sidebar_fg', accent: 'accent',
+  };
+  const defaults = {
+    light: {
+      page_bg: '#f5f6f8', page_fg: '#303845',
+      topbar_bg: '#ffffff', topbar_fg: '#1f2430', sidebar_bg: '#ffffff', sidebar_fg: '#1f2430', accent: '#3a6fd8',
+      card_bg: '#ffffff', card_fg: '#1f2430',
+    },
+    dark: {
+      page_bg: '#121212', page_fg: '#eeeeee',
+      topbar_bg: '#1b1f27', topbar_fg: '#e7ebf2', sidebar_bg: '#20252e', sidebar_fg: '#e7ebf2', accent: '#7fa5f2',
+      card_bg: '#323334', card_fg: '#eeeeee',
+    },
+  };
+  const presets = JSON.parse(document.getElementById('oi33-theme-presets-data')?.textContent || '[]');
+  function input(mode, key) {
+    return form.querySelector(`[name="${mode}_${key}"]`);
+  }
+  function read(mode, key) {
+    const element = input(mode, key);
+    return element ? element.value.trim() : '';
+  }
+  function paint(mode) {
+    const root = document.getElementById(`oi33-theme-preview-${mode}`);
+    if (!root) return;
+    const bar = root.querySelector('.theme-preview__topbar');
+    const rail = root.querySelector('.theme-preview__rail');
+    const active = root.querySelector('.theme-preview__item.is-active');
+    const accent = read(mode, 'accent');
+    root.style.background = read(mode, 'page_bg') || defaults[mode].page_bg;
+    root.style.color = read(mode, 'page_fg') || defaults[mode].page_fg;
+    if (bar) {
+      bar.style.background = read(mode, 'topbar_bg') || defaults[mode].topbar_bg;
+      bar.style.color = read(mode, 'topbar_fg') || defaults[mode].topbar_fg;
+    }
+    if (rail) {
+      rail.style.background = read(mode, 'sidebar_bg') || defaults[mode].sidebar_bg;
+      rail.style.color = read(mode, 'sidebar_fg') || defaults[mode].sidebar_fg;
+    }
+    if (active) {
+      active.style.color = accent || defaults[mode].accent;
+      active.style.background = accent ? `${accent}26` : `${defaults[mode].accent}26`;
+    }
+    const card = root.querySelector('.theme-preview__card');
+    if (card) {
+      const sidebarBg = read(mode, 'sidebar_bg') || defaults[mode].sidebar_bg;
+      const sidebarFg = read(mode, 'sidebar_fg') || defaults[mode].sidebar_fg;
+      const pageBg = read(mode, 'page_bg') || defaults[mode].page_bg;
+      const pageFg = read(mode, 'page_fg') || defaults[mode].page_fg;
+      card.style.background = read(mode, 'card_bg') || sidebarBg || pageBg;
+      card.style.color = read(mode, 'card_fg') || sidebarFg || pageFg;
+      const link = card.querySelector('a');
+      if (link) link.style.color = accent || defaults[mode].accent;
+    }
+  }
+  function paintAll() {
+    modes.forEach(paint);
+  }
+  function applyPreset(name) {
+    const preset = presets.find((item) => item.id === name);
+    if (!preset) return;
+    for (const mode of modes) {
+      for (const [camel, snake] of Object.entries(fieldNames)) {
+        const element = input(mode, snake);
+        if (element) element.value = (preset[mode] && preset[mode][camel]) || '';
+      }
+      const cssArea = form.querySelector(`[name="${mode}_css"]`);
+      if (cssArea) cssArea.value = (mode === 'light' ? preset.lightCss : preset.darkCss) || '';
+    }
+    document.querySelectorAll('.theme-preset').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.preset === name);
+    });
+    paintAll();
+  }
+  document.querySelectorAll('[data-preset]').forEach((button) => {
+    button.addEventListener('click', () => applyPreset(button.dataset.preset));
+  });
+  document.querySelectorAll('.theme-color-picker').forEach((picker) => {
+    picker.addEventListener('input', () => {
+      const target = document.querySelector(picker.dataset.target);
+      if (target) target.value = picker.value;
+      paintAll();
+    });
+  });
+  form.querySelectorAll('.theme-color-input').forEach((element) => {
+    element.addEventListener('input', paintAll);
+  });
+  // 用户改了文本就默认想保存它：自动勾选对应自定义开关，避免「写了但没勾选」
+  // 导致保存后看起来被还原。还原按钮走服务端提交，不会触发 input。
+  const linksTextArea = form.querySelector('[name="links_text"]');
+  const linksCustomBox = form.querySelector('[name="links_custom"]');
+  linksTextArea?.addEventListener('input', () => {
+    if (linksCustomBox) linksCustomBox.checked = true;
+  });
+  const navTextArea = form.querySelector('[name="nav_groups"]');
+  const navCustomBox = form.querySelector('[name="nav_custom"]');
+  navTextArea?.addEventListener('input', () => {
+    if (navCustomBox) navCustomBox.checked = true;
+  });
+  paintAll();
+})();
+</script>
+{% endblock %}
