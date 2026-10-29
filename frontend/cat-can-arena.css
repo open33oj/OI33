@@ -216,7 +216,7 @@ html.oi33-shell .oi33-map-toolbar,
 html.oi33-shell .oi33-map-navigation,
 html.oi33-shell .oi33-map-tabs,
 html.oi33-shell .oi33-bigcat-side {
-  background: var(--oi33-card-bg, rgba(248, 250, 247, .92));
+  background: var(--oi33-card-bg, var(--oi33-sidebar-bg));
   border-color: var(--oi33-card-border, var(--oi33-border));
   color: var(--oi33-card-fg, var(--oi33-text));
 }

@@ -12,13 +12,16 @@
 | --- | --- | --- |
 | `--oi33-page-bg` / `--oi33-page-fg` | 页面背景 / 主文字 | 用户主题（可空） |
 | `--oi33-page-muted` / `--oi33-page-border` | 页面次级文字 / 边框 | 由页面文字色派生 |
-| `--oi33-card-bg` / `--oi33-card-fg` | 默认卡片背景 / 文字 | 用户主题，空时依次跟随侧栏 / 顶栏 / 页面 |
-| `--oi33-card-muted` / `--oi33-card-border` / `--oi33-card-hover` | 卡片次级文字 / 边框 / 悬停 | 由卡片文字色派生 |
+| `--oi33-card-bg` / `--oi33-card-fg` | 默认卡片背景 / 文字 | 用户主题；未配置时 `bg` 跟随侧栏、`fg` 回退正文色 |
+| `--oi33-card-muted` / `--oi33-card-border` / `--oi33-card-hover` | 卡片次级文字 / 边框 / 悬停 | 用户主题；未配置时分别回退 `--oi33-muted` / `--oi33-border` / `--oi33-hover` |
 | `--oi33-topbar-bg` | 顶栏背景 | 用户主题 |
 | `--oi33-sidebar-bg` | 侧栏背景 | 用户主题 |
 | `--oi33-text` / `--oi33-muted` / `--oi33-border` / `--oi33-hover` | 外壳默认文字 / 次级 / 边框 / 悬停 | `oi33-shell.css` 的 `:root`（含暗色覆盖） |
 | `--oi33-accent` / `--oi33-accent-strong` / `--oi33-accent-weak` | 强调色 / 深色 / 浅底 | 用户主题；默认蓝 |
 | `--oi33-radius` / `--oi33-card-shadow` | 卡片圆角 / 阴影 | `oi33-shell.css`，亮/暗各一套 |
+
+`oi33-shell.css` 还把 Hydro 的 `--code-bg` 指向卡片悬停色，避免页面内联的
+`var(--code-bg, #f5f5f5)` 在暗色下退回浅灰代码块。
 
 使用示例：
 
@@ -91,7 +94,8 @@
 
 - `oi33-content.css` 的标题、目录、徽章外框等中性色改为主题变量；
 - 卡片统一 12px 圆角、细边框、轻阴影和 18/22px 内边距；
-- 顶栏 52px、侧栏 232px，顶栏链接改为 pill hover，侧栏分组标签/激活态重新排版；
+- 顶栏 52px、侧栏 200px（折叠后 64px 图标栏，条目为 40px 圆角方块），顶栏链接改为
+  pill hover，侧栏分组标签/激活态重新排版；
 - 首页 hero 改为主题渐变 + 大像素 logo + 域名 pill；讨论列表增加行悬停与底部「更多」样式；
 - 讨论/比赛/题解列表（`contest-main.css`）、奖章展示墙（`medal-showcase.css`）、
   猫账户（`cat-account.css`）的次级文字/边框/背景改为变量；

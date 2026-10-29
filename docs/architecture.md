@@ -200,15 +200,16 @@ index.ts            汇总再导出
   固定侧栏（`#panel` 让出 `--oi33-sidebar-w`），移动端（≤1000px）侧栏变成
   `html.oi33-nav-open` 抽屉。暗色主题走 `.theme--dark` 变量；`layout/oi33_wiki.html`
   复用同一个 partial。
-- 桌面端在侧栏左下角固定一个圆形折叠按钮（`data-oi33-sidebar-toggle`，不随侧栏滑动）：
+- 桌面端在侧栏左下角固定一个 32px 圆角方形折叠按钮（`data-oi33-sidebar-toggle`，不随侧栏滑动）：
   展开时显示左箭头，点击后给 `<html>` 加 `oi33-sidebar-collapsed`——侧栏收成 64px 宽的
-  图标栏（保留图标、隐藏 `.oi33-nav__text`，分组标题变成一条细线，链接用 `title` 显示
-  名称），`#panel` 让位从 216px 收到 64px；按钮图标同时切成菜单（汉堡）以便展开。
+  图标栏（保留图标、隐藏 `.oi33-nav__text`，每个条目变成 40×40 圆角方块，分组标题变成
+  一条细线，链接用 `title` 显示名称），`#panel` 让位从 `--oi33-sidebar-w`（200px）收到
+  64px；按钮图标同时切成菜单（汉堡）以便展开。
   状态写入 `localStorage['oi33.sidebar.collapsed']`，`partials/nav.html` 的内联脚本在首屏
   解析外壳前恢复，所以刷新不会先展开再收起；`oi33-sidebar__scroll` 桌面端底部留 68px
   给按钮。移动端仍用汉堡抽屉，按钮隐藏，两者互不干扰。
 - 用户可见错误页（403/404/...，`html.page--error`）和 immersive 认证页一样只保留
-  顶部条：隐藏侧栏、左下角折叠按钮、移动端汉堡和遮罩，`#panel` 不再让出 216px。
+  顶部条：隐藏侧栏、左下角折叠按钮、移动端汉堡和遮罩，`#panel` 不再让出 `--oi33-sidebar-w`。
 - 百科页（main/pages/show/edit）共用 `layout/oi33_wiki.html` 里的
   `.oi33-wiki-bar`：固定高度 46px 的工具栏卡片（边框 + 轻微阴影），左侧「百科首页 /
   全部页面」文本导航，随后依次是固定的「新建页面」（仅 OI33 admin）与当前页操作 chip；

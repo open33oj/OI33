@@ -1,8 +1,7 @@
 .oi33-can-page { --can-accent: #d98736; --can-green: #3b7d55; }
+/* Keep the hero flat: the old decorative gradient rendered as a bright band in
+   dark mode. The section already paints the theme card surface. */
 .oi33-can-hero { overflow: hidden; }
-.oi33-can-hero .section__body {
-  background: linear-gradient(135deg, var(--oi33-card-bg, #ffffff), var(--oi33-card-hover, var(--oi33-hover)));
-}
 .oi33-can-quote-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .oi33-can-quote {
   min-height: 126px;

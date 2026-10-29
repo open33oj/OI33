@@ -2,9 +2,11 @@
    Loaded on every page through frontend/oi33-shell.page.ts (AutoloadPage). */
 
 :root {
-  /* 52 / 232 are the shell dimensions; layout uses the same CSS variables. */
+  /* 52 / 200 are the shell dimensions; layout uses the same CSS variables.
+     200px keeps the longest label (「OI33 管理后台」) on one line without the
+     ellipsis kicking in while leaving the expanded rail as narrow as sensible. */
   --oi33-topbar-h: 52px;
-  --oi33-sidebar-w: 232px;
+  --oi33-sidebar-w: 200px;
   --oi33-sidebar-collapsed-w: 64px;
   --oi33-accent: #3a6fd8;
   --oi33-accent-strong: #2f5fc0;
@@ -18,6 +20,18 @@
   --oi33-shadow: 0 12px 32px rgba(24, 39, 75, .14);
   --oi33-radius: 2px;
   --oi33-card-shadow: 0 1px 2px rgba(24, 39, 75, .03), 0 6px 18px rgba(24, 39, 75, .04);
+  /* Default card tokens. Page styles read these with light fallbacks
+     (`#ffffff`, `#fafafa`, `#e0e0e0`) that turn into white panels or borders in
+     the default dark theme; defaulting them to the shell palette keeps every
+     page theme-aware even when no custom card colour is configured. User themes
+     are injected later and still win. */
+  --oi33-card-bg: var(--oi33-sidebar-bg);
+  --oi33-card-hover: var(--oi33-hover);
+  --oi33-card-border: var(--oi33-border);
+  /* Hydro's code surfaces read --code-bg; point it at the themed card hover so
+     page-level <pre>/<code> styles do not keep their light #f5f5f5 fallback in
+     the default dark theme. */
+  --code-bg: var(--oi33-card-hover);
 }
 
 .theme--dark,
@@ -463,7 +477,7 @@ html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
   gap: 10px;
   min-height: 38px;
   padding: 0 11px;
-  border-radius: 0;
+  border-radius: 6px;
   color: var(--oi33-text);
   font-size: 13.5px;
   line-height: 22px;
@@ -552,7 +566,7 @@ html.oi33-shell .nav--placeholder {
     padding-bottom: 68px;
   }
 
-  /* The floating rail toggle lives inside the rail column (left: 14px), so it
+  /* The floating rail toggle lives inside the rail column (left: 12px), so it
      never overlaps the footer, which starts after the #panel offset. Keep the
      footer's own padding instead of adding 64px of blank page at the bottom. */
 
@@ -565,7 +579,15 @@ html.oi33-shell .nav--placeholder {
     transition: margin-left .2s ease;
   }
 
-  /* Collapsed = 64px icon rail: icons stay, text and group titles go away. */
+  /* Collapsed = 64px icon rail: icons stay, text and group titles go away.
+     Each entry becomes a 40x40 rounded square so the whole hit area is a square
+     instead of a full-width 40x38 bar. The horizontal padding drops to 8px so
+     the squares still fit when the rail shows a vertical scrollbar. */
+  html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar__scroll {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
   html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar {
     width: var(--oi33-sidebar-collapsed-w);
   }
@@ -581,7 +603,17 @@ html.oi33-shell .nav--placeholder {
   html.oi33-shell.oi33-sidebar-collapsed .oi33-nav__item {
     justify-content: center;
     gap: 0;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    margin: 0 auto;
     padding: 0;
+  }
+
+  /* Bottom-left toggle: keep its centre on the rail's centre line while the
+     entries above it are 40px squares. */
+  html.oi33-shell.oi33-sidebar-collapsed .oi33-sidebar-toggle {
+    left: calc((var(--oi33-sidebar-collapsed-w) - 32px) / 2);
   }
 
   html.oi33-shell.oi33-sidebar-collapsed .oi33-nav__label {

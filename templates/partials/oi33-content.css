@@ -335,6 +335,12 @@ html.oi33-shell.page--oi33_cat_can_arena #panel blockquote.note {
   color: var(--oi33-card-fg, var(--oi33-text));
 }
 
+/* The cat-can hero used to paint a decorative gradient on its body; in dark
+   mode that read as a bright band. Keep the body on the flat card surface. */
+html.oi33-shell.page--oi33_cat_can #panel .oi33-can-hero .section__body {
+  background: var(--oi33-card-bg, var(--oi33-sidebar-bg));
+}
+
 /* Tables and form controls are the last surfaces that still came from
    Hydro's stock light/dark palette. Keep their geometry, but paint them with
    the same card tokens as the surrounding content.
