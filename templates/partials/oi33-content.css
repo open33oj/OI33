@@ -452,3 +452,11 @@ html.oi33-shell[data-mantine-color-scheme="dark"] #panel .section .table th {
   border-color: var(--oi33-card-border, #2b303a);
   color: var(--oi33-card-muted, var(--oi33-muted));
 }
+
+/* 长题解/长讨论由 Hydro 的 collapsible-content 折叠，底部用一条渐变到纯白的
+   雾层提示「展开」。暗色卡片上这条雾层会变成一块白斑，正好盖在展开入口附近。
+   把终点换成当前卡片底色（用户主题的 --oi33-card-bg 同样生效）。 */
+html.oi33-shell.theme--dark #panel .collapsible-content::after,
+html.oi33-shell[data-mantine-color-scheme="dark"] #panel .collapsible-content::after {
+  background: linear-gradient(to bottom, transparent, var(--oi33-card-bg, #1b1f27));
+}
