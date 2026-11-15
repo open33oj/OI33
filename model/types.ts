@@ -45,6 +45,13 @@ export interface Oi33User {
     cat_food_backfilled_at?: Date;
     cat_can?: number;
     cat_can_trade_available_at?: Date;
+    // Monthly cell-reward idempotency markers. Each completed period is added
+    // once; the convenience fields below describe the latest award.
+    cell_reward_keys?: string[];
+    cell_reward_period?: string;
+    cell_reward_at?: Date;
+    cell_reward_cells?: number;
+    cell_reward_cans?: number;
     atcoder?: string;
     codeforces?: string;
     atcoder_rating?: number;
@@ -176,6 +183,12 @@ export interface Oi33CatCanPool {
     schoolCatRewardRevision?: number;
     schoolCatRewardKeys?: string[];
     schoolCatRewardRollbackKeys?: string[];
+    // The monthly cell-reward pool update is applied once per Shanghai month.
+    // The reward period document holds the per-user allocation snapshot.
+    cellRewardPeriod?: string;
+    cellRewardCans?: number;
+    cellRewardAt?: Date;
+    cellRewardKeys?: string[];
     createdAt: Date;
     updatedAt: Date;
 }
@@ -710,14 +723,25 @@ export interface Oi33Auction {
     // the medal from the definition pool.
     seller?: number;
     sellerAwardSource?: string;
+    // Listing-rule generation. New auctions carry the current version; the
+    // one-time upgrade cleanup uses its absence to delist only pre-upgrade
+    // auctions that never received a bid.
+    rulesVersion?: number;
+    // User auctions: 5% (ceiled) of the starting price, escrowed in cans when
+    // the auction goes live. Refunded in full on a sale; forfeited back to the
+    // market reserve when nobody bids. Absent on administrator auctions and on
+    // listings created before the deposit existed.
+    listingDeposit?: number;
+    depositForfeited?: boolean;
     status: 'active' | 'settled' | 'cancelled';
     highestBid: number | null;
     highestBidder: number | null;
     bidCount: number;
     winner?: number;
     settlePrice?: number;
-    // User auctions only: 5% (ceiled) seller fee and the net seller proceeds;
-    // the fee is burned from circulation at settlement.
+    // User auctions: the 5% (ceiled) sale fee and the net seller proceeds; the
+    // fee is burned from circulation at settlement. Independent of the
+    // listing deposit, which is refunded in full on a sale.
     fee?: number;
     sellerProceeds?: number;
     // Reserve food burned at settlement (= settlePrice cans × sell price at
@@ -726,6 +750,8 @@ export interface Oi33Auction {
     settledAt?: Date;
     cancelledAt?: Date;
     cancelledBy?: number;
+    // Set when the upgrade cleanup cancels an old auction that never got a bid.
+    cancelReason?: string;
 }
 
 export interface Oi33AuctionBid {
@@ -1120,6 +1146,14 @@ export interface Oi33CatCellReward {
     cans?: number;
     cells?: number;
     allocations?: Oi33CatCellRewardAllocation[];
+    // The allocation snapshot is written before the first credit so retries
+    // resume from the same map snapshot instead of re-reading the live map.
+    allocationsAt?: Date;
+    plannedUsers?: number;
+    plannedCans?: number;
+    plannedCells?: number;
+    issuedUsers?: number;
+    issuedCans?: number;
     operator?: number;
     startedAt?: Date;
     completedAt?: Date;

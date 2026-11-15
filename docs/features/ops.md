@@ -28,6 +28,7 @@
 | `rebuild_indexes` | 补齐所有 `oi33_*` 索引 | 是 | flag≥2 |
 | `evaluate_medals` | 重跑全部用户的 OJ 成就评估（只升不降） | 是（慢） | flag≥2 |
 | `migrate_judge_monitor` | 旧 `system` 配置搬入 `oi33_judge_monitor` | 是 | flag≥2 |
+| `delist_legacy_unbid_auctions` | 下架规则升级前、无人出价的旧拍卖（用户拍卖退回奖章） | 是 | flag≥2 |
 | `purge_unverified_cat_assets` | 清理未实名用户的地图/猫粮/罐头/贡献 | 是 | flag≥3 |
 | `backfill_feed_refund_logs` | 为已退款的历史投喂补写个人账户退款流水（不改余额） | 是 | flag≥3 |
 

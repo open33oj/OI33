@@ -17,8 +17,9 @@
         <p class="auction-help">
           出价立即托管扣除猫罐头，被超越时自动退款；每次出价至少比当前最高价多 1 个罐头。
           实际结束时间取设定时间与最后一次有效出价后 1 分钟中的较晚者。
-          管理员拍卖成交后，支付的罐头回流罐头池并销毁等值储备粮；用户拍卖成交后，
-          成交价扣除 5%（向上取整）手续费打给卖家，手续费销毁；流拍则全额退款。
+          管理员拍卖成交后，支付的罐头回流罐头池并销毁等值储备粮；用户拍卖上架时按起拍价的
+          {{ listingDepositPercent }}%（向上取整，至少 1 个）托管罐头，成交后托管费全额退回、
+          另按成交价的 {{ sellerFeePercent }}% 收取手续费，流拍则托管费回流市场储备。
           用户拍卖上架后不可取消，只能等结束；无人出价会自动流拍并退回奖章。
           可售卖奖章只拍卖一次，之后只能通过拍卖或交易合同转让。
           {% if handler.user._id %}你当前持有 <strong>{{ viewerCans }}</strong> 个猫罐头。{% endif %}
@@ -29,10 +30,12 @@
           <h2>出售我的可交易成就</h2>
           <p class="auction-help">
             只有通过拍卖或交易合同获得的可售卖奖章才能再次上架。用户拍卖固定 {{ userAuctionDays }} 天、
-            只接受猫罐头出价；成交后按成交价的 {{ sellerFeePercent }}%（向上取整）收取手续费，
-            手续费销毁，其余打给卖家。上架后奖章由系统托管，且不可取消；到期无人出价会自动流拍并退回奖章。
+            只接受猫罐头出价；上架时按起拍价收取 {{ listingDepositPercent }}%（向上取整，至少 1 个）
+            罐头作为托管费，成交后全额退回，流拍则回流市场储备；成交后另按成交价收取
+            {{ sellerFeePercent }}%（向上取整）手续费。
+            上架后奖章由系统托管，且不可取消；到期无人出价会自动流拍并退回奖章。
           </p>
-          <form method="post" action="{{ url('oi33_auction_offer') }}">
+          <form id="auction-offer-form" method="post" action="{{ url('oi33_auction_offer') }}">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <div class="row">
               <div class="medium-7 columns form__item">
@@ -45,7 +48,8 @@
               </div>
               <div class="medium-3 columns form__item">
                 <label>起拍价（猫罐头）</label>
-                <input class="textbox" type="number" name="startPrice" min="1" value="1" required>
+                <input class="textbox" id="auction-offer-start-price" type="number" name="startPrice" min="1" value="1" required>
+                <p class="auction-meta" id="auction-offer-deposit">上架托管费 1 罐头</p>
               </div>
               <div class="medium-2 columns form__item">
                 <label>时长</label>
@@ -54,13 +58,37 @@
             </div>
             <button type="submit" class="rounded primary button">上架我的拍卖</button>
           </form>
+
+          <dialog id="auction-offer-confirm" class="auction-confirm-dialog">
+            <div class="auction-confirm-dialog__body">
+              <h3>确认上架拍卖？</h3>
+              <p>奖章：<strong id="auction-confirm-medal"></strong></p>
+              <p>起拍价：<strong id="auction-confirm-price"></strong> 罐头</p>
+              <p class="auction-confirm-dialog__charge">
+                上架托管费：<strong><span id="auction-confirm-deposit"></span> 罐头</strong>
+                <span class="auction-meta">（立即从余额扣除；你当前持有 {{ viewerCans }} 个）</span>
+              </p>
+              <ul class="auction-help">
+                <li>托管费 = 起拍价的 {{ listingDepositPercent }}%，向上取整，至少 1 个；托管期间仍计入市场流通。</li>
+                <li><strong>成交</strong>：托管费全额退回，成交价另扣 {{ sellerFeePercent }}%（向上取整）手续费后打给你。</li>
+                <li><strong>流拍</strong>：托管费不退回，回流市场储备；奖章退回给你。</li>
+                <li>拍卖固定 {{ userAuctionDays }} 天；上架后奖章由系统托管，<strong>不能取消</strong>。</li>
+              </ul>
+              <div class="auction-confirm-dialog__actions">
+                <button type="button" class="rounded button" data-auction-confirm-cancel>取消</button>
+                <button type="button" class="rounded primary button" data-auction-confirm-ok>
+                  确认托管 <span id="auction-confirm-deposit-btn"></span> 罐头并上架
+                </button>
+              </div>
+            </div>
+          </dialog>
         </div>
         {% endif %}
 
         {% if canManage and medals.length %}
         <div class="auction-create">
           <h2>上架拍卖</h2>
-          <p class="auction-help">只有「可售卖奖章」中从未拍出的奖章可以上架；每个可售卖奖章只拍卖一次。</p>
+          <p class="auction-help">只有「可售卖奖章」中从未拍出的奖章可以上架；每个可售卖奖章只拍卖一次。管理员上架不收取托管费，也不收成交手续费。</p>
           <form method="post" action="{{ url('oi33_auction_create') }}">
             <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
             <div class="row">
@@ -99,7 +127,7 @@
               <h3><a href="{{ url('oi33_auction_detail', id=auction._id) }}">{{ medal.name if medal else auction.medalId }}</a></h3>
               <p class="auction-meta">起拍价 {{ auction.startPrice }} 罐头 · 剩余 {{ auction.remainText }}</p>
               {% if auction.seller %}
-              <p class="auction-meta">卖家：{% if udict[auction.seller] %}{{ user.render_inline(udict[auction.seller], false, false) }}{% else %}UID {{ auction.seller }}{% endif %} · 成交后收 {{ sellerFeePercent }}% 手续费</p>
+              <p class="auction-meta">卖家：{% if udict[auction.seller] %}{{ user.render_inline(udict[auction.seller], false, false) }}{% else %}UID {{ auction.seller }}{% endif %} · {% if auction.listingDeposit %}已托管 {{ auction.listingDeposit }} 罐头（成交退回 / 流拍回流储备） · {% endif %}成交后收 {{ sellerFeePercent }}% 手续费</p>
               {% endif %}
               <p class="auction-price">
                 {% if auction.highestBid != null %}
@@ -170,6 +198,93 @@
   .theme--dark .auction-meta, [data-mantine-color-scheme=dark] .auction-meta { color: var(--oi33-card-muted, var(--oi33-muted)); }
   .data-table form { margin:0; }
   .data-table td:first-child { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; word-break: break-word; }
+  .auction-confirm-dialog { width:min(92vw, 34rem); padding:0; border:1px solid rgba(127,127,127,.28); border-radius:12px; color:inherit; background:var(--oi33-card-bg, #fff); box-shadow:0 18px 70px rgba(0,0,0,.32); }
+  .auction-confirm-dialog::backdrop { background:rgba(9,18,12,.62); backdrop-filter:blur(2px); }
+  .auction-confirm-dialog__body { padding:1.25rem 1.5rem; }
+  .auction-confirm-dialog h3 { margin:0 0 .75rem; }
+  .auction-confirm-dialog p { margin:.4rem 0; }
+  .auction-confirm-dialog ul { margin:.75rem 0 0; padding-left:1.2rem; }
+  .auction-confirm-dialog li { margin:.35rem 0; line-height:1.55; }
+  .auction-confirm-dialog__charge { padding:.6rem .75rem; border-radius:8px; background:rgba(127,127,127,.1); }
+  .auction-confirm-dialog__actions { display:flex; justify-content:flex-end; gap:.75rem; margin-top:1.1rem; }
+  .theme--dark .auction-confirm-dialog, [data-mantine-color-scheme=dark] .auction-confirm-dialog { color:#ddd; background:#252825; }
   @media (max-width:600px) { .auction-grid { grid-template-columns:1fr; } }
 </style>
+<script>
+(function () {
+  var form = document.getElementById('auction-offer-form');
+  var input = document.getElementById('auction-offer-start-price');
+  var hint = document.getElementById('auction-offer-deposit');
+  if (!form || !input || !hint) return;
+  var dialog = document.getElementById('auction-offer-confirm');
+  var medalSelect = form.querySelector('select[name="medalId"]');
+  var percent = {{ listingDepositPercent }};
+  var feePercent = {{ sellerFeePercent }};
+  var days = {{ userAuctionDays }};
+  var confirmed = false;
+
+  function depositFor(price) {
+    price = Math.floor(Number(price));
+    return Number.isFinite(price) && price > 0
+      ? Math.max(1, Math.ceil((price * percent) / 100))
+      : 0;
+  }
+
+  function updateHint() {
+    var deposit = depositFor(input.value);
+    hint.textContent = deposit
+      ? '上架托管费 ' + deposit + ' 罐头（成交退回 / 流拍回流储备）'
+      : '请输入有效的起拍价';
+  }
+
+  function confirmText(price, deposit) {
+    return '确认上架拍卖？\n\n'
+      + '起拍价：' + price + ' 罐头\n'
+      + '上架托管费：' + deposit + ' 罐头（立即从余额扣除）\n\n'
+      + '规则：\n'
+      + '· 托管费 = 起拍价的 ' + percent + '%，向上取整，至少 1 个。\n'
+      + '· 成交：托管费全额退回，成交价另扣 ' + feePercent + '% 手续费。\n'
+      + '· 流拍：托管费不退回，回流市场储备，奖章退回。\n'
+      + '· 固定 ' + days + ' 天，上架后不可取消。';
+  }
+
+  form.addEventListener('submit', function (event) {
+    if (confirmed) return;
+    var price = Math.floor(Number(input.value));
+    var deposit = depositFor(price);
+    if (!deposit) {
+      event.preventDefault();
+      input.reportValidity();
+      return;
+    }
+    if (!dialog || typeof dialog.showModal !== 'function') {
+      if (!window.confirm(confirmText(price, deposit))) event.preventDefault();
+      return;
+    }
+    event.preventDefault();
+    var medalText = medalSelect && medalSelect.selectedOptions[0]
+      ? medalSelect.selectedOptions[0].textContent.trim()
+      : '';
+    document.getElementById('auction-confirm-medal').textContent = medalText;
+    document.getElementById('auction-confirm-price').textContent = price;
+    document.getElementById('auction-confirm-deposit').textContent = deposit;
+    document.getElementById('auction-confirm-deposit-btn').textContent = deposit;
+    dialog.showModal();
+  });
+
+  input.addEventListener('input', updateHint);
+  updateHint();
+
+  if (!dialog || typeof dialog.showModal !== 'function') return;
+  dialog.querySelector('[data-auction-confirm-cancel]').addEventListener('click', function () {
+    dialog.close();
+  });
+  dialog.querySelector('[data-auction-confirm-ok]').addEventListener('click', function () {
+    confirmed = true;
+    dialog.close();
+    if (form.requestSubmit) form.requestSubmit();
+    else form.submit();
+  });
+})();
+</script>
 {% endblock %}

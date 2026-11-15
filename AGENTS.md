@@ -28,7 +28,7 @@ wiki、OAuth 等整合为**单个** Hydro addon：入口 `index.ts` 按功能 `a
 
 ```
 index.ts              入口：patches + 各功能 apply + 定时任务
-migrate.ts            /oi33/migrate 的 18 步迁移（幂等、可预览）
+migrate.ts            /oi33/migrate 的 20 步迁移（幂等、可预览）
 model/
   index.ts            oi33Model 桶 + Collections 类型（唯一挂 global.Hydro.model）
   types.ts            所有集合的字段类型（纯类型）
@@ -74,7 +74,8 @@ locales/zh.yaml       中文文案与页面标题
 8. **不要用 `SystemModel.set` 存高频写的状态**：它默认广播 `system/setting`，会让
    `@hydrooj/ui-default` 全量重建前端 bundle。高频状态一律存 `oi33_*` 集合；
    `SystemModel` 只留给「低频写 + 读在热路径」的配置（如奖章接受题目域）。
-9. **写路径**：每次写操作 `addLog`；金额增减只走 `adjustCatCans` / `grantCatFood`；
+9. **写路径**：每次写操作 `addLog`；金额增减只走 `adjustCatCans` / `grantCatFood`
+   （回池类消费走 `payCatCansToPool` / `refundCatCansFromPool`）；
    额度/占位要原子、失败要回滚；对外操作要幂等（可重放、可重试）。
 10. **前端**：只有 `frontend/` 顶层 `*.page.ts` 会被打包；被 import 的模块不要命名成
     `*.page.ts`。前后端共用的常量/纯函数放 `shared/`，不要从 `frontend` import `model/`。

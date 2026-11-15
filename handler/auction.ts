@@ -4,6 +4,7 @@ import {
 } from 'hydrooj';
 import { oi33Model, userMedalColl } from '../model';
 import { remainText } from '../model/auction';
+import { AUCTION_LISTING_DEPOSIT_PERCENT, AUCTION_SELLER_FEE_PERCENT } from '../model/auction-rules';
 import type { Oi33Auction } from '../model/types';
 import { checkOi33Admin, checkUserFlag, loadOi33Users } from './utils';
 
@@ -68,7 +69,8 @@ class AuctionListHandler extends Handler {
             medals: auctionable,
             offerable,
             canOffer: viewer.flag >= 1 && offerable.length > 0,
-            sellerFeePercent: 5,
+            listingDepositPercent: AUCTION_LISTING_DEPOSIT_PERCENT,
+            sellerFeePercent: AUCTION_SELLER_FEE_PERCENT,
             userAuctionDays: 7,
             preselect,
             viewerCans: viewer.cans,
@@ -123,7 +125,8 @@ class AuctionDetailHandler extends Handler {
             isSeller,
             canBid: viewer.flag >= 1 && auction.status === 'active' && !viewerOwned
                 && !isSeller && auction.highestBidder !== this.user._id,
-            sellerFeePercent: 5,
+            listingDepositPercent: AUCTION_LISTING_DEPOSIT_PERCENT,
+            sellerFeePercent: AUCTION_SELLER_FEE_PERCENT,
             viewerOwned,
             viewerCans: viewer.cans,
         };
@@ -179,7 +182,7 @@ class AuctionOfferHandler extends Handler {
         });
         this.response.redirect = this.url('oi33_auction_detail', {
             id: auction._id,
-            query: { notification: '拍卖已上架，固定 7 天，成交后收取 5%（向上取整）手续费。' },
+            query: { notification: `拍卖已上架：已按起拍价托管 ${AUCTION_LISTING_DEPOSIT_PERCENT}% 罐头，固定 7 天；成交退回托管费并另扣 ${AUCTION_SELLER_FEE_PERCENT}% 成交手续费，流拍则托管费回流市场储备。` },
         });
     }
 }

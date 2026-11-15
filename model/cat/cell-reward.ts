@@ -7,7 +7,9 @@
 import { ObjectId } from 'hydrooj';
 import { db } from 'hydrooj';
 import { addLog, logColl } from '../log';
+import type { Oi33CatCellRewardAllocation } from '../types';
 import { userColl } from '../user';
+import { catCanPoolColl, ensureCatCanPool } from './can';
 import { computeCatCellCounts } from './map';
 import {
     catCellRewardCans, cellRewardMonthKey, previousCellRewardMonth,
@@ -19,6 +21,14 @@ export const catCellRewardColl = db.collection('oi33_cat_cell_reward');
 
 const PERIOD_RE = /^\d{4}-\d{2}$/;
 const LOCK_MS = 30 * 60 * 1000;
+
+async function renewCatCellRewardLock(period: string, lockOwner: ObjectId) {
+    const renewed = await catCellRewardColl.updateOne(
+        { _id: period, status: 'processing', lockOwner } as any,
+        { $set: { lockUntil: new Date(Date.now() + LOCK_MS) } } as any,
+    );
+    if (!renewed.matchedCount) throw new Error('占格月奖励结算锁已失效。');
+}
 
 function normalizePeriod(period: string) {
     const value = String(period || '').trim();
@@ -132,28 +142,63 @@ export async function settleCatCellMonthlyRewards(
     }
 
     try {
-        const rows = await computeCatCellCounts();
-        const uids = rows.map((row) => row.uid);
-        const verified = new Set<number>();
-        for (let offset = 0; offset < uids.length; offset += 2000) {
-            const users: any[] = await userColl.find({
-                _id: { $in: uids.slice(offset, offset + 2000) },
-                realname_flag: { $gte: 1 },
-            } as any, { projection: { _id: 1 } }).toArray();
-            for (const user of users) verified.add(user._id);
+        let allocations: Oi33CatCellRewardAllocation[];
+        if (Array.isArray(plan.allocations) && plan.allocationsAt) {
+            // A previous attempt persisted the snapshot; reuse it so a retry
+            // cannot re-snapshot the (possibly changed) current map and pay the
+            // remaining users a different amount.
+            allocations = plan.allocations
+                .filter((row: any) => Number.isSafeInteger(row?.uid)
+                    && Number.isSafeInteger(row?.cells) && row.cells > 0
+                    && Number.isSafeInteger(row?.cans) && row.cans > 0)
+                .map((row: any) => ({ uid: row.uid, cells: row.cells, cans: row.cans }));
+        } else {
+            const rows = await computeCatCellCounts();
+            const uids = rows.map((row) => row.uid);
+            const verified = new Set<number>();
+            for (let offset = 0; offset < uids.length; offset += 2000) {
+                const users: any[] = await userColl.find({
+                    _id: { $in: uids.slice(offset, offset + 2000) },
+                    realname_flag: { $gte: 1 },
+                } as any, { projection: { _id: 1 } }).toArray();
+                for (const user of users) verified.add(user._id);
+            }
+            allocations = rows
+                .filter((row) => verified.has(row.uid))
+                .map((row) => ({ uid: row.uid, cells: row.count, cans: catCellRewardCans(row.count) }))
+                .filter((row) => row.cans > 0);
+            const snapshotCans = allocations.reduce((sum, row) => sum + row.cans, 0);
+            const snapshotCells = allocations.reduce((sum, row) => sum + row.cells, 0);
+            // Persist the allocation snapshot before the first credit. A crash
+            // or expired lease must resume from this snapshot, not from a map
+            // that may have changed since the period actually ended.
+            const snapshot = await catCellRewardColl.updateOne(
+                { _id: period, lockOwner, status: 'processing' } as any,
+                {
+                    $set: {
+                        allocations,
+                        allocationsAt: now,
+                        plannedUsers: allocations.length,
+                        plannedCans: snapshotCans,
+                        plannedCells: snapshotCells,
+                    },
+                } as any,
+            );
+            if (!snapshot.modifiedCount) throw new Error('占格月奖励结算锁已失效。');
         }
-        const allocations = rows
-            .filter((row) => verified.has(row.uid))
-            .map((row) => ({ uid: row.uid, cells: row.count, cans: catCellRewardCans(row.count) }))
-            .filter((row) => row.cans > 0);
-        const totalCans = allocations.reduce((sum, row) => sum + row.cans, 0);
-        const totalCells = allocations.reduce((sum, row) => sum + row.cells, 0);
+        const plannedUsers = allocations.length;
+        const plannedCans = allocations.reduce((sum, row) => sum + row.cans, 0);
+        const plannedCells = allocations.reduce((sum, row) => sum + row.cells, 0);
 
         for (let offset = 0; offset < allocations.length; offset += 500) {
             const chunk = allocations.slice(offset, offset + 500);
             await userColl.bulkWrite(chunk.map((row) => ({
                 updateOne: {
-                    filter: { _id: row.uid, cell_reward_keys: { $ne: period } },
+                    filter: {
+                        _id: row.uid,
+                        realname_flag: { $gte: 1 },
+                        cell_reward_keys: { $ne: period },
+                    },
                     update: {
                         $inc: { cat_can: row.cans },
                         $addToSet: { cell_reward_keys: period },
@@ -166,10 +211,57 @@ export async function settleCatCellMonthlyRewards(
                     },
                 },
             })) as any, { ordered: false });
+            await renewCatCellRewardLock(period, lockOwner);
         }
 
-        for (let offset = 0; offset < allocations.length; offset += 500) {
-            const chunk = allocations.slice(offset, offset + 500);
+        // Count only users that actually hold this period's key. The pool
+        // counters and the ledger must describe the same set of credited users,
+        // even if a user disappeared or the lease was taken over mid-run.
+        const allocationByUid = new Map(allocations.map((row) => [row.uid, row]));
+        const issued: Oi33CatCellRewardAllocation[] = [];
+        const allocationUids = Array.from(allocationByUid.keys());
+        for (let offset = 0; offset < allocationUids.length; offset += 2000) {
+            const chunk = allocationUids.slice(offset, offset + 2000);
+            const users: any[] = await userColl.find({
+                _id: { $in: chunk },
+                cell_reward_keys: period,
+            } as any, { projection: { _id: 1 } }).toArray();
+            for (const user of users) {
+                const allocation = allocationByUid.get(user._id);
+                if (allocation) issued.push(allocation);
+            }
+            await renewCatCellRewardLock(period, lockOwner);
+        }
+        const issuedCans = issued.reduce((sum, row) => sum + row.cans, 0);
+        const issuedCells = issued.reduce((sum, row) => sum + row.cells, 0);
+
+        // Minting cans without growing the pool's supply is exactly the
+        // accounting hole this settlement used to have: the users' balances
+        // grew while virtualCanSupply/circulatingCans did not. The period key
+        // makes the pool side idempotent across retries.
+        await ensureCatCanPool(now);
+        const poolUpdated = await catCanPoolColl.updateOne(
+            { _id: 'main', cellRewardKeys: { $ne: period } } as any,
+            {
+                $inc: { virtualCanSupply: issuedCans, circulatingCans: issuedCans },
+                $addToSet: { cellRewardKeys: period },
+                $set: {
+                    cellRewardPeriod: period,
+                    cellRewardCans: issuedCans,
+                    cellRewardAt: now,
+                    updatedAt: now,
+                },
+            } as any,
+        );
+        if (!poolUpdated.modifiedCount) {
+            const pool: any = await catCanPoolColl.findOne({ _id: 'main' });
+            if (!Array.isArray(pool?.cellRewardKeys) || !pool.cellRewardKeys.includes(period)) {
+                throw new Error('占格月奖励的市场计数器与结算计划不一致。');
+            }
+        }
+
+        for (let offset = 0; offset < issued.length; offset += 500) {
+            const chunk = issued.slice(offset, offset + 500);
             await logColl.bulkWrite(chunk.map((row) => ({
                 updateOne: {
                     filter: {
@@ -193,31 +285,38 @@ export async function settleCatCellMonthlyRewards(
                     upsert: true,
                 },
             })), { ordered: false });
+            await renewCatCellRewardLock(period, lockOwner);
         }
 
-        await catCellRewardColl.updateOne({ _id: period, lockOwner } as any, {
-            $set: {
-                status: 'completed',
-                users: allocations.length,
-                cans: totalCans,
-                cells: totalCells,
-                allocations,
-                completedAt: new Date(),
-            },
-            $unset: { lockOwner: '', lockUntil: '' },
-        } as any);
+        const completed = await catCellRewardColl.updateOne(
+            { _id: period, lockOwner } as any,
+            {
+                $set: {
+                    status: 'completed',
+                    users: issued.length,
+                    cans: issuedCans,
+                    cells: issuedCells,
+                    issuedUsers: issued.length,
+                    issuedCans,
+                    completedAt: new Date(),
+                },
+                $unset: { lockOwner: '', lockUntil: '' },
+            } as any,
+        );
+        if (!completed.modifiedCount) throw new Error('占格月奖励已发放，但结算状态写入失败。');
         await addLog({
             type: 'admin',
             userId: operator,
             sender: operator,
             action: 'cat_cell_reward_settle',
             cellRewardMonth: period,
-            amount: totalCans,
-            reason: `${period} 占格月奖励：${allocations.length} 位用户、${totalCells} 格，共 ${totalCans} 个罐头`,
+            amount: issuedCans,
+            reason: `${period} 占格月奖励：${issued.length}/${plannedUsers} 位用户、${issuedCells} 格，`
+                + `共 ${issuedCans} 个罐头（计划 ${plannedCans} 个 / ${plannedCells} 格）`,
         } as any);
         return {
             period, completed: true, newlyCompleted: true, running: false,
-            users: allocations.length, cans: totalCans, cells: totalCells,
+            users: issued.length, cans: issuedCans, cells: issuedCells,
         };
     } catch (e: any) {
         await catCellRewardColl.updateOne({ _id: period, lockOwner } as any, {

@@ -4,6 +4,10 @@
 // weights. Every account may buy BLINDBOX_DAILY_LIMIT boxes per Shanghai day
 // across all pools.
 //
+// 扣掉的猫罐头**回流市场**（余额与流通同时减少，虚拟供应与储备粮不变），不再
+// 当作系统销毁；购买失败时按同一口径退回。历史购买（记成 can_deduct 的那些）
+// 由 blindboxReconcilePoolReturns 一次性回算，见 /oi33/migrate 第 19 步。
+//
 // Pure rules (normalisation, validation, the weighted roll, the day key) live in
 // ./blindbox-rules so they stay unit-testable.
 
@@ -11,8 +15,8 @@ import {
     ObjectId, ValidationError, db,
 } from 'hydrooj';
 import type { Oi33BlindboxItem, Oi33MedalBlindbox } from './types';
-import { addLog } from './log';
-import { adjustCatCans } from './cat/can';
+import { addLog, logColl } from './log';
+import { catCanPoolColl, payCatCansToPool, recomputeCanSupplyFromLedger, refundCatCansFromPool } from './cat/can';
 import {
     medalCategoryOf, medalColl, medalGrant, medalIsLevelSeries, medalStarLevel, userMedalColl,
 } from './medal';
@@ -278,7 +282,8 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
     }
 
     try {
-        await adjustCatCans(uid, uid, -price, `盲盒奖章：${pool.name}`.slice(0, 100));
+        // 罐头回流市场：余额与流通同时减少，供应与储备粮不动（其余人还能买走）。
+        await payCatCansToPool(uid, price, `盲盒奖章：${pool.name}`.slice(0, 100), 'can_blindbox');
     } catch (e: any) {
         await blindboxReleaseDaily(uid, day);
         throw new ValidationError(e?.message || '猫罐头扣除失败。');
@@ -294,7 +299,7 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
     } catch (e: any) {
         // Refund both the cans and the daily quota.
         try {
-            await adjustCatCans(uid, uid, price, `盲盒奖章退款：${pool.name}`.slice(0, 100));
+            await refundCatCansFromPool(uid, price, `盲盒奖章退款：${pool.name}`.slice(0, 100), 'can_blindbox_refund');
         } catch (refundError) {
             console.error('[oi33] blindbox refund failed:', refundError);
         }
@@ -370,5 +375,85 @@ export async function blindboxOverview(uid: number, now = new Date()) {
         used,
         remaining: Math.max(0, BLINDBOX_DAILY_LIMIT - used),
         catCan: Math.max(0, Number((buyer as any)?.cat_can) || 0),
+    };
+}
+
+// ── 一次性回算：把「曾经被销毁」的盲盒扣款改判成「回流市场」 ────────────────────
+// 旧实现的扣款走 adjustCatCans，账本动作是 can_deduct（系统销毁），供应与流通
+// 一起减少。改口径后这些历史扣款会被市场校准永久算成销毁，所以要把账本动作改
+// 成专用的 can_blindbox / can_blindbox_refund，再按账本重算虚拟供应。
+// 两步都幂等：改过的账本再批量更新时匹配不到任何行，重算写回同一个值。
+const BLINDBOX_SPEND_REASON = '^盲盒奖章：';
+const BLINDBOX_REFUND_REASON = '^盲盒奖章退款：';
+
+function legacyBlindboxLogFilter(action: 'can_deduct' | 'can_grant', reason: string) {
+    // 盲盒扣款 / 退款是买家自己发起的（sender === userId）；管理员手动扣款
+    // 即使把理由写成「盲盒奖章…」也不会被误改判。
+    return {
+        type: 'cat_account', action, reason: { $regex: reason },
+        $expr: { $eq: ['$sender', '$userId'] },
+    } as any;
+}
+
+// 只读预览：待改判的账本笔数与净回补罐头数（不含市场校准顺带修正的漂移）。
+export async function previewBlindboxPoolReconcile() {
+    const [spends, refunds] = await Promise.all([
+        logColl.find(legacyBlindboxLogFilter('can_deduct', BLINDBOX_SPEND_REASON), {
+            projection: { canAmount: 1 },
+        }).toArray(),
+        logColl.find(legacyBlindboxLogFilter('can_grant', BLINDBOX_REFUND_REASON), {
+            projection: { canAmount: 1 },
+        }).toArray(),
+    ]);
+    const spent = spends.reduce((sum, log) => sum + Math.max(0, -(Number((log as any).canAmount) || 0)), 0);
+    const refunded = refunds.reduce((sum, log) => sum + Math.max(0, Number((log as any).canAmount) || 0), 0);
+    return {
+        logs: spends.length + refunds.length,
+        spends: spends.length,
+        refunds: refunds.length,
+        cans: Math.max(0, spent - refunded),
+    };
+}
+
+// 改判历史账本动作，并按账本重算虚拟供应（等同于「校准罐头市场」的供应部分）。
+export async function blindboxReconcilePoolReturns(now = new Date()) {
+    const before = await recomputeCanSupplyFromLedger(now);
+    // 老池子没有 baseVirtualSupply 时，校准会按当前供应量回填基准。必须先按
+    // 「旧账本口径」冻结基准，否则改判动作之后基准会被推导成新口径，回算失效。
+    if (before.baseDerived) {
+        await catCanPoolColl.updateOne(
+            { _id: 'main' } as any,
+            { $set: { baseVirtualSupply: before.base } } as any,
+        );
+    }
+    const spends = await logColl.updateMany(
+        legacyBlindboxLogFilter('can_deduct', BLINDBOX_SPEND_REASON),
+        // 保留改判前的动作名，账本仍然可追溯（金额 / 用户 / 时间都不动）。
+        { $set: { action: 'can_blindbox', reclassifiedAt: now, reclassifiedFrom: 'can_deduct' } } as any,
+    );
+    const refunds = await logColl.updateMany(
+        legacyBlindboxLogFilter('can_grant', BLINDBOX_REFUND_REASON),
+        { $set: { action: 'can_blindbox_refund', reclassifiedAt: now, reclassifiedFrom: 'can_grant' } } as any,
+    );
+    const after = await recomputeCanSupplyFromLedger(now);
+    await catCanPoolColl.updateOne(
+        { _id: 'main' } as any,
+        { $set: { virtualCanSupply: after.virtualCanSupply, updatedAt: now } } as any,
+    );
+    const logs = spends.modifiedCount + refunds.modifiedCount;
+    if (logs) {
+        await addLog({
+            type: 'medal', userId: 0, action: 'blindbox_pool_reconcile',
+            reason: `盲盒回流回算：${spends.modifiedCount} 笔扣款、${refunds.modifiedCount} 笔退款，`
+                + `虚拟供应 ${before.current}→${after.virtualCanSupply}`,
+        } as any);
+    }
+    return {
+        logs,
+        spends: spends.modifiedCount,
+        refunds: refunds.modifiedCount,
+        cans: after.virtualCanSupply - before.current,
+        supplyBefore: before.current,
+        supplyAfter: after.virtualCanSupply,
     };
 }

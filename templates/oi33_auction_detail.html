@@ -28,7 +28,7 @@
             {% if auction.seller %}
             <p class="auction-meta">
               <strong>卖家：</strong>{% if udict[auction.seller] %}{{ user.render_inline(udict[auction.seller]) }}{% else %}UID {{ auction.seller }}{% endif %}
-              · 用户拍卖固定 7 天，成交后收取 {{ sellerFeePercent }}%（向上取整）手续费，其余打给卖家。
+              · 用户拍卖固定 7 天。{% if auction.listingDeposit %}上架已托管 {{ auction.listingDeposit }} 罐头（起拍价的 {{ listingDepositPercent }}%，向上取整），成交后全额退回、流拍则回流市场储备；{% endif %}成交后另按成交价的 {{ sellerFeePercent }}%（向上取整）收取手续费。
             </p>
             {% else %}
             <p class="auction-meta"><strong>卖家：</strong>官方</p>
@@ -50,16 +50,16 @@
               <p class="auction-price">已成交：<strong>{{ auction.settlePrice }}</strong> 罐头，赢家
                 {% if udict[auction.winner] %}{{ user.render_inline(udict[auction.winner]) }}{% else %}UID {{ auction.winner }}{% endif %}。</p>
               {% if auction.seller %}
-              <p class="auction-help">卖家获得 {{ auction.sellerProceeds }} 罐头（成交价 {{ auction.settlePrice }}，手续费 {{ auction.fee }}）。</p>
+              <p class="auction-help">卖家获得 {{ auction.sellerProceeds }} 罐头（成交价 {{ auction.settlePrice }}，手续费 {{ auction.fee }}{% if auction.listingDeposit %}，托管费 {{ auction.listingDeposit }} 罐头已全额退回{% endif %}）。</p>
               {% endif %}
               {% if medal.saleable and auction.winner == handler.user._id %}
               <p><a href="{{ url('oi33_contracts') }}">该奖章可售卖，前往「我的交易合同」创建转售合同 →</a></p>
               {% endif %}
               {% else %}
-              <p class="auction-price">已流拍：没有人出价。</p>
+              <p class="auction-price">已流拍：没有人出价。{% if auction.depositForfeited %}托管费 {{ auction.listingDeposit }} 罐头已回流市场储备。{% endif %}</p>
               {% endif %}
             {% else %}
-            <p class="auction-price">拍卖已取消，所有出价已退款。</p>
+            <p class="auction-price">{% if auction.cancelReason %}{{ auction.cancelReason }}。{% else %}拍卖已取消，所有出价已退款。{% endif %}</p>
             {% endif %}
           </div>
         </div>
@@ -81,7 +81,7 @@
           {% elif viewerOwned %}
           <p class="auction-help">你已经拥有这个奖章，无需竞拍。</p>
           {% elif isSeller %}
-          <p class="auction-help">这是你发起的拍卖，不能竞拍自己的奖章。拍卖不可取消，只能等结束；无人出价会自动流拍并把奖章退回给你。</p>
+          <p class="auction-help">这是你发起的拍卖，不能竞拍自己的奖章。拍卖不可取消，只能等结束；无人出价会自动流拍并把奖章退回给你，托管费则回流市场储备。</p>
           {% elif auction.highestBidder == handler.user._id %}
           <p class="auction-help">你已经是当前最高出价者，静候结果即可。</p>
           {% else %}

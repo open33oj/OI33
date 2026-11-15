@@ -400,6 +400,14 @@
               {% elif a.action == 'meow_post' %}
                 <span class="oi33-timeline__note">发布喵喵信息</span>
                 <span class="oi33-timeline__amount-neg">{{ a.canAmount }} 个罐头</span>
+              {% elif a.action == 'can_blindbox' %}
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__note">购买盲盒（罐头回流市场）</span>
+                <span class="oi33-timeline__amount-neg">{{ a.canAmount }} 个罐头</span>
+              {% elif a.action == 'can_blindbox_refund' %}
+                {{ userLink(a.userId) }}
+                <span class="oi33-timeline__note">盲盒退款（罐头退回市场）</span>
+                <span class="oi33-timeline__amount-pos">+{{ a.canAmount }} 个罐头</span>
               {% elif a.action == 'pool_calibrate' %}
                 <span class="oi33-timeline__note">校准罐头市场</span>
               {% elif a.action == 'grant' or a.action == 'bulk_grant' %}
@@ -569,6 +577,10 @@
               {{ userLink(a.userId) }}
               <span class="oi33-timeline__note">
                 {% if a.action == 'create' %}上架了奖章拍卖
+                {% elif a.action == 'deposit_hold' %}上架托管费 {{ a.amount }} 罐头
+                {% elif a.action == 'deposit_refund' %}退回上架托管费 {{ a.amount }} 罐头
+                {% elif a.action == 'deposit_forfeit' %}流拍，上架托管费 {{ a.amount }} 罐头回流储备
+                {% elif a.action == 'delist_unbid' %}下架了无人出价的旧拍卖
                 {% elif a.action == 'bid' %}出价 {{ a.amount }} 罐头
                 {% elif a.action == 'refund' %}退回 {{ a.amount }} 罐头{% if a.reason %}（{{ a.reason }}）{% endif %}
                 {% elif a.action == 'settle' %}以 {{ a.amount }} 罐头拍得奖章

@@ -77,6 +77,8 @@
   （`catCellRewardCans`，不足 100 格为 0）。不按大猫分组、不按投喂比例、不扣猫粮；
   无主领地也算个人占格。首次部署的月份写入 `oi33_cat_cell_reward` 的 `config.startMonth`，
   不会追溯发放上线前的月份。结算幂等（用户 `cell_reward_keys` + 周期文档），
+  发放时同步增加 `virtualCanSupply` / `circulatingCans`（池子侧用 `cellRewardKeys` 幂等），
+  并且先把分配快照写入周期文档再发；中断重试沿用快照，不会按变化后的当前占地数重算。
   自动任务每 10 分钟检查一次，也可在管理页手动结算。
 - **野猫模式（用户级）**（`model/cat/wildcat.ts`，时间规则在
   `model/cat/wildcat-rules.ts`）：加入猫猫广场并绑定了大猫的用户可以在广场控制条

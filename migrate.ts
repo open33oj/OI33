@@ -5,9 +5,10 @@ import {
     medalMigrateAcceptedDomains, medalMigrateAutomaticLevels, ensureMedalIndexes,
     AUTOMATIC_RULE_TYPES,
 } from './model/medal';
-import { ensureAuctionIndexes } from './model/auction';
+import { auctionDelistLegacyUnbid, auctionPreviewLegacyUnbid, ensureAuctionIndexes } from './model/auction';
 import { ensureContractIndexes } from './model/contract';
 import { ensureMeowIndexes } from './model/meow';
+import { blindboxReconcilePoolReturns, previewBlindboxPoolReconcile } from './model/blindbox';
 import {
     algorithmEnsureOutlineImported, algorithmMigrateOutlineIds, algorithmOutlineMeta,
     algorithmDropBasicsSection,
@@ -88,6 +89,8 @@ export async function previewMigration() {
         algorithmItems,
         algorithmLegacyIds,
         retirePreview,
+        blindboxReconcile,
+        auctionLegacyUnbid,
     ] = await Promise.all([
         db.collection('coin' as any).countDocuments(),
         db.collection('paste' as any).countDocuments(),
@@ -121,6 +124,8 @@ export async function previewMigration() {
         // Algorithm items not yet marked with the normalized id format.
         db.collection('oi33_algorithm_item').countDocuments({ idVersion: { $ne: 2 } } as any),
         previewRetireActiveContribution(),
+        previewBlindboxPoolReconcile(),
+        auctionPreviewLegacyUnbid(),
     ]);
     return {
         billCount, pasteCount, birthdayCount, userCount, oauthLogCount, legacyCatCanBatchCount,
@@ -133,6 +138,8 @@ export async function previewMigration() {
         algorithmOutlineItems: algorithmOutlineMeta().itemCount,
         algorithmLegacyIds: Number(algorithmLegacyIds) || 0,
         retirePreview,
+        blindboxReconcile,
+        auctionLegacyUnbid,
     };
 }
 
@@ -171,6 +178,13 @@ export async function migrate() {
         algorithmBasicsItemsRemoved: 0,
         algorithmBasicsRatingsRemoved: 0,
         judgeMonitorImported: false,
+        blindboxLegacyLogs: 0,
+        blindboxLegacySpends: 0,
+        blindboxLegacyRefunds: 0,
+        blindboxSupplyDelta: 0,
+        auctionLegacyUnbidDelisted: 0,
+        auctionLegacyUnbidAwardsReturned: 0,
+        auctionLegacyUnbidDepositsRefunded: 0,
         errors: [] as string[],
     };
 
@@ -596,6 +610,33 @@ export async function migrate() {
         result.judgeMonitorImported = await judgeMonitorMigrateFromSettings();
     } catch (e: any) {
         result.errors.push(`Step 18 (judge monitor state → oi33_judge_monitor): ${e.message}`);
+    }
+
+    try {
+        // Step 19: 盲盒扣款从「系统销毁」改为「回流市场」后的一次性回算。
+        // 旧扣款在账本里是 can_deduct，市场校准会把它们永久算成销毁；这里把
+        // 历史动作改判成 can_blindbox / can_blindbox_refund，再按账本重算虚拟
+        // 供应（与「校准罐头市场」同一口径）。幂等：改判后匹配不到旧动作，
+        // 重算写回同一个值；顺带修正供应量的历史漂移。
+        const reconcile = await blindboxReconcilePoolReturns();
+        result.blindboxLegacyLogs = reconcile.logs;
+        result.blindboxLegacySpends = reconcile.spends;
+        result.blindboxLegacyRefunds = reconcile.refunds;
+        result.blindboxSupplyDelta = reconcile.cans;
+    } catch (e: any) {
+        result.errors.push(`Step 19 (blindbox cans → market pool): ${e.message}`);
+    }
+
+    try {
+        // Step 20: 新拍卖规则（上架托管费 + 成交手续费）上线后，旧规则下仍在
+        // 进行、且一次出价都没有的拍卖统一下架；有出价的旧拍卖保留，继续按新
+        // 成交手续费结算。新上架带 AUCTION_RULES_VERSION，重复执行不会误伤。
+        const delist = await auctionDelistLegacyUnbid(0);
+        result.auctionLegacyUnbidDelisted = delist.delisted;
+        result.auctionLegacyUnbidAwardsReturned = delist.awardsReturned;
+        result.auctionLegacyUnbidDepositsRefunded = delist.depositsRefunded;
+    } catch (e: any) {
+        result.errors.push(`Step 20 (legacy unbid auctions → cancelled): ${e.message}`);
     }
 
     return result;

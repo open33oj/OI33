@@ -151,10 +151,11 @@
           </thead>
           <tbody>
             <tr><td>买入（池子售出）</td><td>{{ economy7.cansBought }} 个</td><td>{{ economy30.cansBought }} 个</td></tr>
-            <tr><td>系统增发（管理员 / 大猫奖励）</td><td>{{ economy7.cansMinted }} 个</td><td>{{ economy30.cansMinted }} 个</td></tr>
+            <tr><td>系统增发（管理员 / 大猫 / 占格月奖励）</td><td>{{ economy7.cansMinted }} 个</td><td>{{ economy30.cansMinted }} 个</td></tr>
             <tr><td>系统销毁（管理员扣除 / 大猫回滚）</td><td>{{ economy7.cansBurned }} 个</td><td>{{ economy30.cansBurned }} 个</td></tr>
+            <tr><td>拍卖成交手续费销毁（用户拍卖）</td><td>{{ economy7.cansAuctionFeeBurned }} 个</td><td>{{ economy30.cansAuctionFeeBurned }} 个</td></tr>
             <tr><td>卖出回池</td><td>{{ economy7.cansSoldBack }} 个</td><td>{{ economy30.cansSoldBack }} 个</td></tr>
-            <tr><td class="oi33-can-table-wrap">其他回池（传送 / 喵喵 / 拍卖结算）</td><td>{{ economy7.cansOtherBack }} 个</td><td>{{ economy30.cansOtherBack }} 个</td></tr>
+            <tr><td class="oi33-can-table-wrap">其他回池（传送 / 喵喵 / 盲盒 / 流拍托管费 / 管理员拍卖结算）</td><td>{{ economy7.cansOtherBack }} 个</td><td>{{ economy30.cansOtherBack }} 个</td></tr>
             <tr>
               <td><strong>池子净售出（负值 = 净回收）</strong></td>
               <td><strong>{{ economy7.cansNetOut }} 个</strong></td>
@@ -200,8 +201,11 @@
             <tr><td>单期波动限制</td><td>{{ market.lowerBound }} ~ {{ market.upperBound }} 猫粮/个</td><td>上一期卖出价 ±{{ market.maxTickPercent }}%</td></tr>
             <tr><td>限幅后目标价</td><td>{{ market.boundedTarget }} 猫粮/个</td><td>原始目标价取整后限制在波动范围内</td></tr>
             <tr><td>支撑价上限</td><td>{{ market.backingCap }} 猫粮/个</td><td>储备支撑价取整；流通为 0 时取限幅后目标价</td></tr>
-            <tr><td>最终卖出价</td><td>{{ market.sellPrice }} 猫粮/个</td><td>max(1, min(限幅后目标价, 支撑价上限))</td></tr>
-            <tr><td>最终买入价</td><td>{{ market.buyPrice }} 猫粮/个</td><td>卖出价 × 1.05 向上取整</td></tr>
+            <tr><td>最终卖出价</td><td>{{ market.sellPrice }} 猫粮/个</td><td>max(1, min(限幅后目标价, 支撑价上限))；这是池子的偿付上限</td></tr>
+            <tr><td>本期实际买入价</td><td>{{ quote.buyPrice }} 猫粮/个</td><td>当前 8 小时价格槽实际成交价；最低为卖出价 × 1.10</td></tr>
+            <tr><td>目标买入价</td><td>{{ market.targetSale }} 猫粮/个</td><td>按当前 AMM：卖出价 + {{ market.saleAlphaPercent }}% × (AMM − 卖出价)</td></tr>
+            <tr><td>买入价单期最大变化</td><td>±{{ market.saleMaxTickPercent }}%</td><td>每 8 小时向目标靠拢；与卖出价的 ±{{ market.maxTickPercent }}% 独立</td></tr>
+            <tr><td>买入价区间</td><td>{{ market.minSale }} ~ {{ market.maxSale }} 猫粮/个</td><td>最低 = 卖出价 × 1.10；最高 = min(卖出价 × {{ market.saleMaxMultiple }}, AMM)</td></tr>
             <tr><td>累计销毁手续费</td><td>{{ catFood.amount(market.feesBurned) }}</td><td>按成交额 {{ feeNumerator }}/{{ feeDenominator }} 收取并销毁</td></tr>
           </tbody>
         </table>

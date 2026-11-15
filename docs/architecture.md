@@ -17,7 +17,7 @@
 
 ```
 index.ts                  插件入口：挂 patches，按顺序 apply 各功能，启动定时任务
-migrate.ts                /oi33/migrate 的 18 步迁移
+migrate.ts                /oi33/migrate 的 20 步迁移
 model.ts                  Hydro 的 model 入口，转出 model/index.ts
 model/
   index.ts                oi33Model 桶 + Collections 类型声明（唯一挂到 global.Hydro.model 的地方）

@@ -6,7 +6,10 @@ import { addLog } from './log';
 import { medalColl, medalEvaluateUser, medalGrant, userMedalColl } from './medal';
 import { catCanPoolColl, ensureCurrentCatCanPrice } from './cat/can';
 import { userColl } from './user';
-import { auctionSellerFee, auctionSellerProceeds, AUCTION_USER_DURATION_MS } from './auction-rules';
+import {
+    AUCTION_LISTING_DEPOSIT_PERCENT, AUCTION_RULES_VERSION, auctionListingDeposit,
+    auctionSellerFee, auctionSellerProceeds, AUCTION_USER_DURATION_MS,
+} from './auction-rules';
 import { TRADE_AWARD_SOURCES, contractColl } from './contract';
 
 export const auctionColl = db.collection('oi33_auction');
@@ -35,6 +38,57 @@ export async function ensureAuctionIndexes() {
         auctionColl.createIndex({ seller: 1, status: 1 }),
         auctionBidColl.createIndex({ auctionId: 1, createdAt: -1 }),
     ]);
+}
+
+function listingDepositOf(auction: any): number {
+    const deposit = Number(auction?.listingDeposit);
+    return Number.isSafeInteger(deposit) && deposit > 0 ? deposit : 0;
+}
+
+// The listing deposit is escrowed out of the seller's balance (but kept in the
+// circulation counter, exactly like a bid) when the auction goes live. A sale
+// returns it in full; a no-bid auction forfeits it back to the market reserve.
+async function auctionRefundListingDeposit(
+    uid: number, amount: number, auctionId: ObjectId | null, reason: string,
+) {
+    if (!Number.isSafeInteger(amount) || amount <= 0) return;
+    await userColl.updateOne({ _id: uid }, { $inc: { cat_can: amount } }, { upsert: true });
+    const log: any = {
+        type: 'auction', userId: uid, action: 'deposit_refund', amount, reason,
+    };
+    if (auctionId) log.auctionId = auctionId.toHexString();
+    await addLog(log);
+    await addLog({
+        type: 'cat_account', userId: uid, sender: uid,
+        action: 'auction_deposit_refund', amount: 0, canAmount: amount,
+        reason: `拍卖托管费退回（${reason}）`,
+    } as any);
+}
+
+async function auctionForfeitListingDeposit(auction: any, now: Date) {
+    const deposit = listingDepositOf(auction);
+    if (!deposit) return 0;
+    // Cans return to the pool: circulation drops while the virtual supply is
+    // unchanged (same accounting as the unverified-asset purge).
+    const updated = await catCanPoolColl.updateOne(
+        { _id: 'main', circulatingCans: { $gte: deposit } },
+        { $inc: { circulatingCans: -deposit }, $set: { updatedAt: now } },
+    );
+    if (!updated.modifiedCount) {
+        console.error(`[oi33] auction ${auction._id}: circulation is below the forfeited deposit ${deposit}`);
+    }
+    await auctionColl.updateOne({ _id: auction._id }, { $set: { depositForfeited: true } });
+    await addLog({
+        type: 'auction', userId: auction.seller, action: 'deposit_forfeit',
+        auctionId: auction._id.toHexString(), medalId: auction.medalId,
+        amount: deposit, reason: '流拍，托管费回流市场储备',
+    } as any);
+    await addLog({
+        type: 'cat_account', userId: auction.seller, sender: auction.seller,
+        action: 'auction_deposit_forfeit', amount: 0, canAmount: -deposit,
+        reason: '拍卖流拍，托管费回流市场储备',
+    } as any);
+    return deposit;
 }
 
 export async function auctionGet(id: string | ObjectId) {
@@ -85,6 +139,7 @@ export async function auctionCreate(input: {
         endAt: scheduledEndAt,
         createdBy: input.operator,
         createdAt: now,
+        rulesVersion: AUCTION_RULES_VERSION,
         status: 'active',
         highestBid: null,
         highestBidder: null,
@@ -100,8 +155,9 @@ export async function auctionCreate(input: {
 }
 
 // 用户发起拍卖：卖家必须持有一枚「可交易成就」（来自拍卖/合同的可售卖奖章）。
-// 上架时把奖章从卖家账户托管出来，固定一周、只收罐头；成交后卖家拿到
-// 成交价减去 5%（向上取整）手续费，手续费销毁。
+// 上架时把奖章从卖家账户托管出来，并按起拍价的 5%（向上取整）收取罐头作为
+// 托管费；固定一周、只收罐头。成交后托管费全额退回，成交价另扣 5% 手续费后
+// 打给卖家；流拍则托管费回流市场储备。
 export async function auctionOffer(input: {
     medalId: string;
     seller: number;
@@ -126,9 +182,31 @@ export async function auctionOffer(input: {
     ]);
     if (pendingContract) throw new ValidationError('该奖章有进行中的交易合同，结束后才能上架拍卖。');
     if (running) throw new ValidationError('该奖章已有进行中的拍卖。');
+    const deposit = auctionListingDeposit(input.startPrice);
+    const depositHeld = await userColl.updateOne(
+        { _id: seller, cat_can: { $gte: deposit } },
+        { $inc: { cat_can: -deposit } },
+    );
+    if (!depositHeld.modifiedCount) {
+        throw new ValidationError(
+            `上架需先托管 ${deposit} 个猫罐头（起拍价的 ${AUCTION_LISTING_DEPOSIT_PERCENT}%，向上取整），你的罐头不足。`,
+        );
+    }
+    await addLog({
+        type: 'auction', userId: seller, action: 'deposit_hold',
+        medalId, amount: deposit, reason: `上架托管费（起拍价 ${input.startPrice}）`,
+    } as any);
+    await addLog({
+        type: 'cat_account', userId: seller, sender: seller,
+        action: 'auction_deposit', amount: 0, canAmount: -deposit,
+        reason: `拍卖上架托管费（起拍价 ${input.startPrice}）`,
+    } as any);
     // 原子托管：抢在上架前被合同/其它拍卖拿走时直接失败。
     const escrowed = await userMedalColl.findOneAndDelete({ _id: award._id } as any);
-    if (!escrowed) throw new ValidationError('奖章状态刚刚发生变化，请重试。');
+    if (!escrowed) {
+        await auctionRefundListingDeposit(seller, deposit, null, '上架失败退回');
+        throw new ValidationError('奖章状态刚刚发生变化，请重试。');
+    }
     const now = new Date();
     const endAt = new Date(now.getTime() + AUCTION_USER_DURATION_MS);
     const doc: Oi33Auction = {
@@ -142,6 +220,8 @@ export async function auctionOffer(input: {
         createdAt: now,
         seller,
         sellerAwardSource: award.source,
+        listingDeposit: deposit,
+        rulesVersion: AUCTION_RULES_VERSION,
         status: 'active',
         highestBid: null,
         highestBidder: null,
@@ -153,6 +233,9 @@ export async function auctionOffer(input: {
         await userMedalColl.insertOne(escrowed as any).catch((restoreError) => {
             console.error('[oi33] failed to restore escrowed award after auction insert failed:', restoreError);
         });
+        await auctionRefundListingDeposit(seller, deposit, null, '上架失败退回').catch((refundError) => {
+            console.error('[oi33] failed to refund listing deposit after auction insert failed:', refundError);
+        });
         throw e;
     }
     medalEvaluateUser(seller, { ruleTypes: ['special_medals'], source: 'special' })
@@ -162,6 +245,66 @@ export async function auctionOffer(input: {
         auctionId: doc._id.toHexString(), medalId, amount: doc.startPrice,
     } as any);
     return doc;
+}
+
+// One-time upgrade cleanup: auctions listed under the old rules and still
+// waiting for their first bid are taken down, returning the escrowed medal to
+// the seller. Auctions that already have a bid stay active (they settle with
+// the new sale fee; they never paid a listing deposit). New listings carry
+// AUCTION_RULES_VERSION, so rerunning this never touches them.
+const LEGACY_UNBID_FILTER = {
+    status: 'active',
+    rulesVersion: { $ne: AUCTION_RULES_VERSION },
+    highestBid: null,
+    highestBidder: null,
+};
+
+export async function auctionPreviewLegacyUnbid() {
+    const [total, userAuctions] = await Promise.all([
+        auctionColl.countDocuments(LEGACY_UNBID_FILTER as any),
+        auctionColl.countDocuments({ ...LEGACY_UNBID_FILTER, seller: { $exists: true } } as any),
+    ]);
+    return { total, userAuctions };
+}
+
+export async function auctionDelistLegacyUnbid(operator: number, now = new Date()) {
+    const rows = await auctionColl.find(LEGACY_UNBID_FILTER as any).toArray();
+    let delisted = 0;
+    let awardsReturned = 0;
+    let depositsRefunded = 0;
+    for (const auction of rows) {
+        const cancelled = await auctionColl.findOneAndUpdate(
+            { _id: auction._id, ...LEGACY_UNBID_FILTER } as any,
+            {
+                $set: {
+                    status: 'cancelled',
+                    cancelledAt: now,
+                    cancelledBy: operator,
+                    cancelReason: '规则更新：无人出价的旧拍卖统一下架',
+                },
+            },
+            { returnDocument: 'before' },
+        );
+        if (!cancelled) continue;
+        delisted++;
+        if (cancelled.seller != null) {
+            await auctionReturnAward(cancelled, '规则更新，无人出价的旧拍卖下架');
+            awardsReturned++;
+            // Pre-v2 listings never paid a deposit; refund anyway if a
+            // manually-created document happens to carry one.
+            const deposit = listingDepositOf(cancelled);
+            if (deposit > 0) {
+                await auctionRefundListingDeposit(cancelled.seller, deposit, cancelled._id, '旧拍卖下架退回');
+                depositsRefunded++;
+            }
+        }
+        await addLog({
+            type: 'auction', userId: operator, action: 'delist_unbid',
+            auctionId: cancelled._id.toHexString(), medalId: cancelled.medalId,
+            reason: '规则更新：无人出价的旧拍卖统一下架',
+        } as any);
+    }
+    return { delisted, awardsReturned, depositsRefunded };
 }
 
 async function auctionRefund(uid: number, amount: number, auctionId: ObjectId, reason: string) {
@@ -290,13 +433,16 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
             await medalGrant(settledAuction.highestBidder, settledAuction.medalId, 0, 'auction');
             medalGranted = true;
             if (settledAuction.seller != null) {
-                // 用户拍卖：成交价扣 5%（向上取整）手续费后打给卖家，手续费销毁。
+                // 用户拍卖：成交价扣 5%（向上取整）手续费后打给卖家，手续费销毁；
+                // 上架时收取的 5% 托管费另行全额退回（旧上架没有托管费，只扣手续费）。
+                const deposit = listingDepositOf(settledAuction);
                 const fee = auctionSellerFee(settledAuction.highestBid);
                 const proceeds = auctionSellerProceeds(settledAuction.highestBid);
-                if (proceeds > 0) {
+                const payout = proceeds + deposit;
+                if (payout > 0) {
                     const paid = await userColl.updateOne(
                         { _id: settledAuction.seller },
-                        { $inc: { cat_can: proceeds } },
+                        { $inc: { cat_can: payout } },
                     );
                     if (!paid.modifiedCount) {
                         console.error(`[oi33] auction ${auction._id}: seller ${settledAuction.seller} not found`);
@@ -330,8 +476,20 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
                 await addLog({
                     type: 'cat_account', userId: settledAuction.seller, sender: settledAuction.highestBidder,
                     action: 'auction_sale', amount: 0, canAmount: proceeds,
-                    reason: `拍卖成交（成交价 ${settledAuction.highestBid}，手续费 ${fee}）`,
+                    reason: `拍卖成交（成交价 ${settledAuction.highestBid}）`,
                 } as any);
+                if (deposit > 0) {
+                    await addLog({
+                        type: 'auction', userId: settledAuction.seller, action: 'deposit_refund',
+                        auctionId: auction._id.toHexString(), medalId: settledAuction.medalId,
+                        amount: deposit, reason: '成交退回',
+                    } as any);
+                    await addLog({
+                        type: 'cat_account', userId: settledAuction.seller, sender: settledAuction.seller,
+                        action: 'auction_deposit_refund', amount: 0, canAmount: deposit,
+                        reason: '拍卖成交，托管费退回',
+                    } as any);
+                }
             } else {
                 // 管理员拍卖：赢家支付的罐头回流罐头池，同时按当前卖价销毁等值储备粮
                 // （相当于赢家把罐头卖回市场并销毁所得，无手续费、无冷却）。
@@ -376,6 +534,14 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
                     auction._id, '结算失败退款',
                 );
                 await auctionReturnAward(settledAuction, '结算失败退回');
+                // The sale did not happen, so the seller gets the listing
+                // deposit back instead of having it forfeited.
+                if (settledAuction.seller != null) {
+                    await auctionRefundListingDeposit(
+                        settledAuction.seller, listingDepositOf(settledAuction),
+                        auction._id, '结算失败退回',
+                    );
+                }
             } else {
                 // The award was already handed over; keep the record readable
                 // even if a later bookkeeping write failed.
@@ -392,6 +558,7 @@ export async function auctionSettle(id: string | ObjectId, now = new Date()) {
         }
     } else {
         await auctionReturnAward(settledAuction, '流拍退回');
+        await auctionForfeitListingDeposit(settledAuction, now);
         await addLog({
             type: 'auction', userId: settledAuction.createdBy, action: 'settle_unsold',
             auctionId: auction._id.toHexString(), medalId: settledAuction.medalId,

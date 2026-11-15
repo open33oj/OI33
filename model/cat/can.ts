@@ -1,6 +1,8 @@
 import { db, ObjectId } from 'hydrooj';
 import { addLog, logColl } from '../log';
 import { userColl } from '../user';
+import { auctionSettleCanFlow } from './can-flow-rules';
+import { SALE_MIN_SPREAD_PERCENT, nextCatCanBuyPrice } from './can-price-rules';
 
 export const catCanBillColl = db.collection('oi33_cat_can_bill');
 export const catCanPoolColl = db.collection('oi33_cat_can_pool');
@@ -13,8 +15,8 @@ const BALANCE_COUNTER_VERSION = 1;
 const FEE_NUMERATOR = 25;
 const FEE_DENOMINATOR = 100000;
 const INITIAL_PRICE = 100;
-// A single 8-hour tick cannot erase the 5% buy spread. This keeps short-term
-// speculation modest while still allowing supply and demand to move the price.
+// The sell (buyback) price moves at most 3% per 8-hour tick. The buy (sale)
+// price has its own ramp toward the AMM; see ./can-price-rules.
 const MAX_TICK_PERCENT = 3;
 const PRICE_HISTORY_POINTS = 90;
 export const CAT_CAN_ADMIN_ADJUSTMENT_MAX = 1_000_000_000;
@@ -130,13 +132,17 @@ function calculateFee(amount: number) {
     return ceilDivide(amount * FEE_NUMERATOR, FEE_DENOMINATOR);
 }
 
+// Minimum buy price: 110% of the sell (buyback) price. The dynamic buy price
+// in ./can-price-rules starts here and ramps toward the AMM.
 function calculateBuyPrice(sellPrice: number) {
-    return ceilDivide(sellPrice * 105, 100);
+    return ceilDivide(sellPrice * (100 + SALE_MIN_SPREAD_PERCENT), 100);
 }
 
 // All inputs and intermediate values behind a price tick, so both the tick
 // writer and the market page work from the exact same numbers.
-function computeCatCanPriceParams(pool: any, previousSellPrice?: number) {
+function computeCatCanPriceParams(
+    pool: any, previousSellPrice?: number, previousBuyPrice?: number,
+) {
     const reserveFood = Math.max(0, Number(pool?.reserveFood) || 0);
     const userFood = Math.max(0, Number(pool?.userFoodTotal) || 0);
     const userCans = Math.max(0, Number(pool?.circulatingCans) || 0);
@@ -152,12 +158,27 @@ function computeCatCanPriceParams(pool: any, previousSellPrice?: number) {
     const boundedTarget = Math.max(lowerBound, Math.min(upperBound, Math.floor(rawTarget)));
     const backingCap = userCans > 0 ? Math.floor(backingPrice) : boundedTarget;
     const sellPrice = Math.max(1, Math.min(boundedTarget, backingCap));
-    const buyPrice = calculateBuyPrice(sellPrice);
+    // The sell price is the pool's buyback (liability): it stays capped by
+    // reserve coverage. The buy price is the pool's sale (asset): it ramps
+    // toward the AMM so scarce pool inventory is not sold at the buyback cap.
+    const sale = nextCatCanBuyPrice({
+        sellPrice,
+        ammPrice,
+        previousBuyPrice,
+    });
     return {
         reserveFood, userFood, userCans, supply, poolCans, systemFood,
         ammPrice, backingPrice, rawTarget,
         previousPrice, lowerBound, upperBound, boundedTarget, backingCap,
-        sellPrice, buyPrice,
+        sellPrice,
+        buyPrice: sale.buyPrice,
+        targetSale: sale.targetSale,
+        minSale: sale.minSale,
+        maxSale: sale.maxSale,
+        previousSale: sale.previousSale,
+        saleAlphaPercent: sale.alphaPercent,
+        saleMaxTickPercent: sale.maxTickPercent,
+        saleMaxMultiple: sale.maxMultiple,
     };
 }
 
@@ -170,7 +191,11 @@ export async function ensureCurrentCatCanPrice(now = new Date()) {
         getOrCreatePool(now),
         catCanPriceColl.find({ _id: { $lt: slotAt } }).sort({ _id: -1 }).limit(1).next(),
     ]);
-    const { sellPrice, buyPrice } = computeCatCanPriceParams(pool, Number(previous?.sellPrice) || 0);
+    const { sellPrice, buyPrice } = computeCatCanPriceParams(
+        pool,
+        Number(previous?.sellPrice) || 0,
+        Number(previous?.buyPrice) || 0,
+    );
     const snapshot = {
         _id: slotAt,
         sellPrice,
@@ -282,13 +307,111 @@ export async function adjustCatCans(
     return { amount, balance: Number(current?.cat_can) || 0 };
 }
 
+// 把罐头「花回市场」：余额扣掉、流通计数同步扣掉，虚拟供应与储备粮不动
+// ——罐头回到池内库存，别人还能按市价买走。喵喵付费发帖一直是这个口径；
+// 盲盒购买也走这里，所以不再算「系统销毁」。
+// `action` 是账本里的动作名，账单页 / 经济面板 / 市场校准都按它分类。
+export async function payCatCansToPool(
+    uid: number, amount: number, reason: string, action: string, now = new Date(),
+) {
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > CAT_CAN_ADMIN_ADJUSTMENT_MAX) {
+        throw new Error(`回流市场的罐头数量必须是 1～${CAT_CAN_ADMIN_ADJUSTMENT_MAX} 的整数。`);
+    }
+    const normalizedReason = reason.trim();
+    if (!normalizedReason || normalizedReason.length > 100) throw new Error('调整原因不能为空且不能超过 100 字。');
+    if (!/^[a-z][a-z_]*$/.test(action)) throw new Error('账本动作名不合法。');
+    await getOrCreatePool(now);
+
+    const user: any = await userColl.findOne({ _id: uid });
+    if (!user) throw new Error('用户猫账户不存在。');
+    const balance = Number(user.cat_can) || 0;
+    if (balance < amount) {
+        throw new Error(`猫罐头不足：需要 ${amount} 个，当前 ${Math.max(0, balance)} 个。`);
+    }
+    const deducted = await userColl.updateOne(
+        { _id: uid, cat_can: { $gte: amount } } as any,
+        { $inc: { cat_can: -amount } },
+    );
+    if (!deducted.modifiedCount) throw new Error('猫罐头余额刚刚发生变化，请重试。');
+
+    let poolUpdated = false;
+    try {
+        // 与喵喵 / 地图传送一致：流通计数按实际花费递减，不加下限守卫；
+        // 计数若因历史漂移偏低，「/oi33/admin/ops 校准市场」会按用户余额重算。
+        const pool = await catCanPoolColl.updateOne(
+            { _id: 'main' } as any,
+            { $inc: { circulatingCans: -amount }, $set: { updatedAt: now } } as any,
+        );
+        if (!pool.modifiedCount) throw new Error('猫罐头市场计数器不存在，扣款失败。');
+        poolUpdated = true;
+        await addLog({
+            type: 'cat_account', userId: uid, sender: uid,
+            action, amount: 0, canAmount: -amount, reason: normalizedReason,
+        } as any);
+    } catch (e) {
+        if (poolUpdated) {
+            await catCanPoolColl.updateOne({ _id: 'main' } as any, { $inc: { circulatingCans: amount } } as any);
+        }
+        await userColl.updateOne({ _id: uid } as any, { $inc: { cat_can: amount } } as any);
+        throw e;
+    }
+    const current: any = await userColl.findOne({ _id: uid }, { projection: { cat_can: 1 } });
+    return { amount, balance: Number(current?.cat_can) || 0 };
+}
+
+// 退还一笔 payCatCansToPool：余额 +amount、流通 +amount，供应与储备不动。
+export async function refundCatCansFromPool(
+    uid: number, amount: number, reason: string, action: string, now = new Date(),
+) {
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > CAT_CAN_ADMIN_ADJUSTMENT_MAX) {
+        throw new Error(`退还市场的罐头数量必须是 1～${CAT_CAN_ADMIN_ADJUSTMENT_MAX} 的整数。`);
+    }
+    const normalizedReason = reason.trim();
+    if (!normalizedReason || normalizedReason.length > 100) throw new Error('调整原因不能为空且不能超过 100 字。');
+    if (!/^[a-z][a-z_]*$/.test(action)) throw new Error('账本动作名不合法。');
+    await getOrCreatePool(now);
+
+    const target: any = await userColl.findOne({ _id: uid }, { projection: { realname_flag: 1 } });
+    if (!target) throw new Error('用户猫账户不存在。');
+    if ((Number(target.realname_flag) || 0) < 1) throw new Error('该用户未通过认证，无法获得猫罐头。');
+    const credited = await userColl.updateOne(
+        { _id: uid, realname_flag: { $gte: 1 } } as any,
+        { $inc: { cat_can: amount } },
+    );
+    if (!credited.modifiedCount) throw new Error('该用户未通过认证，无法获得猫罐头。');
+
+    let poolUpdated = false;
+    try {
+        const pool = await catCanPoolColl.updateOne(
+            { _id: 'main' } as any,
+            { $inc: { circulatingCans: amount }, $set: { updatedAt: now } } as any,
+        );
+        if (!pool.modifiedCount) throw new Error('猫罐头市场计数器不存在，退款失败。');
+        poolUpdated = true;
+        await addLog({
+            type: 'cat_account', userId: uid, sender: uid,
+            action, amount: 0, canAmount: amount, reason: normalizedReason,
+        } as any);
+    } catch (e) {
+        if (poolUpdated) {
+            await catCanPoolColl.updateOne({ _id: 'main' } as any, { $inc: { circulatingCans: -amount } } as any);
+        }
+        await userColl.updateOne({ _id: uid } as any, { $inc: { cat_can: -amount } } as any);
+        throw e;
+    }
+    const current: any = await userColl.findOne({ _id: uid }, { projection: { cat_can: 1 } });
+    return { amount, balance: Number(current?.cat_can) || 0 };
+}
+
 export async function getCurrentQuote(now = new Date()) {
     const market: any = await ensureCurrentCatCanPrice(now);
     const sellPrice = Number(market.sellPrice) || 1;
     return {
         isOpen: true,
         sellPrice,
-        buyPrice: Number(market.buyPrice) || calculateBuyPrice(sellPrice),
+        // The current 8h slot's buyPrice is the actual quote. Keep the 10%
+        // minimum spread for slots written before the dynamic rule existed.
+        buyPrice: Math.max(calculateBuyPrice(sellPrice), Number(market.buyPrice) || 0),
     };
 }
 
@@ -509,7 +632,8 @@ interface CatCanEconomyWindow {
     cansBurned: number; // 管理员扣除 + 每周大猫奖励回滚（销毁）
     cansBought: number; // 买入（池子售出）
     cansSoldBack: number; // 卖出回池（撤销单按负数量自动冲抵）
-    cansOtherBack: number; // 传送/喵喵/拍卖结算回池（不含管理扣除与奖励回滚）
+    cansOtherBack: number; // 传送/喵喵/流拍托管费等回池（不含管理扣除与奖励回滚）
+    cansAuctionFeeBurned: number; // 用户拍卖成交手续费销毁（系统销毁，不进池子）
     cansNetOut: number; // 池子净售出（负值 = 净回收）
 }
 
@@ -520,7 +644,7 @@ function emptyEconomyWindow(): CatCanEconomyWindow {
         auctionFoodBurn: 0,
         mintTotal: 0, burnTotal: 0, net: 0,
         cansMinted: 0, cansBurned: 0,
-        cansBought: 0, cansSoldBack: 0, cansOtherBack: 0, cansNetOut: 0,
+        cansBought: 0, cansSoldBack: 0, cansOtherBack: 0, cansAuctionFeeBurned: 0, cansNetOut: 0,
     };
 }
 
@@ -570,7 +694,8 @@ async function getCatCanEconomy(now = new Date()) {
                     w.moveBurn += Math.max(0, -amount);
                 }
                 else if (action === 'deduct') w.deductBurn += Math.max(0, -amount);
-                if (action === 'can_grant' || action === 'school_cat_weekly_reward') {
+                if (action === 'can_grant' || action === 'school_cat_weekly_reward'
+                    || action === 'cat_cell_monthly_reward') {
                     w.cansMinted += Math.max(0, canAmount);
                 } else if (action === 'can_deduct' || action === 'school_cat_weekly_reward_rollback') {
                     // Administrative deductions and weekly-reward rollbacks
@@ -578,30 +703,46 @@ async function getCatCanEconomy(now = new Date()) {
                     // shrink, so they count as burned, not as returning to
                     // the pool.
                     w.cansBurned += Math.max(0, -canAmount);
-                } else if (action === 'auction_bid' || action === 'auction_refund') {
-                    // Auction bids are escrowed out of the user balance but
-                    // stay in circulation (the pool counter is untouched), and
-                    // refunds give them back; neither is a pool return, so
-                    // they are excluded from the can-flow stats. The settled
-                    // outcome is counted from the type:'auction' settle log.
+                } else if (action === 'auction_bid' || action === 'auction_refund'
+                    || action === 'auction_deposit' || action === 'auction_deposit_refund') {
+                    // Auction bids and listing deposits are escrowed out of the
+                    // user balance but stay in circulation (the pool counter is
+                    // untouched), and refunds give them back; neither is a pool
+                    // return, so they are excluded from the can-flow stats. The
+                    // settled outcome is counted from the type:'auction' settle
+                    // log.
+                } else if (action === 'auction_deposit_forfeit') {
+                    // An unsold auction's deposit returns to the market reserve:
+                    // circulation drops, supply is unchanged.
+                    w.cansOtherBack += Math.max(0, -canAmount);
+                } else if (action === 'can_blindbox' || action === 'can_blindbox_refund') {
+                    // 盲盒扣款只减流通、不减供应：罐头回到池内库存（退款时再取走），
+                    // 所以算「其他回池」，不算系统销毁。
+                    w.cansOtherBack -= canAmount;
+                } else if (action === 'auction_sale') {
+                    // 用户拍卖的成交价是买家托管 → 卖家的点对点转移，池子没拿到
+                    // 罐头；回池 / 手续费销毁统一由对应的 settle 日志统计。
                 } else if (action === 'contract_accept') {
                     // Contract settlement moves cat food between two users and
                     // burns the 5% fee; the fee is counted from the
                     // type:'contract' accept log. The transfer itself is a
                     // peer-to-peer flow, not a mint or burn.
                 } else {
-                    // Teleports, meow posts and auction settlements return cans
-                    // to the pool; refunds take them back.
+                    // 传送 / 喵喵 / 盲盒等消费把罐头放回池内库存，退款则取走；
+                    // 拍卖结算另按 settle 日志统计，不落到这里。
                     w.cansOtherBack -= canAmount;
                 }
             } else if ((log as any).type === 'contract') {
                 w.contractFeeBurn += Math.max(0, Number((log as any).fee) || 0);
             } else if ((log as any).type === 'auction') {
-                // Settled bids return the escrowed cans to the pool; the
-                // equivalent reserve food is burned (legacy settles have no
-                // foodBurn and simply contribute nothing here).
-                w.cansOtherBack += Math.max(0, amount);
-                w.auctionFoodBurn += Math.max(0, Number((log as any).foodBurn) || 0);
+                // 只有「结算」影响池子：管理员拍卖的托管罐头回池、并销毁等值储备粮；
+                // 用户拍卖的成交价点对点打给卖家，只有 5% 手续费销毁。出价 / 托管 /
+                // 退款 / 上架 / 取消 / 流拍等日志只动托管，不进池子（见
+                // ./can-flow-rules 的单测）。
+                const flow = auctionSettleCanFlow(log);
+                w.cansOtherBack += flow.otherBack;
+                w.cansAuctionFeeBurned += flow.feeBurned;
+                w.auctionFoodBurn += flow.foodBurned;
             }
         }
     }
@@ -619,17 +760,75 @@ async function getCatCanEconomy(now = new Date()) {
     return { days7: w7, days30: w30 };
 }
 
+// 「虚拟总供应」的唯一口径：baseVirtualSupply + 累计增发 − 累计销毁。
+// 增发 / 销毁都从账本重放（管理员发放 / 扣除、旧每周奖励与回滚、用户拍卖
+// 成交手续费）；baseVirtualSupply 在池子创建时冻结，首次校准时按当前供应量
+// 回填，所以重复执行幂等。
+// 市场校准与「盲盒回流」的一次性回算共用这一份计算：改完账本动作再重算，
+// 得到的结果和手动校准完全一致，也就不需要额外的「只执行一次」标记。
+async function computeCanSupplyFromLedger(pool: any) {
+    // Replay every can mint / burn from the account ledger.
+    const ledgers = await logColl.find({
+        type: 'cat_account',
+        action: { $in: ['can_grant', 'can_deduct', 'school_cat_weekly_reward', 'school_cat_weekly_reward_rollback', 'cat_cell_monthly_reward'] },
+    } as any, {
+        projection: { action: 1, canAmount: 1 },
+    }).toArray();
+    let minted = 0;
+    let burned = 0;
+    for (const log of ledgers) {
+        const amount = Number((log as any).canAmount) || 0;
+        const action = (log as any).action;
+        if (action === 'can_grant' || action === 'school_cat_weekly_reward'
+            || action === 'cat_cell_monthly_reward') {
+            minted += Math.max(0, amount);
+        } else if (action === 'can_deduct' || action === 'school_cat_weekly_reward_rollback') {
+            burned += Math.max(0, -amount);
+        }
+    }
+
+    // 用户拍卖的 5% 成交手续费没有打进任何账户，直接从流通中销毁；结算时已
+    // 扣减 virtualCanSupply，这里重放同一笔销毁，避免校准把手续费又补回供应量。
+    // 上架托管费是另一笔：成交原样退回，流拍回流储备，不计入销毁。
+    const feeAuctions = await db.collection('oi33_auction').find({
+        status: 'settled',
+        fee: { $exists: true, $gt: 0 },
+    } as any, {
+        projection: { fee: 1 },
+    }).toArray();
+    let auctionFeeBurned = 0;
+    for (const auction of feeAuctions) {
+        auctionFeeBurned += Math.max(0, Number((auction as any).fee) || 0);
+    }
+    const burnedTotal = burned + auctionFeeBurned;
+
+    // First calibration back-fills the anchor from the current supply so that
+    // pre-existing pools converge to the same invariant as new ones.
+    let base = Number(pool?.baseVirtualSupply);
+    const baseDerived = !Number.isFinite(base) || base <= 0;
+    if (baseDerived) {
+        base = Math.max(1000, (Number(pool?.virtualCanSupply) || 0) - minted + burnedTotal);
+    }
+    return {
+        base, baseDerived, minted, ledgerBurned: burned, auctionFeeBurned, burned: burnedTotal,
+        virtualCanSupply: Math.max(1000, base + minted - burnedTotal),
+    };
+}
+
+// 只读地把上面的账本口径算一遍，附带池子当前记录的供应量。
+// 一次性回算用「改账本 → 调它 → 写回」完成，重复执行结果相同。
+export async function recomputeCanSupplyFromLedger(now = new Date()) {
+    const pool: any = await getOrCreatePool(now);
+    const ledger = await computeCanSupplyFromLedger(pool);
+    return { ...ledger, current: Number(pool?.virtualCanSupply) || 0 };
+}
+
 // Rebuilds the pool counters from the ledger. The economy page shows
 // incremental counters, which drift if any historical operation wrote an
 // inconsistent amount; this recomputes every counter from its ground truth:
 //   - circulatingCans / userFoodTotal   from the verified users' balances
 //   - reserveFood / feesBurned          from the trade bills
-//   - virtualCanSupply                  = baseVirtualSupply + minted - burned,
-//                                        where minted/burned replay every
-//                                        admin grant / weekly reward and their
-//                                        rollbacks from oi33_log
-// baseVirtualSupply is captured at pool creation (and back-filled from the
-// current supply on the first calibration), so repeated runs are idempotent.
+//   - virtualCanSupply                  from computeCanSupplyFromLedger
 // Returns the before/after snapshot for the confirmation page.
 export async function calibrateCatCanPool(operator = 0, now = new Date()) {
     const pool: any = await getOrCreatePool(now);
@@ -640,25 +839,8 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
         userFoodTotal: Number(pool?.userFoodTotal) || 0,
         circulatingCans: Number(pool?.circulatingCans) || 0,
     };
-
-    // Replay every can mint / burn from the account ledger.
-    const ledgers = await logColl.find({
-        type: 'cat_account',
-        action: { $in: ['can_grant', 'can_deduct', 'school_cat_weekly_reward', 'school_cat_weekly_reward_rollback'] },
-    } as any, {
-        projection: { action: 1, canAmount: 1 },
-    }).toArray();
-    let minted = 0;
-    let burned = 0;
-    for (const log of ledgers) {
-        const amount = Number((log as any).canAmount) || 0;
-        const action = (log as any).action;
-        if (action === 'can_grant' || action === 'school_cat_weekly_reward') {
-            minted += Math.max(0, amount);
-        } else if (action === 'can_deduct' || action === 'school_cat_weekly_reward_rollback') {
-            burned += Math.max(0, -amount);
-        }
-    }
+    const supply = await computeCanSupplyFromLedger(pool);
+    const { minted, burned: burnedTotal, auctionFeeBurned } = supply;
 
     // Trade bills rebuild reserve and fees (same reduce as pool creation).
     const bills = await catCanBillColl.find({ action: { $in: ['buy', 'sell', 'reverse'] } }).toArray();
@@ -687,41 +869,34 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
     for (const auction of settledAuctions) {
         reserveFood -= Math.max(0, Number((auction as any).foodBurn) || 0);
     }
-    // 用户拍卖的 5% 手续费没有打进任何账户，直接从流通中销毁；结算时已扣减
-    // virtualCanSupply，这里重放同一笔销毁，避免校准把手续费又补回供应量。
-    const feeAuctions = await db.collection('oi33_auction').find({
-        status: 'settled',
-        fee: { $exists: true, $gt: 0 },
-    } as any, {
-        projection: { fee: 1 },
-    }).toArray();
-    let auctionFeeBurned = 0;
-    for (const auction of feeAuctions) {
-        auctionFeeBurned += Math.max(0, Number((auction as any).fee) || 0);
-    }
-    const burnedTotal = burned + auctionFeeBurned;
 
     const balances = await getGlobalBalances();
-    // Bids are escrowed out of the user balances but still count as
-    // circulating while their auction is active, so add the active highest
-    // bids back on top of the verified-balance aggregate.
-    const activeAuctions = await db.collection('oi33_auction').find({
-        status: 'active',
-        highestBid: { $exists: true, $gt: 0 },
-    } as any, {
-        projection: { highestBid: 1 },
-    }).toArray();
+    // Bids and listing deposits are escrowed out of the user balances but
+    // still count as circulating while their auction is active, so add them
+    // back on top of the verified-balance aggregate.
+    const [activeAuctions, activeListings] = await Promise.all([
+        db.collection('oi33_auction').find({
+            status: 'active',
+            highestBid: { $exists: true, $gt: 0 },
+        } as any, {
+            projection: { highestBid: 1 },
+        }).toArray(),
+        db.collection('oi33_auction').find({
+            status: 'active',
+            seller: { $exists: true },
+            listingDeposit: { $exists: true, $gt: 0 },
+        } as any, {
+            projection: { listingDeposit: 1 },
+        }).toArray(),
+    ]);
     let escrowedCans = 0;
     for (const auction of activeAuctions) {
         escrowedCans += Math.max(0, Number((auction as any).highestBid) || 0);
     }
-    // First calibration back-fills the anchor from the current supply so that
-    // pre-existing pools converge to the same invariant as new ones.
-    let base = Number(pool?.baseVirtualSupply);
-    if (!Number.isFinite(base) || base <= 0) {
-        base = Math.max(1000, (Number(pool?.virtualCanSupply) || 0) - minted + burnedTotal);
+    for (const auction of activeListings) {
+        escrowedCans += Math.max(0, Number((auction as any).listingDeposit) || 0);
     }
-    const virtualCanSupply = Math.max(1000, base + minted - burnedTotal);
+    const { base, virtualCanSupply } = supply;
     const circulatingCans = Math.max(0, balances.userCans + escrowedCans);
     const userFoodTotal = Math.max(0, balances.userFood);
 
@@ -768,7 +943,11 @@ export async function getCatCanPage(uid: number, now = new Date()) {
         catCanPriceColl.find({ _id: { $lt: slotAt } }).sort({ _id: -1 }).limit(1).next(),
         getCatCanEconomy(now),
     ]);
-    const params = computeCatCanPriceParams(pool, Number(previous?.sellPrice) || 0);
+    const params = computeCatCanPriceParams(
+        pool,
+        Number(previous?.sellPrice) || 0,
+        Number(previous?.buyPrice) || 0,
+    );
     const virtualCanSupply = Math.max(1, Number((pool as any)?.virtualCanSupply) || 1);
     const circulatingCans = Math.max(0, Number((pool as any)?.circulatingCans) || 0);
     const cooldownUntil = getCooldownUntil(user);

@@ -81,6 +81,16 @@ const ACTIONS: Record<string, OpsAction> = {
             return `已清理 ${result?.users ?? '-'} 个未认证用户：猫粮 ${result?.food ?? 0}g、罐头 ${result?.cans ?? 0} 个。`;
         },
     },
+    delist_legacy_unbid_auctions: {
+        label: '下架旧规则无出价拍卖',
+        description: '把拍卖规则升级前上架、至今没有任何出价的拍卖统一下架（用户拍卖退回奖章）；'
+            + '有出价的旧拍卖保留，新规则上架的拍卖不受影响，可重复执行。',
+        run: async (operator) => {
+            const result: any = await oi33Model.auctionDelistLegacyUnbid(operator);
+            return `已下架 ${result?.delisted ?? 0} 个无出价旧拍卖，退回奖章 ${result?.awardsReturned ?? 0} 枚`
+                + `、托管费 ${result?.depositsRefunded ?? 0} 个罐头。`;
+        },
+    },
     backfill_feed_refund_logs: {
         label: '补记大猫贡献退款流水',
         description: '为已执行退役退款、但只有汇总日志的历史投喂补写个人账户退款记录；'

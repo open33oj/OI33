@@ -95,6 +95,12 @@
               {% if result.judgeMonitorImported %}
               <tr><td>评测机监控配置已迁移：</td><td>system 设置 → <code>oi33_judge_monitor</code></td></tr>
               {% endif %}
+              {% if result.blindboxLegacyLogs %}
+              <tr><td>盲盒历史扣款已改判为回流市场：</td><td>扣款 <strong>{{ result.blindboxLegacySpends }}</strong> 笔、退款 <strong>{{ result.blindboxLegacyRefunds }}</strong> 笔；虚拟供应 <strong>{% if result.blindboxSupplyDelta > 0 %}+{% endif %}{{ result.blindboxSupplyDelta }}</strong> 个</td></tr>
+              {% endif %}
+              {% if result.auctionLegacyUnbidDelisted %}
+              <tr><td>旧规则无出价拍卖已下架：</td><td><strong>{{ result.auctionLegacyUnbidDelisted }}</strong> 个，退回奖章 <strong>{{ result.auctionLegacyUnbidAwardsReturned }}</strong> 枚{% if result.auctionLegacyUnbidDepositsRefunded %}，退回托管费 <strong>{{ result.auctionLegacyUnbidDepositsRefunded }}</strong> 个罐头{% endif %}</td></tr>
+              {% endif %}
             </table>
             {% if result.errors.length %}
             <div style="margin-top:1rem;">
@@ -180,6 +186,18 @@
             <tr>
               <td style="padding:0.5rem 0;">待规范编号的算法项目：</td>
               <td><strong>{{ preview.algorithmLegacyIds }}</strong> 项（<code>2.1.1-12</code> → <code>1.1.12</code>）</td>
+            </tr>
+            {% endif %}
+            {% if preview.blindboxReconcile.logs %}
+            <tr>
+              <td style="padding:0.5rem 0;">待改判的历史盲盒扣款：</td>
+              <td><strong>{{ preview.blindboxReconcile.spends }}</strong> 笔扣款 / <strong>{{ preview.blindboxReconcile.refunds }}</strong> 笔退款，净回补约 <strong>{{ preview.blindboxReconcile.cans }}</strong> 个罐头</td>
+            </tr>
+            {% endif %}
+            {% if preview.auctionLegacyUnbid.total %}
+            <tr>
+              <td style="padding:0.5rem 0;">待下架的旧规则无出价拍卖：</td>
+              <td><strong>{{ preview.auctionLegacyUnbid.total }}</strong> 个（其中用户拍卖 <strong>{{ preview.auctionLegacyUnbid.userAuctions }}</strong> 个，会退回奖章）；有出价的旧拍卖保留</td>
             </tr>
             {% endif %}
           </table>
