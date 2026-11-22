@@ -12,6 +12,7 @@
         </div>
       </div>
       <div class="section__body">
+        {% if cancelled %}<p class="oi33-req-notice">已自动取消 {{ cancelled }} 条账号已删除的申请。</p>{% endif %}
         {% if not requests.length %}
         {{ nothing.render(_('No pending requests.')) }}
         {% else %}

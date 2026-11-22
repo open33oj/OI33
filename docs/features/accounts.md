@@ -29,7 +29,9 @@
 ## 申请与认证
 
 `/oi33/requests`：生日/实名/徽章/AtCoder/Codeforces 的申请单；flag≥2 审批；
-状态 `pending/approved/rejected/cancelled`，存在 `oi33_request`。
+状态 `pending/approved/rejected/cancelled`，存在 `oi33_request`。审批先原子 claim（`status:'pending'` 条件更新）
+再应用字段，失败会回滚为 pending；同一字段的新申请或管理员直接编辑会把旧 pending 置为 cancelled；
+账号已删除的申请在审批页加载时自动取消（`cancelOrphanRequests`）。
 
 ## OAuth2 与 API Token
 

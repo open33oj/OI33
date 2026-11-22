@@ -62,7 +62,7 @@ function applySolutionRules(ctx: Context) {
     });
 }
 // 列表页只需要摘要字段；题解评论（reply）可能很多，显式裁掉。
-const LIST_PROJECTION = ['content', 'owner', 'parentId', 'vote', 'hidden', 'featured', 'editedAt'];
+const LIST_PROJECTION = ['content', 'owner', 'parentId', 'vote', 'hidden', 'featured', 'editedAt', 'oi33_moderation_state'];
 
 // 全站题解时间线：按发布时间倒序（_id 即 ObjectId）列出所有已发布的题解。
 // 审核中的题解（hidden）不在此列表出现，它们只存在于审核队列。
@@ -217,6 +217,31 @@ class Oi33SolutionFeatureConfigHandler extends Handler {
     }
 }
 
+// 管理员裁决「AI 失败转人工」的加精申请：通过则加精并发奖励，驳回只改状态。
+class Oi33SolutionFeatureManualHandler extends Handler {
+    @param('id', Types.String)
+    @param('action', Types.String)
+    @param('reason', Types.String, true)
+    async post(domainId: string, id: string, action: string, reason = '') {
+        await checkOi33Admin(this.user._id);
+        const target = this.url('oi33_solutions_featured');
+        if (action !== 'approve' && action !== 'reject') {
+            this.response.redirect = withNotification(target, '未知操作。');
+            return;
+        }
+        let result;
+        try {
+            result = await oi33Model.decideSolutionFeatureManually(
+                id, action === 'approve', this.user._id, reason,
+            );
+        } catch (e: any) {
+            this.response.redirect = withNotification(target, userFacingError(e));
+            return;
+        }
+        this.response.redirect = withNotification(target, result.message);
+    }
+}
+
 export async function apply(ctx: Context) {
     ctx.Route('oi33_solutions', '/oi33/solutions', Oi33SolutionListHandler, PERM.PERM_VIEW_PROBLEM_SOLUTION);
     ctx.Route('oi33_solution_feature', '/oi33/solutions/feature', Oi33SolutionFeatureHandler, PRIV.PRIV_USER_PROFILE);
@@ -228,6 +253,10 @@ export async function apply(ctx: Context) {
     ctx.Route(
         'oi33_solution_feature_config', '/oi33/solutions/feature/config',
         Oi33SolutionFeatureConfigHandler, PRIV.PRIV_USER_PROFILE,
+    );
+    ctx.Route(
+        'oi33_solution_feature_manual', '/oi33/solutions/feature/manual',
+        Oi33SolutionFeatureManualHandler, PRIV.PRIV_USER_PROFILE,
     );
     applySolutionRules(ctx);
 }

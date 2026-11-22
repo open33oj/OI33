@@ -18,8 +18,9 @@ function formatNextTradeAt(value: Date) {
 }
 
 class CatCanMarketHandler extends Handler {
-    async get() {
-        const data = await oi33Model.getCatCanPage(this.user._id);
+    @query('range', Types.String, true)
+    async get(domainId: string, range = 'day') {
+        const data = await oi33Model.getCatCanPage(this.user._id, new Date(), range);
         this.response.template = 'oi33_cat_can.html';
         this.response.body = {
             ...data,
@@ -367,7 +368,8 @@ class CatMapConnectionHandler extends ConnectionHandler {
 
 class CatCanBuyHandler extends Handler {
     @param('quantity', Types.PositiveInt)
-    async post(domainId: string, quantity: number) {
+    @param('range', Types.String, true)
+    async post(domainId: string, quantity: number, range = '') {
         if (await checkUserFlag(this.user._id) < 1) throw new ForbiddenError('完成实名认证后才能购买猫罐头。');
         try {
             const result = await oi33Model.buyCatCans(this.user._id, quantity);
@@ -375,7 +377,9 @@ class CatCanBuyHandler extends Handler {
                 ruleTypes: ['cat_can_balance'],
             }).catch((e) => console.error('[oi33] cat-can medal evaluation failed:', e));
             const notification = `成功买入 ${result.quantity} 个猫罐头，含手续费共支付 ${oi33Model.formatCatFood(result.total)}；下次可交易：${formatNextTradeAt(result.nextTradeAt)}`;
-            this.response.redirect = this.url('oi33_cat_can', { query: { notification } });
+            this.response.redirect = this.url('oi33_cat_can', {
+                query: { notification, ...(range === 'week' || range === 'month' ? { range } : {}) },
+            });
         } catch (e: any) {
             throw new ForbiddenError(e?.message || '购买失败。');
         }
@@ -384,7 +388,8 @@ class CatCanBuyHandler extends Handler {
 
 class CatCanSellHandler extends Handler {
     @param('quantity', Types.PositiveInt)
-    async post(domainId: string, quantity: number) {
+    @param('range', Types.String, true)
+    async post(domainId: string, quantity: number, range = '') {
         if (await checkUserFlag(this.user._id) < 1) throw new ForbiddenError('完成实名认证后才能卖出猫罐头。');
         try {
             const result = await oi33Model.sellCatCans(this.user._id, quantity);
@@ -392,7 +397,9 @@ class CatCanSellHandler extends Handler {
                 ruleTypes: ['cat_food_balance'],
             }).catch((e) => console.error('[oi33] cat-food medal evaluation failed:', e));
             const notification = `成功卖出 ${result.quantity} 个猫罐头，实际到账 ${oi33Model.formatCatFood(result.received)}（手续费 ${oi33Model.formatCatFood(result.fee)}）；下次可交易：${formatNextTradeAt(result.nextTradeAt)}`;
-            this.response.redirect = this.url('oi33_cat_can', { query: { notification } });
+            this.response.redirect = this.url('oi33_cat_can', {
+                query: { notification, ...(range === 'week' || range === 'month' ? { range } : {}) },
+            });
         } catch (e: any) {
             throw new ForbiddenError(e?.message || '卖出失败。');
         }

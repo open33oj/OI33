@@ -202,45 +202,9 @@ function applyDiscussionHooks(ctx: Context) {
                 kind = 'tailreply_edit';
             }
             if (target && kind) {
-                // 作者编辑精华题解 = 内容变了：先取消精华，等新一轮审核通过后再发布，
-                // 避免出现「隐藏 + 精华」这种第四种状态。
-                if (op === 'edit_solution' && !target.psrid) {
-                    const psdoc: any = await DocumentModel.get(
-                        domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid,
-                    );
-                    if (psdoc?.featured) {
-                        await DocumentModel.set(
-                            domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid,
-                            { featured: false } as any,
-                        );
-                    }
-                }
                 await hideBeforeReview(target);
-                // 题解（不是题解评论）只有三种状态：隐藏 / 发布 / 精华。
-                // block/review 都保持隐藏，绝不自动删除；通过则恢复发布。
-                const rootSolution = !target.psrid;
-                moderateContentInBackground({
-                    kind, uid: h.user._id, text: content, target,
-                    ...(rootSolution ? {
-                        applyVerdict: async (result: any) => {
-                            if (result.verdict === 'pass') {
-                                await unhideModerationTarget(target);
-                                return;
-                            }
-                            await hideModerationTarget(target);
-                            if (result.verdict === 'block') {
-                                // Definitive rejection: tell the author why, so a hidden
-                                // solution is actionable instead of a silent dead end.
-                                await MessageModel.send(
-                                    1, h.user._id,
-                                    `你的题解未通过审核，已隐藏（仅你和管理员可见）。\n`
-                                    + `原因：${result.aiReason || '不符合社区规范'}。\n`
-                                    + '修改后重新提交即可再次审核。',
-                                ).catch(() => {});
-                            }
-                        },
-                    } : {}),
-                });
+                // 讨论回复/评论沿用默认裁决：pass 取消隐藏，block 删除，review 留队列。
+                moderateContentInBackground({ kind, uid: h.user._id, text: content, target });
             }
         } catch (e) {
             console.error('[oi33] moderation after-hook failed:', e);
@@ -275,11 +239,9 @@ function applyDiscussionHooks(ctx: Context) {
 
     // 4. Rendering: pending-review topics stay unreachable via shared links
     // (404 for non-owners/staff). Pending replies are never shown raw to
-    // non-staff — their text is replaced with an "under review" notice until a
-    // human approves them (the author sees the notice too). Staff still see the
-    // real content, but with a leading "under review" prefix so it's obvious.
-    const PENDING_NOTICE = '（审核中，审核通过后将显示）';
-    const PENDING_PREFIX = '（审核中）';
+    // non-staff: the text is blanked and the template renders a placeholder
+    // (colour dot, no words). Staff see the real content plus the same dot.
+    // `oi33_hidden` / `oi33_moderation_state` drive both markers.
     ctx.on('handler/after/DiscussionDetail', async (h: any) => {
         const body = h.response?.body;
         if (!body) return;
@@ -291,8 +253,10 @@ function applyDiscussionHooks(ctx: Context) {
         }
         const maskReply = (doc: any) => {
             if (!doc.hidden) return doc;
-            if (privileged) return { ...doc, content: `${PENDING_PREFIX} ${doc.content}` };
-            return { ...doc, content: PENDING_NOTICE };
+            const state = doc.oi33_moderation_state === 'blocked' ? 'blocked' : 'pending';
+            const masked = { ...doc, oi33_hidden: true, oi33_moderation_state: state };
+            if (privileged) return masked;
+            return { ...masked, content: '' };
         };
         if (Array.isArray(body.drdocs)) {
             body.drdocs = body.drdocs.map((d: any) => {
@@ -396,7 +360,9 @@ function applySolutionHooks(ctx: Context) {
                                 await unhideModerationTarget(target);
                                 return;
                             }
-                            await hideModerationTarget(target);
+                            await hideModerationTarget(
+                                target, result.verdict === 'block' ? 'blocked' : 'pending',
+                            );
                             if (result.verdict === 'block') {
                                 // Definitive rejection: tell the author why, so a hidden
                                 // solution is actionable instead of a silent dead end.
@@ -431,6 +397,9 @@ class Ai33ModerationHandler extends Handler {
         // Close legacy pending entries that can't be operated on (missing
         // target), so they don't error out or clog the queue.
         await oi33Model.modCloseMissingTarget(this.user._id);
+        // Also drop entries whose content was deleted while waiting for a
+        // human, so the queue never shows approvals that cannot be applied.
+        const autoClosed = await oi33Model.modExpireGoneTargets(this.user._id);
         const [pendingAll, recentAll, stats, cfg, todayCost, meowPending, hiddenSolutionCount] = await Promise.all([
             oi33Model.modListPending(),
             oi33Model.modListRecent(50),
@@ -546,6 +515,8 @@ class Ai33ModerationHandler extends Handler {
             notice = '喵喵已驳回（不会展示）。';
         } else if (args.solution === 'published') {
             notice = '题解已恢复发布。';
+        } else if (autoClosed) {
+            notice = `已自动关闭 ${autoClosed} 条目标已删除的审核记录。`;
         }
         this.response.template = 'oi33_ai_moderation.html';
         this.response.body = {
@@ -661,79 +632,89 @@ class Ai33ModerationHandler extends Handler {
         } else if ((action === 'approve' || action === 'reject') && id) {
             const entry = await oi33Model.modGet(id);
             if (!entry || entry.status !== 'pending') throw new ValidationError('该条目已被处理。');
-            // Bio entries have no discussion target: they flip the stored bio
-            // review state directly. The decision is tied to the bio version
-            // the record was created for, so it is only applied while that
-            // version still is the live bio.
-            if (entry.kind === 'bio') {
-                const liveBio = await oi33Model.getLiveBio(entry.uid);
-                const state = bioQueueState(entry, liveBio);
-                if (state === 'stale') {
-                    // The user edited the bio again (or cleared it, or the
-                    // account is gone) after this record was created, so the
-                    // record can never be applied. Close it as stale instead of
-                    // failing: the queue stays usable and the current bio is
-                    // left exactly as it is (the newer edit has its own record).
-                    console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}) is stale: `
-                        + `reviewed version no longer matches the live bio (live length ${liveBio?.length ?? -1})`);
-                    await oi33Model.modExpireEntries([id], this.user._id);
-                    this.response.redirect = this.url('oi33_ai_moderation', { query: { expired: '1' } });
-                    return;
-                }
-                const status = action === 'approve' ? 'approved' : 'rejected';
-                // The hash guard keeps a concurrent edit safe. When the write
-                // did not match, re-read once: an edit landing in between makes
-                // the record stale, while a merely drifted hash (e.g. written
-                // by an older batch run) still describes this exact text — then
-                // the reviewed text is authoritative and its hash is rewritten,
-                // otherwise an approval would leave the bio invisible.
-                if (!await oi33Model.bioSetStatus(entry.uid, entry.contentHash, status)) {
-                    const liveAgain = await oi33Model.getLiveBio(entry.uid);
-                    if (bioQueueState(entry, liveAgain) === 'stale') {
-                        console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}): bio changed during the decision, `
-                            + 'closing the record as stale');
-                        await oi33Model.modExpireEntries([id], this.user._id);
+            const decision = action === 'approve' ? 'approved' : 'rejected';
+            // Claim the record first: two admins acting on the same entry must
+            // not both hide/delete (or both unhide) the same content.
+            if (!await oi33Model.modClaimDecision(id, decision, this.user._id)) {
+                throw new ValidationError('该条目已被其他管理员处理。');
+            }
+            try {
+                // Bio entries have no discussion target: they flip the stored
+                // bio review state directly. The decision is tied to the bio
+                // version the record was created for, so it is only applied
+                // while that version still is the live bio.
+                if (entry.kind === 'bio') {
+                    const liveBio = await oi33Model.getLiveBio(entry.uid);
+                    const state = bioQueueState(entry, liveBio);
+                    if (state === 'stale') {
+                        // The user edited the bio again (or cleared it, or the
+                        // account is gone) after this record was created, so the
+                        // record can never be applied. Close it as stale instead
+                        // of failing: the queue stays usable and the current bio
+                        // is left exactly as it is.
+                        console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}) is stale: `
+                            + `reviewed version no longer matches the live bio (live length ${liveBio?.length ?? -1})`);
+                        await oi33Model.modSetStatus(id, 'stale', this.user._id);
                         this.response.redirect = this.url('oi33_ai_moderation', { query: { expired: '1' } });
                         return;
                     }
-                    console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}): stored bio_hash drifted, `
-                        + 'applying the decision to the verified live text');
-                    await oi33Model.bioSetReviewed(entry.uid, bioHashOf(liveAgain as string), status);
+                    const status = decision;
+                    // The hash guard keeps a concurrent edit safe. When the
+                    // write did not match, re-read once: an edit landing in
+                    // between makes the record stale, while a merely drifted
+                    // hash (e.g. written by an older batch run) still describes
+                    // this exact text — then the reviewed text is authoritative
+                    // and its hash is rewritten, otherwise an approval would
+                    // leave the bio invisible.
+                    if (!await oi33Model.bioSetStatus(entry.uid, entry.contentHash, status)) {
+                        const liveAgain = await oi33Model.getLiveBio(entry.uid);
+                        if (bioQueueState(entry, liveAgain) === 'stale') {
+                            console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}): bio changed during the decision, `
+                                + 'closing the record as stale');
+                            await oi33Model.modSetStatus(id, 'stale', this.user._id);
+                            this.response.redirect = this.url('oi33_ai_moderation', { query: { expired: '1' } });
+                            return;
+                        }
+                        console.warn(`[oi33] bio entry ${id} (uid ${entry.uid}): stored bio_hash drifted, `
+                            + 'applying the decision to the verified live text');
+                        await oi33Model.bioSetReviewed(entry.uid, bioHashOf(liveAgain as string), status);
+                    }
+                    if (action === 'reject') {
+                        await MessageModel.send(
+                            1, entry.uid,
+                            '你的个人简介人工审核未通过，不会对其他用户展示。'
+                            + '可在「账号设置」中修改后重新提交（两次修改间隔 2 小时）。',
+                        ).catch(() => {});
+                    }
+                    this.response.redirect = this.url('oi33_ai_moderation');
+                    return;
                 }
-                if (action === 'reject') {
-                    await MessageModel.send(
-                        1, entry.uid,
-                        '你的个人简介人工审核未通过，不会对其他用户展示。'
-                        + '可在「账号设置」中修改后重新提交（两次修改间隔 2 小时）。',
-                    ).catch(() => {});
+                // Entries from before the target field existed, or whose content
+                // was already removed, can't be operated on. The claim already
+                // records the admin's choice, so just close the queue entry.
+                if (!entry.target || !await moderationTargetExists(entry.target)) {
+                    console.warn(`[oi33] ${action} ${id}: target missing or already gone, closing entry`);
+                    this.response.redirect = this.url('oi33_ai_moderation');
+                    return;
                 }
-                await oi33Model.modSetStatus(id, status, this.user._id);
-                this.response.redirect = this.url('oi33_ai_moderation');
-                return;
-            }
-            // Entries from before the target field existed, or whose content was
-            // already removed, can't be operated on — close them so the queue
-            // isn't stuck, recording the admin's choice.
-            if (!entry.target || !await moderationTargetExists(entry.target)) {
-                console.warn(`[oi33] ${action} ${id}: target missing or already gone, closing entry`);
-                await oi33Model.modSetStatus(id, action === 'approve' ? 'approved' : 'rejected', this.user._id);
-                this.response.redirect = this.url('oi33_ai_moderation');
-                return;
-            }
-            if (action === 'approve') {
-                // Approved content simply becomes visible again; deliberately
-                // no站内信, so no "received a message" popup.
-                await unhideModerationTarget(entry.target);
-                await oi33Model.modSetStatus(id, 'approved', this.user._id);
-            } else if (entry.target.psid && !entry.target.psrid) {
-                // 题解只有三态：人工驳回也保持隐藏（可编辑后重新提交），不删除。
-                await hideModerationTarget(entry.target);
-                await oi33Model.modSetStatus(id, 'rejected', this.user._id);
-            } else {
-                // Reject is deliberately silent: content is removed with no
-                // notification (the standard richtext message didn't render).
-                await deleteModerationTarget(entry.target);
-                await oi33Model.modSetStatus(id, 'rejected', this.user._id);
+                if (action === 'approve') {
+                    // Approved content simply becomes visible again; deliberately
+                    // no站内信, so no "received a message" popup.
+                    await unhideModerationTarget(entry.target);
+                } else if (entry.target.psid && !entry.target.psrid) {
+                    // 题解只有三态：人工驳回也保持隐藏（可编辑后重新提交），不删除。
+                    // 标记为 blocked，作者侧的红点才会显示「未通过」而不是一直「审核中」。
+                    await hideModerationTarget(entry.target, 'blocked');
+                } else {
+                    // Reject is deliberately silent: content is removed with no
+                    // notification (the standard richtext message didn't render).
+                    await deleteModerationTarget(entry.target);
+                }
+            } catch (e) {
+                // The content action failed: release the claim so the entry can
+                // be retried instead of silently disappearing from the queue.
+                await oi33Model.modReopen(id);
+                throw e;
             }
         }
         this.response.redirect = this.url('oi33_ai_moderation');

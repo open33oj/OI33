@@ -20,12 +20,14 @@
 
 ## 猫罐头市场
 
-- 集合：`oi33_cat_can_pool`（单文档 `main`）、`oi33_cat_can_price`（每日价格点）。
+- 集合：`oi33_cat_can_pool`（单文档 `main`）、`oi33_cat_can_price`（每 8 小时一个价格槽）。
 - **卖价**（用户卖回池子）由储备池动态计算，单期涨跌上限 ±3%，且不超过 `储备粮 ÷ 流通罐头` 的偿付上限；**买价**（用户从池子买）从上一期买价向 `卖价 + 25% × (AMM − 卖价)` 靠拢，每 8 小时最多 ±10%，最低为卖价的 110%，最高为 `min(卖价 × 5, AMM)`。规则在 `model/cat/can-price-rules.ts`，纯函数有单测。
 - 交易手续费 = `ceil(金额 × 25 / 100000)`（即 0.025%，最少 1g）。
 - 每个用户 2 小时交易冷却（`cat_can_trade_available_at`），买卖都受。
-- 历史价格保留 90 个点；`getCurrentQuote` / `getCatCanDayChange` / `getCatCanPage` /
-  `getCatCanEconomy` 出页面与统计。
+- 价格历史图分别展示买入价与卖出价：默认「日线」（最近 30 天，每天的最后一个报价），
+  可切到「周 K」（16 周）/「月 K」（12 个月）区间 OHLC（空心涨、实心跌）；聚合与 SVG 几何在
+  `model/cat/can.ts` 的 `buildPriceHistory`，前端只负责渲染。
+  `getCurrentQuote` / `getCatCanDayChange` / `getCatCanPage` / `getCatCanEconomy` 出页面与统计。
 - 管理员校准：`calibrateCatCanPool(operator)` 按账本重算流通/供应/储备。
 
 ## 拍卖（可售卖奖章）

@@ -43,9 +43,9 @@ unique index。
 - 通过条件：模型 `pass === true` 且 `score >= featurePassScore`（默认 70）；解析失败/
   接口异常一律退款，不消耗额度。
 - **输出预算 10000 tokens**（全局 `AI_MAX_TOKENS`）：思考型模型会把推理 token 也算进 `max_tokens`，预算不足时
-  上游仍返回 200，但 `content` 为空、`finish_reason=length`；这种情况按「模型输出预算不足」
-  退款并写 `oi33_log`（`reason` 含 `finish_reason` 与 `completion_tokens`），不再误报成
-  「服务不可用」。若仍频繁出现，换非思考模型或降低评审任务难度。
+  上游仍返回 200，但 `content` 为空、`finish_reason=length`；这种情况**不再退款**，而是转人工审核
+  （`status='manual'`，写 `oi33_log`，`reason` 含 `finish_reason` 与 `completion_tokens`）。
+  若仍频繁出现，换非思考模型或降低评审任务难度。
 - 模型：`featureModel` → `teacher_model` → `moderation_model` → `deepseek-v4-flash`，
   单次调用按 AI 用量记账。
 - 被规则/AI 拦截且没有进入人工队列的隐藏题解，会出现在 `/oi33/ai/moderation#solution`，
@@ -56,7 +56,9 @@ unique index。
 - 结果：
   - 通过 → `setSolutionFeatured`（`featuredBy = 0` 表示 AI）+ 合并一条私信（含奖励信息）；
   - 不通过 → 题解保持发布，私信「评分 + 结论 + 最多 3 条修改建议」，额度已用，明天可再申请；
-  - AI 未配置/超时/返回异常/题解状态在审核期间变化 → 删除申请记录、**退回当天额度**并私信说明。
+  - AI 未配置/超时/空输出/无法解析 → 记录转 `manual`，**不退回额度**，等管理员
+    在 `/oi33/solutions/featured` 人工通过/驳回（通过会正常加精并发奖励）；
+  - 题解在审核期间被删除/隐藏/已精华 → 删除申请记录、**退回当天额度**并私信说明。
 
 ## 后台
 
@@ -64,7 +66,8 @@ unique index。
 
 - 加精奖励配置（none/can/food + 数量），同一篇只发一次；
 - 全部题解列表，管理员可强制加精/取消（仍然保留，作为 AI 之外的人工兜底）；
-- 「最近加精申请」表：时间、作者、题目、状态（审核中/已通过/未通过/异常）、AI 评分与建议。
+- 「最近加精申请」表：时间、作者、题目、状态（审核中/待人工审核/已通过/未通过/异常）、
+AI 评分与建议；`manual` 行带「通过 / 驳回」按钮与可选驳回原因。
 
 ## 数据
 
@@ -73,19 +76,20 @@ unique index。
 ```
 _id: string            // `${uid}:${YYYY-MM-DD}`，唯一键 = 每日额度
 uid, domainId, psid, pid
-status: 'pending' | 'featured' | 'rejected' | 'error'
+status: 'pending' | 'manual' | 'featured' | 'rejected' | 'error'
 score?, reason?, suggestions?, model?, cost?
 createdAt, decidedAt?
 ```
 
-`error` 记录只在“内容状态变化但不想退额度”的场景保留；基础设施异常会直接删记录退额度，
-所以页面上看到的 `error` 很少。
+`manual` 记录是 AI 失败后等人工裁决的申请（额度已用，不删记录）；
+`error` 记录只在“内容状态变化但不想退额度”的场景保留，所以页面上看到的 `error` 很少。
 
 ## 坑
 
 - 作者编辑一篇精华题解时，会**先自动取消精华**再走新一轮审核（避免「隐藏 + 精华」的
   第四种状态）；奖励不会重复发放，重新通过后需要再申请加精。
-- AI 审核失败会退额度，所以「今天申请过」不等于「额度一定用掉了」——以记录是否存在为准。
+- AI 审核失败转人工时额度已用；只有题解失效（删除/隐藏/已精华）才会退额度，
+  所以「今天申请过」不等于「额度一定用掉了」——以记录是否存在为准。
 - 题解被隐藏后不能申请加精；先把题解改到通过审核。
 - 申请记录是审计数据，不要随手删；只有基础设施失败才由代码删除退额度。
 - 改提示词后先拿一篇旧题解试跑，确认模型仍输出 `{"pass":...,"score":...}`；解析器只认

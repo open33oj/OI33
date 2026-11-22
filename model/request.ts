@@ -16,6 +16,10 @@ function buildRequestDoc(uid: number, kind: Oi33RequestKind, requester: number, 
 }
 
 export async function applyRequestPayload(uid: number, payload: Oi33RequestPayload) {
+    // The request may outlive its account (user deleted while it was queued).
+    // Never `upsert` an oi33_user row for a uid that no longer exists.
+    const coreUser = await db.collection('user').findOne({ _id: uid }, { projection: { _id: 1 } });
+    if (!coreUser) throw new Error('用户不存在，申请无法应用。');
     const $set: Record<string, any> = {};
     const $unset: Record<string, ''> = {};
     if (payload.birthday_date !== undefined) {
@@ -58,20 +62,26 @@ export async function applyRequestPayload(uid: number, payload: Oi33RequestPaylo
     return true;
 }
 
-export async function submitRequest(uid: number, kind: Oi33RequestKind, requester: number, payload: Oi33RequestPayload) {
+// Cancel every pending request of (uid, kind) — a new submission or a direct
+// admin edit supersedes them, so an old approval can never overwrite newer data.
+async function cancelPendingRequests(uid: number, kind: Oi33RequestKind) {
     const stale = await requestColl.find({ uid, kind, status: 'pending' }).project({ _id: 1 }).toArray();
-    if (stale.length) {
-        const staleIds = stale.map((d) => d._id);
-        const staleHex = staleIds.map((id) => id.toHexString());
-        await requestColl.updateMany(
-            { _id: { $in: staleIds } },
-            { $set: { status: 'cancelled', handledAt: new Date() } },
-        );
-        await logColl.updateMany(
-            { type: 'request', status: 'pending', reqId: { $in: staleHex } },
-            { $set: { status: 'cancelled' } },
-        );
-    }
+    if (!stale.length) return 0;
+    const staleIds = stale.map((d) => d._id);
+    const staleHex = staleIds.map((id) => id.toHexString());
+    await requestColl.updateMany(
+        { _id: { $in: staleIds }, status: 'pending' },
+        { $set: { status: 'cancelled', handledAt: new Date() } },
+    );
+    await logColl.updateMany(
+        { type: 'request', status: 'pending', reqId: { $in: staleHex } },
+        { $set: { status: 'cancelled' } },
+    );
+    return staleIds.length;
+}
+
+export async function submitRequest(uid: number, kind: Oi33RequestKind, requester: number, payload: Oi33RequestPayload) {
+    await cancelPendingRequests(uid, kind);
     const doc = buildRequestDoc(uid, kind, requester, payload, 'pending');
     const { insertedId } = await requestColl.insertOne(doc as Oi33Request);
     await addLog({ type: 'request', userId: uid, requester, reqId: insertedId.toHexString(), status: 'pending', kind });
@@ -79,6 +89,9 @@ export async function submitRequest(uid: number, kind: Oi33RequestKind, requeste
 }
 
 export async function directUpdate(uid: number, kind: Oi33RequestKind, admin: number, payload: Oi33RequestPayload) {
+    // A queued request for the same field would otherwise apply stale data on
+    // top of this direct edit.
+    await cancelPendingRequests(uid, kind);
     await applyRequestPayload(uid, payload);
     const doc: any = buildRequestDoc(uid, kind, admin, payload, 'approved');
     doc.handler = admin;
@@ -88,30 +101,84 @@ export async function directUpdate(uid: number, kind: Oi33RequestKind, admin: nu
     return insertedId;
 }
 
+// Claim the request atomically before applying it. Without this, a second
+// admin (or a concurrent new submission that cancels the pending request) could
+// still have the old payload applied on top of newer data.
 export async function approveRequest(reqId: ObjectId, handlerUid: number) {
-    const doc = await requestColl.findOne({ _id: reqId, status: 'pending' });
-    if (!doc) return false;
-    const applied = await applyRequestPayload(doc.uid, doc);
-    if (!applied) return false;
-    const result = await requestColl.updateOne(
+    const pending = await requestColl.findOne({ _id: reqId, status: 'pending' });
+    if (!pending) return false;
+    const user = await db.collection('user').findOne({ _id: pending.uid }, { projection: { _id: 1 } });
+    if (!user) {
+        await requestColl.updateOne(
+            { _id: reqId, status: 'pending' },
+            { $set: { status: 'cancelled', handler: handlerUid, handledAt: new Date() } },
+        );
+        await logColl.updateMany(
+            { type: 'request', status: 'pending', reqId: reqId.toHexString() },
+            { $set: { status: 'cancelled' } },
+        );
+        return false;
+    }
+    const claimed = await requestColl.findOneAndUpdate(
         { _id: reqId, status: 'pending' },
         { $set: { status: 'approved', handler: handlerUid, handledAt: new Date() } },
+        { returnDocument: 'after' },
     );
-    if (result.matchedCount) {
-        await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'approved', kind: doc.kind });
+    if (!claimed) return false;
+    try {
+        await applyRequestPayload(claimed.uid, claimed as any);
+    } catch (e) {
+        // Nothing was applied yet (payload validation failed): put it back in
+        // the queue instead of losing the request.
+        await requestColl.updateOne(
+            { _id: reqId, status: 'approved' },
+            { $set: { status: 'pending' }, $unset: { handler: '', handledAt: '' } },
+        );
+        throw e;
     }
-    return result.matchedCount > 0;
+    await addLog({
+        type: 'request', userId: claimed.uid, requester: claimed.requester,
+        reqId: reqId.toHexString(), status: 'approved', kind: claimed.kind,
+    });
+    return true;
 }
 
 export async function rejectRequest(reqId: ObjectId, handlerUid: number) {
-    const doc = await requestColl.findOne({ _id: reqId, status: 'pending' });
-    if (!doc) return false;
-    await requestColl.updateOne(
-        { _id: reqId },
+    const result = await requestColl.updateOne(
+        { _id: reqId, status: 'pending' },
         { $set: { status: 'rejected', handler: handlerUid, handledAt: new Date() } },
     );
-    await addLog({ type: 'request', userId: doc.uid, requester: doc.requester, reqId: reqId.toHexString(), status: 'rejected', kind: doc.kind });
+    if (!result.matchedCount) return false;
+    const doc = await requestColl.findOne({ _id: reqId });
+    if (doc) {
+        await addLog({
+            type: 'request', userId: doc.uid, requester: doc.requester,
+            reqId: reqId.toHexString(), status: 'rejected', kind: doc.kind,
+        });
+    }
     return true;
+}
+
+// Requests whose account was deleted can never be approved; close them when
+// the admin queue loads so they don't pile up forever.
+export async function cancelOrphanRequests(): Promise<number> {
+    const pending = await requestColl.find({ status: 'pending' }).project({ _id: 1, uid: 1 }).toArray();
+    if (!pending.length) return 0;
+    const uids = [...new Set(pending.map((doc) => doc.uid))];
+    const users = await db.collection('user').find({ _id: { $in: uids } }, { projection: { _id: 1 } }).toArray();
+    const alive = new Set(users.map((user) => user._id));
+    const orphanIds = pending.filter((doc) => !alive.has(doc.uid)).map((doc) => doc._id);
+    if (!orphanIds.length) return 0;
+    const orphanHex = orphanIds.map((id) => id.toHexString());
+    await requestColl.updateMany(
+        { _id: { $in: orphanIds }, status: 'pending' },
+        { $set: { status: 'cancelled', handledAt: new Date() } },
+    );
+    await logColl.updateMany(
+        { type: 'request', status: 'pending', reqId: { $in: orphanHex } },
+        { $set: { status: 'cancelled' } },
+    );
+    return orphanIds.length;
 }
 
 export async function getPendingRequests() {

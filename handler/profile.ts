@@ -164,6 +164,9 @@ class RequestListHandler extends Handler {
     async get() {
         const approverRole = await getIdentityRole(this.user._id);
         if (approverRole < 2) throw new ForbiddenError('仅管理员和行政管理员可以处理审批。');
+        // Close requests whose account was deleted, so the queue never shows
+        // approvals that can never be applied.
+        const cancelled = await oi33Model.cancelOrphanRequests();
         const requests = await oi33Model.getPendingRequests();
         const uidSet = new Set<number>();
         for (const r of requests) {
@@ -174,7 +177,9 @@ class RequestListHandler extends Handler {
         const udict = await UserModel.getList('', uids);
         const oi33Dict = await oi33Model.getUserDataByUids(uids);
         this.response.template = 'oi33_requests.html';
-        this.response.body = { requests, udict, oi33Dict, approverRole };
+        this.response.body = {
+            requests, udict, oi33Dict, approverRole, cancelled,
+        };
     }
 }
 
@@ -201,9 +206,18 @@ class RequestApproveHandler extends Handler {
 class RequestRejectHandler extends Handler {
     @param('id', Types.ObjectId)
     async post(domainId: string, id: ObjectId) {
-        const approverRole = await getIdentityRole(this.user._id);
-        if (approverRole < 2) throw new ForbiddenError('仅管理员和行政管理员可以处理审批。');
-        await oi33Model.rejectRequest(id, this.user._id);
+        const [approverRole, request] = await Promise.all([
+            getIdentityRole(this.user._id),
+            oi33Model.getRequestById(id),
+        ]);
+        if (!request || request.status !== 'pending') throw new ForbiddenError('申请不存在或已处理。');
+        // Same hierarchy rule as approval: a level-2 admin cannot decide a
+        // level-2 (administrative) realname application either way.
+        if (!canApproveRequest(approverRole, request)) {
+            throw new ForbiddenError('当前身份无权处理该认证等级的申请。');
+        }
+        const ok = await oi33Model.rejectRequest(id, this.user._id);
+        if (!ok) throw new ForbiddenError('申请不存在或已处理。');
         this.response.redirect = this.url('oi33_requests');
     }
 }

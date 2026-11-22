@@ -688,19 +688,24 @@ export interface Oi33SolutionConfig {
 }
 
 // 用户申请题解加精的审核记录。`_id` 是 `${uid}:${YYYY-MM-DD}`（Asia/Shanghai），
-// 唯一索引天然保证「每人每天一篇」的额度；AI 服务异常时会删除记录退回额度。
+// 唯一索引天然保证「每人每天一篇」的额度；AI 服务异常时转人工审核（status='manual'），
+// 额度不再退回，由管理员在后台通过/驳回。
 export interface Oi33SolutionFeatureApply {
     _id: string;
     uid: number;
     domainId: string;
     psid: ObjectId;
     pid: number;
-    status: 'pending' | 'featured' | 'rejected' | 'error';
+    status: 'pending' | 'featured' | 'rejected' | 'error' | 'manual';
     score?: number;
     reason?: string;
     suggestions?: string[];
     model?: string;
     cost?: number;
+    // AI 失败转人工时记录失败原因，管理员在后台做最终裁决。
+    manualReason?: string;
+    aiError?: string;
+    manualAt?: Date;
     createdAt: Date;
     decidedAt?: Date;
 }

@@ -18,7 +18,9 @@ const INITIAL_PRICE = 100;
 // The sell (buyback) price moves at most 3% per 8-hour tick. The buy (sale)
 // price has its own ramp toward the AMM; see ./can-price-rules.
 const MAX_TICK_PERCENT = 3;
-const PRICE_HISTORY_POINTS = 90;
+// 价格历史图：默认日线（每天最后一个报价），周/月切换为 K 线（区间 OHLC）。
+// 每个 8 小时一个价格槽，因此 30 天 ≈ 90 条、16 周 ≈ 336 条、12 个月 ≈ 1095 条。
+export type PriceHistoryRange = 'day' | 'week' | 'month';
 export const CAT_CAN_ADMIN_ADJUSTMENT_MAX = 1_000_000_000;
 
 interface ShanghaiParts {
@@ -430,43 +432,270 @@ export async function getCatCanDayChange(now = new Date()) {
     };
 }
 
-function buildPriceHistory(rows: any[]) {
-    const plot = { left: 62, right: 838, top: 20, bottom: 214 };
-    if (!rows.length) return { nodes: [], sellPoints: '', min: 0, max: 0 };
-    const prices = rows.map((row) => Number(row.sellPrice) || 0);
-    const rawMin = Math.min(...prices);
-    const rawMax = Math.max(...prices);
+const SHANGHAI_OFFSET_MS = 8 * 3600 * 1000;
+const DAY_MS = 24 * 3600 * 1000;
+
+function normalizePriceRange(range: unknown): PriceHistoryRange {
+    return range === 'week' || range === 'month' ? range : 'day';
+}
+
+function shanghaiClock(ts: number) {
+    return new Date(ts + SHANGHAI_OFFSET_MS);
+}
+
+function shanghaiDayStart(ts: number) {
+    const d = shanghaiClock(ts);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - SHANGHAI_OFFSET_MS;
+}
+
+function shanghaiWeekStart(ts: number) {
+    const d = shanghaiClock(ts);
+    const mondayOffset = (d.getUTCDay() + 6) % 7;
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - mondayOffset) - SHANGHAI_OFFSET_MS;
+}
+
+function shanghaiMonthStart(ts: number) {
+    const d = shanghaiClock(ts);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) - SHANGHAI_OFFSET_MS;
+}
+
+function shiftShanghaiMonth(ts: number, delta: number) {
+    const d = shanghaiClock(ts);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + delta, 1) - SHANGHAI_OFFSET_MS;
+}
+
+function pad2(value: number) {
+    return String(value).padStart(2, '0');
+}
+
+function priceBucketKey(ts: number, range: PriceHistoryRange) {
+    const d = shanghaiClock(ts);
+    if (range === 'month') return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`;
+    if (range === 'week') {
+        const monday = shanghaiClock(shanghaiWeekStart(ts));
+        return `${monday.getUTCFullYear()}-${pad2(monday.getUTCMonth() + 1)}-${pad2(monday.getUTCDate())}`;
+    }
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+}
+
+function priceBucketLabel(key: string, range: PriceHistoryRange) {
+    if (range === 'month') return key;
+    const [, month, day] = key.split('-');
+    return `${month}-${day}`;
+}
+
+function priceHistoryWindowStart(now: number, range: PriceHistoryRange) {
+    if (range === 'day') return shanghaiDayStart(now) - 29 * DAY_MS;
+    if (range === 'week') return shanghaiWeekStart(now) - 15 * 7 * DAY_MS;
+    return shiftShanghaiMonth(shanghaiMonthStart(now), -11);
+}
+
+interface PriceOhlc { open: number; close: number; high: number; low: number }
+
+interface PriceBucket {
+    key: string;
+    label: string;
+    buy: PriceOhlc;
+    sell: PriceOhlc;
+}
+
+function aggregatePriceBuckets(rows: any[], range: PriceHistoryRange): PriceBucket[] {
+    const buckets = new Map<string, { label: string; buy: number[]; sell: number[] }>();
+    for (const row of rows) {
+        const ts = new Date(row._id || row.createdAt).getTime();
+        if (!Number.isFinite(ts)) continue;
+        const key = priceBucketKey(ts, range);
+        let bucket = buckets.get(key);
+        if (!bucket) {
+            bucket = { label: priceBucketLabel(key, range), buy: [], sell: [] };
+            buckets.set(key, bucket);
+        }
+        const sell = Number(row.sellPrice) || 0;
+        // Pre-dynamic-price rows may lack buyPrice; fall back to sell so the
+        // chart still has a continuous buy series instead of dropping points.
+        const buy = Number(row.buyPrice) || sell;
+        bucket.sell.push(sell);
+        bucket.buy.push(buy);
+    }
+    const ohlc = (values: number[]): PriceOhlc => ({
+        open: values[0], close: values[values.length - 1],
+        high: Math.max(...values), low: Math.min(...values),
+    });
+    return [...buckets.entries()].map(([key, value]) => ({
+        key, label: value.label, buy: ohlc(value.buy), sell: ohlc(value.sell),
+    }));
+}
+
+function round1(value: number) {
+    return Math.round(value * 10) / 10;
+}
+
+function priceBucketSlots(now: number, range: PriceHistoryRange) {
+    const slots: { key: string; label: string }[] = [];
+    const push = (ts: number) => {
+        const key = priceBucketKey(ts, range);
+        slots.push({ key, label: priceBucketLabel(key, range) });
+    };
+    if (range === 'day') {
+        const start = shanghaiDayStart(now) - 29 * DAY_MS;
+        for (let i = 0; i < 30; i++) push(start + i * DAY_MS);
+    } else if (range === 'week') {
+        const start = shanghaiWeekStart(now) - 15 * 7 * DAY_MS;
+        for (let i = 0; i < 16; i++) push(start + i * 7 * DAY_MS);
+    } else {
+        const start = shiftShanghaiMonth(shanghaiMonthStart(now), -11);
+        for (let i = 0; i < 12; i++) push(shiftShanghaiMonth(start, i));
+    }
+    return slots;
+}
+
+function buildPriceHistory(rows: any[], range: PriceHistoryRange, now = Date.now()) {
+    const byKey = new Map(aggregatePriceBuckets(rows, range).map((bucket) => [bucket.key, bucket]));
+    // Keep every slot of the window: periods without price rows stay on the
+    // time axis (as a gap) instead of being squeezed out and distorting the x
+    // axis. `data` is null for those slots.
+    const buckets = priceBucketSlots(now, range).map((slot) => ({
+        ...slot, data: byKey.get(slot.key) || null,
+    }));
+    const present = buckets.filter((bucket) => bucket.data);
+    const mode = range === 'day' ? 'line' : 'candle';
+    const base = {
+        range, mode, hasData: present.length > 0, bucketCount: buckets.length, dataCount: present.length,
+    };
+    if (!present.length) {
+        return {
+            ...base, min: 0, max: 0, ticks: [], nodes: [], series: [], panels: [], axisLabels: [], viewBox: '0 0 900 260',
+        };
+    }
+    const allValues = present.flatMap((bucket) => [
+        bucket.data!.buy.high, bucket.data!.buy.low,
+        bucket.data!.sell.high, bucket.data!.sell.low,
+    ]);
+    const rawMin = Math.min(...allValues);
+    const rawMax = Math.max(...allValues);
     const padding = Math.max(1, Math.ceil((rawMax - rawMin || rawMax || 1) * 0.08));
     const min = Math.max(0, rawMin - padding);
     const max = rawMax + padding;
-    const range = Math.max(1, max - min);
-    const y = (value: number) => Math.round((plot.bottom - (plot.bottom - plot.top) * (value - min) / range) * 10) / 10;
-    const labelEvery = Math.max(1, Math.ceil(rows.length / 7));
-    const formatter = new Intl.DateTimeFormat('zh-CN', {
-        timeZone: TIME_ZONE, month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
-    });
-    const nodes = rows.map((row, index) => {
-        const at = new Date(row._id || row.createdAt);
-        const sellPrice = Number(row.sellPrice) || 0;
-        return {
-            x: Math.round((plot.left + (plot.right - plot.left) * index / Math.max(1, rows.length - 1)) * 10) / 10,
-            sellY: y(sellPrice), sellPrice,
-            label: formatter.format(at),
-            showLabel: index === 0 || index === rows.length - 1 || index % labelEvery === 0,
+    const rangeLength = Math.max(1, max - min);
+    const labelEvery = Math.max(1, Math.ceil(buckets.length / 8));
+    const labelIndexes = new Set<number>();
+    for (let i = 0; i < buckets.length; i += labelEvery) labelIndexes.add(i);
+    labelIndexes.add(0);
+    labelIndexes.add(buckets.length - 1);
+
+    if (mode === 'line') {
+        const plot = { left: 62, right: 838, top: 20, bottom: 214 };
+        const step = (plot.right - plot.left) / Math.max(1, buckets.length - 1);
+        const y = (value: number) => round1(plot.bottom - (plot.bottom - plot.top) * (value - min) / rangeLength);
+        const xOf = (index: number) => round1(plot.left + step * index);
+        const nodes = buckets.map((bucket, index) => {
+            if (!bucket.data) return null;
+            return {
+                x: xOf(index),
+                label: bucket.label,
+                buyPrice: bucket.data.buy.close,
+                sellPrice: bucket.data.sell.close,
+                buyY: y(bucket.data.buy.close),
+                sellY: y(bucket.data.sell.close),
+            };
+        }).filter((node): node is NonNullable<typeof node> => !!node);
+        const seriesOf = (key: 'buy' | 'sell') => {
+            const segments: string[] = [];
+            let current: string[] = [];
+            for (let index = 0; index < buckets.length; index++) {
+                const bucket = buckets[index];
+                if (!bucket.data) {
+                    if (current.length > 1) segments.push(current.join(' '));
+                    current = [];
+                    continue;
+                }
+                const value = key === 'buy' ? bucket.data.buy.close : bucket.data.sell.close;
+                current.push(`${xOf(index)},${y(value)}`);
+            }
+            if (current.length > 1) segments.push(current.join(' '));
+            return {
+                key,
+                label: key === 'buy' ? '买入价' : '卖出价',
+                className: key === 'buy' ? 'is-buy' : 'is-sell',
+                segments,
+                dots: nodes.map((node) => ({
+                    x: node.x, y: key === 'buy' ? node.buyY : node.sellY,
+                    label: node.label, value: key === 'buy' ? node.buyPrice : node.sellPrice,
+                })),
+            };
         };
+        return {
+            ...base,
+            min, max,
+            ticks: [
+                { y: plot.top, value: Math.round(max) },
+                { y: round1((plot.top + plot.bottom) / 2), value: Math.round((max + min) / 2) },
+                { y: plot.bottom, value: Math.round(min) },
+            ],
+            nodes,
+            series: [seriesOf('buy'), seriesOf('sell')],
+            panels: [],
+            axisLabels: [...labelIndexes].sort((a, b) => a - b)
+                .map((index) => ({ x: xOf(index), text: buckets[index].label })),
+            viewBox: '0 0 900 260',
+        };
+    }
+
+    const plot = {
+        left: 62, right: 838, buyTop: 28, buyBottom: 168, sellTop: 208, sellBottom: 348,
+    };
+    const step = (plot.right - plot.left) / Math.max(1, buckets.length);
+    const candleWidth = Math.max(3, Math.min(18, step * 0.55));
+    const xOf = (index: number) => round1(plot.left + step * (index + 0.5));
+    const candleOf = (bucket: PriceBucket, key: 'buy' | 'sell', top: number, bottom: number) => {
+        const ohlc = bucket[key];
+        const y = (value: number) => round1(bottom - (bottom - top) * (value - min) / rangeLength);
+        return {
+            label: bucket.label,
+            open: ohlc.open, close: ohlc.close, high: ohlc.high, low: ohlc.low,
+            openY: y(ohlc.open), closeY: y(ohlc.close), highY: y(ohlc.high), lowY: y(ohlc.low),
+            bodyY: Math.min(y(ohlc.open), y(ohlc.close)),
+            bodyH: Math.max(1, Math.abs(y(ohlc.close) - y(ohlc.open))),
+            up: ohlc.close >= ohlc.open,
+        };
+    };
+    const panelOf = (key: 'buy' | 'sell', label: string, top: number, bottom: number) => ({
+        key,
+        label,
+        top,
+        bottom,
+        grid: [
+            { y: top, value: Math.round(max) },
+            { y: round1((top + bottom) / 2), value: Math.round((max + min) / 2) },
+            { y: bottom, value: Math.round(min) },
+        ],
+        candles: buckets.flatMap((bucket, index) => (bucket.data ? [{
+            x: xOf(index),
+            width: round1(candleWidth),
+            ...candleOf(bucket.data, key, top, bottom),
+        }] : [])),
     });
     return {
-        nodes,
-        sellPoints: nodes.map((node) => `${node.x},${node.sellY}`).join(' '),
+        ...base,
         min, max,
+        ticks: [],
+        nodes: [],
+        series: [],
+        panels: [
+            panelOf('buy', '买入价', plot.buyTop, plot.buyBottom),
+            panelOf('sell', '卖出价', plot.sellTop, plot.sellBottom),
+        ],
+        axisLabels: [...labelIndexes].sort((a, b) => a - b)
+            .map((index) => ({ x: xOf(index), text: buckets[index].label })),
+        viewBox: '0 0 900 380',
     };
 }
 
-async function getCatCanPriceHistory() {
-    const rows = await catCanPriceColl.find({})
-        .sort({ _id: -1 }).limit(PRICE_HISTORY_POINTS).toArray();
-    rows.reverse();
-    return buildPriceHistory(rows);
+async function getCatCanPriceHistory(range: PriceHistoryRange, now = new Date()) {
+    const start = priceHistoryWindowStart(now.getTime(), range);
+    const rows = await catCanPriceColl.find({ _id: { $gte: new Date(start) } } as any)
+        .sort({ _id: 1 }).limit(5000).toArray();
+    return buildPriceHistory(rows, range, now.getTime());
 }
 
 function validateTrade(quantity: number) {
@@ -933,13 +1162,14 @@ export async function calibrateCatCanPool(operator = 0, now = new Date()) {
     return { before, after, minted, burned: burnedTotal };
 }
 
-export async function getCatCanPage(uid: number, now = new Date()) {
+export async function getCatCanPage(uid: number, now = new Date(), range: string = 'day') {
+    const priceRange = normalizePriceRange(range);
     const quote = await getCurrentQuote(now);
     const slotAt = priceSlotFor(shanghaiParts(now));
     const [user, pool, priceHistory, previous, economy] = await Promise.all([
         userColl.findOne({ _id: uid }),
         getOrCreatePool(now),
-        getCatCanPriceHistory(),
+        getCatCanPriceHistory(priceRange, now),
         catCanPriceColl.find({ _id: { $lt: slotAt } }).sort({ _id: -1 }).limit(1).next(),
         getCatCanEconomy(now),
     ]);

@@ -68,6 +68,7 @@
           <div class="section__body">
             <form method="post" action="{{ url('oi33_cat_can_buy') }}" data-can-form="buy" data-base-disabled="{% if quote.availableCans < minQuantity %}1{% else %}0{% endif %}">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <input type="hidden" name="range" value="{{ priceHistory.range }}">
               <label>数量
                 <input class="textbox" type="number" name="quantity" min="{{ minQuantity }}" step="{{ inputStep }}" value="{{ minQuantity }}" {% if quote.availableCans < minQuantity or isCoolingDown %}disabled{% endif %}>
               </label>
@@ -85,6 +86,7 @@
           <div class="section__body">
             <form method="post" action="{{ url('oi33_cat_can_sell') }}" data-can-form="sell" data-base-disabled="{% if inventory < minQuantity %}1{% else %}0{% endif %}">
               <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+              <input type="hidden" name="range" value="{{ priceHistory.range }}">
               <label>数量
                 <input class="textbox" type="number" name="quantity" min="{{ minQuantity }}" step="{{ inputStep }}" value="{{ minQuantity }}" {% if inventory < minQuantity or isCoolingDown %}disabled{% endif %}>
               </label>
@@ -98,23 +100,68 @@
     </div>
 
     <div class="section oi33-can-history">
-      <div class="section__header"><h2 class="section__title">罐头价格历史</h2></div>
+      <div class="section__header">
+        <h2 class="section__title">罐头价格历史</h2>
+        <div class="section__tools oi33-can-history-tabs">
+          <a class="rounded button{{ ' is-on' if priceHistory.range == 'day' }}" href="{{ url('oi33_cat_can', query={range: 'day'}) }}">日线</a>
+          <a class="rounded button{{ ' is-on' if priceHistory.range == 'week' }}" href="{{ url('oi33_cat_can', query={range: 'week'}) }}">周 K</a>
+          <a class="rounded button{{ ' is-on' if priceHistory.range == 'month' }}" href="{{ url('oi33_cat_can', query={range: 'month'}) }}">月 K</a>
+        </div>
+      </div>
       <div class="section__body">
-        <div class="oi33-can-history-legend"><span class="is-sell">卖出价</span><small>单位：猫粮 / 个；每 8 小时记录一次</small></div>
+        <div class="oi33-can-history-legend">
+          {% if priceHistory.mode == 'line' %}
+          <span class="is-buy">买入价</span><span class="is-sell">卖出价</span>
+          {% else %}
+          <span class="is-up">上涨</span><span class="is-down">下跌</span>
+          {% endif %}
+          <small>{% if priceHistory.mode == 'line' %}单位：猫粮 / 个；日线取每日最后一个报价{% else %}单位：猫粮 / 个；周 / 月为区间 OHLC（空心涨、实心跌）{% endif %}</small>
+        </div>
+        {% if not priceHistory.hasData %}
+        <p class="oi33-can-history-empty">暂无价格记录：每个 8 小时价格槽会在第一次交易 / 访问市场时写入。</p>
+        {% elif priceHistory.mode == 'line' %}
         <div class="oi33-can-history-wrap">
-          <svg class="oi33-can-history-chart" viewBox="0 0 900 260" role="img" aria-label="猫罐头历史卖出价格折线图">
-            <line class="oi33-can-history-grid" x1="62" y1="20" x2="838" y2="20"></line>
-            <line class="oi33-can-history-grid" x1="62" y1="117" x2="838" y2="117"></line>
-            <line class="oi33-can-history-grid" x1="62" y1="214" x2="838" y2="214"></line>
-            <text x="8" y="24">{{ priceHistory.max }}</text>
-            <text x="8" y="218">{{ priceHistory.min }}</text>
-            <polyline class="oi33-can-history-line is-sell" points="{{ priceHistory.sellPoints }}"></polyline>
-            {% for node in priceHistory.nodes %}
-            <circle class="oi33-can-history-dot is-sell" cx="{{ node.x }}" cy="{{ node.sellY }}" r="3"><title>{{ node.label }} 卖出价 {{ node.sellPrice }} 猫粮/个</title></circle>
-            {% if node.showLabel %}<text class="oi33-can-history-date" x="{{ node.x }}" y="244" text-anchor="middle">{{ node.label }}</text>{% endif %}
+          <svg class="oi33-can-history-chart" viewBox="{{ priceHistory.viewBox }}" role="img" aria-label="猫罐头买入价与卖出价日线图">
+            {% for tick in priceHistory.ticks %}
+            <line class="oi33-can-history-grid" x1="62" y1="{{ tick.y }}" x2="838" y2="{{ tick.y }}"></line>
+            <text x="8" y="{{ tick.y + 4 }}">{{ tick.value }}</text>
+            {% endfor %}
+            {% for series in priceHistory.series %}
+            {% for segment in series.segments %}
+            <polyline class="oi33-can-history-line {{ series.className }}" points="{{ segment }}"></polyline>
+            {% endfor %}
+            {% for dot in series.dots %}
+            <circle class="oi33-can-history-dot {{ series.className }}" cx="{{ dot.x }}" cy="{{ dot.y }}" r="3"><title>{{ dot.label }} {{ series.label }} {{ dot.value }} 猫粮/个</title></circle>
+            {% endfor %}
+            {% endfor %}
+            {% for label in priceHistory.axisLabels %}
+            <text class="oi33-can-history-date" x="{{ label.x }}" y="244" text-anchor="middle">{{ label.text }}</text>
             {% endfor %}
           </svg>
         </div>
+        {% else %}
+        <div class="oi33-can-history-wrap">
+          <svg class="oi33-can-history-chart oi33-can-history-chart--candle" viewBox="{{ priceHistory.viewBox }}" role="img" aria-label="猫罐头买入价与卖出价 K 线图">
+            {% for panel in priceHistory.panels %}
+            <text class="oi33-can-history-panel-label" x="62" y="{{ panel.top - 8 }}">{{ panel.label }}</text>
+            {% for tick in panel.grid %}
+            <line class="oi33-can-history-grid" x1="62" y1="{{ tick.y }}" x2="838" y2="{{ tick.y }}"></line>
+            <text x="8" y="{{ tick.y + 4 }}">{{ tick.value }}</text>
+            {% endfor %}
+            {% for candle in panel.candles %}
+            <g class="oi33-can-candle {{ 'is-up' if candle.up else 'is-down' }}">
+              <title>{{ candle.label }} {{ panel.label }} 开 {{ candle.open }} 收 {{ candle.close }} 高 {{ candle.high }} 低 {{ candle.low }}</title>
+              <line class="oi33-can-candle-wick" x1="{{ candle.x }}" y1="{{ candle.highY }}" x2="{{ candle.x }}" y2="{{ candle.lowY }}"></line>
+              <rect class="oi33-can-candle-body" x="{{ candle.x - candle.width / 2 }}" y="{{ candle.bodyY }}" width="{{ candle.width }}" height="{{ candle.bodyH }}"></rect>
+            </g>
+            {% endfor %}
+            {% endfor %}
+            {% for label in priceHistory.axisLabels %}
+            <text class="oi33-can-history-date" x="{{ label.x }}" y="368" text-anchor="middle">{{ label.text }}</text>
+            {% endfor %}
+          </svg>
+        </div>
+        {% endif %}
       </div>
     </div>
 

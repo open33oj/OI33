@@ -13,6 +13,7 @@
     "strictBindCallApply": true,
     "noEmit": true,
     "skipLibCheck": true,
+    "types": ["node"],
     "allowImportingTsExtensions": true,
     "paths": {
       "cordis": ["./node_modules/hydrooj/node_modules/cordis"]

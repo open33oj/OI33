@@ -39,11 +39,18 @@
   }
   .oi33-solution__feature-form { display:inline; }
   .oi33-solution__feature-link.active > .icon { color:#e8a33d; }
+  /* 审核状态不再用文字，避免「已拦截」还显示成「审核中」；用颜色点区分：
+     琥珀色呼吸点 = 等待人工审核，红色点 = 已拦截/未通过。 */
   .oi33-solution__state {
-    display:inline-block; margin-left:.35rem; padding:0 .35rem; border-radius:4px;
-    font-size:.72em; font-weight:600; vertical-align:1px;
+    display:inline-block; margin-left:.4rem; width:.55rem; height:.55rem;
+    border-radius:50%; vertical-align:middle; flex:none;
   }
-  .oi33-solution__state--hidden { background:#c62828; color:#fff; }
+  .oi33-solution__state--pending {
+    background:#e8a33d; box-shadow:0 0 0 3px rgba(232,163,61,.18);
+    animation: oi33-state-pulse 1.8s ease-in-out infinite;
+  }
+  .oi33-solution__state--blocked { background:#c62828; box-shadow:0 0 0 3px rgba(198,40,40,.14); }
+  @keyframes oi33-state-pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
   .oi33-solution__apply-form { display:inline; }
   .oi33-solution__apply {
     display:inline-block; margin-left:.35rem; padding:0 .45rem; border:1px solid #e8a33d;
@@ -124,7 +131,7 @@
     <div class="media__body top">
       <div class="clearfix">
         <div class="supplementary dczcomments__supplementary">
-          {{ user.render_inline(udoc) }} @ {{ datetimeSpan(doc._id)|safe }}{% if doc.hidden %}<span class="oi33-solution__state oi33-solution__state--hidden" data-tooltip="未通过审核前只有你和管理员可见">审核中</span>{% elif doc.featured %}<span class="oi33-solution__featured-badge" data-tooltip="{{ _('Featured Solution') }}">{{ _('Featured') }}</span>{% endif %}
+          {{ user.render_inline(udoc) }} @ {{ datetimeSpan(doc._id)|safe }}{% if doc.hidden %}{% set oi33_state = doc.oi33_moderation_state or 'pending' %}<span role="img" class="oi33-solution__state oi33-solution__state--{{ 'blocked' if oi33_state == 'blocked' else 'pending' }}" data-tooltip="{{ '未通过审核，仅你和管理员可见' if oi33_state == 'blocked' else '审核中，仅你和管理员可见' }}" aria-label="{{ '未通过审核' if oi33_state == 'blocked' else '审核中' }}"></span>{% elif doc.featured %}<span class="oi33-solution__featured-badge" data-tooltip="{{ _('Featured Solution') }}">{{ _('Featured') }}</span>{% endif %}
         </div>
         <div class="dczcomments__operations nojs--hide">
         {% if pdoc %}
@@ -178,7 +185,12 @@
         </div>
       </div>
       <div class="typo richmedia collapsible-content" data-emoji-enabled data-raw-url="{{ url('problem_solution_raw', pid=doc.parentId, psid=doc._id) }}">
+        {% if doc.oi33_hidden and not doc.content %}
+        {% set oi33_state = doc.oi33_moderation_state or 'pending' %}
+        <div class="oi33-pending-box oi33-pending-box--{{ oi33_state }}" role="img" data-tooltip="{{ '未通过审核，仅你和管理员可见' if oi33_state == 'blocked' else '审核中，仅你和管理员可见' }}" aria-label="{{ '未通过审核' if oi33_state == 'blocked' else '审核中' }}"><span class="oi33-pending-box__icon"></span></div>
+        {% else %}
         {{ doc['content']|markdown|safe }}
+        {% endif %}
       </div>
       <div class="commentbox-edit-target"></div>
       <ul class="dczcomments__replies commentbox-reply-target">
@@ -208,7 +220,12 @@
                 </div>
               </div>
               <div class="typo richmedia collapsible-content" data-emoji-enabled data-raw-url="{{ url('problem_solution_reply_raw', pid=doc.parentId, psid=doc._id, psrid=rdoc._id) }}">
+                {% if rdoc.oi33_hidden and not rdoc.content %}
+                {% set oi33_state = rdoc.oi33_moderation_state or 'pending' %}
+                <div class="oi33-pending-box oi33-pending-box--{{ oi33_state }}" role="img" data-tooltip="{{ '未通过审核，仅你和管理员可见' if oi33_state == 'blocked' else '审核中，仅你和管理员可见' }}" aria-label="{{ '未通过审核' if oi33_state == 'blocked' else '审核中' }}"><span class="oi33-pending-box__icon"></span></div>
+                {% else %}
                 {{ rdoc['content']|markdown|safe }}
+                {% endif %}
               </div>
               <div class="commentbox-edit-target"></div>
               </div>

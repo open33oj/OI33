@@ -96,6 +96,7 @@
               <td>
                 <span class="oi33-apply__status oi33-apply__status--{{ item.status }}">
                   {%- if item.status == 'pending' %}审核中
+                  {%- elif item.status == 'manual' %}待人工审核
                   {%- elif item.status == 'featured' %}已通过
                   {%- elif item.status == 'rejected' %}未通过
                   {%- else %}异常（已退额度）{% endif -%}
@@ -105,6 +106,20 @@
                 {% if item.score is defined %}评分 {{ item.score }}：{% endif %}{{ item.reason or '' }}
                 {% if item.suggestions and item.suggestions.length %}
                 <div class="oi33-featured__hint">建议：{{ item.suggestions|join('；') }}</div>
+                {% endif %}
+                {% if item.status == 'manual' and item.aiError %}
+                <div class="oi33-featured__hint">AI 失败：{{ item.aiError|truncate(80) }}</div>
+                {% endif %}
+              </td>
+              <td style="white-space:nowrap;">
+                {% if item.status == 'manual' %}
+                <form method="post" action="{{ url('oi33_solution_feature_manual') }}" class="oi33-featured__manual" onsubmit="return confirm('确认处理这条人工审核申请？');">
+                  <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
+                  <input type="hidden" name="id" value="{{ item._id }}">
+                  <input type="text" name="reason" placeholder="驳回原因（可选）" maxlength="200">
+                  <button type="submit" name="action" value="approve" class="rounded button">通过</button>
+                  <button type="submit" name="action" value="reject" class="rounded button">驳回</button>
+                </form>
                 {% endif %}
               </td>
             </tr>
@@ -154,7 +169,7 @@
               </td>
               <td class="oi33-featured__content">
                 {% if psdoc.featured %}<span class="oi33-featured__badge">精华</span>{% endif %}
-                {% if psdoc.hidden %}<span class="oi33-featured__hidden">审核中</span>{% endif %}
+                {% if psdoc.hidden %}<span class="oi33-featured__hidden">{{ '未通过' if psdoc.oi33_moderation_state == 'blocked' else '审核中' }}</span>{% endif %}
                 <a href="{{ url('problem_solution_detail', pid=psdoc.parentId, sid=psdoc._id) }}">{{ psdoc.content|truncate(140) }}</a>
               </td>
               <td style="white-space:nowrap;">
@@ -163,7 +178,7 @@
               </td>
               <td>
                 {% if psdoc.hidden %}
-                <span class="oi33-featured__hint">审核中不可加精</span>
+                <span class="oi33-featured__hint">{{ '未通过审核，不可加精' if psdoc.oi33_moderation_state == 'blocked' else '审核中不可加精' }}</span>
                 {% else %}
                 <form method="post" action="{{ url('oi33_solution_feature') }}" style="display:inline;">
                   <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
@@ -213,5 +228,8 @@
   .oi33-apply__status--featured { background:#2e7d32; color:#fff; }
   .oi33-apply__status--rejected { background:#c62828; color:#fff; }
   .oi33-apply__status--error { background:#777; color:#fff; }
+  .oi33-apply__status--manual { background:#3a6fd8; color:#fff; }
+  .oi33-featured__manual { display:flex; gap:.35rem; align-items:center; flex-wrap:wrap; }
+  .oi33-featured__manual input[type="text"] { width:9rem; margin:0; }
 </style>
 {% endblock %}

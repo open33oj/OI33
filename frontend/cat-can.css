@@ -32,6 +32,9 @@
 .oi33-can-history-legend { display: flex; align-items: center; gap: 18px; margin-bottom: 10px; }
 .oi33-can-history-legend span::before { display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; content: ''; }
 .oi33-can-history-legend .is-sell::before { background: var(--can-green); }
+.oi33-can-history-legend .is-buy::before { background: var(--can-accent); }
+.oi33-can-history-legend .is-up::before { background: #c62828; }
+.oi33-can-history-legend .is-down::before { background: #2e7d32; }
 .oi33-can-history-legend small { margin-left: auto; opacity: .62; }
 .oi33-can-history-wrap { overflow-x: auto; }
 .oi33-can-history-chart { min-width: 760px; width: 100%; height: auto; overflow: visible; }
@@ -39,7 +42,19 @@
 .oi33-can-history-grid { stroke: currentColor; stroke-width: 1; opacity: .12; }
 .oi33-can-history-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .oi33-can-history-line.is-sell { stroke: var(--can-green); fill: none; }
+.oi33-can-history-line.is-buy { stroke: var(--can-accent); fill: none; }
 .oi33-can-history-dot.is-sell { stroke: var(--can-green); fill: var(--can-green); }
+.oi33-can-history-dot.is-buy { stroke: var(--can-accent); fill: var(--can-accent); }
+.oi33-can-history-tabs { display: flex; gap: 6px; }
+.oi33-can-history-tabs .button.is-on { border-color: var(--can-accent); background: var(--can-accent); color: #fff; }
+.oi33-can-history-panel-label { font-size: 12px !important; font-weight: 600; opacity: .8 !important; }
+.oi33-can-history-empty { margin: 18px 0; text-align: center; opacity: .66; }
+.oi33-can-candle.is-up { color: #c62828; }
+.oi33-can-candle.is-down { color: #2e7d32; }
+.oi33-can-candle-wick { stroke: currentColor; stroke-width: 1; }
+.oi33-can-candle-body { fill: currentColor; stroke: currentColor; stroke-width: 1; }
+/* 空心 = 区间上涨，实心 = 区间下跌（与国内 K 线习惯一致）。 */
+.oi33-can-candle.is-up .oi33-can-candle-body { fill: var(--oi33-card-bg, #fff); }
 .oi33-can-history-date { font-size: 10px !important; }
 @media (max-width: 720px) {
   .oi33-can-quote-grid { grid-template-columns: 1fr; }

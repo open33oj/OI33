@@ -216,8 +216,10 @@ export async function applySolutionFeature(
     return record;
 }
 
-// 后台执行一次 AI 审核。任何基础设施异常都会删除记录、退回当天额度；
-// 内容不合格则保留记录（额度已用）并私信修改建议。
+// 后台执行一次 AI 审核。内容不合格保留记录（额度已用）并私信修改建议；
+// AI 基础设施异常（未配置/超时/空输出/无法解析）不再退额度，而是转人工审核，
+// 由管理员在 /oi33/solutions/featured 通过或驳回。只有目标本身失效
+// （题解已删/已隐藏/已精华）才删除记录并退回额度。
 export async function runSolutionFeatureReview(applicationId: string): Promise<void> {
     const application: any = await solutionFeatureApplyColl.findOne({ _id: applicationId } as any);
     if (!application || application.status !== 'pending') return;
@@ -231,6 +233,30 @@ export async function runSolutionFeatureReview(applicationId: string): Promise<v
         await addLog({
             type: 'solution', userId: application.uid, action: 'feature_apply_error',
             psid: String(application.psid), reason: `${reason}（额度已退回）`,
+        } as any);
+    };
+
+    // AI 失败不再退额度：记录转 'manual'，管理员在后台做最终裁决。
+    const toManual = async (message: string, reason: string) => {
+        await solutionFeatureApplyColl.updateOne(
+            { _id: applicationId } as any,
+            {
+                $set: {
+                    status: 'manual',
+                    manualReason: message,
+                    aiError: reason.slice(0, 500),
+                    manualAt: new Date(),
+                },
+            } as any,
+        );
+        await notifySolutionAuthor(
+            application.uid,
+            `${heading}AI 审核暂时无法给出结论（${message}），已转交管理员人工审核，`
+            + '结果会私信通知你。',
+        );
+        await addLog({
+            type: 'solution', userId: application.uid, action: 'feature_apply_manual',
+            psid: String(application.psid), reason: `转人工：${reason}`,
         } as any);
     };
 
@@ -260,7 +286,7 @@ export async function runSolutionFeatureReview(applicationId: string): Promise<v
         || solutionFeatureReviewSystemPrompt(passScore);
     const config = await aiResolveChatConfig(modelName);
     if (!config.apiKey) {
-        await refund('AI 审核服务尚未配置，本次不消耗额度，请联系管理员。', 'no api key');
+        await toManual('AI 审核服务尚未配置', 'no api key');
         return;
     }
 
@@ -288,17 +314,15 @@ export async function runSolutionFeatureReview(applicationId: string): Promise<v
                 + ` completion_tokens=${response.usage?.completion_tokens ?? 'unknown'})`;
         console.error(`[oi33] solution feature review failed (pid=${pid}):`, detail);
         const budgetExhausted = !response.error && response.finishReason === 'length';
-        await refund(
-            budgetExhausted
-                ? 'AI 评审没有给出结论（模型输出被截断），本次不消耗额度，请稍后重试。'
-                : 'AI 审核服务暂时不可用，本次不消耗额度，请稍后重试。',
+        await toManual(
+            budgetExhausted ? '模型输出被截断，没有给出结论' : 'AI 审核服务暂时不可用',
             budgetExhausted ? `output budget exhausted: ${detail}` : detail,
         );
         return;
     }
     const verdict = parseSolutionFeatureVerdict(response.content, passScore);
     if (!verdict) {
-        await refund('AI 审核返回了无法识别的结果，本次不消耗额度，请稍后重试。', 'parse error');
+        await toManual('AI 返回了无法识别的结果', 'parse error');
         return;
     }
 
@@ -360,6 +384,95 @@ export async function runSolutionFeatureReview(applicationId: string): Promise<v
         psid: String(application.psid),
         reason: `AI ${verdict.score} 分：${verdict.reason}`,
     } as any);
+}
+
+// 管理员裁决 AI 失败的申请（status='manual'）。通过走正常加精+奖励流程，
+// 驳回只改状态并私信作者；申请记录是当日额度凭据，处理完也不删除。
+export async function decideSolutionFeatureManually(
+    applicationId: string,
+    approve: boolean,
+    operator: number,
+    reason = '',
+): Promise<{ message: string }> {
+    const application: any = await solutionFeatureApplyColl.findOne({ _id: applicationId } as any);
+    if (!application) throw new ValidationError('申请记录不存在。');
+    if (application.status !== 'manual') throw new ValidationError('该申请不在人工审核状态。');
+    const now = new Date();
+    const pid = Number(application.pid);
+    const heading = featureApplyHeading(pid);
+
+    if (!approve) {
+        const note = String(reason || '').trim().slice(0, 200) || '不符合精华标准';
+        // Claim the record atomically: two admins must not both decide it.
+        const claimed = await solutionFeatureApplyColl.findOneAndUpdate(
+            { _id: applicationId, status: 'manual' } as any,
+            {
+                $set: {
+                    status: 'rejected', reason: `人工审核：${note}`,
+                    decidedAt: now, manualReason: note,
+                },
+            } as any,
+            { returnDocument: 'after' },
+        );
+        if (!claimed) throw new ValidationError('该申请已被其他管理员处理。');
+        await notifySolutionAuthor(
+            application.uid,
+            `${heading}人工审核未通过：${note}。题解仍保持发布状态，修改后明天可以再申请。`,
+        );
+        await addLog({
+            type: 'solution', userId: application.uid, action: 'feature_apply_reject',
+            psid: String(application.psid), reason: `人工：${note}`,
+        } as any);
+        return { message: '已驳回该加精申请。' };
+    }
+
+    // Approve: claim first, then feature. If the action fails (solution deleted
+    // or hidden in the meantime) put the record back to `manual` so the admin
+    // can retry instead of losing it.
+    const claimed = await solutionFeatureApplyColl.findOneAndUpdate(
+        { _id: applicationId, status: 'manual' } as any,
+        { $set: { status: 'featured', decidedAt: now, manualReason: '' } } as any,
+        { returnDocument: 'after' },
+    );
+    if (!claimed) throw new ValidationError('该申请已被其他管理员处理。');
+    try {
+        const doc: any = await DocumentModel.get(
+            application.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, application.psid,
+        );
+        if (!doc || Number(doc.owner) !== application.uid) {
+            throw new ValidationError('题解已不存在或已转交他人，无法通过。');
+        }
+        if (doc.hidden) throw new ValidationError('题解处于隐藏状态，请先恢复发布或直接驳回。');
+
+        let featured: SolutionFeatureResult;
+        try {
+            featured = await setSolutionFeatured(
+                application.domainId, application.psid, true, operator, now, { notify: false },
+            );
+        } catch (e: any) {
+            throw new ValidationError(`加精失败：${e?.message || '未知错误'}`);
+        }
+        const reward = featured.rewarded
+            ? ` 获得奖励：${featured.rewardText}。`
+            : featured.rewardError
+                ? `（奖励发放失败：${featured.rewardError}）`
+                : '';
+        await notifySolutionAuthor(
+            application.uid,
+            `${heading}已通过人工审核，成为精华。${reward}`,
+        );
+        await addLog({
+            type: 'solution', userId: application.uid, action: 'feature_apply_pass',
+            psid: String(application.psid), reason: '人工审核通过',
+        } as any);
+        return { message: '已通过人工审核并加精。' };
+    } catch (e) {
+        await solutionFeatureApplyColl.updateOne(
+            { _id: applicationId, status: 'featured' } as any,
+            { $set: { status: 'manual' }, $unset: { decidedAt: '' } } as any,
+        );
+        throw e;
+    }
 }
 
 // 后台页面用：最近的申请记录（含 AI 结论）。

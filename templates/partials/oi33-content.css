@@ -184,6 +184,14 @@ html.oi33-shell #panel .section__header {
   padding: 18px 22px 0;
 }
 
+/* A header that is the card's only child (standalone title card) keeps a
+   bottom padding; otherwise the title sits right on the card border and looks
+   clipped at the bottom. Core's `.section__header:last-child` rule loses to
+   the selector above, so restate it here. */
+html.oi33-shell #panel .section__header:last-child {
+  padding-bottom: 18px;
+}
+
 html.oi33-shell #panel .section__body:not(.no-padding) {
   padding: 18px 22px;
 }
@@ -304,6 +312,7 @@ html.oi33-shell.page--homepage .section.side .section__body {
 
 @media (max-width: 900px) {
   html.oi33-shell #panel .section__header { padding: 14px 16px 0; }
+  html.oi33-shell #panel .section__header:last-child { padding-bottom: 14px; }
   html.oi33-shell #panel .section__body:not(.no-padding) { padding: 14px 16px; }
   html.oi33-shell #panel .section__footer { padding: 10px 16px; }
   html.oi33-shell.page--homepage #panel .main > .row > .columns:first-child > .section:first-child > .section__body {
@@ -460,3 +469,40 @@ html.oi33-shell.theme--dark #panel .collapsible-content::after,
 html.oi33-shell[data-mantine-color-scheme="dark"] #panel .collapsible-content::after {
   background: linear-gradient(to bottom, transparent, var(--oi33-card-bg, #1b1f27));
 }
+
+/* -------------------------------------------------------------------------
+   Pending-moderation placeholder (solutions + discussion replies)
+   Replaces the old "（审核中，审核通过后将显示）" text: a dashed box with a
+   state dot (amber = waiting for a human, red = blocked/rejected).
+   ------------------------------------------------------------------------- */
+.oi33-pending-box {
+  display: flex; align-items: center; justify-content: center; min-height: 3.2rem;
+  border: 1px dashed var(--oi33-border, #c9ced6); border-radius: 6px;
+  background: repeating-linear-gradient(135deg, rgba(127, 127, 127, .04) 0 8px, transparent 8px 16px);
+}
+
+.oi33-pending-box__icon {
+  width: .6rem; height: .6rem; border-radius: 50%; background: #e8a33d;
+  box-shadow: 0 0 0 4px rgba(232, 163, 61, .16);
+  animation: oi33-state-pulse 1.8s ease-in-out infinite;
+}
+
+.oi33-pending-box--blocked { border-color: rgba(198, 40, 40, .45); }
+.oi33-pending-box--blocked .oi33-pending-box__icon {
+  background: #c62828; box-shadow: 0 0 0 4px rgba(198, 40, 40, .14); animation: none;
+}
+
+@keyframes oi33-state-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* 讨论/题解列表头的审核状态点（配合 .oi33-pending-box 使用）。 */
+.oi33-mod-dot {
+  display: inline-block; width: .55rem; height: .55rem; margin-left: .4rem;
+  border-radius: 50%; vertical-align: middle; flex: none;
+}
+
+.oi33-mod-dot--pending {
+  background: #e8a33d; box-shadow: 0 0 0 3px rgba(232, 163, 61, .18);
+  animation: oi33-state-pulse 1.8s ease-in-out infinite;
+}
+
+.oi33-mod-dot--blocked { background: #c62828; box-shadow: 0 0 0 3px rgba(198, 40, 40, .14); }

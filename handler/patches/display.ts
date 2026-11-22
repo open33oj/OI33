@@ -55,8 +55,13 @@ export function applyDisplayPatches(ctx: Context) {
         || !!h.user?.hasPerm?.(PERM.PERM_EDIT_PROBLEM_SOLUTION);
     const maskHiddenSolution = (doc: any, uid: number, privileged: boolean) => {
         if (!doc?.hidden) return doc;
-        if (privileged) return { ...doc, content: `（审核中） ${doc.content}` };
-        if (Number(doc.owner) === uid) return { ...doc, content: '（审核中，审核通过后将显示）' };
+        // Do not inject the word "审核中" into the body any more: the template
+        // renders a placeholder (amber dot = pending, red dot = blocked), while
+        // the header badge shows the same state as a colour dot.
+        const state = doc.oi33_moderation_state === 'blocked' ? 'blocked' : 'pending';
+        const masked = { ...doc, oi33_hidden: true, oi33_moderation_state: state };
+        if (privileged) return masked;
+        if (Number(doc.owner) === uid) return { ...masked, content: '' };
         return null;
     };
     const origSolutionGet = ProblemSolutionHandler.prototype.get;

@@ -25,6 +25,13 @@ export type { BioQueueState, RuleHit, RuleOptions };
 
 export const moderationColl = db.collection('oi33_ai_moderation');
 
+// Hidden solutions keep their document, so `hidden` alone cannot tell the
+// author "still waiting for a human" from "already blocked". Record the
+// outcome on the document: the UI shows an amber dot while pending and a red
+// dot once blocked. Cleared when the content is published again.
+export const MODERATION_STATE_FIELD = 'oi33_moderation_state';
+export type ModerationState = 'pending' | 'blocked';
+
 export async function ensureModerationIndexes() {
     await Promise.all([
         moderationColl.createIndex({ contentHash: 1, createdAt: -1 }),
@@ -32,6 +39,41 @@ export async function ensureModerationIndexes() {
         moderationColl.createIndex({ uid: 1, createdAt: -1 }),
         moderationColl.createIndex({ createdAt: -1 }),
     ]);
+    await backfillModerationStates();
+}
+
+const MODERATION_BACKFILL_MARKER = 'moderation_state_backfill_v1';
+
+// Solutions hidden before MODERATION_STATE_FIELD existed used to show "审核中"
+// forever, even after a block. Derive the state once from the recorded verdict:
+// a hidden solution with a block verdict is blocked, everything else is still
+// waiting for a human. Idempotent, runs on startup.
+async function backfillModerationStates() {
+    const markerColl = db.collection<any>('oi33_ai_batch');
+    if (await markerColl.findOne({ _id: MODERATION_BACKFILL_MARKER } as any)) return;
+    const docs = await db.collection<any>('document').find({
+        docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
+        hidden: true,
+        [MODERATION_STATE_FIELD]: { $exists: false },
+    }).project({ _id: 1 }).toArray();
+    for (const doc of docs) {
+        const blocked = await moderationColl.findOne({
+            'target.psid': { $in: [doc._id, String(doc._id)] },
+            verdict: 'block',
+            status: { $in: ['done', 'rejected'] },
+        }, { sort: { createdAt: -1 } });
+        await db.collection<any>('document').updateOne(
+            { _id: doc._id, docType: DocumentModel.TYPE_PROBLEM_SOLUTION },
+            { $set: { [MODERATION_STATE_FIELD]: blocked ? 'blocked' : 'pending' } },
+        );
+    }
+    // One-time marker: the query has no dedicated index, so re-scanning the
+    // whole document collection on every startup would get expensive.
+    await markerColl.updateOne(
+        { _id: MODERATION_BACKFILL_MARKER } as any,
+        { $set: { doneAt: new Date(), count: docs.length } } as any,
+        { upsert: true },
+    );
 }
 
 export async function modAdd(entry: Omit<Oi33AiModeration, '_id' | 'createdAt'>) {
@@ -62,6 +104,27 @@ export async function modCloseMissingTarget(handlerUid = 0) {
 export async function modListRecent(limit = 50) {
     return await moderationColl.find({ status: { $ne: 'pending' } })
         .sort({ createdAt: -1 }).limit(limit).toArray();
+}
+
+// Atomically claim a pending entry for one admin. The content action (unhide /
+// hide / delete) runs only after the claim, so concurrent clicks can't fight.
+export async function modClaimDecision(
+    id: ObjectId, status: 'approved' | 'rejected', handlerUid: number,
+): Promise<boolean> {
+    const claimed = await moderationColl.findOneAndUpdate(
+        { _id: id, status: 'pending' },
+        { $set: { status, handledAt: new Date(), handler: handlerUid } },
+        { returnDocument: 'after' },
+    );
+    return !!claimed;
+}
+
+// Undo a claim when the content action failed, so the queue keeps the entry.
+export async function modReopen(id: ObjectId) {
+    await moderationColl.updateOne(
+        { _id: id, status: { $in: ['approved', 'rejected'] } },
+        { $set: { status: 'pending' }, $unset: { handledAt: '', handler: '' } },
+    );
 }
 
 export async function modSetStatus(id: ObjectId, status: Oi33ModerationStatus, handlerUid: number) {
@@ -304,16 +367,38 @@ export async function moderationTargetExists(target: Oi33ModerationTarget): Prom
     return false;
 }
 
-export async function hideModerationTarget(target: Oi33ModerationTarget) {
+// Close pending entries whose content no longer exists (the author deleted
+// the post while it was waiting, or the deterministic block removed it).
+// Without this the queue keeps showing approvals that can never be applied.
+// Runs on every moderation-page load, mirroring modCloseMissingTarget.
+export async function modExpireGoneTargets(handlerUid = 0) {
+    const entries = await moderationColl.find({ status: 'pending', kind: { $ne: 'bio' } })
+        .project({ target: 1 }).toArray();
+    const gone: ObjectId[] = [];
+    // 20 at a time: a few hundred sequential round-trips make the admin page
+    // noticeably slow, while unbounded fan-out loads many full solution docs.
+    for (let i = 0; i < entries.length; i += 20) {
+        const results = await Promise.all(entries.slice(i, i + 20).map(async (entry) => (
+            !entry.target || !await moderationTargetExists(entry.target) ? entry._id : null
+        )));
+        for (const id of results) if (id) gone.push(id);
+    }
+    return await modExpireEntries(gone, handlerUid);
+}
+
+export async function hideModerationTarget(
+    target: Oi33ModerationTarget, state: ModerationState = 'pending',
+) {
     if (target.psid) {
+        const patch = { hidden: true, [MODERATION_STATE_FIELD]: state } as any;
         if (target.psrid) {
             await DocumentModel.setSub(
                 target.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION,
-                target.psid, 'reply', target.psrid, { hidden: true } as any,
+                target.psid, 'reply', target.psrid, patch,
             );
         } else {
             await DocumentModel.set(
-                target.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid, { hidden: true } as any,
+                target.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid, patch,
             );
         }
     } else if (target.drrid && target.drid) {
@@ -335,14 +420,15 @@ export async function unhideModerationTarget(target: Oi33ModerationTarget) {
     // upsert:true re-creating a phantom empty topic/reply.
     if (!await moderationTargetExists(target)) return;
     if (target.psid) {
+        const patch = { hidden: false, [MODERATION_STATE_FIELD]: null } as any;
         if (target.psrid) {
             await DocumentModel.setSub(
                 target.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION,
-                target.psid, 'reply', target.psrid, { hidden: false } as any,
+                target.psid, 'reply', target.psrid, patch,
             );
         } else {
             await DocumentModel.set(
-                target.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid, { hidden: false } as any,
+                target.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, target.psid, patch,
             );
         }
     } else if (target.drrid && target.drid) {
@@ -479,12 +565,25 @@ export function moderateContentInBackground(opts: ModerateContentOptions): void 
 // 调用方负责过滤掉，避免同一篇出现两次。
 // 内容审核主页只展示入口和数量；完整列表在独立的「隐藏题解」页（可按域筛选），
 // 因为隐藏题解可能来自任意域，不应和当前域的待审队列混在一起。
+// Root solutions that already have a pending queue entry are handled from the
+// queue; listing them here too would let an admin publish one directly while
+// its approval is still queued.
+async function queuedSolutionPsids(): Promise<ObjectId[]> {
+    return await moderationColl.distinct('target.psid', {
+        status: 'pending',
+        'target.psid': { $exists: true },
+        'target.psrid': { $exists: false },
+    }) as ObjectId[];
+}
+
 export async function listHiddenSolutions(limit = 20, domainId?: string) {
+    const queued = await queuedSolutionPsids();
     const query: Record<string, any> = {
         docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
         hidden: true,
     };
     if (domainId) query.domainId = domainId;
+    if (queued.length) query._id = { $nin: queued };
     return await db.collection<any>('document').find(query)
         .sort({ _id: -1 }).limit(Math.max(1, Math.min(200, limit)))
         .project({ _id: 1, owner: 1, parentId: 1, domainId: 1, content: 1 })
@@ -492,11 +591,13 @@ export async function listHiddenSolutions(limit = 20, domainId?: string) {
 }
 
 export async function countHiddenSolutions(domainId?: string) {
+    const queued = await queuedSolutionPsids();
     const query: Record<string, any> = {
         docType: DocumentModel.TYPE_PROBLEM_SOLUTION,
         hidden: true,
     };
     if (domainId) query.domainId = domainId;
+    if (queued.length) query._id = { $nin: queued };
     return await db.collection<any>('document').countDocuments(query);
 }
 
@@ -508,7 +609,8 @@ export async function publishHiddenSolution(psid: ObjectId) {
     // Core solutions carry both `_id` and `docId` (equal); DocumentModel.set
     // updates by docId, so never assume `_id` alone.
     await DocumentModel.set(
-        doc.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, doc.docId || psid, { hidden: false } as any,
+        doc.domainId, DocumentModel.TYPE_PROBLEM_SOLUTION, doc.docId || psid,
+        { hidden: false, [MODERATION_STATE_FIELD]: null } as any,
     );
     return doc;
 }
