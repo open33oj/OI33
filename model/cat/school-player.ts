@@ -7,10 +7,62 @@ import {
     schoolDisplay, schoolUrl, shanghaiMonthKey,
 } from './school-shared';
 import { getEligibleUser } from './eligibility';
-import { catMapCellColl, recountSchoolCatTerritories } from './map';
+import { boundCatIdOf, catMapCellColl, recountSchoolCatTerritories } from './map';
 
 // 玩家与大猫：绑定/解绑（携带旧领地 + 7 天内撤销）、转移清理。
 // 主动投喂已永久关闭；领地只能通过地图染色获得。整只大猫的行政转移在 school-transfer.ts。
+
+const REBIND_UNDO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function canUndoRebindOf(user: any, now: Date) {
+    const at = user?.school_cat_rebind_at ? new Date(user.school_cat_rebind_at) : null;
+    return !!at && !Number.isNaN(at.getTime())
+        && now.getTime() - at.getTime() <= REBIND_UNDO_WINDOW_MS
+        && Object.prototype.hasOwnProperty.call(user, 'school_cat_rebind_prev');
+}
+
+// 把该用户画过的所有格子归到其**当前**绑定的大猫（未绑定则归 0）。
+// 用户文档是归属的唯一事实来源：并发改绑、撤销换绑、管理员转移都可能让
+// 格子短暂留在旧大猫；循环读取直到「读到的绑定」与刚写入的归属一致为止，
+// 这样最后一次成功的绑定总是拥有这个人的全部贡献。
+export async function syncUserSchoolCatCells(uid: number, now = new Date()) {
+    let cells = 0;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const before: any = await userColl.findOne(
+            { _id: uid } as any,
+            { projection: { school_cat: 1 } },
+        );
+        const catId = boundCatIdOf(before);
+        const moved = await catMapCellColl.updateMany(
+            { updatedBy: uid, color: { $exists: true }, catId: { $ne: catId } } as any,
+            { $set: { catId } } as any,
+        );
+        if (moved.modifiedCount) {
+            cells += moved.modifiedCount;
+            await recountSchoolCatTerritories(now);
+        }
+        const after: any = await userColl.findOne(
+            { _id: uid } as any,
+            { projection: { school_cat: 1 } },
+        );
+        if (boundCatIdOf(after) === catId) return { catId, cells };
+    }
+    // 绑定在这几轮里持续变化（只可能来自并发改绑）；最后再按最新绑定写一次。
+    const latest: any = await userColl.findOne(
+        { _id: uid } as any,
+        { projection: { school_cat: 1 } },
+    );
+    const catId = boundCatIdOf(latest);
+    const moved = await catMapCellColl.updateMany(
+        { updatedBy: uid, color: { $exists: true }, catId: { $ne: catId } } as any,
+        { $set: { catId } } as any,
+    );
+    if (moved.modifiedCount) {
+        cells += moved.modifiedCount;
+        await recountSchoolCatTerritories(now);
+    }
+    return { catId, cells };
+}
 
 export async function bindSchoolCat(uid: number, schoolId: number, now = new Date()) {
     if (!Number.isSafeInteger(schoolId)) throw new Error('学校编号无效。');
@@ -27,8 +79,24 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
         if (!school) throw new Error('该学校不存在。');
     }
     const previousId = Number.isSafeInteger(user.school_cat) ? user.school_cat : null;
-    if (previousId === schoolId) throw new Error('你已经绑定了这只大猫。');
     const monthKey = shanghaiMonthKey(now);
+    if (previousId === schoolId) {
+        // 重复提交 / 上次绑定在携带领地时中断：绑定已是目标，只补齐贡献。
+        const synced = await syncUserSchoolCatCells(uid, now);
+        const targetCat: any = await ensureSchoolCatRecord(schoolId, now);
+        return {
+            boundId: schoolId,
+            boundCatId: schoolCatKey(schoolId),
+            boundDisplay: schoolDisplay(school),
+            boundUrl: schoolUrl(schoolId),
+            boundColor: targetCat.territoryColor,
+            carriedCells: synced.cells,
+            canUndoRebind: canUndoRebindOf(user, now),
+            canChange: (user.school_cat_month || '') !== monthKey,
+            movedToHistory: 0,
+            restoredFromHistory: 0,
+        };
+    }
     if ((user.school_cat_month || '') === monthKey) {
         throw new Error('每个月只能修改一次绑定的大猫，请下个月再修改。');
     }
@@ -37,14 +105,8 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
     const isInitialBinding = previousId === null && !String(user.school_cat_month || '');
     const targetCat: any = await ensureSchoolCatRecord(schoolId, now);
 
-    // 换绑时把该用户画过的所有格子一起带过去（包括之前无主的格子）。
-    // 只改归属，不改颜色 / updatedBy / updatedAt，这样个人占格数不受影响。
-    const carried = await catMapCellColl.updateMany(
-        { updatedBy: uid, color: { $exists: true } } as any,
-        { $set: { catId: schoolCatKey(schoolId) } } as any,
-    );
-    if (carried.modifiedCount) await recountSchoolCatTerritories(now);
-
+    // 先以「读到的旧绑定 + 本月未改绑」为条件原子地写入新绑定；并发的两次
+    // 改绑只有一次能成功，另一次会失败重试，不会出现「绑定 A、贡献在 B」。
     const previousMonth = String(user.school_cat_month || '');
     const set: any = {
         school_cat: schoolId,
@@ -54,13 +116,24 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
         school_cat_rebind_at: now,
     };
     if (!isInitialBinding) set.school_cat_month = monthKey;
-    await userColl.updateOne(
-        { _id: uid } as any,
+    const filter: any = {
+        _id: uid,
+        realname_flag: { $gte: 1 },
+        school_cat_month: { $ne: monthKey },
+        school_cat: previousId === null ? { $in: [null] } : previousId,
+    };
+    const bound = await userColl.updateOne(
+        filter,
         {
             $set: set,
             $unset: { school_cat_food: '', school_cat_feed_at: '' },
         } as any,
     );
+    if (!bound.modifiedCount) throw new Error('大猫绑定刚刚发生变化，请刷新后重试。');
+
+    // 换绑时把该用户画过的所有格子一起带过去（包括之前无主的格子）。
+    // 只改归属，不改颜色 / updatedBy / updatedAt，这样个人占格数不受影响。
+    const carried = await syncUserSchoolCatCells(uid, now);
     try {
         await addLog({
             type: 'school_cat',
@@ -69,9 +142,9 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
             action: isInitialBinding ? 'bind' : 'rebind',
             catId: schoolCatKey(schoolId),
             reason: isInitialBinding
-                ? `绑定大猫 ${schoolDisplay(school)}，携带 ${carried.modifiedCount} 格领地`
+                ? `绑定大猫 ${schoolDisplay(school)}，携带 ${carried.cells} 格领地`
                 : `从 ${previousId === null ? '无主' : `#${previousId}`} 改绑 ${schoolDisplay(school)}，`
-                    + `携带 ${carried.modifiedCount} 格领地归顺；7 天内可撤销`,
+                    + `携带 ${carried.cells} 格领地归顺；7 天内可撤销`,
         } as any);
     } catch (e) {
         console.error('[oi33] failed to log school cat bind:', e);
@@ -82,7 +155,7 @@ export async function bindSchoolCat(uid: number, schoolId: number, now = new Dat
         boundDisplay: schoolDisplay(school),
         boundUrl: schoolUrl(schoolId),
         boundColor: targetCat.territoryColor,
-        carriedCells: carried.modifiedCount,
+        carriedCells: carried.cells,
         canUndoRebind: true,
         canChange: isInitialBinding,
         movedToHistory: 0,
@@ -98,25 +171,14 @@ export async function undoSchoolCatRebind(uid: number, now = new Date()) {
     }
     const at = user.school_cat_rebind_at ? new Date(user.school_cat_rebind_at) : null;
     if (!at || Number.isNaN(at.getTime())) throw new Error('换绑时间缺失，无法撤销。');
-    if (now.getTime() - at.getTime() > 7 * 24 * 60 * 60 * 1000) {
+    if (now.getTime() - at.getTime() > REBIND_UNDO_WINDOW_MS) {
         throw new Error('换绑已超过 7 天，不能撤销。');
     }
     const previousId = Number.isSafeInteger(user.school_cat_rebind_prev)
         ? Number(user.school_cat_rebind_prev)
         : null;
     const previousMonth = String(user.school_cat_rebind_prev_month || '');
-    const previousCatKey = previousId === null ? 0 : schoolCatKey(previousId);
-
-    // 只回滚换绑时已经存在的格子；换绑后新画的格子留在新大猫。
-    const restored = await catMapCellColl.updateMany(
-        {
-            updatedBy: uid,
-            color: { $exists: true },
-            updatedAt: { $lte: at },
-        } as any,
-        { $set: { catId: previousCatKey } } as any,
-    );
-    if (restored.modifiedCount) await recountSchoolCatTerritories(now);
+    const currentId = Number.isSafeInteger(user.school_cat) ? user.school_cat : null;
 
     const set: any = {};
     const unset: any = {
@@ -128,7 +190,28 @@ export async function undoSchoolCatRebind(uid: number, now = new Date()) {
     else set.school_cat = previousId;
     if (previousMonth) set.school_cat_month = previousMonth;
     else unset.school_cat_month = '';
-    await userColl.updateOne({ _id: uid } as any, { $set: set, $unset: unset } as any);
+    // 与改绑相同的 CAS：只撤销「读到的那次换绑」，并发请求不会重复回滚。
+    const filter: any = {
+        _id: uid,
+        school_cat_rebind_at: at,
+        school_cat: currentId === null ? { $in: [null] } : currentId,
+        // 撤销成功后这两个字段会被移除，第二个并发撤销因此匹配不到。
+        school_cat_rebind_prev: previousId === null
+            ? { $exists: true, $in: [null] }
+            : previousId,
+    };
+    const restoredBinding = await userColl.updateOne(
+        filter,
+        { $set: set, $unset: unset } as any,
+    );
+    if (!restoredBinding.modifiedCount) {
+        throw new Error('换绑记录刚刚发生变化，请刷新后重试。');
+    }
+
+    // 撤销后「最新绑定」就是原来的大猫：把这个人画过的全部格子都带回去，
+    // 包括换绑后新画的格子（贡献永远跟随当前绑定，不在两只大猫之间拆分）。
+    const restored = await syncUserSchoolCatCells(uid, now);
+    const previousCatKey = previousId === null ? 0 : schoolCatKey(previousId);
 
     let display = previousId === null ? '无主' : `#${previousId}`;
     if (previousId !== null) {
@@ -142,7 +225,7 @@ export async function undoSchoolCatRebind(uid: number, now = new Date()) {
             sender: uid,
             action: 'rebind_undo',
             catId: previousCatKey,
-            reason: `撤销换绑，恢复到 ${display}；${restored.modifiedCount} 格领地回到原归属`,
+            reason: `撤销换绑，恢复到 ${display}；${restored.cells} 格领地回到原归属`,
         } as any);
     } catch (e) {
         console.error('[oi33] failed to log school cat rebind undo:', e);
@@ -150,7 +233,7 @@ export async function undoSchoolCatRebind(uid: number, now = new Date()) {
     return {
         restoredId: previousId,
         display,
-        cells: restored.modifiedCount,
+        cells: restored.cells,
         canChange: true,
     };
 }
@@ -166,7 +249,12 @@ export async function unbindSchoolCat(uid: number, now = new Date()) {
     }
     const school: any = await getSchoolView(schoolId);
     const updated = await userColl.updateOne(
-        { _id: uid, school_cat: schoolId } as any,
+        {
+            _id: uid,
+            realname_flag: { $gte: 1 },
+            school_cat: schoolId,
+            school_cat_month: { $ne: monthKey },
+        } as any,
         {
             $set: { school_cat_month: monthKey },
             $unset: {
@@ -177,23 +265,19 @@ export async function unbindSchoolCat(uid: number, now = new Date()) {
     );
     if (!updated.modifiedCount) throw new Error('大猫绑定刚刚发生变化，请刷新后重试。');
     // 解绑后这些格子变成无主领地，个人占格数不变。
-    const released = await catMapCellColl.updateMany(
-        { updatedBy: uid, color: { $exists: true } } as any,
-        { $set: { catId: 0 } } as any,
-    );
-    if (released.modifiedCount) await recountSchoolCatTerritories(now);
+    const released = await syncUserSchoolCatCells(uid, now);
     await addLog({
         type: 'school_cat', userId: uid, sender: uid, action: 'unbind',
         catId: schoolCatKey(schoolId),
         reason: `取消绑定 ${school ? schoolDisplay(school) : `#${schoolId}`}，`
-            + `${released.modifiedCount} 格领地转为无主`,
+            + `${released.cells} 格领地转为无主`,
     } as any);
     const cat: any = await schoolCatColl.findOne({ _id: schoolId } as any);
     return {
         previousId: schoolId,
         previousDisplay: school ? schoolDisplay(school) : `#${schoolId}`,
         movedToHistory: 0,
-        releasedCells: released.modifiedCount,
+        releasedCells: released.cells,
         canChange: false,
         cat: cat ? publicCat(cat, school) : null,
     };
@@ -209,11 +293,7 @@ export async function removeSchoolCatBinding(uid: number, now = new Date()) {
             school_cat_rebind_prev: '', school_cat_rebind_prev_month: '', school_cat_rebind_at: '',
         },
     } as any);
-    const released = await catMapCellColl.updateMany(
-        { updatedBy: uid, color: { $exists: true } } as any,
-        { $set: { catId: 0 } } as any,
-    );
-    if (released.modifiedCount) await recountSchoolCatTerritories(now);
+    await syncUserSchoolCatCells(uid, now);
 }
 
 export async function feedSchoolCat(uid: number, amount: number, now = new Date()) {

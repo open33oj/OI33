@@ -42,7 +42,7 @@
           onsubmit="return confirm('将把全部有色格子的归属更新为最后绘图者当前绑定的大猫；原始 8-bit 颜色不会改变。确定继续吗？');">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">
           <button type="submit" class="rounded button">按最后绘图者刷新全图大猫归属</button>
-          <span class="help-text">这是显式批量更新；用户日后改绑不会自动改变旧画作。</span>
+          <span class="help-text">这是显式批量更新，用于校正历史数据；正常的改绑 / 撤销换绑会自动把该用户画过的全部格子带到最新绑定的大猫。</span>
         </form>
         <form method="post" data-admin-paint-form data-state-url="{{ url('oi33_cat_map_state') }}">
           <input type="hidden" name="csrfToken" value="{{ handler.csrfToken }}">

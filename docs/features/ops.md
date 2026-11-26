@@ -24,6 +24,7 @@
 | id | 做什么 | 幂等 | 权限 |
 | --- | --- | --- | --- |
 | `recount_territories` | 按格子归属重算大猫 `territoryCount` | 是 | flag≥2 |
+| `sync_cat_contributions` | 按每位用户的当前绑定重写其全部格子的 `catId`（修复换绑/撤销后遗留的拆分贡献）并重算领地 | 是 | flag≥3 |
 | `calibrate_market` | 按账本重算罐头市场流通/供应/储备 | 是 | flag≥2 |
 | `rebuild_indexes` | 补齐所有 `oi33_*` 索引 | 是 | flag≥2 |
 | `evaluate_medals` | 重跑全部用户的 OJ 成就评估（只升不降） | 是（慢） | flag≥2 |

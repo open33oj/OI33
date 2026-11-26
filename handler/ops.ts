@@ -26,6 +26,17 @@ const ACTIONS: Record<string, OpsAction> = {
             return `领地重算完成：${result?.catCount ?? '-'} 只大猫、${result?.cellCount ?? '-'} 格。`;
         },
     },
+    sync_cat_contributions: {
+        label: '按当前绑定校正大猫贡献',
+        description: '把每位用户画过的格子归到其当前绑定的大猫（修复历史换绑/撤销后遗留在旧大猫的贡献），'
+            + '并重算领地；幂等，可随时跑。',
+        minFlag: 3,
+        run: async (operator) => {
+            const result: any = await oi33Model.refreshCatMapTerritories(operator);
+            return `归属校正完成：处理 ${result?.cellCount ?? '-'} 个有色格子，`
+                + `${result?.catCount ?? '-'} 只大猫共占领 ${result?.claimedCellCount ?? '-'} 格。`;
+        },
+    },
     calibrate_market: {
         label: '校准罐头市场',
         description: '按账本重算市场流通量、供应与储备（不改变用户余额）。',

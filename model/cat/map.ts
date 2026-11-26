@@ -325,6 +325,27 @@ export async function refreshCatMapTerritories(operator: number, now = new Date(
                     update: { $set: { catId: bindings.get(uid) || 0 } },
                 },
             })), { ordered: false });
+            // 读取绑定与写回格子之间可能有用户并发改绑。改绑自身会在写完后
+            // 同步贡献；这里再按「刚读到的绑定」校正一次，避免这次全量刷新
+            // 把别人刚搬走的贡献又写回旧大猫。
+            const freshRows: any[] = await userColl.find(
+                { _id: { $in: chunk } },
+                { projection: { school_cat: 1 } },
+            ).toArray();
+            const fresh = new Map<number, number>(freshRows.map((row: any) => [
+                Number(row._id),
+                Number.isSafeInteger(row.school_cat) ? schoolCatKey(row.school_cat) : 0,
+            ]));
+            const corrections = chunk.filter((uid: any) => Number.isSafeInteger(uid)
+                && (fresh.get(Number(uid)) || 0) !== (bindings.get(Number(uid)) || 0));
+            if (corrections.length) {
+                await catMapCellColl.bulkWrite(corrections.map((uid: any) => ({
+                    updateMany: {
+                        filter: { updatedBy: uid, color: { $exists: true } },
+                        update: { $set: { catId: fresh.get(Number(uid)) || 0 } },
+                    },
+                })), { ordered: false });
+            }
         }
         await catMapCellColl.updateMany(
             { color: { $exists: true }, updatedBy: { $exists: false } },

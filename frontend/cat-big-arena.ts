@@ -469,7 +469,7 @@ export function mountBigCatLayer(host: BigCatLayerHost): BigCatLayer | null {
     undoRebindButtons.forEach((undoButton) => {
         undoButton.addEventListener('click', async () => {
             if (!me?.canUndoRebind) return;
-            if (!window.confirm('撤销上次换绑？换绑时带过去的领地将回到原来的大猫；换绑后新画的格子留在新大猫。')) return;
+            if (!window.confirm('撤销上次换绑？你画过的全部领地（包括换绑后新画的格子）会一起回到原来的大猫。')) return;
             undoButton.disabled = true;
             try {
                 const result = await request.post('/oi33/arena/big/rebind/undo', {});

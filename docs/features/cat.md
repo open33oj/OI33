@@ -65,10 +65,17 @@
 - 玩家占格：格子记录 `updatedBy` = 最后画这格的人。被其他人覆盖时 `updatedBy` 改变，
   个人占格数自然扣减；大猫领地数只统计 `catId` 对应的格子。绑定大猫时把该用户画过的
   所有格子一起带过去（`bindSchoolCat`），解绑时这些格子转为无主（`catId = 0`）。
+- **贡献永远跟随当前绑定**：`syncUserSchoolCatCells` 以用户文档的 `school_cat` 为唯一
+  事实来源，把该用户画过的全部格子重写成当前绑定的 `catId`；绑定 / 解绑 / 撤销换绑都
+  在写完用户后调用它。改绑写入带 CAS（旧绑定 + 本月未改绑），并发改绑只有一次成功，
+  不会出现「绑定 A、贡献留在 B」；重复提交同一次绑定会幂等补同步。整只大猫转移时也会
+  把转走用户的全部个人贡献一起归到目标大猫。
 - **7 天撤销换绑**：换绑时在用户上记录 `school_cat_rebind_prev` /
   `school_cat_rebind_prev_month` / `school_cat_rebind_at`；7 天内
-  `undoSchoolCatRebind` 把换绑时已存在的格子（`updatedAt <= rebindAt`）送回旧大猫，
-  并恢复旧的月度改绑额度。换绑后新画的格子留在新大猫。
+  `undoSchoolCatRebind` 恢复旧绑定与旧的月度改绑额度，并把该用户画过的**全部**格子
+  （包括换绑后新画的）带回原来的大猫——撤销后「最新绑定」是旧大猫，贡献不能留在新大猫。
+  历史数据可到 `/oi33/admin/ops` 执行「按当前绑定校正大猫贡献」（或地图后台的
+  「更新全图大猫归属」）按当前绑定整体重写一遍。
 - 特殊大猫：负数 `_id`、自定义 `name`、★ 不占数字名次；flag≥2 可搜索/绑定，
   flag≥3 可创建/改名；`transferSchoolCat`（flag≥3）整体转移绑定用户、领地格子并重算
   `territoryCount`。
@@ -112,6 +119,8 @@
 - 个人占格数只认 `updatedBy`，大猫领地数只认 `catId`；换绑/解绑只改 `catId`，
   不要顺手改 `updatedBy` 或 `updatedAt`（7 天撤销依赖原始绘制时间）；野猫占地会按规则
   更新 `catId` / `updatedBy` / `updatedAt`，但绝不改写已有的颜色。
+- 任何改变用户 `school_cat` 的路径都必须走 `syncUserSchoolCatCells`（或等价地按当前
+  绑定重写全部格子），否则这个人的贡献会留在旧大猫，看起来像「同时绑定多只大猫」。
 - 计划模块单向依赖 `map-player/map`；不要再反向 import，避免循环。
 - 前端画布与后端共享 `shared/cat-map.ts` 的尺寸/分区常量，不要再复制一份。
 - 00区核心判定只看上下左右四邻，且只在该格被染色时检查。

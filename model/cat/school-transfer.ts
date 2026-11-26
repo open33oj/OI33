@@ -6,6 +6,7 @@ import {
     schoolCatKey, schoolDisplay, schoolFeedHistoryColl,
 } from './school-shared';
 import { getEligibleUser } from './eligibility';
+import { syncUserSchoolCatCells } from './school-player';
 
 // 行政操作：领地计数重算、整只大猫的转移、历史移动贡献的一次性回填。
 
@@ -42,23 +43,48 @@ export async function transferSchoolCat(
     const toView: any = await getSchoolView(toId);
     if (!toView) throw new Error('目标大猫不存在。');
     await ensureSchoolCatRecord(toId, now);
+    const toCatKey = schoolCatKey(toId);
+    const fromCatKey = schoolCatKey(fromId);
+    // 先记下要改绑的用户：除了把格子按 catId 整体转走，还要把这些用户
+    // 散落在其它大猫名下的个人贡献一起归到目标大猫（历史上被拆开的数据）。
+    const affectedUids: number[] = await userColl.distinct('_id', { school_cat: fromId } as any);
     const users = await userColl.updateMany({ school_cat: fromId } as any, { $set: { school_cat: toId } });
     const history = await schoolFeedHistoryColl.updateMany(
         { schoolId: fromId } as any, { $set: { schoolId: toId } },
     );
-    const cells = await catMapCellColl.updateMany(
-        { catId: schoolCatKey(fromId) } as any,
-        { $set: { catId: schoolCatKey(toId) } },
-    );
+    let cells = (await catMapCellColl.updateMany(
+        { catId: fromCatKey } as any,
+        { $set: { catId: toCatKey } },
+    )).modifiedCount;
+    for (let offset = 0; offset < affectedUids.length; offset += 500) {
+        const chunk = affectedUids.slice(offset, offset + 500);
+        const moved = await catMapCellColl.updateMany(
+            { updatedBy: { $in: chunk }, color: { $exists: true }, catId: { $ne: toCatKey } } as any,
+            { $set: { catId: toCatKey } },
+        );
+        cells += moved.modifiedCount;
+        // 转移期间有人并发改绑（CAS 已保证只有一次成功）：以他们现在的
+        // 绑定为准重新同步，避免这次批量转移把最新贡献又写回目标大猫。
+        const rows: any[] = await userColl.find(
+            { _id: { $in: chunk } } as any,
+            { projection: { school_cat: 1 } },
+        ).toArray();
+        for (const row of rows) {
+            if (Number(row.school_cat) !== toId) {
+                // 并发改绑的贡献不归目标大猫；按他们现在的绑定重新同步即可。
+                await syncUserSchoolCatCells(row._id, now);
+            }
+        }
+    }
     await recountSchoolCatTerritoryFor([fromId, toId], now);
     await addLog({
         type: 'school_cat',
         userId: operator,
         sender: operator,
         action: 'school_cat_transfer',
-        catId: schoolCatKey(toId),
+        catId: toCatKey,
         reason: `将大猫 #${fromId} 的记录转移到 ${schoolDisplay(toView)}：${users.modifiedCount} 位用户改绑、`
-            + `${history.modifiedCount} 条投喂历史、${cells.modifiedCount} 格领地`,
+            + `${history.modifiedCount} 条投喂历史、${cells} 格领地`,
     } as any);
     return {
         fromId,
@@ -66,6 +92,6 @@ export async function transferSchoolCat(
         display: schoolDisplay(toView),
         users: users.modifiedCount,
         history: history.modifiedCount,
-        cells: cells.modifiedCount,
+        cells,
     };
 }
