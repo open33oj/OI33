@@ -25,7 +25,7 @@
           <div class="oi33-bb__pool-head">
             <div class="oi33-bb__pool-title">
               <span class="oi33-bb__name">{{ pool.name }}</span>
-              {% if not pool.open %}<span class="oi33-bb__tag">未开放 / 已下架</span>{% endif %}
+              {% if not pool.open %}<span class="oi33-bb__tag">未开放</span>{% endif %}
             </div>
             <span class="oi33-bb__price">{{ pool.price }} 猫罐头</span>
           </div>
@@ -76,7 +76,7 @@
         </article>
         {% endfor %}
         {% else %}
-        <p class="oi33-bb__empty">管理员还没有配置任何盲盒。</p>
+        <p class="oi33-bb__empty">当前没有可购买的盲盒。</p>
         {% endif %}
       </div>
     </div>

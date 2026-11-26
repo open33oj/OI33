@@ -338,7 +338,9 @@ export async function blindboxPurchase(uid: number, poolId: ObjectId, now = new 
 // View data for the buyer page: every pool with the medals that are still new
 // for this user, plus today's remaining quota.
 export async function blindboxOverview(uid: number, now = new Date()) {
-    const pools = await blindboxList();
+    // 已下架的盲盒只保留在管理界面（编辑/重新上架），不在购买页展示。
+    // 未到开放时间的盲盒仍展示为「未开放」，与「已下架」区分开。
+    const pools = (await blindboxList()).filter((pool: any) => !!pool.enabled);
     const medalIds = [...new Set(pools.flatMap((pool: any) => (pool.items || []).map((item: any) => item.medalId)))];
     const [medals, owned, used, buyer] = await Promise.all([
         medalIds.length ? medalColl.find({ _id: { $in: medalIds } } as any).toArray() : [],
